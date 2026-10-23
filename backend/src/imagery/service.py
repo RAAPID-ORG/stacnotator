@@ -1,17 +1,10 @@
-from dataclasses import dataclass
-
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from sqlalchemy.orm.attributes import flag_modified
 
 from src import storage_access
 from src.campaigns.models import Campaign
-from src.canvas.service import (
-    default_main_layout_data,
-    new_default_view_layout,
-    sync_view_layouts,
-)
+from src.canvas.service import new_default_view_layout
 from src.crypto import encrypt
 from src.imagery.models import (
     Basemap,
@@ -175,22 +168,13 @@ def _check_layers(
 # ============================================================================
 
 
-@dataclass
-class SavedImagery:
-    """What a save leaves behind: the owner's sources after it, and the ones it deleted."""
-
-    sources: list[ImagerySource]
-    deleted_source_ids: set[int]
-
-
 def save_imagery_editor_state(
     db: Session, campaign: Campaign, editor_state: ImageryEditorStateCreate
 ) -> None:
     """Reconcile a campaign's imagery with the editor's full state: sources, collections,
     slices and basemaps.
 
-    Views are managed through their own endpoints; here they are only kept consistent -
-    deleted sources leave their views, and layout windows follow collection changes.
+    A deleted source leaves the views that showed it with it (``view_sources`` cascades).
 
     Does not commit. The caller commits through ``registration.commit_and_register``,
     which registers whatever mosaics the save left missing.
@@ -198,34 +182,12 @@ def save_imagery_editor_state(
     organization = campaign.project.organization
     _check_layers(organization, editor_state.sources, editor_state.basemaps)
 
-    prev_eligible = {
-        view.id: _eligible_collection_ids(campaign.imagery_sources, view.source_ids)
-        for view in campaign.imagery_views
-    }
-    saved = _save_sources(
+    _save_sources(
         db,
         LayerOwner(campaign_id=campaign.id),
         campaign.imagery_sources,
         editor_state.sources,
     )
-
-    for view in campaign.imagery_views:
-        kept = [sid for sid in view.source_ids if sid not in saved.deleted_source_ids]
-        if kept != view.source_ids:
-            view.source_ids = kept
-            flag_modified(view, "source_ids")
-        # Windows of deleted collections are dropped; collections newly added to a
-        # source the view shows get windows placed, in every layout - a user can hide
-        # them again.
-        eligible = _eligible_collection_ids(saved.sources, view.source_ids)
-        sync_view_layouts(
-            db,
-            view.id,
-            campaign.id,
-            window_collection_ids=eligible,
-            added_collection_ids=sorted(eligible - prev_eligible.get(view.id, set())),
-        )
-
     _save_basemaps(
         db, LayerOwner(campaign_id=campaign.id), campaign.basemaps, editor_state.basemaps
     )
@@ -235,8 +197,8 @@ def save_imagery_editor_state(
 def save_visualizer_imagery(
     db: Session, visualizer: Visualizer, sources: list[ImagerySourceCreate]
 ) -> None:
-    """Reconcile a visualizer's own imagery, by the same rules as a campaign's. A
-    visualizer has no views or canvas layouts to keep in step. Does not commit."""
+    """Reconcile a visualizer's own imagery, by the same rules as a campaign's. Does
+    not commit."""
     if any(col.search and col.search.storage_access for src in sources for col in src.collections):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -260,7 +222,7 @@ def _save_sources(
     owner: LayerOwner,
     existing: list[ImagerySource],
     payload: list[ImagerySourceCreate],
-) -> SavedImagery:
+) -> None:
     """An entry with a known id updates that source in place, any other is created, and
     a stored source the payload leaves out is deleted - the same one level down for
     visualizations, collections and slices.
@@ -287,13 +249,11 @@ def _save_sources(
     for source in by_id.values():
         db.expire(source, ["collections"])
 
-    sources = []
     for order, src in enumerate(payload):
         source = by_id.get(src.id) if src.id is not None else None
         held = held_access.get(source.id, {}) if source is not None else {}
-        sources.append(_save_source(db, owner, source, src, order, held))
+        _save_source(db, owner, source, src, order, held)
     db.flush()
-    return SavedImagery(sources, deleted)
 
 
 def _save_source(
@@ -584,12 +544,6 @@ def _save_basemaps(
 # ============================================================================
 
 
-def _eligible_collection_ids(sources: list[ImagerySource], source_ids: list) -> set[int]:
-    """Collections a view can show as windows: every collection of its sources."""
-    by_id = {s.id: s for s in sources}
-    return {c.id for sid in source_ids if sid in by_id for c in by_id[sid].collections}
-
-
 def _validated_source_ids(campaign: Campaign, source_ids: list[int]) -> list[int]:
     known = {s.id for s in campaign.imagery_sources}
     unknown = [sid for sid in source_ids if sid not in known]
@@ -608,25 +562,14 @@ def _campaign_view(db: Session, campaign: Campaign, view_id: int) -> ImageryView
 
 
 def create_view(db: Session, campaign: Campaign, payload: ImageryViewCreate) -> ImageryView:
-    """Create a view plus its default canvas layout with every eligible
-    collection placed as a window. Commits."""
+    """Create a view and its default canvas layout. Commits."""
     view = ImageryView(
-        campaign_id=campaign.id,
-        name=payload.name,
-        display_order=len(campaign.imagery_views),
-        source_ids=_validated_source_ids(campaign, payload.source_ids),
+        campaign_id=campaign.id, name=payload.name, display_order=len(campaign.imagery_views)
     )
+    view.source_ids = _validated_source_ids(campaign, payload.source_ids)
     db.add(view)
     db.flush()
-    eligible = _eligible_collection_ids(campaign.imagery_sources, view.source_ids)
-    db.add(
-        new_default_view_layout(
-            campaign.id,
-            view.id,
-            sorted(eligible),
-            main_layout_data=default_main_layout_data(db, campaign.id),
-        )
-    )
+    db.add(new_default_view_layout(campaign.id, view.id))
     db.commit()
     db.refresh(view)
     return view
@@ -635,24 +578,12 @@ def create_view(db: Session, campaign: Campaign, payload: ImageryViewCreate) -> 
 def update_view(
     db: Session, campaign: Campaign, view_id: int, payload: ImageryViewUpdate
 ) -> ImageryView:
-    """Rename a view and/or replace its source membership, keeping its canvas
-    layouts in sync with the new eligible set. Commits."""
+    """Rename a view and/or replace its sources. Commits."""
     view = _campaign_view(db, campaign, view_id)
     if payload.name is not None:
         view.name = payload.name
     if payload.source_ids is not None:
-        prev = _eligible_collection_ids(campaign.imagery_sources, view.source_ids)
         view.source_ids = _validated_source_ids(campaign, payload.source_ids)
-        flag_modified(view, "source_ids")
-        db.flush()
-        new = _eligible_collection_ids(campaign.imagery_sources, view.source_ids)
-        sync_view_layouts(
-            db,
-            view.id,
-            campaign.id,
-            window_collection_ids=new,
-            added_collection_ids=sorted(new - prev),
-        )
     db.commit()
     db.refresh(view)
     return view

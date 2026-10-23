@@ -236,6 +236,7 @@ export function makeTimeSeries(overrides: Partial<TimeseriesOut> = {}): Timeseri
     id: 1,
     campaign_id: 7,
     name: 'TS1',
+    window_id: 1,
     window_name: 'Time series',
     start_ym: '2024-01',
     end_ym: '2024-12',

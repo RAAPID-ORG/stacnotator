@@ -32,7 +32,6 @@ export function ViewAdmin() {
   const selectedViewId = useCampaignStore((s) => s.view?.id ?? null);
   const showAlert = useLayoutStore((s) => s.showAlert);
   const catalog = useCampaignStore((s) => s.catalog);
-  const syncWindowsToView = useCanvasLayoutStore((s) => s.syncWindowsToView);
   const [editingViewId, setEditingViewId] = useState<number | null>(null);
   const [draftName, setDraftName] = useState('');
   const [pendingDelete, setPendingDelete] = useState<ImageryViewOut | null>(null);
@@ -120,15 +119,6 @@ export function ViewAdmin() {
         ...campaign,
         imagery_views: views.map((v) => (v.id === view.id ? updated : v)),
       });
-      // The server has already reconciled the stored layouts and handed back
-      // the result; without this the new windows never reach the live canvas
-      // and turn up in the hidden tray instead.
-      const membershipChanged =
-        view.source_ids.length !== updated.source_ids.length ||
-        view.source_ids.some((id) => !updated.source_ids.includes(id));
-      if (membershipChanged && catalog && updated.id === selectedViewId) {
-        syncWindowsToView(updated, new Set(collectionsInView(catalog, updated).map((c) => c.id)));
-      }
     }, t('views.sourcesFailed'));
 
   const toggleSource = (view: ImageryViewOut, sourceId: number, include: boolean) =>

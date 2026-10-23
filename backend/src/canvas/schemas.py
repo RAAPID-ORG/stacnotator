@@ -24,6 +24,7 @@ class CanvasLayoutOut(BaseModel):
     id: int
     user_id: UUID | None
     layout_data: list[CanvasLayoutItem]
+    hidden: list[str] = []
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -46,6 +47,8 @@ def viewer_layouts(
 class CanvasLayoutCreate(BaseModel):
     main_layout_data: list[CanvasLayoutItem]
     view_layout_data: list[CanvasLayoutItem] | None = None
+    # The view's windows the layout hides; sent with view_layout_data.
+    view_hidden: list[str] = []
 
 
 class CanvasLayoutCreateRequest(BaseModel):

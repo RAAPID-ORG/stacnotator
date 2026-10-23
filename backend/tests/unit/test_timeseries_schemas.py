@@ -84,6 +84,7 @@ class TestOutputCarriesTheIndexDescription:
             id=1,
             campaign_id=2,
             name="ts",
+            window_id=1,
             window_name="Time series",
             start_ym="202401",
             end_ym="202412",

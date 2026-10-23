@@ -6,12 +6,11 @@ import {
   hideWindow,
   scaleWidthToScreen,
   showWindow,
-  syncViewWindows,
   fromGridLayout,
   packItem,
   placeTimeline,
   toGridLayout,
-  viewWindows,
+  viewLayout,
   EMPTY_LAYOUT,
   type LayoutItem,
   type WorkspaceLayout,
@@ -74,12 +73,9 @@ interface LayoutState {
   ) => void;
   /** Swap in another view's windows, leaving the page chrome where it is. */
   loadViewLayout: (view: ImageryViewOut | null) => void;
-  /** Pick up a source-membership change on the view already loaded: drop the
-   *  windows that left, place the ones that arrived, keep the rest put. */
-  syncWindowsToView: (view: ImageryViewOut | null, eligible: ReadonlySet<number>) => void;
   showWindow: (collectionId: number) => void;
   hideWindow: (collectionId: number) => void;
-  hideAllWindows: () => void;
+  hideAllWindows: (collectionIds: readonly number[]) => void;
   setNewWindowSize: (size: { perRow: number; rows: number }) => void;
   startEditing: () => void;
   setForcedOpenControl: (name: string | null) => void;
@@ -195,21 +191,12 @@ export const useLayoutStore = create<LayoutState>((set, get) => {
 
     loadViewLayout: (view) =>
       set((s) => {
-        const windows = viewWindows(view);
+        const windows = viewLayout(view);
         return {
-          currentLayout: { main: s.currentLayout.main, windows },
-          savedLayout: { main: s.savedLayout.main, windows },
+          currentLayout: { main: s.currentLayout.main, ...windows },
+          savedLayout: { main: s.savedLayout.main, ...windows },
         };
       }),
-
-    // Membership is committed server-side the moment it is toggled, so it lands
-    // in the cancel baseline too - cancelling the layout edit reverts
-    // placements, never which windows the view has.
-    syncWindowsToView: (view, eligible) =>
-      set((s) => ({
-        currentLayout: syncViewWindows(s.currentLayout, view, eligible),
-        savedLayout: syncViewWindows(s.savedLayout, view, eligible),
-      })),
 
     showWindow: (collectionId) =>
       set((s) => ({
@@ -223,7 +210,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => {
     hideWindow: (collectionId) =>
       set((s) => ({ currentLayout: hideWindow(s.currentLayout, collectionId) })),
 
-    hideAllWindows: () => set((s) => ({ currentLayout: hideAllWindows(s.currentLayout) })),
+    hideAllWindows: (collectionIds) =>
+      set((s) => ({ currentLayout: hideAllWindows(s.currentLayout, collectionIds) })),
     setNewWindowSize: (newWindowSize) => set({ newWindowSize }),
     startEditing: () => set({ editing: true }),
     setForcedOpenControl: (forcedOpenControl) => set({ forcedOpenControl }),

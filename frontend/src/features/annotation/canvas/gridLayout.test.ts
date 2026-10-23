@@ -14,6 +14,7 @@ const sampleLayout = (): WorkspaceLayout => ({
     101: { i: '101', x: 0, y: 45, w: 10, h: 9 },
     102: { i: '102', x: 10, y: 45, w: 10, h: 9 },
   },
+  hidden: [],
 });
 
 describe('toGridLayout / fromGridLayout round-trip', () => {

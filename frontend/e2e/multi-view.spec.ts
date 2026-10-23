@@ -201,7 +201,11 @@ test('dragging a panel body scrolls both canvas edges and saves its new position
         },
         imagery_views: MOCK_CAMPAIGN.imagery_views.map((view) => ({
           ...view,
-          default_canvas_layout: { ...view.default_canvas_layout, layout_data: [] },
+          default_canvas_layout: {
+            ...view.default_canvas_layout,
+            layout_data: [],
+            hidden: ['10', '20'],
+          },
         })),
       },
     })

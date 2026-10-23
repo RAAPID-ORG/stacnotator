@@ -72,6 +72,7 @@ const savedSeries: TimeseriesOut = {
   id: 5,
   campaign_id: 1,
   name: 'Saved NDVI',
+  window_id: 9,
   window_name: 'Vegetation',
   start_ym: '202001',
   end_ym: '202012',

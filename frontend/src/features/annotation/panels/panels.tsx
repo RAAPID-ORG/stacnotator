@@ -138,7 +138,7 @@ export function buildPanels({
   }
 
   for (const collection of collectionsInView(catalog, view)) {
-    if (layout.windows[collection.id] === undefined) continue;
+    if (layout.hidden.includes(collection.id)) continue;
     const activate = () => useImageryStore.getState().activateCollection(catalog, collection.id);
     panels.push({
       id: String(collection.id),

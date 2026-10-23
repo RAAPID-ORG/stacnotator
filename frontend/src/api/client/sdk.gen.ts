@@ -1267,7 +1267,7 @@ export const getTimeseriesCreationOptions = <ThrowOnError extends boolean = fals
  */
 export const renameTimeseriesWindow = <ThrowOnError extends boolean = false>(options: Options<RenameTimeseriesWindowData, ThrowOnError>) => (options.client ?? client).patch<RenameTimeseriesWindowResponses, RenameTimeseriesWindowErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/campaigns/{campaign_id}/timeseries/window',
+    url: '/api/campaigns/{campaign_id}/timeseries/windows/{window_id}',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -1289,7 +1289,7 @@ export const getTimeseriesData = <ThrowOnError extends boolean = false>(options:
 /**
  * Delete Timeseries
  *
- * Delete a timeseries. If it's the last one, removes it from all layouts.
+ * Delete a timeseries, and its window when it was the window's last.
  */
 export const deleteTimeseries = <ThrowOnError extends boolean = false>(options: Options<DeleteTimeseriesData, ThrowOnError>) => (options.client ?? client).delete<DeleteTimeseriesResponses, DeleteTimeseriesErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

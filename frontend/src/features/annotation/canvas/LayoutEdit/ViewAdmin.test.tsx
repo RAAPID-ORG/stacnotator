@@ -107,8 +107,8 @@ describe('deleting a view', () => {
 });
 
 describe('updating sources in the selected view', () => {
-  // The server reconciles the stored layouts and returns them; the canvas has
-  // to pick that up, or the new windows silently fall into the hidden tray.
+  // Which windows the view has follows from its sources; a membership change never
+  // rewrites a layout.
   const TWO_SOURCES: CampaignOutFull = {
     ...CAMPAIGN,
     imagery_sources: [
@@ -142,48 +142,18 @@ describe('updating sources in the selected view', () => {
     return render(<ViewAdmin />);
   };
 
-  it('puts the new windows on the canvas instead of the hidden tray', async () => {
+  it('a ticked source joins the view and the layout is left as it was', async () => {
     vi.mocked(updateImageryView).mockResolvedValue(
-      apiSuccess(
-        makeView({
-          id: 1,
-          name: 'One',
-          source_ids: [1, 2],
-          default_canvas_layout: {
-            id: 1,
-            user_id: null,
-            layout_data: [
-              { i: '100', x: 0, y: 25, w: 10, h: 9 },
-              { i: '200', x: 10, y: 25, w: 10, h: 9 },
-            ],
-          },
-        })
-      )
+      apiSuccess(makeView({ id: 1, name: 'One', source_ids: [1, 2] }))
     );
     renderWithSelectedView();
+    const layout = useLayoutStore.getState().currentLayout;
 
     await userEvent.click(screen.getByRole('checkbox', { name: /Landsat/ }));
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(useLayoutStore.getState().currentLayout.windows[200]).toEqual({
-      i: '200',
-      x: 10,
-      y: 25,
-      w: 10,
-      h: 9,
-    });
-  });
-
-  it('takes the windows of an unticked source off the canvas', async () => {
-    vi.mocked(updateImageryView).mockResolvedValue(
-      apiSuccess(makeView({ id: 1, name: 'One', source_ids: [] }))
-    );
-    renderWithSelectedView();
-
-    await userEvent.click(screen.getByRole('checkbox', { name: /Sentinel/ }));
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    expect(useLayoutStore.getState().currentLayout.windows).toEqual({});
+    expect(useCampaignStore.getState().campaign?.imagery_views[0].source_ids).toEqual([1, 2]);
+    expect(useLayoutStore.getState().currentLayout).toBe(layout);
   });
 
   it('saves source order on the selected view without resetting the layout draft', async () => {

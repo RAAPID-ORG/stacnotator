@@ -134,6 +134,7 @@ class TimeseriesOut(BaseModel):
     id: int
     campaign_id: int
     name: str
+    window_id: int
     window_name: str
     start_ym: str
     end_ym: str
@@ -172,10 +173,9 @@ class TimeseriesBulkCreateRequest(BaseModel):
 
 
 class TimeseriesWindowRenameRequest(BaseModel):
-    old_name: str
-    new_name: str
+    name: str
 
-    @field_validator("old_name", "new_name")
+    @field_validator("name")
     @classmethod
     def validate_window_name(cls, value: str) -> str:
         name = value.strip()

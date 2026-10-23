@@ -1991,6 +1991,10 @@ export type CanvasLayoutCreate = {
      * View Layout Data
      */
     view_layout_data?: Array<CanvasLayoutItem> | null;
+    /**
+     * View Hidden
+     */
+    view_hidden?: Array<string>;
 };
 
 /**
@@ -2064,6 +2068,10 @@ export type CanvasLayoutOut = {
      * Layout Data
      */
     layout_data: Array<CanvasLayoutItem>;
+    /**
+     * Hidden
+     */
+    hidden?: Array<string>;
 };
 
 /**
@@ -4813,6 +4821,10 @@ export type TimeseriesOut = {
      */
     name: string;
     /**
+     * Window Id
+     */
+    window_id: number;
+    /**
      * Window Name
      */
     window_name: string;
@@ -4874,13 +4886,9 @@ export type TimeseriesSourceOut = {
  */
 export type TimeseriesWindowRenameRequest = {
     /**
-     * Old Name
+     * Name
      */
-    old_name: string;
-    /**
-     * New Name
-     */
-    new_name: string;
+    name: string;
 };
 
 /**
@@ -5890,6 +5898,10 @@ export type TimeseriesOutWritable = {
      * Name
      */
     name: string;
+    /**
+     * Window Id
+     */
+    window_id: number;
     /**
      * Window Name
      */
@@ -8946,9 +8958,13 @@ export type RenameTimeseriesWindowData = {
          * Campaign Id
          */
         campaign_id: number;
+        /**
+         * Window Id
+         */
+        window_id: number;
     };
     query?: never;
-    url: '/api/campaigns/{campaign_id}/timeseries/window';
+    url: '/api/campaigns/{campaign_id}/timeseries/windows/{window_id}';
 };
 
 export type RenameTimeseriesWindowErrors = {

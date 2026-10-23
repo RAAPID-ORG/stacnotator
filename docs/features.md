@@ -81,7 +81,7 @@ Every campaign supports both; who may do what is governed by the labelling polic
 - Split between (Main map + minimap + control panel) and imagery windows items on the canvas. Prior are constant, latter may change.
 - Personal layouts saved per user, default layouts per campaign; a collection is a window exactly when its key is in the layout
 - Per-view state (active slice, empty detection, selected viz), saved and restored when switching views
-- Imagery windows (ImageryContainer) can be hidden from the canvas; the timeline sidebar lists the active source's collections within the selected view
+- Imagery windows (ImageryContainer) can be hidden from the canvas; a layout remembers what it hides, and a collection added to a view's source appears as a window on its own. The timeline sidebar lists the active source's collections within the selected view
 - Multi-monitor pop-out: canvas cards can be sent to secondary browser windows, one grid per screen, persisted per user + campaign and restored with one click
 
 ### Basemaps
@@ -199,7 +199,7 @@ See [annotation-tiles.md](annotation-tiles.md) for details.
 - Charts scale to the index rather than a fixed 0-1 axis, and give a differently scaled index (GCVI against NDVI, say) its own right-hand axis coloured to match its line; beyond two scales the ranges are grouped so only genuine outliers move across
 - Point-based querying - click on map to see temporal profile
 - Chart with Savitzky-Golay smoothing
-- Configurable per campaign; series are grouped into named canvas windows (`window_name`)
+- Configurable per campaign; series are grouped into named canvas windows, which can be renamed without moving them on anyone's canvas
 
 ## Embeddings & Similarity
 

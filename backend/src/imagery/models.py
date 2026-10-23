@@ -406,11 +406,8 @@ class Basemap(Base, OwnedLayer, ProviderKeyed):
 
 
 class ImageryView(Base):
-    """
-    Named view over an ordered set of the campaign's imagery sources.
-    Which collections appear as canvas windows is expressed solely by
-    membership in the view's canvas layouts, not stored here.
-    """
+    """A named view over an ordered set of the campaign's imagery sources. Every
+    collection of those sources is a window of the view unless a layout hides it."""
 
     __tablename__ = "imagery_views"
     __table_args__ = (
@@ -426,13 +423,40 @@ class ImageryView(Base):
     name: Mapped[str] = mapped_column(String, nullable=False, server_default="")
     display_order: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
 
-    # Ordered source ids whose collections are browsable in this view.
-    source_ids: Mapped[list] = mapped_column(JSONB, server_default="[]", nullable=False)
-
     campaign: Mapped["Campaign"] = relationship(back_populates="imagery_views")
+    sources: Mapped[list["ViewSource"]] = relationship(
+        cascade="all, delete-orphan", order_by="ViewSource.position"
+    )
     canvas_layouts: Mapped[list["CanvasLayout"]] = relationship(
         "CanvasLayout",
         foreign_keys="[CanvasLayout.view_id]",
         back_populates="imagery_view",
         cascade="all, delete-orphan",
     )
+
+    @property
+    def source_ids(self) -> list[int]:
+        return [vs.source_id for vs in self.sources]
+
+    @source_ids.setter
+    def source_ids(self, ids: list[int]) -> None:
+        self.sources = [ViewSource(source_id=sid, position=i) for i, sid in enumerate(ids)]
+
+
+class ViewSource(Base):
+    """A source a view browses, at its place in the view's order. Goes with the
+    source when the source is deleted."""
+
+    __tablename__ = "view_sources"
+    __table_args__ = (
+        Index("idx_view_sources_source_id", "source_id"),
+        {"schema": "data"},
+    )
+
+    view_id: Mapped[int] = mapped_column(
+        ForeignKey("data.imagery_views.id", ondelete="CASCADE"), primary_key=True
+    )
+    source_id: Mapped[int] = mapped_column(
+        ForeignKey("data.imagery_sources.id", ondelete="CASCADE"), primary_key=True
+    )
+    position: Mapped[int] = mapped_column(SmallInteger, nullable=False)

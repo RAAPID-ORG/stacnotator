@@ -2,11 +2,35 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    SmallInteger,
     String,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
+
+
+class TimeseriesWindow(Base):
+    """A canvas window time series are charted in. Layouts key it by id, so renaming
+    it changes this row and nothing else."""
+
+    __tablename__ = "timeseries_windows"
+    __table_args__ = (
+        UniqueConstraint("campaign_id", "name", name="uq_timeseries_windows_campaign_name"),
+        Index("idx_timeseries_windows_campaign_id", "campaign_id"),
+        {"schema": "data"},
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    campaign_id: Mapped[int] = mapped_column(
+        ForeignKey("data.campaigns.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    display_order: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
+
+    series: Mapped[list["Timeseries"]] = relationship(back_populates="window")
 
 
 class Timeseries(Base):
@@ -15,6 +39,7 @@ class Timeseries(Base):
     __tablename__ = "time_series"
     __table_args__ = (
         Index("idx_time_series_campaign_id", "campaign_id"),
+        Index("idx_time_series_window_id", "window_id"),
         {"schema": "data"},
     )
 
@@ -24,12 +49,12 @@ class Timeseries(Base):
         ForeignKey("data.campaigns.id", ondelete="CASCADE"),
         nullable=False,
     )
+    window_id: Mapped[int] = mapped_column(
+        ForeignKey("data.timeseries_windows.id", ondelete="CASCADE"),
+        nullable=False,
+    )
 
-    # Time series metadata
     name: Mapped[str] = mapped_column(String, nullable=False)
-    # The canvas window this series is charted in, shared by every series with
-    # the same name. See src/timeseries/windows.py.
-    window_name: Mapped[str] = mapped_column(String, nullable=False, server_default="Time series")
     start_ym: Mapped[str] = mapped_column(String(6), nullable=False)  # YYYYMM
     end_ym: Mapped[str] = mapped_column(String(6), nullable=False)  # YYYYMM
     # A key of timeseries/sources.py (fetched through Earth Engine).
@@ -37,5 +62,9 @@ class Timeseries(Base):
     # A key of timeseries/indices.py.
     ts_type: Mapped[str] = mapped_column(String, nullable=False)
 
-    # Relationship to Campaign
     campaign = relationship("Campaign", back_populates="time_series")
+    window: Mapped[TimeseriesWindow] = relationship(back_populates="series", lazy="joined")
+
+    @property
+    def window_name(self) -> str:
+        return self.window.name

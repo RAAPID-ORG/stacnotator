@@ -205,10 +205,13 @@ export const CampaignSettingsPage = () => {
     },
   });
 
+  // The editor names windows; the API addresses the window row its series share.
   const handleRenamePanel = async (oldName: string, newName: string) => {
+    const window = campaign?.time_series.find((ts) => ts.window_name === oldName);
+    if (!window) return;
     await renamePanel.mutateAsync({
-      path: { campaign_id: campaignId },
-      body: { old_name: oldName, new_name: newName },
+      path: { campaign_id: campaignId, window_id: window.window_id },
+      body: { name: newName },
     });
   };
 

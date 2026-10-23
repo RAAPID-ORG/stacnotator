@@ -21,8 +21,12 @@ export interface MainLayout {
 
 export interface WorkspaceLayout {
   main: MainLayout;
-  /** Per-collection imagery windows for the selected view. */
+  /** Where the selected view's imagery windows sit, by collection id. Every
+   *  collection of the view is a window unless hidden; one with no slot here is
+   *  placed wherever there is room. */
   windows: Record<number, LayoutItem>;
+  /** The view's collections this layout hides. */
+  hidden: number[];
 }
 
 const EMPTY_ITEM = { x: 0, y: 0, w: 0, h: 0 };
@@ -37,6 +41,7 @@ export const EMPTY_LAYOUT: WorkspaceLayout = {
     timeseries: {},
   },
   windows: {},
+  hidden: [],
 };
 
 export function toGridLayout(l: WorkspaceLayout): LayoutItem[] {
@@ -88,15 +93,22 @@ export function fromGridLayout(items: LayoutItem[], prev: WorkspaceLayout): Work
     else if (Number.isFinite(Number(item.i))) windows[Number(item.i)] = item;
   }
 
-  return { main: { main, minimap, controls, timeseries, ...navigation }, windows };
+  return {
+    main: { main, minimap, controls, timeseries, ...navigation },
+    windows,
+    hidden: prev.hidden,
+  };
 }
 
-/** The windows a view carries: the user's saved layout for it, else the
- *  campaign default for that view. */
-export function viewWindows(view: ImageryViewOut | null): Record<number, LayoutItem> {
-  const items =
-    view?.personal_canvas_layout?.layout_data ?? view?.default_canvas_layout?.layout_data;
-  return fromGridLayout(items ?? [], EMPTY_LAYOUT).windows;
+/** A view's windows as the user saved them, else as the campaign default has them. */
+export function viewLayout(
+  view: ImageryViewOut | null
+): Pick<WorkspaceLayout, 'windows' | 'hidden'> {
+  const saved = view?.personal_canvas_layout ?? view?.default_canvas_layout;
+  return {
+    windows: fromGridLayout(saved?.layout_data ?? [], EMPTY_LAYOUT).windows,
+    hidden: (saved?.hidden ?? []).map(Number),
+  };
 }
 
 /** Chrome is campaign-wide, windows belong to the view, so switching view
@@ -109,7 +121,7 @@ export function layoutForView(
     campaign.personal_main_canvas_layout?.layout_data ??
     campaign.default_main_canvas_layout?.layout_data ??
     [];
-  return { main: fromGridLayout(chrome, EMPTY_LAYOUT).main, windows: viewWindows(view) };
+  return { main: fromGridLayout(chrome, EMPTY_LAYOUT).main, ...viewLayout(view) };
 }
 
 /** Drives the "applies to all views" warning before saving. */
@@ -145,7 +157,7 @@ function nextSlot(
   if (existing.length === 0) {
     return {
       x: 0,
-      y: bottomOf(toGridLayout({ main, windows: {} })),
+      y: bottomOf(toGridLayout({ main, windows: {}, hidden: [] })),
     };
   }
   const lastRowY = existing.reduce((max, it) => Math.max(max, it.y), 0);
@@ -157,49 +169,36 @@ function nextSlot(
     : { x: 0, y: bottomOf(existing) };
 }
 
+/** Bring a hidden window back, at the end of the last row of windows. */
 export function showWindow(
   layout: WorkspaceLayout,
   collectionId: number,
   size: { w: number; h: number }
 ): WorkspaceLayout {
-  if (layout.windows[collectionId]) return layout;
+  if (!layout.hidden.includes(collectionId)) return layout;
   const { x, y } = nextSlot(layout.main, layout.windows, size);
   return {
     main: layout.main,
     windows: { ...layout.windows, [collectionId]: { i: String(collectionId), x, y, ...size } },
+    hidden: layout.hidden.filter((id) => id !== collectionId),
   };
 }
 
 export function hideWindow(layout: WorkspaceLayout, collectionId: number): WorkspaceLayout {
-  const { [collectionId]: _removed, ...rest } = layout.windows;
-  return { main: layout.main, windows: rest };
+  return hideAllWindows(layout, [collectionId]);
 }
 
-export function hideAllWindows(layout: WorkspaceLayout): WorkspaceLayout {
-  return { main: layout.main, windows: {} };
-}
-
-/** Re-seed the windows after a view's source membership changed.
- *
- * `eligible` decides membership: a window whose collection left the view goes,
- * everything else stays exactly where it is, so unsaved drags and tray
- * additions survive. The server reconciles the stored layouts on the same
- * change and returns the result, which is where a newly-eligible window gets
- * its position from.
- */
-export function syncViewWindows(
+export function hideAllWindows(
   layout: WorkspaceLayout,
-  view: ImageryViewOut | null,
-  eligible: ReadonlySet<number>
+  collectionIds: readonly number[]
 ): WorkspaceLayout {
-  const windows: Record<number, LayoutItem> = {};
-  for (const [key, item] of Object.entries(layout.windows)) {
-    if (eligible.has(Number(key))) windows[Number(key)] = item;
-  }
-  for (const [key, item] of Object.entries(viewWindows(view))) {
-    if (eligible.has(Number(key)) && !(Number(key) in windows)) windows[Number(key)] = item;
-  }
-  return { main: layout.main, windows };
+  const windows = { ...layout.windows };
+  for (const id of collectionIds) delete windows[id];
+  return {
+    main: layout.main,
+    windows,
+    hidden: [...new Set([...layout.hidden, ...collectionIds])],
+  };
 }
 
 export const overlaps = (

@@ -46,8 +46,9 @@ export function LayoutEditControls({
       saveLayout();
       return;
     }
-    const mainLayoutData = toGridLayout({ main: currentLayout.main, windows: {} });
+    const mainLayoutData = toGridLayout({ main: currentLayout.main, windows: {}, hidden: [] });
     const viewLayoutData = Object.values(currentLayout.windows);
+    const viewHidden = currentLayout.hidden.map(String);
     // Do not rely on the save menu alone to uphold first-view setup: even if a
     // caller asks for a personal save, the initial layout must be shared.
     const saveAsDefault = mustSaveDefault || shouldBeDefault;
@@ -57,7 +58,11 @@ export function LayoutEditControls({
         body: {
           view_id: view.id,
           should_be_default: saveAsDefault,
-          layout: { main_layout_data: mainLayoutData, view_layout_data: viewLayoutData },
+          layout: {
+            main_layout_data: mainLayoutData,
+            view_layout_data: viewLayoutData,
+            view_hidden: viewHidden,
+          },
         },
       });
       saveLayout();
@@ -72,7 +77,12 @@ export function LayoutEditControls({
     setResetConfirmOpen(false);
     const mainItems = campaign.default_main_canvas_layout?.layout_data ?? [];
     const viewItems = view?.default_canvas_layout?.layout_data ?? [];
-    setLayout(fromGridLayout([...mainItems, ...viewItems], EMPTY_LAYOUT));
+    setLayout(
+      fromGridLayout([...mainItems, ...viewItems], {
+        ...EMPTY_LAYOUT,
+        hidden: (view?.default_canvas_layout?.hidden ?? []).map(Number),
+      })
+    );
     showAlert(t('layoutEdit.resetDone'), 'success');
   };
 

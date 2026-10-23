@@ -114,7 +114,9 @@ _CAMPAIGN_FULL_LOAD_OPTIONS = (
             ),
         ),
     ),
-    selectinload(Campaign.imagery_views).selectinload(ImageryView.canvas_layouts),
+    selectinload(Campaign.imagery_views).options(
+        selectinload(ImageryView.canvas_layouts), selectinload(ImageryView.sources)
+    ),
 )
 
 

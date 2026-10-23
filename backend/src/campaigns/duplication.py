@@ -28,6 +28,7 @@ from src.auth.constants import AGENT_ISSUER
 from src.auth.models import User
 from src.campaigns.models import Campaign, TaskSet
 from src.campaigns.task_sets import DEFAULT_TASK_SET_NAME
+from src.canvas.layout import remapped_layout
 from src.canvas.models import CanvasLayout
 from src.custom_layers.models import CustomMap
 from src.imagery.models import (
@@ -40,7 +41,8 @@ from src.imagery.models import (
 )
 from src.organizations.models import Organization
 from src.projects.models import Project
-from src.timeseries.models import Timeseries
+from src.timeseries.models import Timeseries, TimeseriesWindow
+from src.timeseries.windows import window_grid_key
 
 
 @dataclass(frozen=True)
@@ -192,23 +194,6 @@ def insert_all[Row](db: Session, rows: list[Row]) -> list[Row]:
 def id_map(originals: Sequence, copies: Sequence) -> dict[int, int]:
     """old id -> new id, for rows cloned in the same order."""
     return {original.id: copy.id for original, copy in zip(originals, copies, strict=True)}
-
-
-def remapped_layout_data(layout_data: list[dict], collection_id_map: dict[int, int]) -> list[dict]:
-    """Rewrite imagery-window keys (stringified collection ids) onto the
-    duplicated collections; chrome and timeseries keys pass through. Items
-    whose collection did not survive the copy are dropped."""
-    out: list[dict] = []
-    for item in layout_data:
-        key = item.get("i", "")
-        if key.isdigit():
-            new_id = collection_id_map.get(int(key))
-            if new_id is None:
-                continue
-            out.append({**item, "i": str(new_id)})
-        else:
-            out.append(dict(item))
-    return out
 
 
 def _key_overrides(keep_shared_keys: bool) -> dict:
@@ -369,8 +354,14 @@ def duplicate_campaign(
 
     for basemap in campaign.basemaps:
         db.add(clone_row(basemap, campaign_id=dup.id, **_key_overrides(plan.shared_api_keys)))
+    windows = list(
+        db.scalars(select(TimeseriesWindow).where(TimeseriesWindow.campaign_id == campaign.id))
+    )
+    window_map = id_map(
+        windows, insert_all(db, [clone_row(w, campaign_id=dup.id) for w in windows])
+    )
     for series in db.scalars(select(Timeseries).where(Timeseries.campaign_id == campaign.id)):
-        db.add(clone_row(series, campaign_id=dup.id))
+        db.add(clone_row(series, campaign_id=dup.id, window_id=window_map[series.window_id]))
     for custom_map in campaign.custom_maps:
         db.add(clone_row(custom_map, campaign_id=dup.id))
     for vector_layer in campaign.vector_layers:
@@ -378,12 +369,8 @@ def duplicate_campaign(
 
     view_map: dict[int, int] = {}
     for view in campaign.imagery_views:
-        new_view = ImageryView(
-            campaign_id=dup.id,
-            name=view.name,
-            display_order=view.display_order,
-            source_ids=[source_map[sid] for sid in view.source_ids if sid in source_map],
-        )
+        new_view = ImageryView(campaign_id=dup.id, name=view.name, display_order=view.display_order)
+        new_view.source_ids = [source_map[sid] for sid in view.source_ids if sid in source_map]
         db.add(new_view)
         db.flush()
         view_map[view.id] = new_view.id
@@ -394,16 +381,21 @@ def duplicate_campaign(
     layouts = db.scalars(
         select(CanvasLayout).where(CanvasLayout.campaign_id == campaign.id, layout_filter)
     ).all()
+    window_keys = {str(old): str(new) for old, new in collection_map.items()} | {
+        window_grid_key(old): window_grid_key(new) for old, new in window_map.items()
+    }
     for layout in layouts:
         if layout.view_id is not None and layout.view_id not in view_map:
             continue
+        items, hidden = remapped_layout(layout.layout_data, layout.hidden, window_keys)
         db.add(
             CanvasLayout(
                 campaign_id=dup.id,
                 view_id=view_map[layout.view_id] if layout.view_id is not None else None,
                 user_id=layout.user_id,
                 is_default=layout.is_default,
-                layout_data=remapped_layout_data(layout.layout_data, collection_map),
+                layout_data=items,
+                hidden=hidden,
             )
         )
 

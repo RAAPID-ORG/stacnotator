@@ -58,7 +58,7 @@ export async function loadCampaign(
     (campaign.default_work_mode === 'explore' || tasks.length === 0 ? 'explore' : 'tasks');
 
   const layout = layoutForView(campaign, view);
-  const startCollectionId = startCollectionFor(catalog, view, layout.windows);
+  const startCollectionId = startCollectionFor(catalog, view, layout.hidden);
 
   useWorkStore.getState().resetAll();
   resetScenes();

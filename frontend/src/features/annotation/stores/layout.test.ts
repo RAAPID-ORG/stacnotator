@@ -97,27 +97,26 @@ describe('coversPanels', () => {
 });
 
 describe('showWindow / hideWindow / hideAllWindows', () => {
-  it('shows a window, then hides it', () => {
+  it('hides a window, then shows it again', () => {
+    useLayoutStore.getState().hideWindow(10);
+    expect(useLayoutStore.getState().currentLayout.hidden).toEqual([10]);
+
     useLayoutStore.getState().showWindow(10);
     expect(useLayoutStore.getState().currentLayout.windows[10]).toBeDefined();
-
-    useLayoutStore.getState().hideWindow(10);
-    expect(useLayoutStore.getState().currentLayout.windows[10]).toBeUndefined();
+    expect(useLayoutStore.getState().currentLayout.hidden).toEqual([]);
   });
 
-  it('showWindow is a no-op when the window is already present (same reference in, packed once)', () => {
-    useLayoutStore.getState().showWindow(10);
+  it('showWindow is a no-op for a window that is not hidden', () => {
     const layout = useLayoutStore.getState().currentLayout;
     useLayoutStore.getState().showWindow(10);
     expect(useLayoutStore.getState().currentLayout).toBe(layout);
   });
 
-  it('hideAllWindows clears every window but keeps the main chrome', () => {
-    useLayoutStore.getState().showWindow(10);
-    useLayoutStore.getState().showWindow(20);
-    useLayoutStore.getState().hideAllWindows();
+  it('hideAllWindows hides every window it is given but keeps the main chrome', () => {
+    useLayoutStore.getState().hideAllWindows([10, 20]);
     const layout = useLayoutStore.getState().currentLayout;
     expect(layout.windows).toEqual({});
+    expect(layout.hidden).toEqual([10, 20]);
     expect(layout.main).toEqual(EMPTY_LAYOUT.main);
   });
 });
@@ -230,6 +229,7 @@ describe('startEditing / saveLayout / cancelEditing', () => {
     useLayoutStore.getState().startEditing();
     expect(useLayoutStore.getState().editing).toBe(true);
 
+    useLayoutStore.getState().hideWindow(10);
     useLayoutStore.getState().showWindow(10);
     expect(useLayoutStore.getState().currentLayout.windows[10]).toBeDefined();
 
@@ -241,6 +241,7 @@ describe('startEditing / saveLayout / cancelEditing', () => {
 
   it('saveLayout commits currentLayout into savedLayout and clears editing', () => {
     useLayoutStore.getState().startEditing();
+    useLayoutStore.getState().hideWindow(10);
     useLayoutStore.getState().showWindow(10);
     const editedLayout = useLayoutStore.getState().currentLayout;
 
@@ -259,6 +260,7 @@ describe('startEditing / saveLayout / cancelEditing', () => {
 describe('setNewWindowSize', () => {
   it('sizes newly-shown windows using the configured perRow/rows', () => {
     useLayoutStore.getState().setNewWindowSize({ perRow: 3, rows: 12 });
+    useLayoutStore.getState().hideWindow(10);
     useLayoutStore.getState().showWindow(10);
     expect(useLayoutStore.getState().currentLayout.windows[10]).toMatchObject({
       w: 20,

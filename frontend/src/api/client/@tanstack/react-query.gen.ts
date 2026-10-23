@@ -2068,7 +2068,7 @@ export const getTimeseriesDataOptions = (options: Options<GetTimeseriesDataData>
 /**
  * Delete Timeseries
  *
- * Delete a timeseries. If it's the last one, removes it from all layouts.
+ * Delete a timeseries, and its window when it was the window's last.
  */
 export const deleteTimeseriesMutation = (options?: Partial<Options<DeleteTimeseriesData>>): UseMutationOptions<DeleteTimeseriesResponse, DeleteTimeseriesError, Options<DeleteTimeseriesData>> => {
     const mutationOptions: UseMutationOptions<DeleteTimeseriesResponse, DeleteTimeseriesError, Options<DeleteTimeseriesData>> = {

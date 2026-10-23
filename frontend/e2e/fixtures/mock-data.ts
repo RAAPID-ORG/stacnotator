@@ -100,11 +100,12 @@ const SOURCE = {
   collections: [COLLECTION_S2, COLLECTION_NDVI],
 };
 
-// A view's windows are exactly the collection keys in its canvas layout;
-// source_ids only says which sources are browsable in the view.
-const viewWindowLayout = (id: number, collectionIds: number[]) => ({
+// Every collection of a view's sources is a window; the layout places some and
+// hides the ones listed in `hidden`.
+const viewWindowLayout = (id: number, collectionIds: number[], hidden: number[] = []) => ({
   id,
   user_id: null,
+  hidden: hidden.map(String),
   layout_data: collectionIds.map((cid, idx) => ({
     i: String(cid),
     x: (idx % 6) * 10,
@@ -534,7 +535,7 @@ export const MOCK_CAMPAIGN_MULTI_SOURCE = {
       name: 'Default View',
       display_order: 0,
       source_ids: [2, 1],
-      default_canvas_layout: viewWindowLayout(11, [10, 30]),
+      default_canvas_layout: viewWindowLayout(11, [10, 30], [20]),
       personal_canvas_layout: null,
     },
   ],
@@ -548,6 +549,8 @@ export const MOCK_TIMESERIES_ENTRY = {
   id: 1,
   campaign_id: 42,
   name: 'NDVI',
+  window_id: 1,
+  window_name: 'Time series',
   start_ym: '202401',
   end_ym: '202406',
   data_source: 'Sentinel-2',
@@ -655,7 +658,7 @@ export const MOCK_CAMPAIGN_MULTI_SOURCE_WITH_TIMESERIES = {
       name: 'Default View',
       display_order: 0,
       source_ids: [1, 2],
-      default_canvas_layout: viewWindowLayout(11, [10, 40]),
+      default_canvas_layout: viewWindowLayout(11, [10, 40], [20]),
       personal_canvas_layout: null,
     },
   ],
@@ -749,6 +752,8 @@ export const MONTHS_TIMESERIES_ENTRY = {
   id: 70,
   campaign_id: 42,
   name: 'NDVI',
+  window_id: 1,
+  window_name: 'Time series',
   start_ym: '202201',
   end_ym: '202212',
   data_source: 'Imagery',

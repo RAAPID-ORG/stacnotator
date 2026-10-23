@@ -15,11 +15,10 @@ export interface TimeseriesWindow {
 export function groupTimeseriesIntoWindows(timeseries: TimeseriesOut[]): TimeseriesWindow[] {
   const byKey = new Map<string, TimeseriesWindow>();
   for (const ts of timeseries) {
-    const title = ts.window_name?.trim() || DEFAULT_TIMESERIES_WINDOW_NAME;
-    const key = `${TIMESERIES_KEY_PREFIX}${title}`;
+    const key = `${TIMESERIES_KEY_PREFIX}${ts.window_id}`;
     let window = byKey.get(key);
     if (!window) {
-      window = { key, title, series: [] };
+      window = { key, title: ts.window_name, series: [] };
       byKey.set(key, window);
     }
     window.series.push(ts);

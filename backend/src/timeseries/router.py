@@ -45,14 +45,15 @@ def get_timeseries_creation_options():
     return timeseries_options()
 
 
-@router.patch("/campaigns/{campaign_id}/timeseries/window", status_code=204)
+@router.patch("/campaigns/{campaign_id}/timeseries/windows/{window_id}", status_code=204)
 def rename_timeseries_window(
     campaign_id: int,
+    window_id: int,
     request: TimeseriesWindowRenameRequest,
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
 ):
-    service.rename_timeseries_window(campaign_id, request.old_name, request.new_name, db)
+    service.rename_timeseries_window(campaign_id, window_id, request.name, db)
 
 
 @router.get(
@@ -121,5 +122,5 @@ def delete_timeseries(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
 ):
-    """Delete a timeseries. If it's the last one, removes it from all layouts."""
+    """Delete a timeseries, and its window when it was the window's last."""
     service.delete_timeseries(timeseries_id, campaign_id, db)
