@@ -642,7 +642,7 @@ def delete_campaign(
     "/{campaign_id}/statistics",
     response_model=CampaignStatistics,
 )
-def get_campaign_statistics_endpoint(
+def get_campaign_statistics(
     campaign_id: int,
     task_set_id: int | None = Query(
         None, description="Restrict the statistics to the annotations of one task set"
@@ -660,4 +660,4 @@ def get_campaign_statistics_endpoint(
     - Per-annotator stats (total annotations, label distribution)
     - Pairwise agreement percentage between every pair of annotators
     """
-    return statistics.get_campaign_statistics(campaign_id, db, task_set_id)
+    return statistics.get_campaign_statistics(db, campaign, task_set_id)

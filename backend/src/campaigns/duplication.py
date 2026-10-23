@@ -29,6 +29,7 @@ from src.annotation.models import (
 from src.auth.constants import AGENT_ISSUER
 from src.auth.models import User
 from src.campaigns.models import Campaign, TaskSet
+from src.campaigns.task_sets import DEFAULT_TASK_SET_NAME
 from src.canvas.models import CanvasLayout
 from src.custom_layers.models import CustomMap
 from src.imagery.models import (
@@ -429,7 +430,10 @@ def duplicate_campaign(
     geometry_map = _duplicate_geometries(db, {task.geometry_id for task in tasks})
 
     task_map: dict[int, int] = {}
-    if plan.tasks:
+    if not plan.tasks:
+        # Every campaign keeps at least one task set to put tasks in.
+        db.add(TaskSet(campaign_id=dup.id, name=DEFAULT_TASK_SET_NAME))
+    else:
         task_sets = list(db.scalars(select(TaskSet).where(TaskSet.campaign_id == campaign.id)))
         set_map = id_map(
             task_sets, insert_all(db, [clone_row(ts, campaign_id=dup.id) for ts in task_sets])

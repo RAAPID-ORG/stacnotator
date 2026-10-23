@@ -6,7 +6,12 @@ from uuid import uuid4
 
 from geoalchemy2.elements import WKTElement
 
-from src.annotation.schemas import AnnotationTaskOut, compute_task_status_value
+from src.annotation.schemas import (
+    AnnotationTaskOut,
+)
+from src.annotation.status import (
+    compute_task_status_value,
+)
 
 
 def _make_assignment(user_id):

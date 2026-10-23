@@ -129,6 +129,14 @@ class TestKrippendorffAlpha:
         assert alpha is not None
         assert alpha == pytest.approx(1.0)
 
+    def test_draw_task_outcomes_are_compared_like_labels(self):
+        u1, u2 = uuid4(), uuid4()
+        data = {
+            1: [(u1, "drawn"), (u2, "drawn")],
+            2: [(u1, "none_found"), (u2, "none_found")],
+        }
+        assert _calculate_krippendorff_alpha(data) == pytest.approx(1.0)
+
 
 class TestPairwiseAgreement:
     """Pure-logic: no DB needed."""

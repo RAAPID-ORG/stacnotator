@@ -18,17 +18,14 @@ from shapely.geometry.base import BaseGeometry
 from sqlalchemy import func, insert, select
 from sqlalchemy.orm import Session
 
+from src.annotation.embeddings_service import start_embedding_run
 from src.annotation.forms import (
     FormValidationError,
     campaign_form_fields,
     validate_form_values,
 )
-from src.annotation.models import (
-    Annotation,
-    AnnotationGeometry,
-    AnnotationTask,
-)
-from src.annotation.service import validate_label_id
+from src.annotation.models import Annotation, AnnotationGeometry, AnnotationTask, ewkt
+from src.annotation.service import bump_campaign_annotations_version, validate_label_id
 from src.campaigns.models import Campaign
 
 logger = logging.getLogger(__name__)
@@ -39,100 +36,70 @@ REQUIRED_COLUMNS = {"id", "lat", "lon"}
 
 def insert_tasks(
     db: Session,
-    campaign_id: int,
+    campaign: Campaign,
     task_set_id: int,
     geometry_wkts: list[str],
-    raw_source_data: list[dict] | None,
+    raw_source_data: list[dict],
+    numbers: list[int] | None = None,
 ) -> int:
+    """Bulk-insert geometries and their tasks, commit, and start fetching their
+    embeddings when the campaign uses them.
+
+    Task numbers are `numbers` when given (an imported file's own ids), else
+    contiguous after the campaign's current highest. Geometries are WGS84 WKT.
     """
-    Bulk-insert geometries and their annotation tasks for a campaign.
-
-    Task numbers are assigned contiguously starting after the campaign's
-    current max annotation_number, in geometry_wkts order. Geometries are
-    stored as WGS84 (SRID=4326); pass plain WKT without the SRID prefix.
-
-    Args:
-        db: Database session
-        campaign_id: ID of campaign to create tasks for
-        task_set_id: ID of task set to assign created tasks to
-        geometry_wkts: Plain WKT for each task's geometry
-        raw_source_data: Per-task source data, aligned with geometry_wkts,
-            or None if no source data applies to any task
-
-    Returns:
-        Number of tasks created
-
-    Raises:
-        HTTPException: On DB failure; commits on success
-    """
-    max_annotation_number: int = (
-        db.scalar(
+    if numbers is None:
+        highest = db.scalar(
             select(func.coalesce(func.max(AnnotationTask.annotation_number), 0)).where(
-                AnnotationTask.campaign_id == campaign_id
+                AnnotationTask.campaign_id == campaign.id
             )
         )
-        or 0
-    )
-    source_data: list[dict | None] = (
-        list(raw_source_data) if raw_source_data is not None else [None] * len(geometry_wkts)
-    )
+        numbers = [(highest or 0) + i + 1 for i in range(len(geometry_wkts))]
 
     try:
-        geometry_result = db.execute(
+        geometry_ids = db.scalars(
             insert(AnnotationGeometry).returning(AnnotationGeometry.id),
-            [{"geometry": f"SRID=4326;{wkt}"} for wkt in geometry_wkts],
+            [{"geometry": ewkt(wkt)} for wkt in geometry_wkts],
+        ).all()
+        db.execute(
+            insert(AnnotationTask),
+            [
+                {
+                    "annotation_number": number,
+                    "campaign_id": campaign.id,
+                    "geometry_id": geometry_id,
+                    "raw_source_data": source,
+                    "task_set_id": task_set_id,
+                }
+                for number, geometry_id, source in zip(
+                    numbers, geometry_ids, raw_source_data, strict=True
+                )
+            ],
         )
-        geometry_ids = [row.id for row in geometry_result]
-
-        task_records = [
-            {
-                "annotation_number": max_annotation_number + i + 1,
-                "campaign_id": campaign_id,
-                "geometry_id": geometry_id,
-                "raw_source_data": rd,
-                "task_set_id": task_set_id,
-            }
-            for i, (geometry_id, rd) in enumerate(zip(geometry_ids, source_data, strict=True))
-        ]
-
-        db.execute(insert(AnnotationTask), task_records)
         db.commit()
-        return len(task_records)
-
     except Exception:
         db.rollback()
+        logger.exception("Task import failed for campaign %s", campaign.id)
         raise HTTPException(
             status_code=500,
-            detail="Import failed. No geometries or task items were created.",
+            detail="Import failed. No tasks were created.",
         ) from None
+
+    start_embedding_run(db, campaign)
+    return len(geometry_ids)
 
 
 def create_annotation_tasks_from_csv(
     db: Session,
-    campaign_id: int,
+    campaign: Campaign,
     contents: bytes,
     task_set_id: int,
-) -> None:
+) -> int:
     """
-    Create annotation tasks from uploaded CSV file.
-
-    Validates CSV structure, coordinates, and creates annotation tasks
-    with associated geometry records.
-
-    Expected CSV format:
-    - Required columns: id, lat, lon
-    - Additional columns preserved in raw_source_data
-    - Coordinates in WGS84 (latitude/longitude)
-
-    Args:
-        db: Database session
-        campaign_id: ID of campaign to create tasks for
-        contents: CSV file contents as bytes
-        task_set_id: ID of task set to assign created tasks to
-
-    Raises:
-        HTTPException: If file is too large, invalid format, or validation fails
+    Create tasks from an uploaded CSV with columns id, lat, lon (WGS84). The id
+    becomes the task number; every column is kept as the task's source data.
     """
+    campaign_id = campaign.id
     if len(contents) > MAX_FILE_SIZE:
         raise HTTPException(
             status_code=413,
@@ -215,44 +182,14 @@ def create_annotation_tasks_from_csv(
             detail="Latitude must be between -90 and 90",
         )
 
-    geometry_records = [
-        {"geometry": f"SRID=4326;POINT({lon} {lat})"}
-        for lon, lat in zip(df["lon"].values, df["lat"].values, strict=True)
-    ]
-
-    try:
-        geometry_result = db.execute(
-            insert(AnnotationGeometry).returning(AnnotationGeometry.id),
-            geometry_records,
-        )
-        geometry_ids = [row.id for row in geometry_result]
-
-        task_records = [
-            {
-                "annotation_number": int(row["id"]),
-                "campaign_id": campaign_id,
-                "geometry_id": geometry_id,
-                "raw_source_data": row["raw_source_data"],
-                "task_set_id": task_set_id,
-            }
-            for geometry_id, (_, row) in zip(geometry_ids, df.iterrows(), strict=True)
-        ]
-
-        db.execute(insert(AnnotationTask), task_records)
-        db.commit()
-
-    except Exception as e:
-        db.rollback()
-        logger.exception(
-            "CSV import failed for campaign %s during insert (%d rows): %s",
-            campaign_id,
-            len(df),
-            e,
-        )
-        raise HTTPException(
-            status_code=500,
-            detail=f"Import failed. No geometries or task items were created. ({type(e).__name__}: {e})",
-        ) from None
+    return insert_tasks(
+        db,
+        campaign,
+        task_set_id,
+        [f"POINT({lon} {lat})" for lon, lat in zip(df["lon"], df["lat"], strict=True)],
+        list(df["raw_source_data"]),
+        numbers=[int(i) for i in df["id"]],
+    )
 
 
 class GeoJSONParseError(Exception):
@@ -267,19 +204,16 @@ class GeoJSONParseError(Exception):
         self.status_code = status_code
 
 
-def parse_geojson_features(
-    contents: bytes, max_size: int, *, allow_bare_geometry: bool = True
-) -> list[tuple[BaseGeometry, dict]]:
+ALLOWED_GEOMETRY_TYPES = ("Point", "Polygon", "MultiPolygon")
+
+
+def parse_geojson_features(contents: bytes, max_size: int) -> list[tuple[BaseGeometry, dict]]:
     """Parse and validate GeoJSON bytes into (geometry, properties) pairs.
 
-    Accepts a FeatureCollection or a single Feature; when `allow_bare_geometry`
-    is true (the task importer's original behavior) a bare geometry object is
-    also accepted, wrapped as one feature with empty properties. Only Point /
-    Polygon / MultiPolygon geometries are allowed; each is repaired with
-    `buffer(0)` if invalid and rejected if that leaves it empty. Shared by
-    both GeoJSON importers below so the size guard and parse/validate logic
-    exist once - `allow_bare_geometry` keeps each importer's original
-    top-level acceptance set intact.
+    Accepts a FeatureCollection, a single Feature, or a bare geometry (one
+    feature with no properties). Only Point / Polygon / MultiPolygon are
+    allowed; each is repaired with `buffer(0)` if invalid and rejected if that
+    leaves it empty.
     """
     if len(contents) > max_size:
         raise GeoJSONParseError(
@@ -296,12 +230,7 @@ def parse_geojson_features(
         features = geojson.get("features", [])
     elif geojson.get("type") == "Feature":
         features = [geojson]
-    elif allow_bare_geometry and geojson.get("type") in (
-        "Point",
-        "Polygon",
-        "MultiPolygon",
-        "LineString",
-    ):
+    elif geojson.get("type") in ALLOWED_GEOMETRY_TYPES:
         features = [{"type": "Feature", "geometry": geojson, "properties": {}}]
     else:
         raise GeoJSONParseError("Unsupported GeoJSON type")
@@ -309,7 +238,6 @@ def parse_geojson_features(
     if not features:
         raise GeoJSONParseError("GeoJSON contains no features")
 
-    allowed_types = {"Point", "Polygon", "MultiPolygon"}
     parsed: list[tuple[BaseGeometry, dict]] = []
 
     for idx, feat in enumerate(features):
@@ -317,10 +245,10 @@ def parse_geojson_features(
         if not geom_json:
             raise GeoJSONParseError(f"Feature {idx} has no geometry")
         geom_type = geom_json.get("type")
-        if geom_type not in allowed_types:
+        if geom_type not in ALLOWED_GEOMETRY_TYPES:
             raise GeoJSONParseError(
                 f"Feature {idx}: unsupported geometry type '{geom_type}'. "
-                f"Allowed: {sorted(allowed_types)}"
+                f"Allowed: {sorted(ALLOWED_GEOMETRY_TYPES)}"
             )
 
         try:
@@ -339,28 +267,13 @@ def parse_geojson_features(
 
 def create_annotation_tasks_from_geojson(
     db: Session,
-    campaign_id: int,
+    campaign: Campaign,
     contents: bytes,
     task_set_id: int,
 ) -> int:
     """
-    Create annotation tasks from an uploaded GeoJSON file.
-
-    Each Feature becomes one task. Point features store a POINT geometry;
-    Polygon / MultiPolygon features store the full polygon geometry so it
-    can be used as sample extent during annotation.
-
-    Args:
-        db: Database session
-        campaign_id: ID of campaign to create tasks for
-        contents: GeoJSON file contents as bytes
-        task_set_id: ID of task set to assign created tasks to
-
-    Returns:
-        Number of tasks created
-
-    Raises:
-        HTTPException: On invalid input or DB failure
+    Create tasks from an uploaded GeoJSON file, one per feature. Polygons are
+    stored whole so they can serve as the sample extent during annotation.
     """
     try:
         features = parse_geojson_features(contents, MAX_FILE_SIZE)
@@ -370,7 +283,7 @@ def create_annotation_tasks_from_geojson(
     geometry_wkts = [geom.wkt for geom, _ in features]
     raw_data = [properties for _, properties in features]
 
-    return insert_tasks(db, campaign_id, task_set_id, geometry_wkts, raw_data)
+    return insert_tasks(db, campaign, task_set_id, geometry_wkts, raw_data)
 
 
 def create_annotations_from_geojson(
@@ -397,7 +310,7 @@ def create_annotations_from_geojson(
     """
 
     try:
-        features = parse_geojson_features(contents, MAX_FILE_SIZE, allow_bare_geometry=False)
+        features = parse_geojson_features(contents, MAX_FILE_SIZE)
     except GeoJSONParseError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
@@ -458,7 +371,7 @@ def create_annotations_from_geojson(
                 )
             seen_source_ids.add(source_id)
 
-        geometry_records.append({"geometry": f"SRID=4326;{geom.wkt}"})
+        geometry_records.append({"geometry": ewkt(geom.wkt)})
         label_ids.append(label_id)
         source_ids.append(source_id)
         form_values_list.append(form_values)
@@ -502,6 +415,7 @@ def create_annotations_from_geojson(
         ]
 
         db.execute(insert(Annotation), annotation_records)
+        bump_campaign_annotations_version(db, campaign.id)
         db.commit()
         return len(annotation_records)
 

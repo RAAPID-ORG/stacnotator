@@ -14,7 +14,7 @@ import {
   getCampaignSummaryOptions,
   getCampaignQueryKey,
   getAnnotationFacetsOptions,
-  getCampaignStatisticsEndpointOptions,
+  getCampaignStatisticsOptions,
   listAnnotationsForCampaignOptions,
   listTaskSetsOptions,
   listTaskSetsQueryKey,
@@ -125,7 +125,7 @@ export const useCampaignTaskSets = (campaignId: number, options?: { enabled?: bo
 export const useCampaignStatistics = (campaignId: number, taskSetId?: number) => {
   const { t } = useTranslation('campaigns');
   const { data, isPending, error } = useQuery({
-    ...getCampaignStatisticsEndpointOptions({
+    ...getCampaignStatisticsOptions({
       path: { campaign_id: campaignId },
       query: { task_set_id: taskSetId },
     }),

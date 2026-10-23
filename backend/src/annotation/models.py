@@ -28,6 +28,11 @@ from src.campaigns.models import Campaign
 from src.database import Base
 
 
+def ewkt(wkt: str) -> str:
+    """WGS84 WKT in the form geometry columns accept on write."""
+    return f"SRID=4326;{wkt}"
+
+
 class AnnotationGeometry(Base):
     """Stores geometry data for annotations and annotation tasks."""
 
@@ -42,8 +47,7 @@ class AnnotationGeometry(Base):
     )
 
     # Geometry data (PostGIS)
-    # geoalchemy2 hands back a WKBElement on read; writes accept an
-    # "SRID=4326;<wkt>" string, which is why every insert here passes one.
+    # geoalchemy2 hands back a WKBElement on read; writes take ewkt(wkt).
     geometry: Mapped[WKBElement] = mapped_column(
         GeoAlchemyGeometry(geometry_type="GEOMETRY", srid=4326),
         nullable=False,

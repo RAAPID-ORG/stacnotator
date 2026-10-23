@@ -1,110 +1,62 @@
-"""Tests for sampling design service (sampling_design/service.py)."""
+"""Tests for sampling design regions (sampling_design/service.py)."""
 
-from unittest.mock import MagicMock
+import asyncio
+import io
+import json
+from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
-from shapely.geometry import MultiPolygon, Polygon, box
+from fastapi import HTTPException, UploadFile
+from shapely.geometry import MultiPolygon, Polygon, box, mapping
 
-from src.sampling_design.router import _intersect_region_with_bbox
-from src.sampling_design.service import (
-    create_bbox_polygon,
-    get_region_geometry,
-)
+from src.sampling_design.service import clip_to_campaign, read_region_file
 
 
-class TestIntersectRegionWithBbox:
-    def _campaign(self, west, south, east, north):
-        campaign = MagicMock()
-        campaign.settings.bbox_west = west
-        campaign.settings.bbox_south = south
-        campaign.settings.bbox_east = east
-        campaign.settings.bbox_north = north
-        return campaign
+def _campaign(west, south, east, north):
+    return SimpleNamespace(settings=SimpleNamespace(bbox=(west, south, east, north)))
 
+
+class TestClipToCampaign:
     def test_keeps_only_polygonal_parts_of_the_clip(self):
         # A U shape clipped along its inner edge leaves two polygons plus the
         # touching line; the line must not survive, or random sampling
         # silently returns zero points for a GeometryCollection.
         region = Polygon([(0, 0), (1, 0), (1, 1), (2, 1), (2, 0), (3, 0), (3, 2), (0, 2)])
-        clipped = _intersect_region_with_bbox(region, self._campaign(0, 0, 3, 1))
+        clipped = clip_to_campaign(region, _campaign(0, 0, 3, 1))
         assert isinstance(clipped, MultiPolygon)
         assert clipped.area == pytest.approx(2)
 
     def test_touching_edge_only_is_no_overlap(self):
         with pytest.raises(HTTPException) as exc_info:
-            _intersect_region_with_bbox(box(0, 0, 1, 1), self._campaign(1, 0, 2, 1))
+            clip_to_campaign(box(0, 0, 1, 1), _campaign(1, 0, 2, 1))
         assert exc_info.value.status_code == 400
 
 
-class TestCreateBboxPolygon:
-    def test_basic_bbox(self):
-        campaign = MagicMock()
-        campaign.settings.bbox_west = -10
-        campaign.settings.bbox_south = -20
-        campaign.settings.bbox_east = 10
-        campaign.settings.bbox_north = 20
+def _upload(name: str, payload: dict) -> UploadFile:
+    return UploadFile(io.BytesIO(json.dumps(payload).encode()), filename=name)
 
-        polygon = create_bbox_polygon(campaign)
-        assert isinstance(polygon, Polygon)
-        bounds = polygon.bounds
-        assert bounds == (-10, -20, 10, 20)
 
-    def test_missing_settings_raises_400(self):
-        campaign = MagicMock()
-        campaign.settings = None
+class TestReadRegionFile:
+    def test_merges_the_features_of_a_geojson_into_one_region(self):
+        features = [
+            {"type": "Feature", "geometry": mapping(b), "properties": {}}
+            for b in (box(0, 0, 1, 1), box(2, 2, 3, 3))
+        ]
+        region = asyncio.run(
+            read_region_file(
+                _upload("r.geojson", {"type": "FeatureCollection", "features": features})
+            )
+        )
+        assert isinstance(region, MultiPolygon)
+        assert region.area == pytest.approx(2)
 
+    def test_a_region_of_points_has_no_area_to_sample(self):
+        point = {"type": "Point", "coordinates": [1, 1]}
         with pytest.raises(HTTPException) as exc_info:
-            create_bbox_polygon(campaign)
+            asyncio.run(read_region_file(_upload("r.geojson", point)))
         assert exc_info.value.status_code == 400
 
-    def test_incomplete_bbox_raises_400(self):
-        campaign = MagicMock()
-        campaign.settings.bbox_west = -10
-        campaign.settings.bbox_south = None
-        campaign.settings.bbox_east = 10
-        campaign.settings.bbox_north = 20
-
+    def test_other_file_types_are_rejected(self):
         with pytest.raises(HTTPException) as exc_info:
-            create_bbox_polygon(campaign)
+            asyncio.run(read_region_file(_upload("r.kml", {})))
         assert exc_info.value.status_code == 400
-
-    def test_zero_area_bbox(self):
-        campaign = MagicMock()
-        campaign.settings.bbox_west = 0
-        campaign.settings.bbox_south = 0
-        campaign.settings.bbox_east = 0
-        campaign.settings.bbox_north = 0
-
-        polygon = create_bbox_polygon(campaign)
-        assert polygon.area == 0
-
-
-class TestGetRegionGeometry:
-    def _make_gdf(self, geometry):
-        import geopandas as gpd
-
-        return gpd.GeoDataFrame(geometry=[geometry], crs="EPSG:4326")
-
-    def test_returns_polygon(self):
-        polygon = box(-10, -20, 10, 20)
-        gdf = self._make_gdf(polygon)
-
-        result = get_region_geometry(gdf)
-        assert isinstance(result, Polygon)
-        assert result.bounds == (-10, -20, 10, 20)
-
-    def test_empty_gdf_raises_400(self):
-        import geopandas as gpd
-
-        gdf = gpd.GeoDataFrame(geometry=[], crs="EPSG:4326")
-        with pytest.raises(HTTPException) as exc_info:
-            get_region_geometry(gdf)
-        assert exc_info.value.status_code == 400
-
-    def test_returns_multipolygon(self):
-        multi = MultiPolygon([box(0, 0, 1, 1), box(2, 2, 3, 3)])
-        gdf = self._make_gdf(multi)
-
-        result = get_region_geometry(gdf)
-        assert isinstance(result, MultiPolygon)

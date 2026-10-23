@@ -57,7 +57,7 @@ def test_seed_tasks_uses_the_default_task_set_and_assigns_each_task(sample_user_
 
     args = generate.call_args.args
     assert args[0] is db
-    assert args[1] == 3
+    assert args[1] is campaign
     assert args[2].num_samples == 100
     assert args[2].seed == 42
     assert args[3].bounds == tuple(UKRAINE_BBOX.values())

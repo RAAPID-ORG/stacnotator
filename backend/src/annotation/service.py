@@ -45,9 +45,11 @@ from src.annotation.schemas import (
     LabelFacet,
     SliceComment,
     TaskStatusOut,
+    normalize_slice_comments,
+)
+from src.annotation.status import (
     compute_task_status_value,
     derive_assignment_status,
-    normalize_slice_comments,
     resolve_task_outcome,
     task_status_inputs,
 )

@@ -1,5 +1,6 @@
 """Task ingest stamps every created task with the target task set."""
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from src.annotation import ingest
@@ -24,24 +25,27 @@ def _inserted_task_records(db):
     raise AssertionError("no insert into annotation_tasks")
 
 
+CAMPAIGN = SimpleNamespace(id=1, settings=SimpleNamespace(embedding_year=None))
+
+
 def _db_with_geometry_ids(ids):
     db = MagicMock()
-    rows = [MagicMock(id=i) for i in ids]
-    db.execute.return_value.__iter__ = lambda self: iter(rows)
+    db.scalars.return_value.all.return_value = ids
     return db
 
 
 def test_csv_ingest_stamps_task_set_id():
     db = _db_with_geometry_ids([101, 102])
-    ingest.create_annotation_tasks_from_csv(db, campaign_id=1, contents=CSV, task_set_id=7)
+    ingest.create_annotation_tasks_from_csv(db, CAMPAIGN, contents=CSV, task_set_id=7)
     records = _inserted_task_records(db)
     assert all(r["task_set_id"] == 7 for r in records)
+    assert [r["annotation_number"] for r in records] == [1, 2]
 
 
 def test_geojson_ingest_stamps_task_set_id():
     db = _db_with_geometry_ids([101])
     db.scalar.return_value = 0  # current max annotation_number
-    ingest.create_annotation_tasks_from_geojson(db, campaign_id=1, contents=GEOJSON, task_set_id=7)
+    ingest.create_annotation_tasks_from_geojson(db, CAMPAIGN, contents=GEOJSON, task_set_id=7)
     records = _inserted_task_records(db)
     assert all(r["task_set_id"] == 7 for r in records)
     assert isinstance(records[0], dict) or hasattr(records[0], "keys")

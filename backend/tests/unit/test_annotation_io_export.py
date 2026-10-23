@@ -42,6 +42,7 @@ def _task(*, task_id=1, annotation_number=1, assignments=None):
 def _annotation(
     *,
     label_id=None,
+    outcome=None,
     created_by_user_id=None,
     is_authoritative=False,
     counts_toward_completion=None,
@@ -55,7 +56,7 @@ def _annotation(
         active_seconds=active_seconds,
         source_id=None,
         label_id=label_id,
-        outcome=("labelled" if label_id is not None else "skipped") if task else None,
+        outcome=outcome or (("labelled" if label_id is not None else "skipped") if task else None),
         created_by_user_id=created_by_user_id or uuid4(),
         is_authoritative=is_authoritative,
         counts_toward_completion=counts_toward_completion,
@@ -240,3 +241,24 @@ class TestMergeOnAgreementConflictGuard:
 
         # Authoritative label resolves the task -> no conflict, merge allowed.
         assert _records(anns, merge_on_agreement=True)
+
+
+class TestDrawTaskAnswers:
+    """A draw task is answered by its outcome, not a label."""
+
+    def _drawn_pair(self):
+        task = _task()
+        return [
+            _annotation(outcome="drawn", counts_toward_completion=True, task=task),
+            _annotation(outcome="drawn", counts_toward_completion=True, task=task),
+        ]
+
+    def test_two_drawn_answers_merge_into_one_row(self):
+        records = _records(self._drawn_pair(), merge_on_agreement=True)
+        assert len(records) == 1
+        assert records[0]["stacnotator_annotator_count"] == 2
+        assert records[0]["stacnotator_outcome"] == "drawn"
+
+    def test_unmerged_rows_count_both_annotators(self):
+        records = _records(self._drawn_pair())
+        assert [r["stacnotator_annotator_count"] for r in records] == [2, 2]

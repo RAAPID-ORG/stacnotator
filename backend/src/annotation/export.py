@@ -26,7 +26,11 @@ from src.annotation.models import (
     Annotation,
     AnnotationTask,
 )
-from src.annotation.schemas import compute_task_status_value, task_answer, task_status_inputs
+from src.annotation.status import (
+    compute_task_status_value,
+    task_answer,
+    task_status_inputs,
+)
 from src.auth.models import User
 from src.campaigns.form_fields import CategoryFormField, DateFormField, FormField, form_field_slug
 from src.campaigns.models import Campaign
@@ -272,7 +276,7 @@ def _build_export_record_for_annotation(
     the task's ``raw_source_data`` (user-provided ingest columns) are kept
     un-prefixed so the downstream consumer can tell our IDs apart from theirs.
 
-    ``task_annotator_count`` is the number of labeled annotations on the
+    ``task_annotator_count`` is the number of answering annotations on the
     annotation's parent task (matches the merged-path definition). All rows
     for the same task carry the same value so downstream agreement analyses
     can be derived even when rows aren't collapsed. Standalone
@@ -326,6 +330,17 @@ def _build_export_record_for_annotation(
     return record
 
 
+def _answered(annotations: list[Annotation]) -> list[Annotation]:
+    """Task rows that answer their task: a label, or for a draw task whether
+    shapes were drawn. Skips answer nothing."""
+    return [a for a in annotations if task_answer(a) is not None]
+
+
+def _canonical(answered: list[Annotation]) -> Annotation:
+    """The row a merged task speaks for: an authoritative answer if there is one."""
+    return next((a for a in answered if a.is_authoritative), answered[0])
+
+
 def _build_export_record_merged(
     anns: list[Annotation],
     campaign: Campaign,
@@ -336,16 +351,16 @@ def _build_export_record_merged(
 ) -> dict:
     """Collapse multiple annotations of the same task into one record.
 
-    Caller must have already ensured the labeled annotations agree (any
-    conflict is rejected up-front by ``_guard_merge_on_agreement``). The row
-    represents the task with the agreed label and aggregates per-annotator
+    Caller must have already ensured the answers agree (any conflict is
+    rejected up-front by ``_guard_merge_on_agreement``). The row represents the
+    task with the agreed answer and aggregates per-annotator
     detail (emails, comments, confidences). The DB ``stacnotator_annotation_id``
     field is intentionally **omitted** here - the row no longer corresponds
     to a single annotation row, and ``stacnotator_task_id`` is the stable
     join key in merged mode.
     """
-    labeled = [a for a in anns if a.label_id is not None]
-    canonical = next((a for a in labeled if a.is_authoritative), labeled[0])
+    labeled = _answered(anns)
+    canonical = _canonical(labeled)
     agreed_label_id = canonical.label_id
 
     emails = sorted(
@@ -375,6 +390,7 @@ def _build_export_record_merged(
         record["stacnotator_counts_toward_completion"] = any(
             a.counts_toward_completion for a in labeled
         )
+        record["stacnotator_outcome"] = canonical.outcome
 
     record["stacnotator_label_id"] = agreed_label_id
     record["stacnotator_label_name"] = _resolve_label_name(campaign, agreed_label_id)
@@ -434,7 +450,7 @@ def _build_annotation_records(
         task_anns = grouped[task_id]
         task = task_anns[0].annotation_task
         task_status = _compute_task_status_for_export(task, task_anns)
-        labeled = [a for a in task_anns if a.label_id is not None]
+        labeled = _answered(task_anns)
 
         if merge_on_agreement and len(labeled) >= 2:
             records.append(
@@ -447,9 +463,7 @@ def _build_annotation_records(
                     form_schema,
                 )
             )
-            canonical_annotations.append(
-                next((a for a in labeled if a.is_authoritative), labeled[0])
-            )
+            canonical_annotations.append(_canonical(labeled))
         else:
             labeled_count = len(labeled)
             for ann in task_anns:

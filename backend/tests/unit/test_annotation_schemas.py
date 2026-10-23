@@ -15,8 +15,10 @@ from src.annotation.schemas import (
     AnnotationTaskOut,
     AnnotationUpdate,
     SliceComment,
-    compute_task_status_value,
     normalize_slice_comments,
+)
+from src.annotation.status import (
+    compute_task_status_value,
 )
 
 

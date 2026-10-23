@@ -257,3 +257,8 @@ class CampaignSettings(Base):
 
     # Relationships
     campaign: Mapped["Campaign"] = relationship(back_populates="settings")
+
+    @property
+    def bbox(self) -> tuple[float, float, float, float]:
+        """(west, south, east, north)"""
+        return (self.bbox_west, self.bbox_south, self.bbox_east, self.bbox_north)

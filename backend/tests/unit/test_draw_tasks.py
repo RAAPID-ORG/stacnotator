@@ -14,10 +14,12 @@ from fastapi import HTTPException
 from src.annotation.schemas import (
     AnnotationCreate,
     AnnotationFromTaskCreate,
+)
+from src.annotation.service import add_annotation_for_task, create_annotation
+from src.annotation.status import (
     compute_task_status_value,
     resolve_task_outcome,
 )
-from src.annotation.service import add_annotation_for_task, create_annotation
 from src.campaigns.schemas import LabellingPolicy, PolicyAudience
 
 

@@ -1,12 +1,9 @@
 from typing import Annotated
 
-import shapely
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.security import HTTPBearer
 from pydantic import Json
-from shapely.geometry import MultiPolygon, Polygon
-from shapely.geometry import box as shapely_box
-from shapely.ops import unary_union
+from shapely.geometry import MultiPolygon, Polygon, box
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
@@ -17,38 +14,6 @@ from src.campaigns.task_sets import require_task_set
 from src.database import get_db
 from src.sampling_design import service
 from src.sampling_design.schemas import GenerateTasksResponse, SamplingStrategy
-
-
-def _intersect_region_with_bbox(
-    region_geometry: Polygon | MultiPolygon,
-    campaign: Campaign,
-) -> Polygon | MultiPolygon:
-    """Clip region_geometry to the campaign bbox if the campaign has settings.
-
-    Returns the original geometry unchanged when the campaign has no settings
-    (no bbox configured). Raises HTTP 400 if nothing with area survives the
-    clip: a boundary that merely touches the box leaves lines behind, which
-    the samplers cannot draw from.
-    """
-    if campaign.settings is None:
-        return region_geometry
-
-    campaign_bbox = shapely_box(
-        campaign.settings.bbox_west,
-        campaign.settings.bbox_south,
-        campaign.settings.bbox_east,
-        campaign.settings.bbox_north,
-    )
-    clipped = region_geometry.intersection(campaign_bbox)
-    polygons = [part for part in shapely.get_parts(clipped) if isinstance(part, Polygon)]
-
-    if not polygons:
-        raise HTTPException(
-            status_code=400,
-            detail="Region file does not overlap the campaign bounding box",
-        )
-    return unary_union(polygons)
-
 
 bearer = HTTPBearer()
 router = APIRouter(
@@ -96,22 +61,21 @@ async def generate_tasks_from_sampling(
     require_task_set(db, campaign.id, task_set_id, status_code=400)
 
     if use_campaign_bbox:
-        region_geometry = service.create_bbox_polygon(campaign)
+        region_geometry: Polygon | MultiPolygon = box(*campaign.settings.bbox)
     else:
         if not region_file:
             raise HTTPException(
                 status_code=400,
                 detail="region_file is required when use_campaign_bbox is false",
             )
-        gdf = await service.process_uploaded_region_file(region_file)
-        region_geometry = service.get_region_geometry(gdf)
-        region_geometry = _intersect_region_with_bbox(region_geometry, campaign)
+        region = await service.read_region_file(region_file)
+        region_geometry = service.clip_to_campaign(region, campaign)
 
     # Off the event loop: sampling a thin region can take seconds of CPU.
     num_tasks_created = await run_in_threadpool(
         service.create_tasks_from_sampling_strategy,
         db=db,
-        campaign_id=campaign_id,
+        campaign=campaign,
         strategy=strategy.root,
         region_geometry=region_geometry,
         task_set_id=task_set_id,

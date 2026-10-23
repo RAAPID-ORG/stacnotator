@@ -468,15 +468,6 @@ def populate_campaign_embeddings(
     return summary
 
 
-def _sanitize_embedding_error(exc: Exception) -> str:
-    """Extract a user-facing message from an embedding computation failure.
-
-    Never exposes stack traces or internal file paths (mirrors
-    imagery.registration._sanitize_stac_error for the equivalent mosaic-side errors).
-    """
-    return sanitize_error_message(exc, fallback="Embedding computation failed")
-
-
 # The embeddings domain's background run on the campaign.
 EMBEDDING_RUN = background.StatusField(
     model=Campaign,
@@ -513,5 +504,19 @@ def spawn_background_embedding_computation(campaign_id: int, year: int) -> None:
         EMBEDDING_RUN,
         name="embedding computation",
         work=work,
-        sanitize_error=lambda exc: f"Embeddings: {_sanitize_embedding_error(exc)}",
+        sanitize_error=lambda exc: (
+            f"Embeddings: {sanitize_error_message(exc, fallback='Embedding computation failed')}"
+        ),
     )
+
+
+def start_embedding_run(db: Session, campaign: Campaign) -> None:
+    """Fetch embeddings for every task of the campaign that has none yet, off the
+    request path. Commits the run's start; a no-op for a campaign without an
+    embedding year."""
+    year = campaign.settings.embedding_year
+    if year is None:
+        return
+    background.begin_status_run(campaign, EMBEDDING_RUN)
+    db.commit()
+    spawn_background_embedding_computation(campaign.id, year)

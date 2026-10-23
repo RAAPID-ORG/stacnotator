@@ -8491,7 +8491,7 @@ export type ImportTaskAssignmentsResponses = {
 
 export type ImportTaskAssignmentsResponse = ImportTaskAssignmentsResponses[keyof ImportTaskAssignmentsResponses];
 
-export type GetCampaignStatisticsEndpointData = {
+export type GetCampaignStatisticsData = {
     body?: never;
     path: {
         /**
@@ -8510,23 +8510,23 @@ export type GetCampaignStatisticsEndpointData = {
     url: '/api/campaigns/{campaign_id}/statistics';
 };
 
-export type GetCampaignStatisticsEndpointErrors = {
+export type GetCampaignStatisticsErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type GetCampaignStatisticsEndpointError = GetCampaignStatisticsEndpointErrors[keyof GetCampaignStatisticsEndpointErrors];
+export type GetCampaignStatisticsError = GetCampaignStatisticsErrors[keyof GetCampaignStatisticsErrors];
 
-export type GetCampaignStatisticsEndpointResponses = {
+export type GetCampaignStatisticsResponses = {
     /**
      * Successful Response
      */
     200: CampaignStatistics;
 };
 
-export type GetCampaignStatisticsEndpointResponse = GetCampaignStatisticsEndpointResponses[keyof GetCampaignStatisticsEndpointResponses];
+export type GetCampaignStatisticsResponse = GetCampaignStatisticsResponses[keyof GetCampaignStatisticsResponses];
 
 export type ListTasksData = {
     body?: never;

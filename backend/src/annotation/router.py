@@ -246,7 +246,8 @@ async def ingest_annotation_tasks_from_csv(
 
     require_task_set(db, campaign.id, task_set_id, status_code=400)
     contents = await file.read()
-    ingest.create_annotation_tasks_from_csv(db, campaign.id, contents, task_set_id)
+    num_created = ingest.create_annotation_tasks_from_csv(db, campaign, contents, task_set_id)
+    return {"num_tasks_created": num_created}
 
 
 @router.post("/campaigns/{campaign_id}/ingest-annotation-task-geojson")
@@ -269,9 +270,7 @@ async def ingest_annotation_tasks_from_geojson(
 
     require_task_set(db, campaign.id, task_set_id, status_code=400)
     contents = await file.read()
-    num_created = ingest.create_annotation_tasks_from_geojson(
-        db, campaign.id, contents, task_set_id
-    )
+    num_created = ingest.create_annotation_tasks_from_geojson(db, campaign, contents, task_set_id)
     return {"num_tasks_created": num_created}
 
 

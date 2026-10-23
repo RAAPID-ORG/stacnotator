@@ -122,7 +122,7 @@ def _seed_tasks(db: Session, campaign: Campaign, user: User) -> list[int]:
     )
     create_tasks_from_sampling_strategy(
         db,
-        campaign.id,
+        campaign,
         RandomSamplingConfig(num_samples=100, seed=42),
         region,
         task_set_id,

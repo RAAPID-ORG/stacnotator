@@ -704,7 +704,9 @@ class TestCreateAnnotationTasksFromCSV:
         huge = b"x" * (21 * 1024 * 1024)
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(db, campaign_id=1, contents=huge, task_set_id=1)
+            create_annotation_tasks_from_csv(
+                db, SimpleNamespace(id=1), contents=huge, task_set_id=1
+            )
 
         assert exc_info.value.status_code == 413
 
@@ -712,7 +714,7 @@ class TestCreateAnnotationTasksFromCSV:
         db = _mock_db()
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(db, campaign_id=1, contents=b"", task_set_id=1)
+            create_annotation_tasks_from_csv(db, SimpleNamespace(id=1), contents=b"", task_set_id=1)
 
         assert exc_info.value.status_code == 400
 
@@ -721,7 +723,9 @@ class TestCreateAnnotationTasksFromCSV:
         csv_bytes = b"name,value\nfoo,1\n"
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes, task_set_id=1)
+            create_annotation_tasks_from_csv(
+                db, SimpleNamespace(id=1), contents=csv_bytes, task_set_id=1
+            )
 
         assert exc_info.value.status_code == 400
         assert "columns" in exc_info.value.detail.lower()
@@ -731,7 +735,9 @@ class TestCreateAnnotationTasksFromCSV:
         csv_bytes = b"id,lat,lon\n1,10.0,20.0\n1,11.0,21.0\n"
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes, task_set_id=1)
+            create_annotation_tasks_from_csv(
+                db, SimpleNamespace(id=1), contents=csv_bytes, task_set_id=1
+            )
 
         assert exc_info.value.status_code == 400
         assert "duplicate" in exc_info.value.detail.lower()
@@ -741,7 +747,9 @@ class TestCreateAnnotationTasksFromCSV:
         csv_bytes = b"id,lat,lon\n1,10.0,200.0\n"
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes, task_set_id=1)
+            create_annotation_tasks_from_csv(
+                db, SimpleNamespace(id=1), contents=csv_bytes, task_set_id=1
+            )
 
         assert exc_info.value.status_code == 400
         assert "longitude" in exc_info.value.detail.lower()
@@ -751,7 +759,9 @@ class TestCreateAnnotationTasksFromCSV:
         csv_bytes = b"id,lat,lon\n1,95.0,10.0\n"
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes, task_set_id=1)
+            create_annotation_tasks_from_csv(
+                db, SimpleNamespace(id=1), contents=csv_bytes, task_set_id=1
+            )
 
         assert exc_info.value.status_code == 400
         assert "latitude" in exc_info.value.detail.lower()
@@ -761,7 +771,9 @@ class TestCreateAnnotationTasksFromCSV:
         csv_bytes = b"id,lat,lon\n ,10.0,20.0\n"
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes, task_set_id=1)
+            create_annotation_tasks_from_csv(
+                db, SimpleNamespace(id=1), contents=csv_bytes, task_set_id=1
+            )
 
         assert exc_info.value.status_code == 400
 
@@ -771,7 +783,9 @@ class TestCreateAnnotationTasksFromCSV:
         csv_bytes = b"id,lat,lon\n\x80\x81,10.0,20.0\n"
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes, task_set_id=1)
+            create_annotation_tasks_from_csv(
+                db, SimpleNamespace(id=1), contents=csv_bytes, task_set_id=1
+            )
 
         assert exc_info.value.status_code == 400
 
@@ -1821,10 +1835,9 @@ class TestCreateAnnotationsFromGeojson:
     ]
 
     @classmethod
-    def _campaign(cls, *, mode="explore", labels=None, form_fields=None):
+    def _campaign(cls, *, labels=None, form_fields=None):
         return SimpleNamespace(
             id=1,
-            default_work_mode=mode,
             settings=SimpleNamespace(
                 labels=cls.LABELS if labels is None else labels,
                 form_fields=form_fields or [],
@@ -1852,6 +1865,7 @@ class TestCreateAnnotationsFromGeojson:
         db.execute.side_effect = [
             [SimpleNamespace(id=101), SimpleNamespace(id=102)],  # geometry insert returning ids
             MagicMock(),  # annotation insert
+            MagicMock(),  # annotations version bump
         ]
         user_id = uuid4()
         contents = self._fc([self._feature(1), self._feature("2")])
@@ -1867,27 +1881,6 @@ class TestCreateAnnotationsFromGeojson:
         assert all(r["created_by_user_id"] == user_id for r in annotation_records)
         assert all(r["campaign_id"] == 1 for r in annotation_records)
 
-    def test_tasks_campaign_imports_successfully(self):
-        """Tasks-mode campaigns can now import standalone annotations (no task assignment)."""
-        db = MagicMock()
-        db.execute.side_effect = [
-            [SimpleNamespace(id=101), SimpleNamespace(id=102)],  # geometry insert returning ids
-            MagicMock(),  # annotation insert
-        ]
-        user_id = uuid4()
-        contents = self._fc([self._feature(1), self._feature("2")])
-
-        num = create_annotations_from_geojson(db, self._campaign(mode="tasks"), contents, user_id)
-
-        assert num == 2
-        db.commit.assert_called_once()
-        # Verify annotations are inserted with no task assignment
-        annotation_records = db.execute.call_args_list[1][0][1]
-        assert [r["label_id"] for r in annotation_records] == [1, 2]
-        assert all(r["annotation_task_id"] is None for r in annotation_records)
-        assert all(r["created_by_user_id"] == user_id for r in annotation_records)
-        assert all(r["campaign_id"] == 1 for r in annotation_records)
-
     def test_rejects_missing_label(self):
         db = MagicMock()
         contents = self._fc([self._feature(1), self._feature(None)])
@@ -1897,16 +1890,13 @@ class TestCreateAnnotationsFromGeojson:
         assert "stacnotator_label_id" in exc.value.detail
         db.execute.assert_not_called()
 
-    def test_rejects_bare_geometry(self):
-        """Unlike the task importer, a bare geometry object (no Feature or
-        FeatureCollection wrapper) is not a supported top-level shape here -
-        this importer only ever accepted FeatureCollection/Feature."""
+    def test_rejects_bare_geometry_for_want_of_a_label(self):
         db = MagicMock()
         contents = json.dumps({"type": "Point", "coordinates": [10.0, 20.0]}).encode("utf-8")
         with pytest.raises(HTTPException) as exc:
             create_annotations_from_geojson(db, self._campaign(), contents, uuid4())
         assert exc.value.status_code == 400
-        assert exc.value.detail == "Unsupported GeoJSON type"
+        assert "stacnotator_label_id" in exc.value.detail
         db.execute.assert_not_called()
 
     def test_rejects_label_not_in_campaign(self):
@@ -1923,6 +1913,7 @@ class TestCreateAnnotationsFromGeojson:
         db.scalars.return_value.all.return_value = []  # no existing collision
         db.execute.side_effect = [
             [SimpleNamespace(id=101), SimpleNamespace(id=102)],
+            MagicMock(),
             MagicMock(),
         ]
         contents = self._fc([self._feature(1, source_id=500), self._feature(2, source_id="501")])
@@ -1957,6 +1948,7 @@ class TestCreateAnnotationsFromGeojson:
         db.execute.side_effect = [
             [SimpleNamespace(id=101)],
             MagicMock(),
+            MagicMock(),
         ]
         contents = self._fc([self._feature(1, form_values={"1": 1})])
 
@@ -1972,6 +1964,7 @@ class TestCreateAnnotationsFromGeojson:
         db = MagicMock()
         db.execute.side_effect = [
             [SimpleNamespace(id=101)],
+            MagicMock(),
             MagicMock(),
         ]
         contents = self._fc([self._feature(1)])
