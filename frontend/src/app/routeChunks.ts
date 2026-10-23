@@ -11,6 +11,7 @@ export const importCampaignSettings = () =>
 export const importCampaignTasks = () => import('~/features/campaigns/pages/CampaignTasksPage');
 export const importReview = () => import('~/features/campaigns/pages/ReviewPage');
 export const importSettings = () => import('~/features/settings/pages/SettingsPage');
+export const importPlatformAdmin = () => import('~/features/settings/pages/PlatformAdminPage');
 export const importSdkAuth = () => import('~/features/auth/pages/SdkAuthPage');
 export const importNewProject = () => import('~/features/projects/pages/NewProjectPage');
 export const importProject = () => import('~/features/projects/pages/ProjectPage');
@@ -41,6 +42,7 @@ export function prefetchWorkspaceChunks(): void {
   void importNewOrganization();
   void importBrowseOrganizations();
   void importSettings();
+  void importPlatformAdmin();
 }
 
 /** Warm the annotation chunk (OpenLayers, Chart.js). */
