@@ -16,14 +16,13 @@ import { Button } from '~/shared/ui/forms';
 import { IconCopy, IconDocument, IconGlobe, IconPlus, IconSettings } from '~/shared/ui/Icons';
 import { FadeIn, MotionListItem } from '~/shared/ui/motion';
 import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
-import TabNavigator from '~/shared/ui/TabNavigator';
+import {
+  isProjectSection,
+  projectSections,
+  type ProjectSection,
+} from '~/features/projects/projectSections';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { ProjectVisualizersSection } from '~/features/visualizers/ProjectVisualizersSection';
-
-const PROJECT_TABS = ['campaigns', 'visualizers', 'members', 'settings'] as const;
-type ProjectTab = (typeof PROJECT_TABS)[number];
-
-const isProjectTab = (t: string | null): t is ProjectTab => PROJECT_TABS.some((tab) => tab === t);
 
 const NO_CAMPAIGNS: CampaignListItemOut[] = [];
 
@@ -37,10 +36,12 @@ export const ProjectPage = () => {
   const showAlert = useLayoutStore((state) => state.showAlert);
 
   const [duplicating, setDuplicating] = useState<CampaignListItemOut | null>(null);
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
 
-  const tabParam = searchParams.get('tab');
-  const requestedTab: ProjectTab = isProjectTab(tabParam) ? tabParam : 'campaigns';
+  const sectionParam = searchParams.get('tab');
+  const requestedSection: ProjectSection = isProjectSection(sectionParam)
+    ? sectionParam
+    : 'campaigns';
 
   const { project, loading } = useProject(projectId);
   const { data: campaignsData } = useQuery({
@@ -71,16 +72,6 @@ export const ProjectPage = () => {
     navigate(campaignPath(created.project_id, created.id, 'settings'));
   };
 
-  const selectTab = (tab: ProjectTab) => {
-    const next = new URLSearchParams(searchParams);
-    if (tab === 'campaigns') {
-      next.delete('tab');
-    } else {
-      next.set('tab', tab);
-    }
-    setSearchParams(next, { replace: true });
-  };
-
   return (
     <div className="flex-1 overflow-auto">
       <FadeIn className="page">
@@ -102,11 +93,10 @@ export const ProjectPage = () => {
         </header>
 
         {project ? (
-          <ProjectTabs
+          <ProjectSectionView
             project={project}
             campaigns={campaigns}
-            requestedTab={requestedTab}
-            onSelectTab={selectTab}
+            requestedSection={requestedSection}
             onOpenCampaign={(campaign) => navigate(campaignPath(project.id, campaign.id))}
             onOpenCampaignSettings={(campaign) =>
               navigate(campaignPath(project.id, campaign.id, 'settings'))
@@ -130,46 +120,33 @@ export const ProjectPage = () => {
   );
 };
 
-interface ProjectTabsProps {
+interface ProjectSectionViewProps {
   project: ProjectOut;
   campaigns: CampaignListItemOut[];
-  requestedTab: ProjectTab;
-  onSelectTab: (tab: ProjectTab) => void;
+  requestedSection: ProjectSection;
   onOpenCampaign: (campaign: CampaignListItemOut) => void;
   onOpenCampaignSettings: (campaign: CampaignListItemOut) => void;
   onCreateCampaign: () => void;
   onDuplicateCampaign: (campaign: CampaignListItemOut) => void;
 }
 
-const ProjectTabs = ({
+/** One section of the project, chosen in the sidebar. */
+const ProjectSectionView = ({
   project,
   campaigns,
-  requestedTab,
-  onSelectTab,
+  requestedSection,
   onOpenCampaign,
   onOpenCampaignSettings,
   onCreateCampaign,
   onDuplicateCampaign,
-}: ProjectTabsProps) => {
+}: ProjectSectionViewProps) => {
   const isAdmin = project.is_admin ?? false;
-  const canSeeMembers = isAdmin || (project.is_member ?? false);
-  const availableTabs: ProjectTab[] = [
-    'campaigns',
-    'visualizers',
-    ...(canSeeMembers ? (['members'] as const) : []),
-    ...(isAdmin ? (['settings'] as const) : []),
-  ];
-  const activeTab = availableTabs.includes(requestedTab) ? requestedTab : 'campaigns';
+  const activeTab = projectSections(project).includes(requestedSection)
+    ? requestedSection
+    : 'campaigns';
 
   return (
     <div className="surface">
-      <TabNavigator<ProjectTab>
-        items={availableTabs.map((tab) => ({ id: tab, label: capitalizeFirst(tab) }))}
-        activeId={activeTab}
-        onChange={onSelectTab}
-        className="!mb-0 !border-neutral-200 px-6"
-      />
-
       <div className="p-6">
         {activeTab === 'campaigns' && (
           <CampaignsList

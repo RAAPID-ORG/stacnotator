@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { PROJECT_ROUTE, useProject } from '~/app/projectRoute';
 import { useOrganizations } from '~/features/organizations/hooks/useOrganizations';
+import { reconcileActiveOrgId } from '~/features/organizations/utils/organizations';
 import { useOrgStore } from '~/shared/stores/org.store';
 
 /**
@@ -18,7 +19,18 @@ export function useOrgScope(): void {
   const { pathname } = useLocation();
   const projectId = Number(pathname.match(PROJECT_ROUTE)?.[1]) || null;
   const organizationId = useProject(projectId).project?.organization_id ?? null;
-  const { orgs: memberships } = useOrganizations();
+  const { orgs: memberships, loading } = useOrganizations();
+  const activeOrgId = useOrgStore((s) => s.activeOrgId);
+  const hasChosenOrg = useOrgStore((s) => s.hasChosenOrg);
+  const setActiveOrgId = useOrgStore((s) => s.setActiveOrgId);
+
+  // A selection that no longer resolves (left, rejected, first run) falls back
+  // to an organization the viewer can actually work in.
+  useEffect(() => {
+    if (loading) return;
+    const reconciled = reconcileActiveOrgId(memberships, activeOrgId, hasChosenOrg);
+    if (reconciled !== activeOrgId) setActiveOrgId(reconciled);
+  }, [loading, memberships, activeOrgId, hasChosenOrg, setActiveOrgId]);
 
   useEffect(() => {
     if (organizationId === null) return;
