@@ -10,7 +10,7 @@ import { DEFAULT_CONFIDENCE } from '../../taskActions';
 import { LabelGrid } from './LabelGrid';
 import { ReviewList } from './ReviewList';
 import { ActionBar, CommentSection, ConfidenceSection, FieldsSection } from './sections';
-import { sectionGridClass, sectionHeaderClass } from './styles';
+import { sectionCellClass, sectionGridClass, sectionHeaderClass } from './styles';
 import { currentTask, useTasksStore } from '../../stores/tasks';
 import { useClaims } from './useClaims';
 
@@ -80,17 +80,19 @@ export function TaskControls() {
 
   return (
     // The action bar stays pinned at the bottom; everything above it scrolls.
-    // Narrow, the sections stack. With room for two columns the labels sit
-    // beside the rest; with room for three they go full width on top and the
-    // rest fill a row of equal-height cells beneath, as many across as fit.
+    // The labels and the sections share one grid, filled row by row as many
+    // across as fit, so a section takes the space beside short labels rather
+    // than the labels claiming a column; only cells sharing a row are
+    // stretched to one height. With room for three columns the labels take
+    // the full width on top.
     <div className="@container flex h-full w-full flex-col bg-white">
       <div data-task-scroll className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
         {isReviewMode && <ReviewList task={task} currentUserId={currentUserId} labels={labels} />}
-        <div className="flex flex-col @min-[30rem]:flex-row @min-[45rem]:flex-col">
+        <div className={sectionGridClass}>
           <div
             data-task-labels
             tabIndex={-1}
-            className={`flex flex-col gap-1.5 p-3 border-b border-neutral-100 @min-[30rem]:flex-1 @min-[30rem]:basis-0 @min-[30rem]:border-b-0 @min-[30rem]:border-r @min-[45rem]:flex-none @min-[45rem]:basis-auto @min-[45rem]:border-r-0 @min-[45rem]:border-b ${
+            className={`${sectionCellClass} gap-1.5 @min-[45rem]:col-span-full ${
               labelGroupActive ? activeGroupClass : ''
             } focus:outline-none`}
           >
@@ -120,12 +122,9 @@ export function TaskControls() {
               disabled={isSubmitting}
             />
           </div>
-
-          <div className={`${sectionGridClass} flex-1 basis-0 @min-[45rem]:basis-auto`}>
-            <FieldsSection />
-            <CommentSection />
-            <ConfidenceSection />
-          </div>
+          <FieldsSection />
+          <CommentSection />
+          <ConfidenceSection />
         </div>
       </div>
       <ActionBar task={task} />
