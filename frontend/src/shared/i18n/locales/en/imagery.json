@@ -335,7 +335,8 @@
     "registered": "{{registered}} of {{total}} slices registered ({{percent}}%)",
     "working": "Working…",
     "reregister": "Re-register imagery",
-    "confirmDelete": "Delete imagery source \"{{name}}\"?\n\nThis cannot be undone.",
+    "confirmDeleteTitle": "Delete imagery source \"{{name}}\"?",
+    "confirmDeleteDescription": "This cannot be undone.",
     "outsideSeries": {
       "title": "Collections outside this generated series",
       "continue": "Continue",

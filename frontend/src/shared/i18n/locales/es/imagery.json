@@ -347,7 +347,8 @@
     "registered": "{{registered}} de {{total}} cortes registrados ({{percent}} %)",
     "working": "Procesando…",
     "reregister": "Volver a registrar imágenes",
-    "confirmDelete": "¿Eliminar la fuente de imágenes \"{{name}}\"?\n\nEsta acción no se puede deshacer.",
+    "confirmDeleteTitle": "¿Eliminar la fuente de imágenes \"{{name}}\"?",
+    "confirmDeleteDescription": "Esta acción no se puede deshacer.",
     "outsideSeries": {
       "title": "Colecciones fuera de esta serie generada",
       "continue": "Continuar",

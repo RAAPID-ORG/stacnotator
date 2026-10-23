@@ -121,14 +121,15 @@ test.describe('Project members', () => {
       .getByTestId('project-member-row')
       .filter({ hasText: leaving.user.display_name });
 
-    appPage.once('dialog', (dialog) => dialog.dismiss());
+    const confirm = appPage.getByRole('dialog');
     await row.getByRole('button', { name: 'Remove' }).click();
+    await confirm.getByRole('button', { name: 'Cancel' }).click();
     await expect(appPage.getByTestId('project-member-row')).toHaveCount(
       MOCK_PROJECT_USERS.users.length
     );
 
-    appPage.once('dialog', (dialog) => dialog.accept());
     await row.getByRole('button', { name: 'Remove' }).click();
+    await confirm.getByRole('button', { name: 'Remove' }).click();
 
     await expect(appPage.getByTestId('project-member-row')).toHaveCount(1);
     await expect(appPage.getByTestId('project-member-row')).toContainText(

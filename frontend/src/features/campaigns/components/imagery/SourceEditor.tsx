@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useLayoutStore } from '~/shared/stores/layout.store';
 import i18n from '~/shared/i18n';
 import { Modal } from '~/shared/ui/Modal';
 import {
@@ -144,9 +145,12 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
 
   const handleRemoveSource = async () => {
     if (controller.mode === 'persisted') {
-      const ok = window.confirm(
-        t('sourceEditor.confirmDelete', { name: source.name || t('untitled') })
-      );
+      const ok = await useLayoutStore.getState().showConfirmDialog({
+        title: t('sourceEditor.confirmDeleteTitle', { name: source.name || t('untitled') }),
+        description: t('sourceEditor.confirmDeleteDescription'),
+        confirmText: t('common:actions.delete'),
+        isDangerous: true,
+      });
       if (!ok) return;
     }
     await controller.removeSource(source.id);

@@ -220,7 +220,7 @@ export function useCanModifyAnnotation(): (
     canModifyAnnotation(
       annotation,
       toPolicyContext(campaign, userId),
-      campaign?.settings.labelling_policy?.modify_others
+      campaign?.settings.labelling_policy.modify_others
     );
 }
 
@@ -259,6 +259,6 @@ export function mayModifyAnnotation(
   return canModifyAnnotation(
     annotation,
     toPolicyContext(campaign, currentUserId),
-    campaign?.settings.labelling_policy?.modify_others
+    campaign?.settings.labelling_policy.modify_others
   );
 }

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQuery } from '@tanstack/react-query';
+import { getSharedVisualizerOptions } from '~/api/queries';
 import { Toaster } from 'sonner';
 import {
   deleteVisualizerFeedback,
-  getSharedVisualizer,
   getVisualizerTilerToken,
   listVisualizerFeedback,
   type VisualizerFeedbackOut,
@@ -62,8 +63,13 @@ const FEEDBACK_ZOOM_CAP = 17;
  */
 export function VisualizerPage({ slug }: { slug: string }) {
   const { t } = useTranslation('visualizers');
-  const [view, setView] = useState<VisualizerViewOut | null>(null);
-  const [failed, setFailed] = useState(false);
+  // The page renders its own failure, so the cache does not toast it too.
+  const { data: view = null, isError: loadFailed } = useQuery({
+    ...getSharedVisualizerOptions({ path: { slug } }),
+    meta: { errorMessage: t('viewer.notAvailable'), showUser: false },
+  });
+  const [sessionFailed, setSessionFailed] = useState(false);
+  const failed = loadFailed || sessionFailed;
   const [state, setState] = useState<ViewerState | null>(null);
   // On a touch device the panel covers the map, so it starts out of the way.
   // Same test the `desktop:` variant makes.
@@ -118,29 +124,19 @@ export function VisualizerPage({ slug }: { slug: string }) {
   }, [slug]);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const { data } = await getSharedVisualizer({ path: { slug } });
-        if (cancelled || !data) return;
-        setView(data);
-        setState(initialState(data));
-        if (data.area) {
-          const { west, south, east, north } = data.area;
-          camera.current?.fitBounds([west, south, east, north], {
-            paddingPx: AREA_PADDING_PX,
-            minZoom: workingZoom(data),
-          });
-        }
-        if (needsTilerSession(data)) await ensureTilerSession(slug);
-      } catch {
-        if (!cancelled) setFailed(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [slug]);
+    if (!view) return;
+    setState(initialState(view));
+    if (view.area) {
+      const { west, south, east, north } = view.area;
+      camera.current?.fitBounds([west, south, east, north], {
+        paddingPx: AREA_PADDING_PX,
+        minZoom: workingZoom(view),
+      });
+    }
+    if (needsTilerSession(view)) {
+      ensureTilerSession(slug).catch(() => setSessionFailed(true));
+    }
+  }, [view, slug]);
 
   useEffect(() => {
     if (view) document.title = `${view.name} - STACNotator`;

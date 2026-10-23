@@ -222,8 +222,13 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
     }
   };
 
-  const handleRemoveUser = (member: ProjectUserOut) => {
-    if (!window.confirm(t('members.confirmRemove', { name: member.user.display_name }))) return;
+  const handleRemoveUser = async (member: ProjectUserOut) => {
+    const confirmed = await useLayoutStore.getState().showConfirmDialog({
+      title: t('members.confirmRemove', { name: member.user.display_name }),
+      confirmText: t('members.remove'),
+      isDangerous: true,
+    });
+    if (!confirmed) return;
     removeUser.mutate(
       { path: { ...path, user_id: member.user.id } },
       {
