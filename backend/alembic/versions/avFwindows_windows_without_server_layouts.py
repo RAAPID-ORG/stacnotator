@@ -7,7 +7,8 @@ deleted; they become view_sources rows. And which windows a layout showed was it
 membership, so the server packed new windows into every layout on each imagery or
 time-series change: a layout now lists the windows it hides, and the client places
 any window it neither places nor hides. This migration hides exactly the windows each
-layout did not show, so nobody's workspace changes.
+layout did not show, so nobody's workspace changes. A layout_data that is not an array
+(the column's old '{}' default) is read as an empty layout, which is what it meant.
 
 Revision ID: avFwindows
 Revises: avEinline
@@ -18,8 +19,9 @@ import json
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects.postgresql import JSONB
+
+from alembic import op
 
 revision: str = "avFwindows"
 down_revision: str | Sequence[str] | None = "avEinline"
@@ -54,6 +56,14 @@ def _rekey_main_layouts(conn, campaign_id: int, key_of: dict[str, str]) -> None:
 def upgrade() -> None:
     conn = op.get_bind()
 
+    op.execute(
+        "UPDATE data.canvas_layouts SET layout_data = '[]' "
+        "WHERE jsonb_typeof(layout_data) IS DISTINCT FROM 'array'"
+    )
+    op.alter_column(
+        "canvas_layouts", "layout_data", server_default=sa.text("'[]'::jsonb"), schema="data"
+    )
+
     op.create_table(
         "timeseries_windows",
         sa.Column("id", sa.Integer(), primary_key=True),
@@ -64,18 +74,13 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("name", sa.String(), nullable=False),
-        sa.Column("display_order", sa.SmallInteger(), server_default="0", nullable=False),
         sa.UniqueConstraint("campaign_id", "name", name="uq_timeseries_windows_campaign_name"),
         schema="data",
     )
-    op.create_index(
-        "idx_timeseries_windows_campaign_id", "timeseries_windows", ["campaign_id"], schema="data"
-    )
     op.execute(
         """
-        INSERT INTO data.timeseries_windows (campaign_id, name, display_order)
-        SELECT campaign_id, name,
-               (row_number() OVER (PARTITION BY campaign_id ORDER BY first_id) - 1)::smallint
+        INSERT INTO data.timeseries_windows (campaign_id, name)
+        SELECT campaign_id, name
         FROM (
             SELECT campaign_id, COALESCE(NULLIF(btrim(window_name), ''), 'Time series') AS name,
                    min(id) AS first_id

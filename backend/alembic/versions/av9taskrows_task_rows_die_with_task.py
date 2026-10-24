@@ -33,11 +33,6 @@ def upgrade() -> None:
     op.execute(
         "DELETE FROM data.annotations WHERE annotation_task_id IS NULL AND outcome IS NOT NULL"
     )
-    op.execute(
-        "DELETE FROM data.annotation_geometries g "
-        "WHERE NOT EXISTS (SELECT 1 FROM data.annotations a WHERE a.geometry_id = g.id) "
-        "AND NOT EXISTS (SELECT 1 FROM data.annotation_tasks t WHERE t.geometry_id = g.id)"
-    )
     op.drop_constraint("annotations_task_row_has_outcome", "annotations", schema="data")
     op.create_check_constraint(
         "annotations_task_row_has_outcome",
@@ -45,7 +40,22 @@ def upgrade() -> None:
         "(annotation_task_id IS NULL) = (outcome IS NULL)",
         schema="data",
     )
-    op.drop_constraint("annotations_annotation_task_id_fkey", "annotations", schema="data")
+    # Found by its column: databases built at different times named it differently.
+    op.execute(
+        """
+        DO $$
+        DECLARE fk text;
+        BEGIN
+            SELECT c.conname INTO fk
+            FROM pg_constraint c
+            JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey)
+            WHERE c.conrelid = 'data.annotations'::regclass
+              AND c.contype = 'f'
+              AND a.attname = 'annotation_task_id';
+            EXECUTE format('ALTER TABLE data.annotations DROP CONSTRAINT %I', fk);
+        END $$;
+        """
+    )
     op.create_foreign_key(
         "annotations_annotation_task_id_fkey",
         "annotations",

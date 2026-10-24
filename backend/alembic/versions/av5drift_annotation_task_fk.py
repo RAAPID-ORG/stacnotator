@@ -4,12 +4,10 @@
   databases built from scratch: the column was re-added without one. Rows
   pointing at a task that no longer exists are detached first, which is what the
   key's ON DELETE SET NULL would have done.
-- annotation_geometries carries two identical GiST indexes on geometry: the one
-  geoalchemy creates with the table and ix_annotation_geometries_geom from
-  t1annotgist. The model's is kept.
-
-Both steps check what is there first, since databases differ in which of these
-they already have.
+It checks what is there first, since databases differ in whether they have it.
+(annotation_geometries' duplicate GiST index is left alone: avEinline drops the
+table, and dropping an index concurrently would commit the migrations before it
+on their own.)
 
 Revision ID: av5drift
 Revises: av4tsclean
@@ -52,12 +50,6 @@ def upgrade() -> None:
         END $$;
         """
     )
-    with op.get_context().autocommit_block():
-        op.execute(
-            "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_annotation_geometries_geometry "
-            "ON data.annotation_geometries USING GIST (geometry)"
-        )
-        op.execute("DROP INDEX CONCURRENTLY IF EXISTS data.ix_annotation_geometries_geom")
 
 
 def downgrade() -> None:

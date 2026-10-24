@@ -16,11 +16,29 @@ Revises: avCemberr
 Create Date: 2026-10-23
 """
 
+import logging
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects.postgresql import JSONB
+
+from alembic import op
+
+logger = logging.getLogger("alembic.runtime.migration")
+
+_UNMATCHED = """
+SELECT
+  (SELECT count(*) FROM data.collection_viz_configs v
+   JOIN data.imagery_collections c ON c.id = v.collection_id
+   WHERE c.catalog_url IS NOT NULL AND NOT EXISTS (
+     SELECT 1 FROM data.visualizations r WHERE r.source_id = c.source_id AND r.name = v.name)),
+  (SELECT count(*) FROM data.slice_tile_urls u
+   JOIN data.imagery_slices s ON s.id = u.slice_id
+   JOIN data.imagery_collections c ON c.id = s.collection_id
+   WHERE c.catalog_url IS NULL AND NOT EXISTS (
+     SELECT 1 FROM data.visualizations r
+     WHERE r.source_id = c.source_id AND r.name = u.visualization_name))
+"""
 
 revision: str = "avDmosaics"
 down_revision: str | Sequence[str] | None = "avCemberr"
@@ -177,6 +195,17 @@ def upgrade() -> None:
         WHERE c.catalog_url IS NULL
         """
     )
+
+    # Rows naming a visualization their source does not have were never drawn (the
+    # old code looked them up by that name too), so they are not carried over. Say how
+    # many, so a deploy log shows it.
+    unmatched = op.get_bind().execute(sa.text(_UNMATCHED)).one()
+    if any(unmatched):
+        logger.warning(
+            "avDmosaics: dropped %d STAC parameter rows and %d manual tile URLs naming no "
+            "visualization of their source",
+            *unmatched,
+        )
 
     op.drop_table("slice_tile_urls", schema="data")
     op.drop_table("collection_viz_configs", schema="data")
