@@ -138,6 +138,8 @@ class Annotation(Base):
         nullable=False,
     )
 
+    # Whose answer this is decides completion, agreement and review, so an annotation
+    # never loses its author: a user who still has annotations cannot be deleted.
     created_by_user_id: Mapped[UUID] = mapped_column(
         ForeignKey("auth.users.id", ondelete="RESTRICT"),
         nullable=False,
