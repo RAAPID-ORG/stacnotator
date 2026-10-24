@@ -12,9 +12,12 @@ is wherever an annotator is standing - see ``service.search_planet_scenes_in_vie
 import copy
 import json
 import logging
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from contextlib import ExitStack
+from dataclasses import dataclass, replace
+from functools import partial
 
 import httpx
 from fastapi import HTTPException
@@ -228,18 +231,26 @@ def register_missing(db: Session, owner: LayerOwner, bbox: list[float]) -> list[
 
     registered = [(o, m) for (o, _), m in zip(runnable, mosaic_ids, strict=True) if m is not None]
     logger.info("Registered %d/%d mosaics", len(registered), len(orders))
-    # A slice deleted while its search was out has nothing left to attach a mosaic to.
-    alive = set(
-        db.scalars(
-            select(ImagerySlice.id).where(ImagerySlice.id.in_({o.slice_id for o, _ in registered}))
-        )
-    )
+    # The slices may have changed while the searches were out: one deleted, a search
+    # edited (that save started a run of its own), or the mosaic registered by another
+    # run. A result is kept only where the same search is still missing.
+    still_missing = {
+        (o.slice_id, o.provider): o for o in missing_mosaics(_owner_sources(db, owner))
+    }
     for order, mosaic_id in registered:
-        if order.slice_id in alive:
+        current = still_missing.get((order.slice_id, order.provider))
+        if current is not None and _same_search(current, order):
             db.merge(
                 SliceMosaic(slice_id=order.slice_id, provider=order.provider, mosaic_id=mosaic_id)
             )
     return errors
+
+
+def _same_search(a: MosaicOrder, b: MosaicOrder) -> bool:
+    """Whether two orders search the same thing; the names are only labels."""
+    return replace(a, slice_name="", collection_name="") == replace(
+        b, slice_name="", collection_name=""
+    )
 
 
 # The imagery domain's background run: registration and source
@@ -291,16 +302,43 @@ def spawn_background_registration(owner: LayerOwner, bbox: list[float]) -> None:
 
 
 def resume_pending(db: Session) -> None:
-    """Start the registration runs left owed, for the owners this worker claims."""
-    campaign_ids = background.claim_pending_runs(db, REGISTRATION_RUN)
-    visualizer_ids = background.claim_pending_runs(db, VISUALIZER_REGISTRATION_RUN)
-    db.commit()
-    owners: list[Campaign | Visualizer] = [
-        *db.scalars(select(Campaign).where(Campaign.id.in_(campaign_ids))),
-        *db.scalars(select(Visualizer).where(Visualizer.id.in_(visualizer_ids))),
+    """Start the registration runs left owed, for the owners this worker claims.
+
+    One thread works through them in turn rather than a run per owner at once, so a
+    deploy that owes many does not send them all at the tiler together. Every claimed
+    run beats from the start, so none is swept as dead while it waits its turn.
+    """
+    claimed = [
+        *((i, REGISTRATION_RUN) for i in background.claim_pending_runs(db, REGISTRATION_RUN)),
+        *(
+            (i, VISUALIZER_REGISTRATION_RUN)
+            for i in background.claim_pending_runs(db, VISUALIZER_REGISTRATION_RUN)
+        ),
     ]
-    for owner in owners:
-        spawn_background_registration(owner.layer_owner, list(owner.bbox))
+    db.commit()
+    if claimed:
+        threading.Thread(target=_register_in_turn, args=(claimed,), daemon=True).start()
+
+
+def _register_in_turn(claimed: list[tuple[int, background.StatusField]]) -> None:
+    with ExitStack() as beating:
+        for row_id, field in claimed:
+            beating.enter_context(background.heartbeat(row_id, field))
+        for row_id, field in claimed:
+            background.run_status_run(
+                row_id,
+                field,
+                name="imagery registration",
+                work=partial(_register_owner, row_id=row_id, field=field),
+                sanitize_error=lambda exc: f"Imagery registration: {_sanitize_stac_error(exc)}",
+            )
+
+
+def _register_owner(db: Session, row_id: int, field: background.StatusField) -> list[dict]:
+    row = db.get(Campaign, row_id) if field is REGISTRATION_RUN else db.get(Visualizer, row_id)
+    if row is None:
+        return []
+    return register_missing(db, row.layer_owner, list(row.bbox))
 
 
 def commit_and_register(db: Session, owner: Campaign | Visualizer, bbox) -> None:

@@ -21,11 +21,11 @@ FIELD = background.StatusField(
 class _InlineThread:
     """Stand-in for threading.Thread that runs the target synchronously."""
 
-    def __init__(self, target, daemon=True, name=None):
-        self._target = target
+    def __init__(self, target, args=(), kwargs=None, daemon=True, name=None):
+        self._run = lambda: target(*args, **(kwargs or {}))
 
     def start(self):
-        self._target()
+        self._run()
 
 
 @pytest.fixture()

@@ -153,3 +153,23 @@ def test_registers_the_missing_mosaics_without_holding_a_transaction(monkeypatch
         assert errors == []
         expected |= {(11, "test-tiler"): "hosted-20", (12, "test-tiler"): "hosted-10"}
     assert stored == expected
+
+
+def test_a_search_edited_while_its_registration_was_out_is_not_kept(monkeypatch):
+    registered, edited = _source(), _source()
+    for collection in edited.collections:
+        if collection.search_query:
+            collection.search_query = {**collection.search_query, "limit": 99}
+    reads = iter([[registered], [edited]])
+    monkeypatch.setattr(registration, "_owner_sources", lambda db, owner: next(reads))
+    response = MagicMock()
+    response.json.return_value = {"searchid": "mpc-old"}
+    monkeypatch.setattr(registration.httpx, "post", lambda *a, **k: response)
+    monkeypatch.setattr(registration.providers, "resolve_tiler", lambda name: None)
+    monkeypatch.setattr(registration, "_register_hosted", lambda *a: "hosted-old")
+    db = MagicMock()
+
+    registration.register_missing(db, LayerOwner(campaign_id=1), [10, 20, 11, 21])
+
+    # The edit changed the regular slices' query; the cover keeps its own and its result.
+    assert {m.slice_id for (m,), _ in db.merge.call_args_list} == {11}
