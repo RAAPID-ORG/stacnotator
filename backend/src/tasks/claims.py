@@ -114,6 +114,14 @@ def is_free_work() -> ColumnElement[bool]:
     )
 
 
+def is_unclaimed(now: datetime) -> ColumnElement[bool]:
+    """Nobody holds a live lease on the task."""
+    return or_(
+        Task.claimed_by_user_id.is_(None),
+        Task.claimed_at <= now - timedelta(minutes=CLAIM_TTL_MINUTES),
+    )
+
+
 def is_open_assignment() -> ColumnElement[bool]:
     """A primary assignment its assignee has not labelled or skipped yet."""
     return ~TaskAssignment.is_review & ~exists().where(
@@ -144,10 +152,7 @@ def claim_next_task(
     now = datetime.now(UTC)
     free = select(Task).where(
         Task.campaign_id == campaign_id,
-        or_(
-            Task.claimed_by_user_id.is_(None),
-            Task.claimed_at <= now - timedelta(minutes=CLAIM_TTL_MINUTES),
-        ),
+        is_unclaimed(now),
         is_free_work(),
     )
     if task_set_id is not None:

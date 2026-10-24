@@ -376,7 +376,7 @@ class TestUpdateAnnotation:
     def test_update_label(self):
         db = _mock_db()
         user_id = uuid4()
-        existing = _make_annotation(ann_id=5, label_id=1)
+        existing = _make_annotation(ann_id=5, task_id=None, label_id=1)
         db.execute.return_value.scalar_one_or_none.return_value = existing
 
         payload = AnnotationUpdate(label_id=3, comment=None, geometry_wkt=None)
@@ -385,10 +385,45 @@ class TestUpdateAnnotation:
         assert existing.label_id == 3
         db.commit.assert_called_once()
 
-    def test_update_comment(self):
+    def test_an_answer_is_edited_by_whoever_may_work_its_task(self):
         db = _mock_db()
         user_id = uuid4()
-        existing = _make_annotation(ann_id=5)
+        existing = _make_annotation(ann_id=5, task_id=1, label_id=None, user_id=user_id)
+        existing.outcome = "skipped"
+        db.execute.return_value.scalar_one_or_none.return_value = existing
+        campaign = _make_campaign()
+        campaign.task_output = "classify"
+
+        with (
+            patch("src.annotation.service.require_task_access") as task_access,
+            patch("src.annotation.service._require_explore_access") as explore_access,
+        ):
+            update_annotation(db, 5, AnnotationUpdate(label_id=3), user_id, campaign=campaign)
+
+        task_access.assert_called_once()
+        explore_access.assert_not_called()
+        assert (existing.label_id, existing.outcome) == (3, "labelled")
+
+    def test_a_draw_answer_takes_no_label(self):
+        db = _mock_db()
+        user_id = uuid4()
+        existing = _make_annotation(ann_id=5, task_id=1, label_id=None, user_id=user_id)
+        db.execute.return_value.scalar_one_or_none.return_value = existing
+        campaign = _make_campaign()
+        campaign.task_output = "draw"
+
+        with (
+            patch("src.annotation.service.require_task_access"),
+            pytest.raises(HTTPException) as exc_info,
+        ):
+            update_annotation(db, 5, AnnotationUpdate(label_id=3), user_id, campaign=campaign)
+
+        assert exc_info.value.status_code == 400
+        db.commit.assert_not_called()
+
+        db = _mock_db()
+        user_id = uuid4()
+        existing = _make_annotation(ann_id=5, task_id=None)
         db.execute.return_value.scalar_one_or_none.return_value = existing
 
         payload = AnnotationUpdate(label_id=None, comment="updated comment", geometry_wkt=None)
@@ -399,7 +434,7 @@ class TestUpdateAnnotation:
     def test_update_geometry_replaces_the_rows_own(self):
         db = _mock_db()
         user_id = uuid4()
-        existing = _make_annotation(ann_id=5)
+        existing = _make_annotation(ann_id=5, task_id=None)
         db.execute.return_value.scalar_one_or_none.return_value = existing
 
         payload = AnnotationUpdate(
@@ -414,7 +449,7 @@ class TestUpdateAnnotation:
 
     def test_geometry_update_refreshes_imagery_snapshot(self):
         db = _mock_db()
-        existing = _make_annotation(ann_id=5)
+        existing = _make_annotation(ann_id=5, task_id=None)
         existing.imagery_slice_id = 1
         existing.imagery_source_name = "Old Source"
         existing.imagery_start_date = "2020-01-01"
@@ -439,7 +474,7 @@ class TestUpdateAnnotation:
 
     def test_non_geometry_update_leaves_imagery_snapshot(self):
         db = _mock_db()
-        existing = _make_annotation(ann_id=5)
+        existing = _make_annotation(ann_id=5, task_id=None)
         existing.imagery_slice_id = 1
         existing.imagery_source_name = "Old Source"
         existing.imagery_start_date = "2020-01-01"
@@ -477,7 +512,7 @@ class TestUpdateAnnotation:
         """Fields set to None in the update payload should not be changed."""
         db = _mock_db()
         user_id = uuid4()
-        existing = _make_annotation(ann_id=5, label_id=2)
+        existing = _make_annotation(ann_id=5, task_id=None, label_id=2)
         existing.comment = "original"
         existing.confidence = 5
         existing.is_authoritative = True
@@ -494,7 +529,7 @@ class TestUpdateAnnotation:
     def test_db_failure_rolls_back(self):
         db = _mock_db()
         user_id = uuid4()
-        existing = _make_annotation(ann_id=5)
+        existing = _make_annotation(ann_id=5, task_id=None)
         db.execute.return_value.scalar_one_or_none.return_value = existing
         db.commit.side_effect = Exception("DB error")
 
@@ -628,7 +663,7 @@ class TestPublicCampaignAnnotationOwnership:
     def test_update_own_annotation_in_public_campaign(self):
         db = _mock_db()
         user_id = uuid4()
-        existing = _make_annotation(ann_id=5, user_id=user_id)
+        existing = _make_annotation(ann_id=5, task_id=None, user_id=user_id)
         db.execute.return_value.scalar_one_or_none.return_value = existing
 
         payload = AnnotationUpdate(label_id=3, comment=None, geometry_wkt=None)
@@ -641,7 +676,7 @@ class TestPublicCampaignAnnotationOwnership:
         db = _mock_db()
         owner_id = uuid4()
         other_user_id = uuid4()
-        existing = _make_annotation(ann_id=5, user_id=owner_id)
+        existing = _make_annotation(ann_id=5, task_id=None, user_id=owner_id)
         db.execute.return_value.scalar_one_or_none.side_effect = [existing, None]
         # No project membership and no platform-admin role, so the policy's
         # modify_others audience (campaign admins by default) excludes them.
@@ -656,7 +691,7 @@ class TestPublicCampaignAnnotationOwnership:
     def test_update_other_users_annotation_raises_403_in_a_private_campaign_too(self):
         """Membership is permission to add work, not to change other people's."""
         db = _mock_db()
-        existing = _make_annotation(ann_id=5, user_id=uuid4())
+        existing = _make_annotation(ann_id=5, task_id=None, user_id=uuid4())
         db.execute.return_value.scalar_one_or_none.side_effect = [existing, None]
         db.scalars.return_value.first.return_value = None
         db.scalar.return_value = False  # not a platform admin
@@ -1814,7 +1849,7 @@ def _bump_create_bulk(db):
 
 
 def _bump_update(db):
-    existing = _make_annotation(ann_id=5, label_id=1)
+    existing = _make_annotation(ann_id=5, task_id=None, label_id=1)
     db.execute.return_value.scalar_one_or_none.return_value = existing
     payload = AnnotationUpdate(label_id=3, comment=None, geometry_wkt=None)
     update_annotation(db, 5, payload, existing.created_by_user_id, campaign=_make_campaign())

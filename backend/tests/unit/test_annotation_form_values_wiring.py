@@ -264,6 +264,7 @@ class TestUpdateAnnotationFormValuesWiring:
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
         existing.output_of_task_id = None
+        existing.task_id = None
         existing.label_id = 1
         author = uuid4()
         existing.created_by_user_id = author
@@ -284,6 +285,7 @@ class TestUpdateAnnotationFormValuesWiring:
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
         existing.output_of_task_id = None
+        existing.task_id = None
         existing.label_id = 1
         author = uuid4()
         existing.created_by_user_id = author
@@ -309,6 +311,7 @@ class TestUpdateAnnotationFormValuesWiring:
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
         existing.output_of_task_id = None
+        existing.task_id = None
         existing.label_id = 1
         author = uuid4()
         existing.created_by_user_id = author
@@ -332,6 +335,7 @@ class TestUpdateAnnotationFormValuesWiring:
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
         existing.output_of_task_id = None
+        existing.task_id = None
         existing.label_id = 1
         author = uuid4()
         existing.created_by_user_id = author
@@ -351,6 +355,7 @@ class TestUpdateAnnotationFormValuesWiring:
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
         existing.output_of_task_id = None
+        existing.task_id = None
         existing.label_id = None
         author = uuid4()
         existing.created_by_user_id = author
@@ -369,6 +374,7 @@ class TestUpdateAnnotationFormValuesWiring:
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
         existing.output_of_task_id = None
+        existing.task_id = None
         existing.label_id = None
         author = uuid4()
         existing.created_by_user_id = author
@@ -385,6 +391,7 @@ class TestUpdateAnnotationFormValuesWiring:
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
         existing.output_of_task_id = None
+        existing.task_id = None
         existing.label_id = None
         author = uuid4()
         existing.created_by_user_id = author

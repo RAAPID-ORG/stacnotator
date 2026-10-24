@@ -508,7 +508,15 @@ def update_annotation(
     if annotation is None:
         raise HTTPException(status_code=404, detail="Annotation not found")
 
-    _require_drawing_access(db, campaign, user_id, {annotation.output_of_task_id})
+    if annotation.task_id is not None:
+        # An answer is edited by whoever may work its task, Explore or not.
+        task = db.scalars(
+            select(Task).where(Task.id == annotation.task_id).options(joinedload(Task.assignments))
+        ).first()
+        if task is not None:
+            require_task_access(db, campaign, task, user_id)
+    else:
+        _require_drawing_access(db, campaign, user_id, {annotation.output_of_task_id})
 
     _require_own_annotations(db, [annotation], campaign, user_id, "edit")
 
@@ -526,6 +534,14 @@ def update_annotation(
         # Update label if provided
         if annotation_update.label_id is not None:
             validate_label_id(campaign, annotation_update.label_id)
+            if annotation.task_id is not None:
+                if campaign.task_output != "classify":
+                    raise HTTPException(
+                        status_code=400,
+                        detail="A draw task's answer has no label; label its shapes instead",
+                    )
+                # Labelling a skipped task turns the skip into an answer.
+                annotation.outcome = "labelled"
             annotation.label_id = annotation_update.label_id
 
         # Patch semantics like every other field: omitting form_values keeps

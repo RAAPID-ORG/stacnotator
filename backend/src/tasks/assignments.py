@@ -1,6 +1,7 @@
 import io
 import random
 from collections import defaultdict
+from datetime import UTC, datetime
 from typing import Any, cast
 from uuid import UUID
 
@@ -14,7 +15,7 @@ from src.auth.constants import AGENT_ISSUER
 from src.auth.models import User
 from src.campaigns.models import Campaign
 from src.projects.models import ProjectUser
-from src.tasks.claims import is_free_work
+from src.tasks.claims import is_free_work, is_unclaimed
 from src.tasks.models import Task, TaskAssignment, TaskSet
 from src.tasks.schemas import (
     AssignReviewersRequest,
@@ -90,8 +91,9 @@ def verify_tasks_in_campaign(db: Session, campaign_id: int, task_ids: list[int])
 
 
 def _eligible_task_ids(db: Session, campaign_id: int, task_set_id: int | None = None) -> list[int]:
-    """Campaign tasks free to hand out, locked for update."""
-    conditions = [Task.campaign_id == campaign_id, is_free_work()]
+    """Campaign tasks free to hand out, locked for update. A task someone is
+    working on under a claim is left to them."""
+    conditions = [Task.campaign_id == campaign_id, is_free_work(), is_unclaimed(datetime.now(UTC))]
     if task_set_id is not None:
         conditions.append(Task.task_set_id == task_set_id)
     stmt = select(Task.id).where(*conditions).order_by(Task.id).with_for_update(skip_locked=True)

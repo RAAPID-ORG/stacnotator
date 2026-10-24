@@ -264,11 +264,11 @@ def update_campaign(db: Session, campaign: Campaign, changes: CampaignUpdate) ->
 
 def _check_task_output_change(db: Session, campaign: Campaign, task_output: str) -> None:
     """Labelling tasks and drawing around them are locked in once any task has
-    been worked: the outcomes stored so far would change meaning."""
+    been worked, or a draw task has shapes drawn for it: the outcomes stored so far
+    would change meaning, and the shapes would answer nothing."""
+    worked = (Annotation.task_id.isnot(None)) | (Annotation.output_of_task_id.isnot(None))
     if campaign.task_output != task_output and db.scalar(
-        select(
-            exists().where(Annotation.campaign_id == campaign.id, Annotation.task_id.isnot(None))
-        )
+        select(exists().where(Annotation.campaign_id == campaign.id, worked))
     ):
         raise HTTPException(
             status_code=409,
@@ -383,8 +383,8 @@ def delete_campaigns(db: Session, campaign_ids: list[int]) -> None:
     into the session to delete them one statement at a time.
 
     A labelling agent is a user made for one campaign, so its user row (and with
-    it its project membership) goes too, once the campaign's annotations no
-    longer hold it. Does not commit."""
+    it its project membership) goes too, unless a copy of the campaign holds its
+    annotations. Does not commit."""
     agent_ids = list(
         db.scalars(
             select(LabellingAgent.user_id).where(LabellingAgent.campaign_id.in_(campaign_ids))
@@ -394,4 +394,10 @@ def delete_campaigns(db: Session, campaign_ids: list[int]) -> None:
         revoke_campaign_private_searches(db, campaign_id)
     db.execute(delete(Campaign).where(Campaign.id.in_(campaign_ids)))
     if agent_ids:
-        db.execute(delete(User).where(User.id.in_(agent_ids)))
+        # A copy of the campaign may hold the agent's annotations; then it stays.
+        db.execute(
+            delete(User).where(
+                User.id.in_(agent_ids),
+                ~exists().where(Annotation.created_by_user_id == User.id),
+            )
+        )

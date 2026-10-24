@@ -118,6 +118,7 @@ class TestExploreAxisEnforcement:
         db = _db(cu=None)
         existing = MagicMock()
         existing.output_of_task_id = None
+        existing.task_id = None
         existing.created_by_user_id = uuid4()
         db.execute.return_value.scalar_one_or_none.return_value = existing
         payload = AnnotationUpdate(label_id=1, comment=None, geometry_wkt=None)
@@ -133,6 +134,7 @@ class TestExploreAxisEnforcement:
         user_id = uuid4()
         existing = MagicMock()
         existing.output_of_task_id = None
+        existing.task_id = None
         existing.created_by_user_id = user_id
         existing.form_values = None
         db.execute.return_value.scalar_one_or_none.return_value = existing
