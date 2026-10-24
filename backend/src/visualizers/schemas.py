@@ -255,6 +255,7 @@ class VisualizerFeedbackOut(BaseModel):
     area: VisualizerArea
     layer_name: str | None
     verdict: FeedbackVerdict | None
+    suggested_value: int | None
     suggested_label: str | None
     note: str | None
     viewing: str | None

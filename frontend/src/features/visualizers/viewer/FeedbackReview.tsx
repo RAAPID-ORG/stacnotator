@@ -28,6 +28,14 @@ export function FeedbackReview({
   onClose: () => void;
 }) {
   const { t } = useTranslation(['visualizers', 'common']);
+  // A legend entry without a label is sent as its value alone, so it is not repeated.
+  const suggestedClass = (entry: VisualizerFeedbackOut) =>
+    entry.suggested_value === null || entry.suggested_label === String(entry.suggested_value)
+      ? entry.suggested_label
+      : t('feedbackReview.suggestedClass', {
+          label: entry.suggested_label,
+          value: entry.suggested_value,
+        });
   const position = items.findIndex((entry) => entry.id === selectedId);
 
   return (
@@ -112,7 +120,7 @@ export function FeedbackReview({
                   <Td className="text-neutral-900">
                     {entry.suggested_label && (
                       <>
-                        {entry.suggested_label}
+                        {suggestedClass(entry)}
                         {entry.layer_name && (
                           <span className="text-neutral-400">
                             {t('feedbackReview.inLayer', { layer: entry.layer_name })}

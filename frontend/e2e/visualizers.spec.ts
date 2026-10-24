@@ -185,6 +185,7 @@ test.describe('Shared visualizer', () => {
             area: { west: 30.4, south: 50.3, east: 30.7, north: 50.5 },
             layer_name: 'Yield prediction',
             verdict: 'wrong',
+            suggested_value: 2,
             suggested_label: 'Wheat',
             note: 'Sunflower, not maize.',
             viewing: 'Sentinel-2 - Mar 2024',
@@ -199,6 +200,7 @@ test.describe('Shared visualizer', () => {
     const rows = page.getByTestId('visualizer-feedback-row');
     await expect(rows).toHaveCount(1);
     await expect(rows.first()).toContainText('Looks wrong');
+    await expect(rows.first()).toContainText('Wheat (2)');
     await expect(rows.first()).toContainText('Sunflower, not maize.');
 
     // Reading a remark puts the map back on the date it was made about.

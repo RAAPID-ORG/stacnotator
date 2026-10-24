@@ -707,6 +707,7 @@ def list_feedback(db: Session, visualizer_id: int) -> list[VisualizerFeedbackOut
             ),
             layer_name=row.layer_name,
             verdict=row.verdict,
+            suggested_value=row.suggested_value,
             suggested_label=row.suggested_label,
             note=row.note,
             viewing=row.viewing,

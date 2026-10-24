@@ -82,6 +82,7 @@
       "viewing": "Viendo"
     },
     "inLayer": " en {{layer}}",
+    "suggestedClass": "{{label}} ({{value}})",
     "delete": "Eliminar este comentario"
   },
   "restriction": {

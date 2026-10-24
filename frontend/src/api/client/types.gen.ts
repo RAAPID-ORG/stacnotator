@@ -5341,6 +5341,10 @@ export type VisualizerFeedbackOut = {
      */
     verdict: 'good' | 'wrong' | null;
     /**
+     * Suggested Value
+     */
+    suggested_value: number | null;
+    /**
      * Suggested Label
      */
     suggested_label: string | null;
