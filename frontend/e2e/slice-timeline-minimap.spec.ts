@@ -77,32 +77,24 @@ test.describe('Slice cycling via keyboard (A / D)', () => {
     await expect(mainSliceBtn(annotationPage)).toContainText(SLICE_2024_01.name);
   });
 
-  test('D advances to Jun 2024', async ({ annotationPage, api }) => {
-    const snap = api.requests.length;
+  test('D advances to Jun 2024', async ({ annotationPage }) => {
     const tileArrived = expectTile(annotationPage, 'search-jun-2024');
 
     await annotationPage.keyboard.press('d');
 
     await expect(mainSliceBtn(annotationPage)).toContainText(SLICE_2024_06.name, { timeout: 3000 });
     await tileArrived;
-
-    const tiles = tilesAfter(api.requests, snap);
-    if (tiles.length > 0) expect(tiles.some((u) => u.includes('search-jun-2024'))).toBe(true);
   });
 
-  test('D then A returns to Jan 2024', async ({ annotationPage, api }) => {
+  test('D then A returns to Jan 2024', async ({ annotationPage }) => {
     await annotationPage.keyboard.press('d');
     await expect(mainSliceBtn(annotationPage)).toContainText(SLICE_2024_06.name, { timeout: 3000 });
 
-    const snap = api.requests.length;
     const tileArrived = expectTile(annotationPage, 'search-jan-2024');
     await annotationPage.keyboard.press('a');
 
     await expect(mainSliceBtn(annotationPage)).toContainText(SLICE_2024_01.name, { timeout: 3000 });
     await tileArrived;
-
-    const tiles = tilesAfter(api.requests, snap);
-    if (tiles.length > 0) expect(tiles.some((u) => u.includes('search-jan-2024'))).toBe(true);
   });
 
   test('D at last slice of S2 L2A advances to NDVI collection', async ({ annotationPage }) => {
@@ -315,9 +307,6 @@ test.describe('Slice cycling via main-map dropdown', () => {
 
     await expect(mainSliceBtn(annotationPage)).toContainText(SLICE_2024_06.name, { timeout: 3000 });
     await tileArrived;
-
-    const tiles = tilesAfter(api.requests, snap);
-    if (tiles.length > 0) expect(tiles.some((u) => u.includes('search-jun-2024'))).toBe(true);
   });
 
   test('dropdown: selecting current slice is a no-op', async ({ annotationPage }) => {
@@ -351,9 +340,6 @@ test.describe('Slice cycling via small imagery window dropdown', () => {
 
     await expect(s2SliceBtn).toContainText(SLICE_2024_06.name, { timeout: 3000 });
     await tileArrived;
-
-    const tiles = tilesAfter(api.requests, snap);
-    if (tiles.length > 0) expect(tiles.some((u) => u.includes('search-jun-2024'))).toBe(true);
   });
 
   test('S2 window slice change is independent of main-map slice', async ({ annotationPage }) => {
