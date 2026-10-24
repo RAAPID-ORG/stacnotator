@@ -73,26 +73,32 @@ def _new_slug(db: Session) -> str:
             return slug
 
 
+def _source_tree():
+    return (
+        selectinload(ImagerySource.visualizations),
+        selectinload(ImagerySource.collections).options(
+            selectinload(ImageryCollection.visualizations),
+            selectinload(ImageryCollection.slices).options(
+                selectinload(ImagerySlice.mosaics), selectinload(ImagerySlice.templates)
+            ),
+        ),
+    )
+
+
 def _source_loads():
+    """The linked sources and the visualizer's own, with all a view reads off them."""
     return (
         selectinload(Visualizer.imagery)
         .selectinload(VisualizerImagery.source)
-        .options(
-            selectinload(ImagerySource.visualizations),
-            selectinload(ImagerySource.collections).options(
-                selectinload(ImageryCollection.visualizations),
-                selectinload(ImageryCollection.slices).options(
-                    selectinload(ImagerySlice.mosaics), selectinload(ImagerySlice.templates)
-                ),
-            ),
-        )
+        .options(*_source_tree()),
+        selectinload(Visualizer.imagery_sources).options(*_source_tree()),
     )
 
 
 def load(db: Session, *, visualizer_id: int | None = None, slug: str | None = None) -> Visualizer:
     stmt = select(Visualizer).options(
         selectinload(Visualizer.project),
-        _source_loads(),
+        *_source_loads(),
         selectinload(Visualizer.overlays).selectinload(VisualizerOverlay.custom_map),
         selectinload(Visualizer.overlays).selectinload(VisualizerOverlay.vector_layer),
         selectinload(Visualizer.basemaps),

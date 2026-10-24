@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import HTTPException
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session, joinedload, selectinload
+from sqlalchemy.orm import Session, defer, joinedload, selectinload
 
 from src.annotation import spatial
 from src.annotation.constants import CHANGES_OVERLAP
@@ -75,6 +75,18 @@ def require_task_access(
     return ctx
 
 
+def _task_tree():
+    """What a task is read with. Its answers come without their shapes, which no task
+    read shows, and as a second query rather than multiplying the assignment rows."""
+    return (
+        joinedload(Task.assignments).joinedload(TaskAssignment.user),
+        selectinload(Task.annotations).options(
+            defer(Annotation.geometry), joinedload(Annotation.creator)
+        ),
+        joinedload(Task.claimed_by),
+    )
+
+
 def get_task(
     db: Session,
     task_id: int,
@@ -98,11 +110,7 @@ def get_task(
             Task.id == task_id,
             Task.campaign_id == campaign.id,
         )
-        .options(
-            joinedload(Task.assignments).joinedload(TaskAssignment.user),
-            joinedload(Task.annotations).joinedload(Annotation.creator),
-            joinedload(Task.claimed_by),
-        )
+        .options(*_task_tree())
     )
 
     task = db.scalars(stmt).unique().first()
@@ -136,11 +144,7 @@ def get_tasks(
     stmt = (
         select(Task)
         .where(Task.campaign_id == campaign.id)
-        .options(
-            joinedload(Task.assignments).joinedload(TaskAssignment.user),
-            joinedload(Task.annotations).joinedload(Annotation.creator),
-            joinedload(Task.claimed_by),
-        )
+        .options(*_task_tree())
         .order_by(Task.annotation_number)
     )
     if task_ids is not None:
@@ -166,7 +170,7 @@ def _tasks_for_status(db: Session, campaign: Campaign) -> list[Task]:
             .where(Task.campaign_id == campaign.id)
             .options(
                 selectinload(Task.assignments),
-                selectinload(Task.annotations),
+                selectinload(Task.annotations).defer(Annotation.geometry),
             )
         )
         .unique()
@@ -338,7 +342,7 @@ def delete_tasks(
 def delete_campaign_tasks(
     db: Session, campaign_id: int, task_ids: list[int], delete_annotations: bool = False
 ) -> int:
-    """Delete tasks of a campaign; see ``annotation.service.delete_tasks`` for what
+    """Delete tasks of a campaign; see ``delete_tasks`` above for what
     happens to the work done on them."""
     if not task_ids:
         return 0

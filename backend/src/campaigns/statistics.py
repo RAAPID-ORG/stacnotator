@@ -7,7 +7,7 @@ from uuid import UUID
 import krippendorff
 import numpy as np
 from sqlalchemy import Select, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 
 from src.annotation.models import Annotation
 from src.auth.models import User
@@ -163,7 +163,12 @@ def get_campaign_statistics(
     """Per-annotator counts, label distributions, timing and agreement for a
     campaign, or one of its task sets."""
     annotations = db.scalars(
-        _scoped_to_set(select(Annotation).where(Annotation.campaign_id == campaign.id), task_set_id)
+        _scoped_to_set(
+            select(Annotation)
+            .where(Annotation.campaign_id == campaign.id)
+            .options(defer(Annotation.geometry)),
+            task_set_id,
+        )
     ).all()
 
     label_names = campaign.label_names
