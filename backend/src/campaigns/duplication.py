@@ -462,18 +462,14 @@ def duplicate_campaign(
     copied = [
         annotation
         for annotation in annotations
-        if annotation.annotation_task_id is None or annotation.annotation_task_id in task_map
+        if annotation.task_id is None or annotation.task_id in task_map
     ]
     for annotation in copied:
         db.add(
             clone_row(
                 annotation,
                 campaign_id=dup.id,
-                annotation_task_id=(
-                    task_map[annotation.annotation_task_id]
-                    if annotation.annotation_task_id is not None
-                    else None
-                ),
+                task_id=(task_map[annotation.task_id] if annotation.task_id is not None else None),
                 origin_task_id=_copied_task(task_map, annotation.origin_task_id),
                 output_of_task_id=_copied_task(task_map, annotation.output_of_task_id),
                 imagery_slice_id=(

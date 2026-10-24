@@ -26,12 +26,12 @@ def attach_counts_toward_completion(
     """Set `counts_toward_completion` on every task row among ``annotations``, via
     one role-map lookup for the whole campaign instead of a query per row. The
     flag is set on the ORM instance so `AnnotationFromTaskOut` (from_attributes)
-    picks it up. Each row reads its task's assignments through `.annotation_task`,
+    picks it up. Each row reads its task's assignments through `.task`,
     which a task tree loaded from the same session already holds. Standalone
     annotations are left untouched and read back as None: "not applicable", not
     "doesn't count".
     """
-    task_rows = [(a, a.annotation_task) for a in annotations if a.annotation_task is not None]
+    task_rows = [(a, a.task) for a in annotations if a.task is not None]
     if not task_rows:
         return
     policy = get_labelling_policy(campaign)

@@ -54,7 +54,7 @@ def _density(db, include_tasks):
 def test_spatial_reads_include_task_annotations_by_default(read, rows):
     db = _session(rows)
     read(db, True)
-    assert "annotation_task_id" not in _sql_of(db)
+    assert "task_id" not in _sql_of(db)
 
 
 @pytest.mark.parametrize(

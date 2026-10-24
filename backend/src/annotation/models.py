@@ -61,7 +61,7 @@ class DeletedAnnotation(Base):
 
 class Annotation(Base):
     """
-    A labelled shape. Either a task's row for one annotator (annotation_task_id,
+    A labelled shape. Either a task's row for one annotator (task_id,
     which records the outcome, skips included), or standalone: drawn in Explore
     (optionally remembering origin_task_id) or as a draw task's answer
     (output_of_task_id).
@@ -75,11 +75,11 @@ class Annotation(Base):
     __tablename__ = "annotations"
     __table_args__ = (
         Index("idx_annotations_campaign_id", "campaign_id"),
-        Index("idx_annotations_task_id", "annotation_task_id"),
+        Index("idx_annotations_task_id", "task_id"),
         Index("idx_annotations_origin_task_id", "origin_task_id"),
         Index("idx_annotations_output_of_task_id", "output_of_task_id"),
         CheckConstraint(
-            "num_nonnulls(annotation_task_id, origin_task_id, output_of_task_id) <= 1",
+            "num_nonnulls(task_id, origin_task_id, output_of_task_id) <= 1",
             name="annotations_single_task_link",
         ),
         CheckConstraint(
@@ -87,7 +87,7 @@ class Annotation(Base):
             name="annotations_outcome_values",
         ),
         CheckConstraint(
-            "(annotation_task_id IS NULL) = (outcome IS NULL)",
+            "(task_id IS NULL) = (outcome IS NULL)",
             name="annotations_task_row_has_outcome",
         ),
         CheckConstraint(
@@ -101,9 +101,9 @@ class Annotation(Base):
         # work must not scan the campaign.
         Index("idx_annotations_campaign_updated_at", "campaign_id", "updated_at"),
         UniqueConstraint(
-            "annotation_task_id",
+            "task_id",
             "created_by_user_id",
-            name="uq_annotation_task_user",
+            name="uq_annotations_task_user",
         ),
         UniqueConstraint(
             "campaign_id",
@@ -144,21 +144,21 @@ class Annotation(Base):
     )
 
     # Set on a task row: this annotator's answer to the task, which dies with it.
-    annotation_task_id: Mapped[int | None] = mapped_column(
-        ForeignKey("data.annotation_tasks.id", ondelete="CASCADE"),
+    task_id: Mapped[int | None] = mapped_column(
+        ForeignKey("data.tasks.id", ondelete="CASCADE"),
         nullable=True,
     )
 
     # The task the annotator was on when they drew this standalone annotation;
     # never set on a task's own annotation.
     origin_task_id: Mapped[int | None] = mapped_column(
-        ForeignKey("data.annotation_tasks.id", ondelete="SET NULL"),
+        ForeignKey("data.tasks.id", ondelete="SET NULL"),
         nullable=True,
     )
 
     # The draw task this shape was drawn as the answer to.
     output_of_task_id: Mapped[int | None] = mapped_column(
-        ForeignKey("data.annotation_tasks.id", ondelete="SET NULL"),
+        ForeignKey("data.tasks.id", ondelete="SET NULL"),
         nullable=True,
     )
 
@@ -222,8 +222,8 @@ class Annotation(Base):
 
     # Relationships
     campaign: Mapped["Campaign"] = relationship(back_populates="annotations")
-    annotation_task: Mapped["Task | None"] = relationship(
-        foreign_keys=[annotation_task_id],
+    task: Mapped["Task | None"] = relationship(
+        foreign_keys=[task_id],
         back_populates="annotations",
     )
     origin_task: Mapped["Task | None"] = relationship(foreign_keys=[origin_task_id])

@@ -2,7 +2,7 @@
 
 A claim is a lease, not an assignment. It expires after CLAIM_TTL_MINUTES, it
 never decides who may label a task or whose label counts, and it lives on the
-task rather than in annotation_tasks_assignment so that nothing reading
+task rather than in task_assignments so that nothing reading
 assignments can mistake it for admin intent.
 
 Contention is an ordinary outcome, not an error: claiming a task somebody else
@@ -110,14 +110,14 @@ def is_free_work() -> ColumnElement[bool]:
     they did not, so "what can be leased" cannot drift between the two.
     """
     return ~exists().where(TaskAssignment.task_id == Task.id) & ~exists().where(
-        Annotation.annotation_task_id == Task.id
+        Annotation.task_id == Task.id
     )
 
 
 def is_open_assignment() -> ColumnElement[bool]:
     """A primary assignment its assignee has not labelled or skipped yet."""
     return ~TaskAssignment.is_review & ~exists().where(
-        Annotation.annotation_task_id == TaskAssignment.task_id,
+        Annotation.task_id == TaskAssignment.task_id,
         Annotation.created_by_user_id == TaskAssignment.user_id,
     )
 

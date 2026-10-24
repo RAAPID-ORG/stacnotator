@@ -212,7 +212,7 @@ def _standalone_annotation(
         geometry=ewkt(item.geometry_wkt),
         campaign_id=campaign.id,
         created_by_user_id=user_id,
-        annotation_task_id=None,
+        task_id=None,
         origin_task_id=item.origin_task_id,
         output_of_task_id=item.output_of_task_id,
         imagery_slice_id=item.imagery_slice_id,
@@ -233,7 +233,7 @@ def _standalone_annotation(
 
 def add_annotation_for_task(
     db: Session,
-    annotation_task: Task,
+    task: Task,
     annotation_create: TaskAnswerCreate,
     user_id: UUID,
 ) -> Annotation:
@@ -247,18 +247,18 @@ def add_annotation_for_task(
 
     Args:
         db: Database session
-        annotation_task: Task item being annotated
+        task: Task item being annotated
         annotation_create: Annotation data from user
         user_id: ID of user creating the annotation
     """
 
-    campaign = db.get(Campaign, annotation_task.campaign_id)
+    campaign = db.get(Campaign, task.campaign_id)
     if campaign is None:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
     policy = get_labelling_policy(campaign)
-    has_assignments = bool(annotation_task.assignments)
-    ctx = require_task_access(db, campaign, annotation_task, user_id)
+    has_assignments = bool(task.assignments)
+    ctx = require_task_access(db, campaign, task, user_id)
 
     if annotation_create.is_authoritative and not ctx.is_authoritative:
         raise HTTPException(
@@ -277,7 +277,7 @@ def add_annotation_for_task(
         has_shapes = db.scalar(
             select(
                 exists().where(
-                    Annotation.output_of_task_id == annotation_task.id,
+                    Annotation.output_of_task_id == task.id,
                     Annotation.created_by_user_id == user_id,
                 )
             )
@@ -305,7 +305,7 @@ def add_annotation_for_task(
     # Check if annotation already exists for this task
     existing_annotation = db.execute(
         select(Annotation).where(
-            Annotation.annotation_task_id == annotation_task.id,
+            Annotation.task_id == task.id,
             Annotation.created_by_user_id == user_id,
         )
     ).scalar_one_or_none()
@@ -330,9 +330,9 @@ def add_annotation_for_task(
         annotation = existing_annotation
     else:
         annotation = Annotation(
-            geometry=annotation_task.geometry,
-            annotation_task_id=annotation_task.id,
-            campaign_id=annotation_task.campaign_id,
+            geometry=task.geometry,
+            task_id=task.id,
+            campaign_id=task.campaign_id,
             created_by_user_id=user_id,
             **values,
         )
@@ -372,7 +372,7 @@ def submit_task_annotation(
 
     annotation = add_annotation_for_task(
         db=db,
-        annotation_task=task,
+        task=task,
         annotation_create=annotation_create,
         user_id=user_id,
     )
@@ -658,7 +658,7 @@ def list_annotations_page(
             Annotation.flagged_for_review,
             Annotation.flag_comment,
             Annotation.comment,
-            Annotation.annotation_task_id,
+            Annotation.task_id,
             Annotation.created_at,
             Annotation.created_by_user_id,
             User.email,
@@ -684,7 +684,7 @@ def list_annotations_page(
                 flagged_for_review=r[3],
                 flag_comment=r[4],
                 comment=r[5],
-                annotation_task_id=r[6],
+                task_id=r[6],
                 created_at=r[7],
                 created_by_user_id=r[8],
                 created_by_user_email=r[9],
@@ -719,7 +719,7 @@ def get_annotation_by_id(
         )
         .options(
             joinedload(Annotation.creator),
-            joinedload(Annotation.annotation_task).selectinload(Task.assignments),
+            joinedload(Annotation.task).selectinload(Task.assignments),
         )
     )
     annotation = db.scalars(stmt).unique().first()
@@ -737,7 +737,7 @@ def delete_annotation_with_status(
     """Delete an annotation and, when it was a task's row, report where that
     task now stands; None otherwise."""
     task_id = db.scalar(
-        select(Annotation.annotation_task_id).where(
+        select(Annotation.task_id).where(
             Annotation.id == annotation_id, Annotation.campaign_id == campaign.id
         )
     )

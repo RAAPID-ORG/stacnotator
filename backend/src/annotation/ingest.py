@@ -140,7 +140,7 @@ def create_annotations_from_geojson(
                 "geometry": geometry,
                 "campaign_id": campaign.id,
                 "created_by_user_id": user_id,
-                "annotation_task_id": None,
+                "task_id": None,
                 "label_id": label_id,
                 "source_id": source_id,
                 "form_values": form_values,

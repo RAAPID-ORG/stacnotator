@@ -46,7 +46,7 @@ class TestValidateLabelSubmission:
         mock_get_emb.return_value = None
         db = MagicMock()
 
-        validate_label_submission(db, campaign_id=7, annotation_task_id=42, label_id=1)
+        validate_label_submission(db, campaign_id=7, task_id=42, label_id=1)
 
         assert mock_get_emb.call_args.args == (db, 7, 42)
 
@@ -55,7 +55,7 @@ class TestValidateLabelSubmission:
         mock_get_emb.return_value = None
         db = MagicMock()
 
-        result = validate_label_submission(db, campaign_id=1, annotation_task_id=1, label_id=1)
+        result = validate_label_submission(db, campaign_id=1, task_id=1, label_id=1)
         assert result.status == "skipped_no_embedding"
         assert result.agrees is None
 
@@ -66,7 +66,7 @@ class TestValidateLabelSubmission:
         mock_sufficient.return_value = False
         db = MagicMock()
 
-        result = validate_label_submission(db, campaign_id=1, annotation_task_id=1, label_id=1)
+        result = validate_label_submission(db, campaign_id=1, task_id=1, label_id=1)
         assert result.status == "skipped_insufficient_data"
         assert result.agrees is None
 
@@ -83,7 +83,7 @@ class TestValidateLabelSubmission:
         ]
         db = MagicMock()
 
-        result = validate_label_submission(db, campaign_id=1, annotation_task_id=1, label_id=1)
+        result = validate_label_submission(db, campaign_id=1, task_id=1, label_id=1)
         assert result.status == "ok"
         assert result.agrees is True
 
@@ -102,6 +102,6 @@ class TestValidateLabelSubmission:
         ]
         db = MagicMock()
 
-        result = validate_label_submission(db, campaign_id=1, annotation_task_id=1, label_id=1)
+        result = validate_label_submission(db, campaign_id=1, task_id=1, label_id=1)
         assert result.status == "mismatch"
         assert result.agrees is False

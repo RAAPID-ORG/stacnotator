@@ -19,10 +19,10 @@ MIN_TILE_ZOOM = 9
 # tile seams; the row filter has to reach that far too or the buffer stays empty.
 TILE_QUERY_MARGIN = 0.0625
 
-# Annotations made from a task carry ``annotation_task_id``; Explore hides them
+# Annotations made from a task carry ``task_id``; Explore hides them
 # unless asked for. Shared by every spatial read so the map, the minimap, box
 # selection and fit-to-bounds can never disagree about what exists.
-TASK_ANNOTATION_EXCLUSION = "AND a.annotation_task_id IS NULL"
+TASK_ANNOTATION_EXCLUSION = "AND a.task_id IS NULL"
 
 
 def task_filter_sql(include_tasks: bool) -> str:

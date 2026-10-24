@@ -197,8 +197,8 @@ def _group_annotations_by_task(
     grouped: dict[int, list[Annotation]] = {}
     standalone: list[Annotation] = []
     for ann in annotations:
-        if ann.annotation_task_id:
-            grouped.setdefault(ann.annotation_task_id, []).append(ann)
+        if ann.task_id:
+            grouped.setdefault(ann.task_id, []).append(ann)
         else:
             standalone.append(ann)
     return grouped, standalone
@@ -211,7 +211,7 @@ def _conflicting_task_numbers(
     conflicts: list[int] = []
     for task_id, task_anns in grouped.items():
         if agreed_answers(task_anns) is None:
-            task = task_anns[0].annotation_task
+            task = task_anns[0].task
             conflicts.append(task.annotation_number if task else task_id)
     return sorted(conflicts)
 
@@ -265,7 +265,7 @@ def _build_export_record_for_annotation(
     """
     record: dict = {}
 
-    task = annotation.annotation_task
+    task = annotation.task
     if task is not None:
         if task.raw_source_data:
             record.update(task.raw_source_data)
@@ -356,7 +356,7 @@ def _build_export_record_merged(
     latest_created_at = max((a.created_at for a in labeled if a.created_at), default=None)
 
     record: dict = {}
-    task = canonical.annotation_task
+    task = canonical.task
     if task is not None:
         if task.raw_source_data:
             record.update(task.raw_source_data)
@@ -426,7 +426,7 @@ def _build_annotation_records(
 
     for task_id in sorted(grouped.keys()):
         task_anns = grouped[task_id]
-        task = task_anns[0].annotation_task
+        task = task_anns[0].task
         task_status = _compute_task_status_for_export(task, task_anns)
         labeled = _answered(task_anns)
 
@@ -538,7 +538,7 @@ def fetch_annotations_with_context(
             select(Annotation)
             .where(Annotation.campaign_id == campaign.id)
             .options(
-                joinedload(Annotation.annotation_task).selectinload(Task.assignments),
+                joinedload(Annotation.task).selectinload(Task.assignments),
                 joinedload(Annotation.origin_task),
                 joinedload(Annotation.output_of_task),
             )

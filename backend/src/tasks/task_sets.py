@@ -42,13 +42,13 @@ def list_task_sets_with_stats(db: Session, campaign_id: int) -> list[dict]:
             TaskSet.name,
             TaskSet.created_at,
             func.count(func.distinct(Task.id)).label("num_tasks"),
-            func.count(func.distinct(Annotation.annotation_task_id))
+            func.count(func.distinct(Annotation.task_id))
             .filter(Annotation.outcome != "skipped")
             .label("num_labeled"),
         )
         .select_from(TaskSet)
         .outerjoin(Task, Task.task_set_id == TaskSet.id)
-        .outerjoin(Annotation, Annotation.annotation_task_id == Task.id)
+        .outerjoin(Annotation, Annotation.task_id == Task.id)
         .where(TaskSet.campaign_id == campaign_id)
         .group_by(TaskSet.id, TaskSet.name, TaskSet.created_at)
         .order_by(TaskSet.id)

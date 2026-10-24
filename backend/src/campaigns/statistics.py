@@ -152,9 +152,7 @@ def _scoped_to_set(query: Select[Any], task_set_id: int | None) -> Select[Any]:
     """
     if task_set_id is None:
         return query
-    return query.join(Task, Annotation.annotation_task_id == Task.id).where(
-        Task.task_set_id == task_set_id
-    )
+    return query.join(Task, Annotation.task_id == Task.id).where(Task.task_set_id == task_set_id)
 
 
 def get_campaign_statistics(
@@ -183,13 +181,11 @@ def get_campaign_statistics(
     annotations_by_task: dict[int, list[tuple[UUID, Answer]]] = defaultdict(list)
     for ann in annotations:
         annotations_by_user[ann.created_by_user_id].append(ann)
-        if ann.annotation_task_id:
-            annotations_by_task[ann.annotation_task_id].append(
-                (ann.created_by_user_id, task_answer(ann))
-            )
+        if ann.task_id:
+            annotations_by_task[ann.task_id].append((ann.created_by_user_id, task_answer(ann)))
 
     durations = summarize_annotator_durations(
-        (a.created_by_user_id, a.active_seconds) for a in annotations if a.annotation_task_id
+        (a.created_by_user_id, a.active_seconds) for a in annotations if a.task_id
     )
     users = {
         user.id: user for user in db.scalars(select(User).where(User.id.in_(annotations_by_user)))

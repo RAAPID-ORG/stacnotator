@@ -317,7 +317,7 @@ class TestAttachCountsTowardCompletion:
         db.scalars.return_value.all.return_value = []  # no extra platform admins
         for task in (assigned_task, unassigned_task):
             for ann in task.annotations:
-                ann.annotation_task_id, ann.annotation_task = task.id, task
+                ann.task_id, ann.task = task.id, task
 
         attach_to_tasks(db, campaign, [assigned_task, unassigned_task])
 
@@ -339,9 +339,7 @@ class TestAttachCountsTowardCompletion:
 
     def test_leaves_standalone_annotations_untouched(self):
         campaign = _campaign(make_policy())
-        standalone = SimpleNamespace(
-            annotation_task_id=None, annotation_task=None, created_by_user_id=uuid4()
-        )
+        standalone = SimpleNamespace(task_id=None, task=None, created_by_user_id=uuid4())
         db = MagicMock()
 
         attach_counts_toward_completion(db, campaign, [standalone])
@@ -354,9 +352,7 @@ class TestAttachCountsTowardCompletion:
         member_id = uuid4()
         campaign = _campaign(make_policy(unassigned_tasks=PolicyAudience(kinds=["members"])))
         task = SimpleNamespace(assignments=[])
-        ann = SimpleNamespace(
-            annotation_task_id=7, annotation_task=task, created_by_user_id=member_id
-        )
+        ann = SimpleNamespace(task_id=7, task=task, created_by_user_id=member_id)
         db = MagicMock()
         db.execute.return_value.all.return_value = [(member_id, False, False)]
         db.scalars.return_value.all.return_value = []

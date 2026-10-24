@@ -71,8 +71,8 @@ def _annotation(
         imagery_start_date=None,
         imagery_end_date=None,
         geometry=None,
-        annotation_task=task,
-        annotation_task_id=task.id if task else None,
+        task=task,
+        task_id=task.id if task else None,
         origin_task=origin_task,
         output_of_task=None,
     )

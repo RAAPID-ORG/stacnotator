@@ -89,7 +89,7 @@ policy along with the rest of the campaign.
   annotation updates gate on the `explore` axis. Deletion is not
   policy-gated (only the public-campaign ownership rule applies), and
   claiming a task is not policy-gated either. A claim is a lease held on the
-  task itself (`annotation_tasks.claimed_by_user_id`), not an assignment, so
+  task itself (`tasks.claimed_by_user_id`), not an assignment, so
   picking a task out of the unassigned pool leaves it on the
   `unassigned_tasks` axis for everyone, however long it is held. The server
   is the authority; frontend gating (disabled Explore toggle, task notices)

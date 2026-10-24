@@ -374,11 +374,9 @@ def build_task_assignments_export(
             target[task_id].append(email)
 
         annotation_rows = db.execute(
-            select(
-                Annotation.annotation_task_id, User.email, Annotation.label_id, Annotation.outcome
-            )
+            select(Annotation.task_id, User.email, Annotation.label_id, Annotation.outcome)
             .join(User, User.id == Annotation.created_by_user_id)
-            .where(Annotation.annotation_task_id.in_(task_ids))
+            .where(Annotation.task_id.in_(task_ids))
         ).all()
         for task_id, email, label_id, outcome in annotation_rows:
             annotations_by_task[task_id].append((email, label_id, outcome))

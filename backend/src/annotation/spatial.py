@@ -168,7 +168,7 @@ def task_centroids(
     sql = text(
         f"""
         SELECT t.id, ST_X(ST_Centroid(t.geometry)), ST_Y(ST_Centroid(t.geometry))
-        FROM data.annotation_tasks t
+        FROM data.tasks t
         WHERE t.campaign_id = :campaign_id{scope}
         """  # noqa: S608
     )

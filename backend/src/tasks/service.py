@@ -43,10 +43,10 @@ def get_changed_task_ids(db: Session, campaign_id: int, since: datetime) -> list
     is what changes it.
     """
     rows = db.scalars(
-        select(Annotation.annotation_task_id)
+        select(Annotation.task_id)
         .where(
             Annotation.campaign_id == campaign_id,
-            Annotation.annotation_task_id.is_not(None),
+            Annotation.task_id.is_not(None),
             Annotation.updated_at >= since - CHANGES_OVERLAP,
         )
         .distinct()
@@ -316,9 +316,7 @@ def delete_tasks(
     task_ids = [task.id for task in tasks]
     if not task_ids:
         return
-    task_rows = db.scalars(
-        select(Annotation).where(Annotation.annotation_task_id.in_(task_ids))
-    ).all()
+    task_rows = db.scalars(select(Annotation).where(Annotation.task_id.in_(task_ids))).all()
     drop = list(task_rows)
     if delete_annotations:
         drop += db.scalars(
@@ -327,7 +325,7 @@ def delete_tasks(
     else:
         kept = [row for row in task_rows if row.outcome == "labelled"]
         for row in kept:
-            row.annotation_task_id = None
+            row.task_id = None
             row.outcome = None
         drop = [row for row in task_rows if row.outcome is not None]
     if task_rows or drop:

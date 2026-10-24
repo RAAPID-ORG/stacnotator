@@ -97,7 +97,7 @@ class AnnotationOut(AnnotationFromTaskOut):
     geometry_wkt: Wkt = Field(validation_alias=AliasChoices("geometry", "geometry_wkt"))
     # Origin: set for task-bound annotations, None for standalone (explore)
     # ones. Lets the annotations page open the matching work mode on "View".
-    annotation_task_id: int | None = None
+    task_id: int | None = None
     origin_task_id: int | None = None
     output_of_task_id: int | None = None
 
@@ -130,7 +130,7 @@ class AnnotationListItemOut(BaseModel):
     flagged_for_review: bool
     flag_comment: str | None = None
     comment: str | None = None
-    annotation_task_id: int | None = None
+    task_id: int | None = None
     created_at: datetime
     created_by_user_id: UUID
     created_by_user_email: str | None = None

@@ -269,9 +269,7 @@ def _check_task_output_change(db: Session, campaign: Campaign, task_output: str)
     been worked: the outcomes stored so far would change meaning."""
     if campaign.task_output != task_output and db.scalar(
         select(
-            exists().where(
-                Annotation.campaign_id == campaign.id, Annotation.annotation_task_id.isnot(None)
-            )
+            exists().where(Annotation.campaign_id == campaign.id, Annotation.task_id.isnot(None))
         )
     ):
         raise HTTPException(

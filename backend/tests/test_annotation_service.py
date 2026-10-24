@@ -37,7 +37,7 @@ from src.annotation.sync import deletion_cursor_expired
 from src.campaigns.schemas import default_labelling_policy
 from src.projects.models import ProjectUser
 from src.tasks.claims import claim_next_task, claim_task, is_free_work
-from src.tasks.ingest import create_annotation_tasks_from_csv
+from src.tasks.ingest import create_tasks_from_csv
 from src.tasks.models import Task, TaskAssignment
 
 pytestmark = pytest.mark.usefixtures("membership_from_db_mock")
@@ -79,7 +79,7 @@ def _make_task(task_id=1, campaign_id=1, assignments=None):
 def _make_annotation(ann_id=1, task_id=1, campaign_id=1, user_id=None, label_id=1):
     ann = MagicMock(spec=Annotation)
     ann.id = ann_id
-    ann.annotation_task_id = task_id
+    ann.task_id = task_id
     ann.output_of_task_id = None
     ann.campaign_id = campaign_id
     ann.created_by_user_id = user_id or uuid4()
@@ -323,7 +323,7 @@ class TestCreateAnnotations:
         assert [a.geometry.data for a in anns] == ["POINT(0 0)", "POINT(1 1)", "POINT(2 2)"]
         assert all(a.campaign_id == 7 for a in anns)
         assert all(a.created_by_user_id == user_id for a in anns)
-        assert all(a.annotation_task_id is None for a in anns)
+        assert all(a.task_id is None for a in anns)
         assert [a.label_id for a in anns] == [1, 2, 1]
         db.commit.assert_called_once()
 
@@ -536,7 +536,7 @@ class TestCreateAnnotationTasksFromCSV:
         huge = b"x" * (21 * 1024 * 1024)
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(
+            create_tasks_from_csv(
                 db, SimpleNamespace(id=1), contents=huge, task_set_id=1
             )
 
@@ -546,7 +546,7 @@ class TestCreateAnnotationTasksFromCSV:
         db = _mock_db()
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(db, SimpleNamespace(id=1), contents=b"", task_set_id=1)
+            create_tasks_from_csv(db, SimpleNamespace(id=1), contents=b"", task_set_id=1)
 
         assert exc_info.value.status_code == 400
 
@@ -555,7 +555,7 @@ class TestCreateAnnotationTasksFromCSV:
         csv_bytes = b"name,value\nfoo,1\n"
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(
+            create_tasks_from_csv(
                 db, SimpleNamespace(id=1), contents=csv_bytes, task_set_id=1
             )
 
@@ -567,7 +567,7 @@ class TestCreateAnnotationTasksFromCSV:
         csv_bytes = b"id,lat,lon\n1,10.0,20.0\n1,11.0,21.0\n"
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(
+            create_tasks_from_csv(
                 db, SimpleNamespace(id=1), contents=csv_bytes, task_set_id=1
             )
 
@@ -579,7 +579,7 @@ class TestCreateAnnotationTasksFromCSV:
         csv_bytes = b"id,lat,lon\n1,10.0,200.0\n"
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(
+            create_tasks_from_csv(
                 db, SimpleNamespace(id=1), contents=csv_bytes, task_set_id=1
             )
 
@@ -591,7 +591,7 @@ class TestCreateAnnotationTasksFromCSV:
         csv_bytes = b"id,lat,lon\n1,95.0,10.0\n"
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(
+            create_tasks_from_csv(
                 db, SimpleNamespace(id=1), contents=csv_bytes, task_set_id=1
             )
 
@@ -603,7 +603,7 @@ class TestCreateAnnotationTasksFromCSV:
         csv_bytes = b"id,lat,lon\n ,10.0,20.0\n"
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(
+            create_tasks_from_csv(
                 db, SimpleNamespace(id=1), contents=csv_bytes, task_set_id=1
             )
 
@@ -615,7 +615,7 @@ class TestCreateAnnotationTasksFromCSV:
         csv_bytes = b"id,lat,lon\n\x80\x81,10.0,20.0\n"
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(
+            create_tasks_from_csv(
                 db, SimpleNamespace(id=1), contents=csv_bytes, task_set_id=1
             )
 
@@ -760,11 +760,11 @@ class TestExportAnnotatorCount:
             slice_comments=None,
             created_by_user_id=user_id,
             created_at=datetime(2026, 5, 6, tzinfo=UTC),
-            annotation_task_id=task.id if task else None,
+            task_id=task.id if task else None,
             counts_toward_completion=True if task else None,
             outcome=(("labelled" if label_id is not None else "skipped") if task else None),
             campaign_id=1,
-            annotation_task=task,
+            task=task,
             origin_task=None,
             output_of_task=None,
             geometry=None,
@@ -925,11 +925,11 @@ class TestExportMergeCorrectness:
             slice_comments=None,
             created_by_user_id=user_id or uuid4(),
             created_at=datetime(2026, 5, 6, tzinfo=UTC),
-            annotation_task_id=task.id if task else None,
+            task_id=task.id if task else None,
             counts_toward_completion=True if task else None,
             outcome=(("labelled" if label_id is not None else "skipped") if task else None),
             campaign_id=1,
-            annotation_task=task,
+            task=task,
             origin_task=None,
             output_of_task=None,
             geometry=geometry,
@@ -1335,11 +1335,11 @@ class TestExportFormFields:
             slice_comments=None,
             created_by_user_id=user_id or uuid4(),
             created_at=datetime(2026, 5, 6, tzinfo=UTC),
-            annotation_task_id=task.id if task else None,
+            task_id=task.id if task else None,
             counts_toward_completion=True if task else None,
             outcome=(("labelled" if label_id is not None else "skipped") if task else None),
             campaign_id=1,
-            annotation_task=task,
+            task=task,
             origin_task=None,
             output_of_task=None,
             geometry=None,
@@ -1538,7 +1538,7 @@ class TestClaimTask:
         """Both halves matter and neither is checked anywhere else, so losing
         one would silently start handing out other people's tasks."""
         sql = str(_compiled(select(Task.id).where(is_free_work())))
-        assert "annotation_tasks_assignment" in sql
+        assert "task_assignments" in sql
         assert "annotations" in sql
         assert sql.count("NOT (EXISTS") == 2
 
@@ -1557,7 +1557,7 @@ class TestClaimTask:
         claim_task(db, campaign_id=1, task_id=2, user_id=user_id)
 
         release = str(_compiled(db.execute.call_args_list[-1][0][0]))
-        assert "UPDATE data.annotation_tasks" in release
+        assert "UPDATE data.tasks" in release
         assert "claimed_by_user_id=NULL" in release.replace(" = ", "=")
         assert "id != 2" in release
 
@@ -1618,7 +1618,7 @@ class TestClaimNextTask:
 
         pick = str(_compiled(db.execute.call_args_list[0][0][0]))
         # False sorts first, so tasks past the cursor come before the wrap.
-        assert "ORDER BY data.annotation_tasks.annotation_number <= 12" in pick
+        assert "ORDER BY data.tasks.annotation_number <= 12" in pick
 
     def test_without_a_cursor_it_starts_at_the_front(self):
         db = _mock_db()
@@ -1684,7 +1684,7 @@ class TestCreateAnnotationsFromGeojson:
         # The first execute call carries the annotation records.
         annotation_records = db.execute.call_args_list[0][0][1]
         assert [r["label_id"] for r in annotation_records] == [1, 2]
-        assert all(r["annotation_task_id"] is None for r in annotation_records)
+        assert all(r["task_id"] is None for r in annotation_records)
         assert all(r["created_by_user_id"] == user_id for r in annotation_records)
         assert all(r["campaign_id"] == 1 for r in annotation_records)
 

@@ -167,7 +167,7 @@ def find_nearest_labeled_embeddings(
     distance = Task.embedding.cosine_distance(target_vector).label("distance")
     stmt = (
         select(Task.id, Annotation.label_id, distance)
-        .join(Annotation, Annotation.annotation_task_id == Task.id)
+        .join(Annotation, Annotation.task_id == Task.id)
         .where(
             Task.campaign_id == campaign_id,
             Task.embedding.is_not(None),
@@ -179,7 +179,7 @@ def find_nearest_labeled_embeddings(
     return [(task_id, label, dist) for task_id, label, dist in db.execute(stmt).all()]
 
 
-def task_embedding(db: Session, campaign_id: int, annotation_task_id: int) -> list[float] | None:
+def task_embedding(db: Session, campaign_id: int, task_id: int) -> list[float] | None:
     """A task's embedding, or None when it has none yet.
 
     The task id reaches this module straight off the URL, and the route's gate
@@ -189,7 +189,7 @@ def task_embedding(db: Session, campaign_id: int, annotation_task_id: int) -> li
     """
     vector = db.scalar(
         select(Task.embedding).where(
-            Task.id == annotation_task_id,
+            Task.id == task_id,
             Task.campaign_id == campaign_id,
         )
     )
@@ -234,7 +234,7 @@ def has_sufficient_validation_data(
             ),
         )
         .select_from(Task)
-        .join(Annotation, Annotation.annotation_task_id == Task.id)
+        .join(Annotation, Annotation.task_id == Task.id)
         .where(
             Task.campaign_id == campaign_id,
             Task.embedding.is_not(None),
@@ -250,7 +250,7 @@ def has_sufficient_validation_data(
 def validate_label_submission(
     db: Session,
     campaign_id: int,
-    annotation_task_id: int,
+    task_id: int,
     label_id: int,
 ) -> ValidateLabelSubmissionsResponse:
     """Validate whether label_id agrees with KNN-majority for the task.
@@ -259,7 +259,7 @@ def validate_label_submission(
     distinguish between a genuine mismatch and a skip due to missing data.
     """
 
-    embedding = task_embedding(db, campaign_id, annotation_task_id)
+    embedding = task_embedding(db, campaign_id, task_id)
     if embedding is None:
         return ValidateLabelSubmissionsResponse(
             status="skipped_no_embedding",

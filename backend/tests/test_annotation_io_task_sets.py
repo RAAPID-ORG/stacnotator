@@ -20,9 +20,9 @@ GEOJSON = (
 def _inserted_task_records(db):
     for call in db.execute.call_args_list:
         stmt = call.args[0]
-        if getattr(getattr(stmt, "table", None), "name", None) == "annotation_tasks":
+        if getattr(getattr(stmt, "table", None), "name", None) == "tasks":
             return call.args[1]
-    raise AssertionError("no insert into annotation_tasks")
+    raise AssertionError("no insert into tasks")
 
 
 CAMPAIGN = SimpleNamespace(id=1, embedding_year=None)
@@ -30,7 +30,7 @@ CAMPAIGN = SimpleNamespace(id=1, embedding_year=None)
 
 def test_csv_ingest_stamps_task_set_id():
     db = MagicMock()
-    ingest.create_annotation_tasks_from_csv(db, CAMPAIGN, contents=CSV, task_set_id=7)
+    ingest.create_tasks_from_csv(db, CAMPAIGN, contents=CSV, task_set_id=7)
     records = _inserted_task_records(db)
     assert all(r["task_set_id"] == 7 for r in records)
     assert [r["annotation_number"] for r in records] == [1, 2]
@@ -39,7 +39,7 @@ def test_csv_ingest_stamps_task_set_id():
 def test_geojson_ingest_stamps_task_set_id():
     db = MagicMock()
     db.scalar.return_value = 0  # current max annotation_number
-    ingest.create_annotation_tasks_from_geojson(db, CAMPAIGN, contents=GEOJSON, task_set_id=7)
+    ingest.create_tasks_from_geojson(db, CAMPAIGN, contents=GEOJSON, task_set_id=7)
     records = _inserted_task_records(db)
     assert all(r["task_set_id"] == 7 for r in records)
     assert isinstance(records[0], dict) or hasattr(records[0], "keys")

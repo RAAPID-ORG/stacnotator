@@ -75,7 +75,7 @@ def insert_tasks(
     return len(geometry_wkts)
 
 
-def create_annotation_tasks_from_csv(
+def create_tasks_from_csv(
     db: Session,
     campaign: Campaign,
     contents: bytes,
@@ -251,7 +251,7 @@ def parse_geojson_features(contents: bytes, max_size: int) -> list[tuple[BaseGeo
     return parsed
 
 
-def create_annotation_tasks_from_geojson(
+def create_tasks_from_geojson(
     db: Session,
     campaign: Campaign,
     contents: bytes,

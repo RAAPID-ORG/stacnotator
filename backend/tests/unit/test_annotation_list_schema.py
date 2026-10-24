@@ -21,7 +21,7 @@ def test_the_list_row_carries_what_the_table_renders():
         "label_id",
         "confidence",
         "flagged_for_review",
-        "annotation_task_id",
+        "task_id",
         "created_at",
         "created_by_user_id",
         "created_by_user_email",

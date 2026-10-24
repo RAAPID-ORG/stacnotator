@@ -85,12 +85,12 @@ class TestScopedToSet:
 
     def test_no_set_leaves_the_campaign_wide_query_alone(self):
         sql = _compile(_scoped_to_set(self._statement(), None))
-        assert "annotation_tasks" not in sql
+        assert "data.tasks" not in sql
 
     def test_a_set_joins_its_tasks_and_filters_on_it(self):
         sql = _compile(_scoped_to_set(self._statement(), 7))
-        assert "JOIN data.annotation_tasks" in sql
-        assert "data.annotation_tasks.task_set_id = 7" in sql
+        assert "JOIN data.tasks" in sql
+        assert "data.tasks.task_set_id = 7" in sql
 
 
 class TestKrippendorffAlpha:
@@ -1084,13 +1084,13 @@ class TestDeleteTasks:
     @patch("src.tasks.service.record_annotation_deletions")
     def test_labelled_answers_become_shapes(self, record_deletions, _bump):
         task = MagicMock(id=1)
-        labelled = MagicMock(id=7, outcome="labelled", annotation_task_id=1)
-        skipped = MagicMock(id=8, outcome="skipped", annotation_task_id=1)
+        labelled = MagicMock(id=7, outcome="labelled", task_id=1)
+        skipped = MagicMock(id=8, outcome="skipped", task_id=1)
         db = self._db([labelled, skipped])
 
         tasks_service.delete_tasks(db, 1, [task], delete_annotations=False)
 
-        assert (labelled.annotation_task_id, labelled.outcome) == (None, None)
+        assert (labelled.task_id, labelled.outcome) == (None, None)
         assert [c.args[0] for c in db.delete.call_args_list] == [skipped, task]
         record_deletions.assert_called_once_with(db, 1, [8])
 

@@ -140,7 +140,7 @@ class Campaign(Base):
         back_populates="campaign",
         cascade="all, delete-orphan",
     )
-    task_items: Mapped[list["Task"]] = relationship(
+    tasks: Mapped[list["Task"]] = relationship(
         back_populates="campaign",
         cascade="all, delete-orphan",
     )

@@ -128,7 +128,7 @@ def test_build_mvt_query_validates_coordinates():
 
 def test_build_mvt_query_includes_task_annotations_by_default():
     sql, _ = build_mvt_query(z=1, x=0, y=0, campaign_id=1)
-    assert "annotation_task_id" not in sql
+    assert "task_id" not in sql
 
 
 def test_build_mvt_query_can_leave_out_task_annotations():

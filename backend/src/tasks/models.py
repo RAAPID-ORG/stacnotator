@@ -43,14 +43,14 @@ class Task(Base):
         nearby_annotation_count: int
         drawn_by_user_ids: list[UUID]
 
-    __tablename__ = "annotation_tasks"
+    __tablename__ = "tasks"
     __table_args__ = (
-        Index("idx_task_items_campaign_id", "campaign_id"),
+        Index("idx_tasks_campaign_id", "campaign_id"),
         UniqueConstraint("campaign_id", "annotation_number"),
-        Index("idx_annotation_tasks_task_set_id", "task_set_id"),
-        Index("idx_annotation_tasks_geometry", "geometry", postgresql_using="gist"),
+        Index("idx_tasks_task_set_id", "task_set_id"),
+        Index("idx_tasks_geometry", "geometry", postgresql_using="gist"),
         Index(
-            "idx_annotation_tasks_embedding_cosine",
+            "idx_tasks_embedding_cosine",
             "embedding",
             postgresql_using="hnsw",
             postgresql_with={"m": 16, "ef_construction": 64},
@@ -59,7 +59,7 @@ class Task(Base):
         # One live claim per user per campaign, enforced by the database rather
         # than by remembering to release the previous one.
         Index(
-            "uq_annotation_tasks_one_claim_per_user",
+            "uq_tasks_one_claim_per_user",
             "campaign_id",
             "claimed_by_user_id",
             unique=True,
@@ -106,7 +106,7 @@ class Task(Base):
     # The soft claim: who is working on this task right now, and since when.
     # A lease, not an assignment - it expires (CLAIM_TTL_MINUTES), it never
     # decides who may label, and it is deliberately not a row in
-    # annotation_tasks_assignment so that nothing reading assignments sees it.
+    # task_assignments so that nothing reading assignments sees it.
     claimed_by_user_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("auth.users.id", ondelete="SET NULL"),
         nullable=True,
@@ -117,18 +117,18 @@ class Task(Base):
     )
 
     # Relationships
-    campaign: Mapped["Campaign"] = relationship(back_populates="task_items")
+    campaign: Mapped["Campaign"] = relationship(back_populates="tasks")
     claimed_by: Mapped["User | None"] = relationship(foreign_keys=[claimed_by_user_id])
     assignments: Mapped[list["TaskAssignment"]] = relationship(
         "TaskAssignment",
         foreign_keys="[TaskAssignment.task_id]",
-        back_populates="annotation_task",
+        back_populates="task",
         cascade="all, delete-orphan",
     )
     annotations: Mapped[list["Annotation"]] = relationship(
         "Annotation",
-        foreign_keys="[Annotation.annotation_task_id]",
-        back_populates="annotation_task",
+        foreign_keys="[Annotation.task_id]",
+        back_populates="task",
     )
 
 
@@ -142,10 +142,10 @@ class TaskAssignment(Base):
     Per-assignee status is derived from the annotations, not stored.
     """
 
-    __tablename__ = "annotation_tasks_assignment"
+    __tablename__ = "task_assignments"
     __table_args__ = (
-        Index("idx_annotation_tasks_assignment_task_id", "task_id"),
-        Index("idx_annotation_tasks_assignment_user_id", "user_id"),
+        Index("idx_task_assignments_task_id", "task_id"),
+        Index("idx_task_assignments_user_id", "user_id"),
         UniqueConstraint("task_id", "user_id"),
         {"schema": "data"},
     )
@@ -159,7 +159,7 @@ class TaskAssignment(Base):
 
     # Foreign keys
     task_id: Mapped[int] = mapped_column(
-        ForeignKey("data.annotation_tasks.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("data.tasks.id", ondelete="CASCADE"), nullable=False
     )
 
     user_id: Mapped[UUID] = mapped_column(
@@ -176,7 +176,7 @@ class TaskAssignment(Base):
     )
 
     # Relationships
-    annotation_task: Mapped["Task"] = relationship(
+    task: Mapped["Task"] = relationship(
         back_populates="assignments",
     )
     user: Mapped["User | None"] = relationship()
