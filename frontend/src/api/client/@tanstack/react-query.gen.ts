@@ -3003,12 +3003,11 @@ export const addVisualizerFeedbackMutation = (options?: Partial<Options<AddVisua
 /**
  * Get Visualizer Tiler Token
  *
- * Tile access for exactly the campaigns this visualizer draws from.
+ * Tile access for exactly what this visualizer shows.
  *
- * Scoping the token to the visualizer's own campaigns is what lets a visitor
- * with no account fetch its tiles without opening anything else. The scopes
- * alone would be the whole of those campaigns, so the token also names the
- * visualizer and the tile proxy serves it nothing else.
+ * The token names the visualizer itself and the single campaign layers it
+ * links, never those campaigns, which is what lets a visitor with no account
+ * fetch its tiles without opening anything else.
  */
 export const getVisualizerTilerTokenMutation = (options?: Partial<Options<GetVisualizerTilerTokenData>>): UseMutationOptions<GetVisualizerTilerTokenResponse, GetVisualizerTilerTokenError, Options<GetVisualizerTilerTokenData>> => {
     const mutationOptions: UseMutationOptions<GetVisualizerTilerTokenResponse, GetVisualizerTilerTokenError, Options<GetVisualizerTilerTokenData>> = {

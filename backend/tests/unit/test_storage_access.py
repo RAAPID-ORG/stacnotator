@@ -150,7 +150,6 @@ def test_private_catalog_slice_ingests_with_access_and_searches_its_own_collecti
         catalog_url=CATALOG,
         stac_collection_id="c",
         search_query={"collections": ["c"], "filter-lang": "cql2-json"},
-        max_cloud_cover=None,
         internal_storage=False,
         storage_access=StorageAccess(AZURE_SAS, SAS),
     )

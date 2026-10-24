@@ -1981,10 +1981,6 @@ export type CollectionSearchCreate = {
      */
     tiler?: string | null;
     /**
-     * Max Cloud Cover
-     */
-    max_cloud_cover?: number | null;
-    /**
      * Search Query
      */
     search_query?: {
@@ -2024,10 +2020,6 @@ export type CollectionSearchOut = {
      * Tiler
      */
     tiler?: string | null;
-    /**
-     * Max Cloud Cover
-     */
-    max_cloud_cover?: number | null;
     /**
      * Search Query
      */

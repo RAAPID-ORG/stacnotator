@@ -88,7 +88,6 @@ class MosaicOrder:
     catalog_url: str
     stac_collection_id: str
     search_query: dict | None
-    max_cloud_cover: float | None
     internal_storage: bool
     storage_access: StorageAccess | None
 
@@ -120,7 +119,6 @@ def missing_mosaics(sources: list[ImagerySource]) -> list[MosaicOrder]:
                             catalog_url=collection.catalog_url,
                             stac_collection_id=collection.stac_collection_id,
                             search_query=copy.deepcopy(tiles.search_query(collection, sl)),
-                            max_cloud_cover=collection.max_cloud_cover,
                             internal_storage=collection.internal_storage,
                             storage_access=access,
                         )
@@ -407,7 +405,7 @@ def _register_hosted(
                 order.stac_collection_id,
                 bbox,
                 order.datetime_range,
-                order.max_cloud_cover,
+                tiles.cloud_cover_ceiling(order.search_query),
                 storage_access=access.tiler_body(),
             )
         ]
@@ -425,7 +423,7 @@ def _register_hosted(
             order.stac_collection_id,
             bbox,
             order.datetime_range,
-            order.max_cloud_cover,
+            tiles.cloud_cover_ceiling(order.search_query),
         )
     return providers.register_on_tiler(
         tiler, body, tile_scope, order.layer, internal_storage=order.internal_storage
@@ -470,7 +468,7 @@ def _reingest_collection(collection: ImageryCollection, bbox: list[float]) -> No
                 collection.stac_collection_id,
                 bbox,
                 f"{sl.start_date}T00:00:00Z/{sl.end_date}T23:59:59Z",
-                collection.max_cloud_cover,
+                tiles.cloud_cover_ceiling(tiles.search_query(collection, sl)),
                 storage_access=access.tiler_body() if access else None,
             )
         except Exception:

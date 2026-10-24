@@ -308,7 +308,6 @@ def seed_dev_data(firebase_uid: str | None = None):
                             search=CollectionSearchCreate(
                                 catalog_url=MPC_CATALOG_URL,
                                 stac_collection_id="sentinel-2-l2a",
-                                max_cloud_cover=70,
                                 search_query=_stac_search_query(),
                             ),
                             visualizations=[

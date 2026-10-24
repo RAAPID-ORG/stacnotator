@@ -39,6 +39,25 @@ def search_query(collection: "ImageryCollection", sl: "ImagerySlice") -> dict | 
     return collection.search_query
 
 
+def cloud_cover_ceiling(query: dict | list | None) -> float | None:
+    """The ``eo:cloud_cover`` ceiling a search filters on, if any. A hosted tiler's
+    ingest applies it too, so it does not load items the search would drop."""
+    if isinstance(query, list):
+        return next((c for q in query if (c := cloud_cover_ceiling(q)) is not None), None)
+    if not isinstance(query, dict):
+        return None
+    args = query.get("args")
+    if (
+        query.get("op") == "<="
+        and isinstance(args, list)
+        and len(args) == 2
+        and args[0] == {"property": "eo:cloud_cover"}
+        and isinstance(args[1], int | float)
+    ):
+        return float(args[1])
+    return cloud_cover_ceiling(list(query.values()))
+
+
 def missing_providers(collection: "ImageryCollection", sl: "ImagerySlice") -> set[str | None]:
     """Providers this slice's visualizations need a mosaic on and it has none."""
     if not collection.is_stac:

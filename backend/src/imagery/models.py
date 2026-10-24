@@ -239,8 +239,6 @@ class ImageryCollection(Base):
     # CQL2-JSON; slice dates are filled in at registration.
     search_query: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     cover_search_query: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    # Also handed to a hosted tiler's ingest, which filters before the search runs.
-    max_cloud_cover: Mapped[float | None] = mapped_column(nullable=True)
     # Assets live in internal storage the tiler reads with its managed identity.
     internal_storage: Mapped[bool] = mapped_column(Boolean, server_default="false", nullable=False)
     # A private catalog's own access, provided by the customer (see src/storage_access.py).

@@ -283,7 +283,8 @@ function mapCollectionOutToFe(
     const namesForViz = vizNames.size > 0 ? [...vizNames.values()] : ['Default'];
     const hasDedicatedCover = col.has_dedicated_cover ?? false;
     const stacId = sc.stac_collection_id;
-    const regular = readStoredQuery(stacId, sc.search_query, sc.max_cloud_cover ?? undefined);
+    const regularCloud = cloudCoverOf(sc.search_query);
+    const regular = readStoredQuery(stacId, sc.search_query, regularCloud);
     const coverCloud = cloudCoverOf(sc.cover_search_query);
     const cover = readStoredQuery(stacId, sc.cover_search_query, coverCloud);
     data = {
@@ -292,7 +293,7 @@ function mapCollectionOutToFe(
       stacCollectionId: stacId,
       isMpc: isMpcCatalogUrl(sc.catalog_url),
       tiler: sc.tiler ?? null,
-      maxCloudCover: sc.max_cloud_cover ?? undefined,
+      maxCloudCover: regularCloud,
       itemSort: regular.itemSort,
       coverMaxCloudCover: coverCloud,
       coverItemSort: cover.itemSort,

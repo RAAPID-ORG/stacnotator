@@ -97,3 +97,17 @@ def test_a_manual_slice_is_drawn_from_its_templates_and_needs_no_mosaic():
         (5, "https://x/{z}/{x}/{y}", None)
     ]
     assert tiles.missing_providers(collection, sl) == set()
+
+
+def test_the_ingest_cloud_ceiling_is_read_from_the_search():
+    cloud = {
+        "op": "or",
+        "args": [
+            {"op": "isNull", "args": [{"property": "eo:cloud_cover"}]},
+            {"op": "<=", "args": [{"property": "eo:cloud_cover"}, 20]},
+        ],
+    }
+    query = {"filter": {"op": "and", "args": [{"op": "anyinteracts", "args": []}, cloud]}}
+    assert tiles.cloud_cover_ceiling(query) == 20.0
+    assert tiles.cloud_cover_ceiling({"filter": {"op": "and", "args": []}}) is None
+    assert tiles.cloud_cover_ceiling(None) is None

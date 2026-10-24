@@ -431,7 +431,6 @@ def _searched(collection: ImageryCollection) -> tuple:
         collection.catalog_url,
         collection.stac_collection_id,
         collection.tiler,
-        collection.max_cloud_cover,
         collection.search_query,
         collection.cover_search_query,
         collection.internal_storage,
@@ -450,7 +449,6 @@ def _save_search(
     if incoming is None:
         collection.catalog_url = collection.stac_collection_id = collection.tiler = None
         collection.search_query = collection.cover_search_query = None
-        collection.max_cloud_cover = None
         collection.internal_storage = False
         storage_access.clear(collection)
         return False
@@ -458,7 +456,6 @@ def _save_search(
     collection.catalog_url = incoming.catalog_url
     collection.stac_collection_id = incoming.stac_collection_id
     collection.tiler = incoming.tiler
-    collection.max_cloud_cover = incoming.max_cloud_cover
     collection.search_query = incoming.search_query
     collection.cover_search_query = (
         incoming.cover_search_query if collection.has_dedicated_cover else None
