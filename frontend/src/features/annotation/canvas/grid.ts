@@ -9,7 +9,7 @@ export const GRID_MARGIN: [number, number] = [6, 6];
 export type LayoutItem = CanvasLayoutItem;
 
 /** Campaign-wide panels. Timeline and imagery controls stay inside the main
- *  map unless given their own slot. Timeseries windows are keyed `timeseries:<name>`. */
+ *  map unless given their own slot. Timeseries windows are keyed `timeseries:<window id>`. */
 export interface MainLayout {
   main: LayoutItem;
   minimap: LayoutItem;
