@@ -152,16 +152,6 @@ class TestRevokeInvite:
         assert exc_info.value.status_code == 404
         db.delete.assert_not_called()
 
-    def test_consumed_invite_raises_404(self):
-        db = _mock_db()
-        invite = Invite(id=9, email="a@x.org", organization_id=5)
-        invite.consumed_at = MagicMock()
-        db.get.return_value = invite
-
-        with pytest.raises(HTTPException) as exc_info:
-            revoke_invite(db, 9, organization_id=5)
-        assert exc_info.value.status_code == 404
-
     def test_pending_invite_is_deleted(self):
         db = _mock_db()
         invite = Invite(id=9, email="a@x.org", project_id=7)
@@ -194,8 +184,7 @@ class TestConsumeInvitesForNewUser:
         assert membership.organization_id == 5
         assert membership.is_admin is False
         assert membership.status == "active"
-        assert invite.consumed_at is not None
-        assert invite.consumed_by == user.id
+        db.delete.assert_called_once_with(invite)
 
     def test_project_invite_becomes_non_admin_non_authoritative_membership(self):
         db = _mock_db()
@@ -211,7 +200,7 @@ class TestConsumeInvitesForNewUser:
         assert membership.project_id == 7
         assert membership.is_admin is False
         assert membership.is_authoritative_reviewer is False
-        assert invite.consumed_at is not None
+        db.delete.assert_called_once_with(invite)
 
     def test_matches_on_the_lowercased_email(self):
         db = _mock_db()

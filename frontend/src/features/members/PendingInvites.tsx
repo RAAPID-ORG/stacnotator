@@ -13,8 +13,8 @@ interface PendingInvitesProps {
   className?: string;
 }
 
-/** The unconsumed email pre-authorizations for one organization or project:
- *  addresses that were added before signing up. Renders nothing while empty.
+/** The emails invited to one organization or project that have not signed up
+ *  yet. Renders nothing while empty.
  *  The owner supplies the list, since only it knows which API holds them. */
 export const PendingInvites = ({
   invites,

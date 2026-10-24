@@ -105,7 +105,7 @@ class TestRegisterUser:
         assert exc_info.value.status_code == 409
         db.add.assert_not_called()
 
-    def test_registration_consumes_matching_invites_in_the_same_transaction(self):
+    def test_registration_redeems_matching_invites_in_the_same_transaction(self):
         from src.organizations.models import Invite, OrganizationUser
         from src.projects.models import ProjectUser
 
@@ -124,8 +124,7 @@ class TestRegisterUser:
         added = [call.args[0] for call in db.add.call_args_list]
         assert [m.organization_id for m in added if isinstance(m, OrganizationUser)] == [5]
         assert [m.project_id for m in added if isinstance(m, ProjectUser)] == [7]
-        assert org_invite.consumed_at is not None
-        assert project_invite.consumed_at is not None
+        assert [c.args[0] for c in db.delete.call_args_list] == [org_invite, project_invite]
         db.commit.assert_called_once()
 
 

@@ -4,7 +4,7 @@
 
 Multi-tenancy: organization → project → campaign.
 
-- Organization signup requests are approved/rejected by a platform admin; org admins manage members and can pre-authorize emails via invites consumed at registration
+- Organization signup requests are approved/rejected by a platform admin; org admins manage members and can pre-authorize emails via invites that turn into memberships at registration
 - Any signed-in user can browse every approved organization and request access with an optional note; org admins see the requester's name and note and approve or reject. Approval turns the pending membership into an active one; rejection drops the request and they may ask again
 - Projects have `private`/`organization`/`public` visibility and project-scoped members with `admin` and `authoritative reviewer` roles
 - People are identified by display name everywhere members are listed or picked - the platform user directory, member tables and access requests. Email addresses reach platform admins only, so org and project admins run their membership by name; adding someone by a known address still works through the add-by-email box

@@ -1,4 +1,3 @@
-from datetime import UTC, datetime
 from typing import NamedTuple
 from uuid import UUID
 
@@ -336,21 +335,17 @@ def invite_emails(
     project_id: int | None = None,
 ) -> list[str]:
     """Store pre-authorization invites for not-yet-registered emails (already
-    normalized), skipping emails that still hold an unconsumed invite for the
-    same target. Returns every email as invited either way; does not commit -
+    normalized), skipping emails already invited to the same target. Returns every email as invited either way; does not commit -
     runs inside the caller's add-by-email transaction."""
     if not emails:
         return []
-    pending = set(
+    invited = set(
         db.scalars(
-            select(Invite.email).where(
-                Invite.consumed_at.is_(None),
-                _invite_target_filter(organization_id, project_id),
-            )
+            select(Invite.email).where(_invite_target_filter(organization_id, project_id))
         ).all()
     )
     for email in emails:
-        if email not in pending:
+        if email not in invited:
             db.add(
                 Invite(
                     email=email,
@@ -368,10 +363,7 @@ def list_pending_invites(
     return list(
         db.scalars(
             select(Invite)
-            .where(
-                Invite.consumed_at.is_(None),
-                _invite_target_filter(organization_id, project_id),
-            )
+            .where(_invite_target_filter(organization_id, project_id))
             .order_by(Invite.created_at)
         ).all()
     )
@@ -384,12 +376,11 @@ def revoke_invite(
     organization_id: int | None = None,
     project_id: int | None = None,
 ) -> None:
-    """Delete a pending invite. 404s when it does not exist, was already
-    consumed, or belongs to a different target than the admin is acting on."""
+    """Delete a pending invite. 404s when it does not exist (already redeemed
+    included) or belongs to a different target than the admin is acting on."""
     invite = db.get(Invite, invite_id)
     if (
         invite is None
-        or invite.consumed_at is not None
         or (organization_id is not None and invite.organization_id != organization_id)
         or (project_id is not None and invite.project_id != project_id)
     ):
@@ -399,19 +390,13 @@ def revoke_invite(
 
 
 def consume_invites_for_new_user(db: Session, user: User) -> None:
-    """Redeem every unconsumed invite matching the new user's lowercased
-    email: org invites become active non-admin memberships, project invites
-    non-admin non-authoritative ones. Flushes only - runs inside
-    register_user's transaction so registration stays all-or-nothing."""
-    invites = db.scalars(
-        select(Invite).where(
-            Invite.email == user.email.lower(),
-            Invite.consumed_at.is_(None),
-        )
-    ).all()
-    now = datetime.now(UTC)
-    # invites_pending_target_uniq allows one pending invite per target, so each
-    # target is granted at most once here.
+    """Redeem every invite matching the new user's lowercased email: org
+    invites become active non-admin memberships, project invites non-admin
+    non-authoritative ones, and the invite is deleted. Flushes only - runs
+    inside register_user's transaction so registration stays all-or-nothing."""
+    invites = db.scalars(select(Invite).where(Invite.email == user.email.lower())).all()
+    # invites_target_uniq allows one invite per target, so each target is
+    # granted at most once here.
     for invite in invites:
         org_id, project_id = invite.organization_id, invite.project_id
         if org_id is not None:
@@ -433,8 +418,7 @@ def consume_invites_for_new_user(db: Session, user: User) -> None:
                     is_authoritative_reviewer=False,
                 )
             )
-        invite.consumed_at = now
-        invite.consumed_by = user.id
+        db.delete(invite)
 
 
 def add_users_by_email(

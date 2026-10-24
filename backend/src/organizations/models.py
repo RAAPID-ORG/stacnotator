@@ -13,7 +13,6 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
-    Uuid,
     func,
     text,
 )
@@ -171,9 +170,10 @@ class OrganizationTiler(Base):
 
 class Invite(Base):
     """Pre-authorization for an email with no account yet, targeting exactly
-    one organization or one project. Consumed silently at registration
-    (auth.service.register_user), turning into the matching membership row.
-    No email is sent; the admin relays the sign-up instruction."""
+    one organization or one project. Redeemed silently at registration
+    (auth.service.register_user): the row is replaced by the matching
+    membership, so every invite that exists is still waiting. No email is
+    sent; the admin relays the sign-up instruction."""
 
     __tablename__ = "invites"
     __table_args__ = (
@@ -182,15 +182,14 @@ class Invite(Base):
             name="invites_exactly_one_target_check",
         ),
         Index("invites_email_idx", "email"),
-        # One pending invite per email+target; COALESCE folds the NULL half of
-        # the XOR pair so duplicates collide (ids are Identity, never 0).
+        # One invite per email+target; COALESCE folds the NULL half of the XOR
+        # pair so duplicates collide (ids are Identity, never 0).
         Index(
-            "invites_pending_target_uniq",
+            "invites_target_uniq",
             "email",
             text("COALESCE(organization_id, 0)"),
             text("COALESCE(project_id, 0)"),
             unique=True,
-            postgresql_where=text("consumed_at IS NULL"),
         ),
         {"schema": "data"},
     )
@@ -213,5 +212,3 @@ class Invite(Base):
         server_default=func.current_timestamp(),
         nullable=False,
     )
-    consumed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
-    consumed_by: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
