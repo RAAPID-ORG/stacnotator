@@ -10,7 +10,8 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
-from src.layers import LayerOwner
+from src.custom_layers.models import CustomMap
+from src.imagery.models import ImagerySource
 from src.visualizers import service
 from src.visualizers.router import _require_viewer
 
@@ -89,23 +90,12 @@ def test_project_admin_may_edit(_stub_load):
     assert _require_viewer(slug="abc", db=db, user=_user()).can_edit is True
 
 
-def test_tile_session_covers_only_what_the_visualizer_draws_from():
-    linked = MagicMock(source=MagicMock(owner=LayerOwner(campaign_id=42)))
+def test_tile_session_grants_the_linked_layers_and_not_their_campaigns():
     visualizer = MagicMock(
-        imagery=[linked],
-        imagery_sources=[MagicMock(owner=LayerOwner(visualizer_id=3))],
+        imagery=[MagicMock(source=ImagerySource(id=5, campaign_id=42)), MagicMock(source=None)],
         overlays=[
-            MagicMock(custom_map=MagicMock(owner=LayerOwner(campaign_id=7))),
+            MagicMock(custom_map=CustomMap(id=9, campaign_id=7)),
             MagicMock(custom_map=None),
         ],
     )
-    assert service.tile_scopes(visualizer) == ["42", "7", "visualizer:3"]
-
-
-def test_tile_session_covers_an_overlay_the_visualizer_owns():
-    visualizer = MagicMock(
-        imagery=[],
-        imagery_sources=[],
-        overlays=[MagicMock(custom_map=MagicMock(owner=LayerOwner(visualizer_id=3)))],
-    )
-    assert service.tile_scopes(visualizer) == ["visualizer:3"]
+    assert service.linked_tile_layers(visualizer) == ["custom_map:9", "source:5"]

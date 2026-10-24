@@ -155,6 +155,7 @@ def run_registration(db: Session, cm: CustomMap) -> None:
             tiler,
             cm.cog_url,
             cm.owner.tile_scope,
+            cm.tile_layer,
             internal_storage=cm.internal_storage,
             sealed_storage_access=(
                 storage_access.seal_for_tiler(access, cm.cog_url) if access else None
@@ -199,6 +200,14 @@ def _register_async(map_id: int) -> None:
 
 def _spawn_registration(map_id: int) -> None:
     threading.Thread(target=_register_async, args=(map_id,), daemon=True).start()
+
+
+def resume_pending(db: Session) -> None:
+    """Start the custom-map registrations left owed, for the maps this worker claims."""
+    map_ids = background.claim_pending_runs(db, CUSTOM_MAP_RUN)
+    db.commit()
+    for map_id in map_ids:
+        _spawn_registration(map_id)
 
 
 def create_custom_map(db: Session, owner: LayerOwner, payload: CustomMapCreate) -> CustomMap:

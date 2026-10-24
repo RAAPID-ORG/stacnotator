@@ -16,6 +16,8 @@ shown when a dead run is swept) and drives it with:
 - ``spawn_status_run``: executes the work on a daemon thread with its own
   session, refreshes the heartbeat while the work runs, and flips the status
   to ready/failed via ``finish_status_run`` when it completes.
+- ``claim_pending_runs``: a run left owed ("pending", by a migration that dropped
+  what the run makes) is claimed by exactly one booting worker, which starts it.
 - ``fail_stale_status_runs``: the recovery sweep - a run still "registering"
   whose heartbeat stopped belongs to a dead worker and is flipped to "failed".
   Liveness is judged by the absence of writes, so recovery needs no
@@ -222,6 +224,23 @@ def spawn_status_run(
             db.close()
 
     threading.Thread(target=_run, daemon=True).start()
+
+
+def claim_pending_runs(db: Session, field: StatusField) -> list[int]:
+    """Move every "pending" run to "registering" with a fresh heartbeat and return
+    their ids, for the caller to commit and then spawn. The status guard is inside
+    the UPDATE, so of several workers booting at once each run goes to one."""
+    return list(
+        db.execute(
+            text(
+                f"UPDATE {field.table} "
+                f"SET {field.status_column} = 'registering', "
+                f"    {field.heartbeat_column} = now(), "
+                f"    {field.errors_column} = NULL "
+                f"WHERE {field.status_column} = 'pending' RETURNING id"
+            )
+        ).scalars()
+    )
 
 
 def fail_stale_status_runs(

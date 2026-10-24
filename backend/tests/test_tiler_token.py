@@ -16,10 +16,11 @@ def secret(monkeypatch):
 
 
 def test_mint_then_verify_returns_claims(secret):
-    token = tiler_token.mint("user-1", [1, 2], scope=["tiles:read"])
+    token = tiler_token.mint("user-1", [1, 2], scope=["tiles:read"], layers=["source:5"])
     claims = tiler_token.verify(token)
     assert claims["sub"] == "user-1"
-    assert claims["campaigns"] == ["1", "2"]
+    assert claims["owners"] == ["1", "2"]
+    assert claims["layers"] == ["source:5"]
     assert claims["scope"] == ["tiles:read"]
 
 

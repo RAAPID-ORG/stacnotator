@@ -67,29 +67,32 @@ def _fake_post(monkeypatch, payload):
     return captured
 
 
-def test_register_on_tiler_posts_search_with_campaign(monkeypatch):
+def test_register_on_tiler_posts_search_with_owner_and_layer(monkeypatch):
     captured = _fake_post(monkeypatch, {"id": "search-xyz"})
-    out = providers.register_on_tiler(TILER, {"collections": ["sentinel-2-l2a"]}, tile_scope="42")
+    out = providers.register_on_tiler(
+        TILER, {"collections": ["sentinel-2-l2a"]}, owner="42", layer="source:5"
+    )
     assert out == "search-xyz"
     assert captured["url"] == "https://tiler-one.example.com/searches/register"
-    assert captured["json"]["metadata"] == {"campaign_id": "42"}
+    assert captured["json"]["metadata"] == {"owner": "42", "layer": "source:5"}
     assert captured["headers"]["Authorization"].startswith("Bearer ")
 
 
 def test_register_on_tiler_stamps_asset_signer_for_internal_storage(monkeypatch):
     captured = _fake_post(monkeypatch, {"id": "s"})
     providers.register_on_tiler(
-        TILER, {"collections": ["c"]}, tile_scope="42", internal_storage=True
+        TILER, {"collections": ["c"]}, owner="42", layer="source:5", internal_storage=True
     )
     assert captured["json"]["metadata"] == {
-        "campaign_id": "42",
+        "owner": "42",
+        "layer": "source:5",
         "asset_signer": "azure_managed_identity",
     }
 
 
 def test_register_on_tiler_omits_marker_by_default(monkeypatch):
     captured = _fake_post(monkeypatch, {"id": "s"})
-    providers.register_on_tiler(TILER, {"collections": ["c"]}, tile_scope="42")
+    providers.register_on_tiler(TILER, {"collections": ["c"]}, owner="42", layer="source:5")
     assert "asset_signer" not in captured["json"]["metadata"]
 
 
@@ -129,7 +132,7 @@ def test_register_on_tiler_carries_a_sealed_storage_access(monkeypatch):
     captured = _fake_post(monkeypatch, {"id": "s"})
     sealed = {"kind": "azure_sas", "host": "acct.blob.core.windows.net", "secret": "c2VhbGVk"}
     providers.register_on_tiler(
-        TILER, {"collections": ["c"]}, tile_scope="42", sealed_storage_access=sealed
+        TILER, {"collections": ["c"]}, owner="42", layer="source:5", sealed_storage_access=sealed
     )
     assert captured["json"]["metadata"]["storage_access"] == sealed
 
@@ -149,6 +152,6 @@ def test_mint_token_claims():
 
     claims = jwt.decode(token, get_settings().TILER_TOKEN_SECRET, algorithms=["HS256"])
     assert claims["sub"] == "u1"
-    assert claims["campaigns"] == ["1", "2"]
+    assert claims["owners"] == ["1", "2"]
     assert claims["scope"] == ["tiles:read"]
     assert "exp" in claims

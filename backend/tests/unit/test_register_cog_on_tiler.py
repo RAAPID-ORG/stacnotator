@@ -35,12 +35,13 @@ def test_register_cog_posts_and_returns_id(monkeypatch):
     monkeypatch.setattr(providers, "_register_base", lambda tiler: "https://tiler.test")
     captured = _fake_post(monkeypatch, {"id": "search-123"})
 
-    result = providers.register_cog_on_tiler(TILER, "https://x/y.tif", "42")
+    result = providers.register_cog_on_tiler(TILER, "https://x/y.tif", "42", "custom_map:9")
 
     assert result == "search-123"
     assert captured["url"] == "https://tiler.test/searches/register-cog"
     assert captured["json"]["cog_url"] == "https://x/y.tif"
-    assert captured["json"]["campaign_id"] == "42"
+    assert captured["json"]["owner"] == "42"
+    assert captured["json"]["layer"] == "custom_map:9"
     assert captured["json"]["internal_storage"] is False
     assert captured["headers"]["Authorization"] == "Bearer tok"
 
@@ -51,7 +52,9 @@ def test_register_cog_forwards_internal_storage(monkeypatch):
     monkeypatch.setattr(providers, "_register_base", lambda tiler: "https://tiler.test")
     captured = _fake_post(monkeypatch, {"id": "s"})
 
-    providers.register_cog_on_tiler(TILER, "https://x/y.tif", "42", internal_storage=True)
+    providers.register_cog_on_tiler(
+        TILER, "https://x/y.tif", "42", "custom_map:9", internal_storage=True
+    )
 
     assert captured["json"]["internal_storage"] is True
 
@@ -66,7 +69,9 @@ def test_an_internal_cog_url_is_never_forwarded(monkeypatch):
     monkeypatch.setattr(providers.httpx, "post", _no_post)
 
     with pytest.raises(net_guard.UnsafeUrlError):
-        providers.register_cog_on_tiler(TILER, "http://169.254.169.254/latest/meta-data/", 42)
+        providers.register_cog_on_tiler(
+            TILER, "http://169.254.169.254/latest/meta-data/", "42", "custom_map:9"
+        )
 
 
 def test_private_cog_forwards_sealed_access_and_requires_tiler_acknowledgement(monkeypatch):
@@ -76,7 +81,11 @@ def test_private_cog_forwards_sealed_access_and_requires_tiler_acknowledgement(m
     captured = _fake_post(monkeypatch, {"id": "s", "storage_access": True})
     assert (
         providers.register_cog_on_tiler(
-            TILER, "https://acct.blob.core.windows.net/m.tif", "42", sealed_storage_access=sealed
+            TILER,
+            "https://acct.blob.core.windows.net/m.tif",
+            "42",
+            "custom_map:9",
+            sealed_storage_access=sealed,
         )
         == "s"
     )
@@ -84,5 +93,9 @@ def test_private_cog_forwards_sealed_access_and_requires_tiler_acknowledgement(m
     _fake_post(monkeypatch, {"id": "s"})
     with pytest.raises(ValueError, match="does not support private"):
         providers.register_cog_on_tiler(
-            TILER, "https://acct.blob.core.windows.net/m.tif", "42", sealed_storage_access=sealed
+            TILER,
+            "https://acct.blob.core.windows.net/m.tif",
+            "42",
+            "custom_map:9",
+            sealed_storage_access=sealed,
         )

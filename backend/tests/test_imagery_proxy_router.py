@@ -108,10 +108,9 @@ def test_an_internal_basemap_url_is_never_fetched(monkeypatch):
 
 
 class TestWhoTheProxyServes:
-    """A visualizer's tile session holds the scopes of the campaigns it links from -
-    the tiler has no finer unit to check against - so the proxy, where a provider key
-    is actually spent, has to be the thing that keeps a shared link off the rest of
-    those campaigns."""
+    """A visualizer's tile session names the visualizer and the single campaign layers
+    it links, never those campaigns, so the proxy serves it the visualizer's routes and
+    nothing a campaign's route would."""
 
     LINKED_CAMPAIGN = 42
     VISUALIZER = 3
@@ -122,8 +121,8 @@ class TestWhoTheProxyServes:
     def _visualizer_session(self):
         return self._request(
             sub=f"visualizer:{self.VISUALIZER}",
-            campaigns=[str(self.LINKED_CAMPAIGN), f"visualizer:{self.VISUALIZER}"],
-            visualizer_id=self.VISUALIZER,
+            owners=[f"visualizer:{self.VISUALIZER}"],
+            layers=["source:5"],
         )
 
     def test_a_visualizer_session_reads_the_visualizers_own_route(self):
@@ -142,7 +141,7 @@ class TestWhoTheProxyServes:
         assert exc.value.status_code == 403
 
     def test_a_users_session_still_reads_their_campaigns(self):
-        request = self._request(sub="user", campaigns=[str(self.LINKED_CAMPAIGN)])
+        request = self._request(sub="user", owners=[str(self.LINKED_CAMPAIGN)])
 
         require_tile_access(request, campaign_id=self.LINKED_CAMPAIGN)
 

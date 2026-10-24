@@ -42,6 +42,7 @@ class CustomMap(Base, OwnedLayer):
     max_native_zoom: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     mosaic_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     tile_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # registering, ready, failed, or pending: owed a run the next booting worker starts
     status: Mapped[str] = mapped_column(String(16), server_default="registering", nullable=False)
     status_errors: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -65,6 +66,10 @@ class CustomMap(Base, OwnedLayer):
     @property
     def storage_access(self) -> StorageAccessOut | None:
         return described(self)
+
+    @property
+    def tile_layer(self) -> str:
+        return f"custom_map:{self.id}"
 
 
 class VectorLayer(Base, OwnedLayer):

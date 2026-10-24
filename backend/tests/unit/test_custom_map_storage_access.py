@@ -168,13 +168,13 @@ def test_registration_hands_off_sealed_access_not_a_signed_url(monkeypatch):
     monkeypatch.setattr(service, "resolve_tiler", lambda *a: object())
     monkeypatch.setattr(service, "build_tile_url", lambda *a, **kw: "https://tiler/tiles")
 
-    def register(tiler, url, scope, **kw):
-        seen.update(url=url, scope=scope, **kw)
+    def register(tiler, url, owner, layer, **kw):
+        seen.update(url=url, owner=owner, layer=layer, **kw)
         return "search-1"
 
     monkeypatch.setattr(service, "register_cog_on_tiler", register)
     service.run_registration(MagicMock(), cm)
-    assert seen["url"] == URL and seen["scope"] == "5"
+    assert (seen["url"], seen["owner"], seen["layer"]) == (URL, "5", "custom_map:1")
     assert seen["sealed_storage_access"]["host"] == "acct.blob.core.windows.net"
     assert "SECRET" not in str(seen)
     assert cm.status == "ready"

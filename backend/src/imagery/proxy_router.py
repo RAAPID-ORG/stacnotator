@@ -132,16 +132,11 @@ def _with_session[T](lookup: Callable[[Session], T]) -> T:
 def _assert_scope(request: Request, owner: LayerOwner) -> None:
     """Authorize a tile request from the ``tiler_token`` cookie for one owner.
 
-    The cookie carries the scopes its holder may read; a campaign's is its bare
-    id and a visualizer's is prefixed, so the two can never be mistaken for one
-    another. See ``imagery.models.LayerOwner``.
-
-    A visualizer's session is the exception, and the reason this takes an owner
-    rather than a scope string. It holds the scopes of the campaigns it links
-    from, because the tiler has no finer unit to check - but here, where a
-    provider key gets spent, a shared link must not be a session on the whole
-    campaign behind it. Such a session is confined to its own routes, which
-    serve only what the visualizer publishes.
+    The cookie names the owners its holder may read; a campaign's scope is its
+    bare id and a visualizer's is prefixed, so the two can never be mistaken for
+    one another (see ``layers.LayerOwner``). A visualizer's session names only
+    the visualizer, so it reaches the visualizer's routes, which serve what it
+    publishes, and never a campaign's.
     """
     token = request.cookies.get("tiler_token")
     if not token:
@@ -150,10 +145,7 @@ def _assert_scope(request: Request, owner: LayerOwner) -> None:
         claims = tokens.verify(token)
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid tiler session") from None
-    if owner.tile_scope not in claims.get("campaigns", []):
-        raise HTTPException(status_code=403, detail="No access to this imagery")
-    session_visualizer = claims.get("visualizer")
-    if session_visualizer is not None and owner.visualizer_id != session_visualizer:
+    if owner.tile_scope not in claims.get("owners", []):
         raise HTTPException(status_code=403, detail="No access to this imagery")
 
 

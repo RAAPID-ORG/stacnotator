@@ -161,7 +161,7 @@ def create(db: Session, project: Project, payload: VisualizerCreate, user_id) ->
     _replace_layers(db, visualizer, payload.imagery, payload.overlays)
     _save_own_imagery(db, visualizer, payload.own_imagery)
     imagery_service.save_visualizer_basemaps(db, visualizer, payload.basemaps)
-    registration.commit_and_register(db, visualizer, _bbox(visualizer))
+    registration.commit_and_register(db, visualizer, visualizer.bbox)
     return load(db, visualizer_id=visualizer.id)
 
 
@@ -195,7 +195,7 @@ def update(db: Session, visualizer: Visualizer, payload: VisualizerUpdate) -> Vi
         registration.drop_mosaics(visualizer.imagery_sources)
     if payload.basemaps is not None:
         imagery_service.save_visualizer_basemaps(db, visualizer, payload.basemaps)
-    registration.commit_and_register(db, visualizer, _bbox(visualizer))
+    registration.commit_and_register(db, visualizer, visualizer.bbox)
     return load(db, visualizer_id=visualizer.id)
 
 
@@ -219,11 +219,6 @@ def _save_own_imagery(
             detail="Choose the area this visualizer covers before adding imagery to it",
         )
     imagery_service.save_visualizer_imagery(db, visualizer, sources)
-
-
-def _bbox(visualizer: Visualizer) -> list[float]:
-    area = area_out(visualizer)
-    return [area.west, area.south, area.east, area.north] if area else []
 
 
 def _apply_area(visualizer: Visualizer, area: VisualizerArea | None) -> None:
@@ -397,22 +392,12 @@ def area_out(visualizer: Visualizer) -> VisualizerArea | None:
     )
 
 
-def tile_scopes(visualizer: Visualizer) -> list[str]:
-    """Every scope this visualizer's tiles are served under, for its tiler token.
-
-    A linked source or overlay is served under its campaign's scope; imagery the
-    visualizer registered itself is served under its own. Handing out exactly
-    these is what lets a visitor with no account fetch this visualizer's tiles
-    and nothing else.
-    """
-    scopes = {
-        entry.source.owner.tile_scope for entry in visualizer.imagery if entry.source is not None
-    }
-    scopes |= {source.owner.tile_scope for source in visualizer.imagery_sources}
-    scopes |= {
-        o.custom_map.owner.tile_scope for o in visualizer.overlays if o.custom_map is not None
-    }
-    return sorted(scopes)
+def linked_tile_layers(visualizer: Visualizer) -> list[str]:
+    """The campaign layers this visualizer links, each granted on its own in its
+    tiler token. What the visualizer registered itself it reads as their owner."""
+    layers = {entry.source.tile_layer for entry in visualizer.imagery if entry.source is not None}
+    layers |= {o.custom_map.tile_layer for o in visualizer.overlays if o.custom_map is not None}
+    return sorted(layers)
 
 
 def build_view(

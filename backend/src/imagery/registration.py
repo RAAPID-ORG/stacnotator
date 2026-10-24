@@ -79,6 +79,7 @@ class MosaicOrder:
     session-bound object."""
 
     slice_id: int
+    layer: str
     slice_name: str
     collection_name: str
     start_date: str
@@ -110,6 +111,7 @@ def missing_mosaics(sources: list[ImagerySource]) -> list[MosaicOrder]:
                     orders.append(
                         MosaicOrder(
                             slice_id=sl.id,
+                            layer=source.tile_layer,
                             slice_name=sl.name,
                             collection_name=collection.name,
                             start_date=sl.start_date,
@@ -290,6 +292,19 @@ def spawn_background_registration(owner: LayerOwner, bbox: list[float]) -> None:
     )
 
 
+def resume_pending(db: Session) -> None:
+    """Start the registration runs left owed, for the owners this worker claims."""
+    campaign_ids = background.claim_pending_runs(db, REGISTRATION_RUN)
+    visualizer_ids = background.claim_pending_runs(db, VISUALIZER_REGISTRATION_RUN)
+    db.commit()
+    owners: list[Campaign | Visualizer] = [
+        *db.scalars(select(Campaign).where(Campaign.id.in_(campaign_ids))),
+        *db.scalars(select(Visualizer).where(Visualizer.id.in_(visualizer_ids))),
+    ]
+    for owner in owners:
+        spawn_background_registration(owner.layer_owner, list(owner.bbox))
+
+
 def commit_and_register(db: Session, owner: Campaign | Visualizer, bbox) -> None:
     """Commit the caller's writes and, when a mosaic is missing, start the run that
     registers it.
@@ -400,6 +415,7 @@ def _register_hosted(
             tiler,
             body,
             tile_scope,
+            order.layer,
             sealed_storage_access=storage_access.seal_for_tiler(access, order.catalog_url),
         )
     if tiler.allows_ingest:
@@ -412,7 +428,7 @@ def _register_hosted(
             order.max_cloud_cover,
         )
     return providers.register_on_tiler(
-        tiler, body, tile_scope, internal_storage=order.internal_storage
+        tiler, body, tile_scope, order.layer, internal_storage=order.internal_storage
     )
 
 

@@ -158,3 +158,15 @@ class TestFailStaleStatusRuns:
 
         params = db.execute.call_args.args[1]
         assert "interrupted - retry" in params["interrupted"]
+
+
+def test_a_pending_run_is_claimed_by_the_update_that_starts_it():
+    db = MagicMock()
+    db.execute.return_value.scalars.return_value = [4, 9]
+
+    assert background.claim_pending_runs(db, FIELD) == [4, 9]
+
+    sql = str(db.execute.call_args.args[0])
+    assert "registration_status = 'registering'" in sql
+    assert "WHERE registration_status = 'pending'" in sql
+    assert "registration_heartbeat_at = now()" in sql

@@ -106,6 +106,11 @@ class ImagerySource(Base, OwnedLayer, ProviderKeyed):
 
     campaign: Mapped["Campaign | None"] = relationship(back_populates="imagery_sources")
     visualizer: Mapped["Visualizer | None"] = relationship(back_populates="imagery_sources")
+
+    @property
+    def tile_layer(self) -> str:
+        return f"source:{self.id}"
+
     visualizations: Mapped[list["Visualization"]] = relationship(
         back_populates="source",
         cascade="all, delete-orphan",

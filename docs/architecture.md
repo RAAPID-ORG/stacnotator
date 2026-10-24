@@ -31,7 +31,7 @@ Infrastructure (networking, Key Vault, ACR, database, Container Apps Environment
 
 1. **Campaign creation:** Frontend builds imagery config → backend creates DB entries → background threads register mosaics (STAC searches) and fetch embeddings if applicable; annotation is blocked until they report ready.
 2. **Annotation:** Frontend loads campaign → fetches tiles from MPC or tiler and tasks-geometries from backend → user annotates → annotations stored via backend REST API.
-3. **Tile request (self-hosted):** Backend mints a campaign-scoped tiler JWT and sets it as an HttpOnly `tiler_token` cookie → the browser sends it automatically with tile requests → tiler verifies it, resolves the search's items from its pgstac index → reads COGs → composites → returns PNG.
+3. **Tile request (self-hosted):** Backend mints a tiler JWT naming the owners (campaigns, or a visualizer) and single linked layers it may read and sets it as an HttpOnly `tiler_token` cookie → the browser sends it automatically with tile requests → tiler verifies it, resolves the search's items from its pgstac index → reads COGs → composites → returns PNG.
 
 ## Imagery Generation Provenance
 

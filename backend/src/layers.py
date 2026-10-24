@@ -2,7 +2,9 @@
 
 Campaigns and visualizers both own imagery, basemaps and overlays. Every
 table that can hang off either carries this pair and derives its tile scope
-from it, so the rule lives in one place rather than four.
+from it, so the rule lives in one place rather than four. The layers a tiler
+registers (imagery sources and custom maps) also name themselves with a
+``tile_layer``, so a token can grant one of them without its owner.
 """
 
 from dataclasses import dataclass
@@ -17,10 +19,9 @@ class LayerOwner:
 
     Imagery sources, basemaps and overlays all hang off either a campaign or a
     visualizer, because both set layers up the same way. The scope is the string
-    the tiler and the tile proxy match a request against: a campaign keeps its
-    bare id, which is what every search registered so far is stamped with, and a
-    visualizer takes a prefixed one, so the two can never be confused for each
-    other.
+    the tiler and the tile proxy match a request's ``owners`` against: a campaign
+    keeps its bare id and a visualizer takes a prefixed one, so the two can never
+    be confused for each other.
     """
 
     campaign_id: int | None = None

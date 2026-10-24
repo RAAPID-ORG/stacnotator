@@ -207,18 +207,17 @@ def get_visualizer_tiler_token(
     response: Response,
     viewer: Viewer = Depends(_require_viewer),
 ):
-    """Tile access for exactly the campaigns this visualizer draws from.
+    """Tile access for exactly what this visualizer shows.
 
-    Scoping the token to the visualizer's own campaigns is what lets a visitor
-    with no account fetch its tiles without opening anything else. The scopes
-    alone would be the whole of those campaigns, so the token also names the
-    visualizer and the tile proxy serves it nothing else.
+    The token names the visualizer itself and the single campaign layers it
+    links, never those campaigns, which is what lets a visitor with no account
+    fetch its tiles without opening anything else.
     """
     set_tiler_cookie(
         response,
         sub=f"visualizer:{viewer.visualizer.id}",
-        campaigns=service.tile_scopes(viewer.visualizer),
-        visualizer_id=viewer.visualizer.id,
+        owners=[viewer.visualizer.layer_owner.tile_scope],
+        layers=service.linked_tile_layers(viewer.visualizer),
     )
     return TilerSessionOut(expires_in=TILER_TOKEN_TTL)
 

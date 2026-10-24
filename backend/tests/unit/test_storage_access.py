@@ -133,7 +133,7 @@ def test_private_catalog_slice_ingests_with_access_and_searches_its_own_collecti
         calls["ingest"] = kwargs
         return "c-0123abcd"
 
-    def register(tiler, body, scope, **kwargs):
+    def register(tiler, body, owner, layer, **kwargs):
         calls["register"] = (body, kwargs)
         return "search-1"
 
@@ -141,6 +141,7 @@ def test_private_catalog_slice_ingests_with_access_and_searches_its_own_collecti
     monkeypatch.setattr(registration.providers, "register_on_tiler", register)
     order = registration.MosaicOrder(
         slice_id=1,
+        layer="source:1",
         slice_name="January",
         collection_name="2024",
         start_date="2024-01-01",

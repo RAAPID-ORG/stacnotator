@@ -82,7 +82,7 @@ class Visualizer(Base):
         TIMESTAMP(timezone=True), server_default=func.current_timestamp(), nullable=False
     )
     # Set while this visualizer's own imagery is being registered, exactly as a
-    # campaign tracks its own. pending|registering|ready|failed.
+    # campaign tracks its own, pending included.
     registration_status: Mapped[str] = mapped_column(
         String(20), server_default="ready", nullable=False
     )
@@ -131,6 +131,13 @@ class Visualizer(Base):
     @property
     def layer_owner(self) -> LayerOwner:
         return LayerOwner(visualizer_id=self.id)
+
+    @property
+    def bbox(self) -> tuple[float, ...]:
+        """(west, south, east, north), or empty before an area is chosen."""
+        if self.bbox_west is None:
+            return ()
+        return (self.bbox_west, self.bbox_south, self.bbox_east, self.bbox_north)  # type: ignore[return-value]
 
 
 class VisualizerImagery(Base):

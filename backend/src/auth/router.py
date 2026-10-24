@@ -63,7 +63,7 @@ def get_tiler_token(
     db: Session = Depends(get_db),
 ):
     """Set a short-lived, campaign-scoped tiler HttpOnly cookie (authenticated users only)."""
-    set_tiler_cookie(response, sub=str(user.id), campaigns=visible_campaign_ids(db, user))
+    set_tiler_cookie(response, sub=str(user.id), owners=visible_campaign_ids(db, user))
     return {"expires_in": TILER_TOKEN_TTL}
 
 

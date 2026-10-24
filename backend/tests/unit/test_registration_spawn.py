@@ -77,7 +77,9 @@ def _source() -> ImagerySource:
             )
         ],
     )
-    return ImagerySource(campaign_id=1, visualizations=[rgb, median], collections=[stac, manual])
+    return ImagerySource(
+        id=4, campaign_id=1, visualizations=[rgb, median], collections=[stac, manual]
+    )
 
 
 def test_every_stac_slice_needs_a_mosaic_per_provider_its_renderings_route_to():
@@ -132,8 +134,8 @@ def test_registers_the_missing_mosaics_without_holding_a_transaction(monkeypatch
         if hosted_fails:
             raise ValueError("Catalog unavailable")
 
-    def register(tiler, body, scope, **kwargs):
-        assert scope == "1"
+    def register(tiler, body, owner, layer, **kwargs):
+        assert (owner, layer) == ("1", "source:4")
         assert kwargs["internal_storage"] is True
         return f"hosted-{body['limit']}"
 

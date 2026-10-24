@@ -26,10 +26,12 @@ from src.config import (
     DEV_TILER_TOKEN_SECRET,
     get_settings,
 )
+from src.custom_layers import service as custom_layers_service
 from src.custom_layers.router import router as custom_layers_router
 from src.custom_layers.service import CUSTOM_MAP_RUN
 from src.database import SessionLocal
 from src.earth_engine import initialize_earth_engine
+from src.imagery import registration
 from src.imagery.proxy_router import router as imagery_proxy_router
 from src.imagery.registration import REGISTRATION_RUN, VISUALIZER_REGISTRATION_RUN
 from src.imagery.router import router as imagery_router
@@ -92,12 +94,13 @@ async def lifespan(app: FastAPI):
 
     to_thread.current_default_thread_limiter().total_tokens = settings.THREAD_POOL_MAX
     initialize_earth_engine()
-    _sweep_stale_background_runs()
+    _recover_background_runs()
     yield
 
 
-def _sweep_stale_background_runs() -> None:
-    """Recover background runs that died with a previous worker.
+def _recover_background_runs() -> None:
+    """Recover background runs that died with a previous worker, then start the
+    runs left owed.
 
     Guarded: a DB hiccup at boot must not keep the worker from serving - the
     sweep re-runs on every worker start and from the polled campaign read.
@@ -110,10 +113,12 @@ def _sweep_stale_background_runs() -> None:
                 (REGISTRATION_RUN, EMBEDDING_RUN, VISUALIZER_REGISTRATION_RUN, CUSTOM_MAP_RUN),
             )
             db.commit()
+            registration.resume_pending(db)
+            custom_layers_service.resume_pending(db)
         finally:
             db.close()
     except Exception:
-        logger.warning("Stale background-run sweep failed at startup", exc_info=True)
+        logger.warning("Background-run recovery failed at startup", exc_info=True)
 
 
 # Initialize the FastAPI app

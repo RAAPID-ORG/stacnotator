@@ -58,11 +58,12 @@ class Campaign(Base):
         server_default=func.current_timestamp(),
         nullable=False,
     )
-    # Imagery registration status: pending, registering, ready, failed
+    # Imagery registration status: registering, ready, failed, or pending - a run is
+    # owed and the next worker to boot starts it (see background.claim_pending_runs)
     registration_status: Mapped[str] = mapped_column(
         String(20), server_default="ready", nullable=False
     )
-    # Embedding registration status: pending, registering, ready, failed
+    # Embedding computation status: registering, ready, failed
     embedding_status: Mapped[str] = mapped_column(
         String(20), server_default="ready", nullable=False
     )
