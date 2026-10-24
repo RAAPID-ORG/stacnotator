@@ -195,7 +195,8 @@ build_backend() {
 }
 
 # The tiler repo owns its own build and deploy; we hand it this environment's
-# parameters. It has no ordering dependency on the backend.
+# parameters. The backend depends on it: the searches it registers and the tile
+# tokens it mints follow the tiler's contract, so the tiler is live first.
 deploy_tiler() {
     local profile=""
     [ "$TILER_DEDICATED" = "true" ] && profile="tiler-dedicated"
@@ -308,6 +309,7 @@ start_stage tiler deploy_tiler
 start_stage build-frontend build_frontend
 
 join_stage build-backend
+join_stage tiler
 
 # Captured immediately before the image swap, because the new container runs
 # `alembic upgrade head` on startup. Anything the migration does to the data happens
@@ -328,8 +330,6 @@ ci_mask "$SWA_TOKEN"
 # devDependency, so npx resolves it from node_modules rather than downloading.
 (cd "$REPO_ROOT/frontend" && npx swa deploy ./dist --deployment-token "$SWA_TOKEN" --env production)
 echo -e "${GREEN}Frontend deployed${NC}"
-
-join_stage tiler
 
 echo ""
 echo -e "${YELLOW}Waiting for the new backend revision to become healthy...${NC}"
