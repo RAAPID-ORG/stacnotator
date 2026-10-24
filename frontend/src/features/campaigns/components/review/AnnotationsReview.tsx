@@ -220,8 +220,8 @@ export const AnnotationsReview = ({
   // annotation. Without an explicit mode the annotator would seed from
   // campaign.mode and open the first task regardless of origin.
   const handleNavigateToAnnotation = (ann: AnnotationListItemOut) => {
-    if (ann.annotation_task_id != null) {
-      navigate(`${annotatePath}?task=${ann.annotation_task_id}&review=true`);
+    if (ann.task_id != null) {
+      navigate(`${annotatePath}?task=${ann.task_id}&review=true`);
       return;
     }
     // The centroid comes from the database now; the row never carries a geometry.

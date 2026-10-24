@@ -1,6 +1,6 @@
 /**
  * Tests that creating an annotation sends the correct request to the backend:
- * - Correct campaign_id and annotation_task_id in the URL path
+ * - Correct campaign_id and task_id in the URL path
  * - Correct label_id, comment, confidence in the request body
  * - Delete request goes to the correct annotation_id
  * - Skip (null label) sends the right payload

@@ -565,9 +565,9 @@ export type AnnotationListItemOut = {
      */
     comment?: string | null;
     /**
-     * Annotation Task Id
+     * Task Id
      */
-    annotation_task_id?: number | null;
+    task_id?: number | null;
     /**
      * Created At
      */
@@ -695,9 +695,9 @@ export type AnnotationOut = {
      */
     geometry_wkt: string;
     /**
-     * Annotation Task Id
+     * Task Id
      */
-    annotation_task_id?: number | null;
+    task_id?: number | null;
     /**
      * Origin Task Id
      */

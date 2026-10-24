@@ -583,7 +583,7 @@ test.describe('Annotations page View deep link', () => {
     annotationPage,
   }) => {
     const page = annotationPage;
-    const taskBound = { ...EXPLORE_ANN_CENTER, id: 9050, annotation_task_id: TASK_3.id };
+    const taskBound = { ...EXPLORE_ANN_CENTER, id: 9050, task_id: TASK_3.id };
     await page.route(/\/api\/campaigns\/\d+\/annotations(\?|$)/, async (route) => {
       if (route.request().method() !== 'GET') return route.fallback();
       await route.fulfill({ json: { items: [taskBound], total: 1, limit: 50, offset: 0 } });
