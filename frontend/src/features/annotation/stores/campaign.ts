@@ -202,11 +202,12 @@ export function useCatalog(): ImageryCatalog {
   return catalog;
 }
 
-/** The slice the main window shows: what an annotation records it was drawn on. */
+/** The slice the main window shows: what an annotation records it was drawn on.
+ *  None while the basemap is shown instead. */
 export function viewedSliceId(): number | null {
   const { catalog } = useCampaignStore.getState();
-  const { address } = useImageryStore.getState();
-  if (!catalog || !address) return null;
+  const { address, showBasemap } = useImageryStore.getState();
+  if (!catalog || !address || showBasemap) return null;
   return catalog.collections.get(address.collectionId)?.slices[address.sliceIndex]?.id ?? null;
 }
 

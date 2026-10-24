@@ -19,12 +19,18 @@ vi.mock('~/api/client', async (importActual) => {
   };
 });
 
+vi.mock('./campaign', async (importActual) => ({
+  ...(await importActual<typeof import('./campaign')>()),
+  viewedSliceId: vi.fn(() => null),
+}));
+
 import {
   createAnnotation,
   getAnnotation,
   getAnnotationChanges,
   updateAnnotation,
 } from '~/api/client';
+import { viewedSliceId } from './campaign';
 
 const requiredField: FormField = { id: 1, title: 'Notes', type: 'text', required: true };
 const optionalField: FormField = { id: 2, title: 'Remarks', type: 'text', required: false };
@@ -44,6 +50,7 @@ beforeEach(() => {
   vi.mocked(updateAnnotation).mockReset();
   vi.mocked(getAnnotation).mockReset();
   vi.mocked(getAnnotationChanges).mockReset();
+  vi.mocked(viewedSliceId).mockReset().mockReturnValue(null);
   vi.mocked(updateAnnotation).mockResolvedValue(apiSuccess(savedAnnotation));
   seedFields([requiredField]);
   useWorkStore.setState({
@@ -63,6 +70,19 @@ beforeEach(() => {
   });
 });
 
+describe('the imagery a shape records', () => {
+  it('is the slice it was drawn on, not the one showing when its answers are in', async () => {
+    vi.mocked(createAnnotation).mockResolvedValue(apiSuccess(savedAnnotation));
+    vi.mocked(viewedSliceId).mockReturnValueOnce(7).mockReturnValue(8);
+    useWorkStore.getState().beginDraft(1);
+    await useWorkStore.getState().drawEnd(geometry);
+    useWorkStore.getState().setFormValues({ 1: 'answered' });
+    await useWorkStore.getState().commitDraft();
+
+    expect(vi.mocked(createAnnotation).mock.calls[0][0].body.imagery_slice_id).toBe(7);
+  });
+});
+
 describe('draft flow: begin -> drawEnd -> commit', () => {
   it('opens a draft when fields are required, then commits it exactly once even under a concurrent second call', async () => {
     useWorkStore.getState().beginDraft(1);
@@ -75,6 +95,7 @@ describe('draft flow: begin -> drawEnd -> commit', () => {
       labelId: 1,
       geometry,
       savedId: null,
+      sliceId: null,
     });
     expect(createAnnotation).not.toHaveBeenCalled();
 
@@ -136,6 +157,7 @@ describe('draft flow: begin -> drawEnd -> commit', () => {
       labelId: 1,
       geometry,
       savedId: null,
+      sliceId: null,
     });
 
     vi.mocked(createAnnotation).mockResolvedValue(apiSuccess(savedAnnotation));
@@ -156,6 +178,7 @@ describe('draft flow: begin -> drawEnd -> commit', () => {
       labelId: 1,
       geometry,
       savedId: null,
+      sliceId: null,
     });
 
     // Retry succeeds once the network recovers.
@@ -192,6 +215,7 @@ describe('draft flow: begin -> drawEnd -> commit', () => {
       labelId: 2,
       geometry,
       savedId: null,
+      sliceId: null,
     });
     expect(createAnnotation).toHaveBeenCalledTimes(1);
 
@@ -218,6 +242,7 @@ describe('draft flow: begin -> drawEnd -> commit', () => {
       labelId: 3,
       geometry,
       savedId: 999,
+      sliceId: null,
     });
 
     useWorkStore.getState().setFormValues({ '2': 'answered late' });
@@ -245,6 +270,7 @@ describe('draft flow: begin -> drawEnd -> commit', () => {
       labelId: 3,
       geometry,
       savedId: null,
+      sliceId: null,
     });
 
     vi.mocked(createAnnotation).mockResolvedValueOnce(apiSuccess(savedAnnotation));
@@ -269,6 +295,7 @@ describe('editDraftGeometry', () => {
       labelId: 1,
       geometry: moved,
       savedId: null,
+      sliceId: null,
     });
   });
 
@@ -314,6 +341,7 @@ describe('closeDraft', () => {
       labelId: 1,
       geometry,
       savedId: null,
+      sliceId: null,
     });
     expect(useWorkStore.getState().formValues).toEqual({ '1': 'answered' });
 
@@ -383,6 +411,7 @@ describe('a commit that resolves after the user has moved on', () => {
       labelId: 2,
       geometry: second,
       savedId: null,
+      sliceId: null,
     });
     expect(useWorkStore.getState().formValues).toEqual({ '1': 'second shape' });
   });

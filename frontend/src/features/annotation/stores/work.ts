@@ -67,13 +67,20 @@ export type TaskLink = Pick<AnnotationCreate, 'origin_task_id' | 'output_of_task
  *
  * `savedId` is the annotation a draft was already stored as: with nothing
  * required outstanding the shape is written the moment it is drawn, so it
- * cannot be lost, and the answers reach it as an update.
+ * cannot be lost, and the answers reach it as an update. `sliceId` is the
+ * imagery it was drawn on, recorded with it however long its answers take.
  */
+type Shape = {
+  labelId: number;
+  geometry: GeoJSON.Geometry;
+  savedId: number | null;
+  sliceId: number | null;
+};
 export type Draft =
   | { phase: 'idle' }
   | { phase: 'sketching'; labelId: number }
-  | { phase: 'draft'; labelId: number; geometry: GeoJSON.Geometry; savedId: number | null }
-  | { phase: 'committing'; labelId: number; geometry: GeoJSON.Geometry; savedId: number | null };
+  | ({ phase: 'draft' } & Shape)
+  | ({ phase: 'committing' } & Shape);
 
 /** One annotation opened for editing. Its full-resolution geometry only
  *  exists on the server (the map shows tiles), so the record is fetched once
@@ -274,10 +281,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
     applyDelta((d) => withWrites(d, [{ id, labelId, geometry, origin: 'local' }]));
 
   /** Never throws: the caller decides what a failed save means. */
-  const createShape = async (
-    labelId: number,
-    geometry: GeoJSON.Geometry
-  ): Promise<number | null> => {
+  const createShape = async ({ labelId, geometry, sliceId }: Shape): Promise<number | null> => {
     const { comment, confidence, flagged, flagComment, formValues, sliceNotes, draftLink } = get();
     try {
       const result = await createAnnotation({
@@ -292,7 +296,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
             flagged,
             flagComment,
             sliceComments: listNotes(sliceNotes),
-            imagerySliceId: viewedSliceId(),
+            imagerySliceId: sliceId,
           },
           draftLink
         ),
@@ -311,8 +315,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
   /** Everything a shape stored on draw gained since. Never throws either. */
   const updateShape = async (
     annotationId: number,
-    labelId: number,
-    geometry: GeoJSON.Geometry
+    { labelId, geometry, sliceId }: Shape
   ): Promise<boolean> => {
     const { comment, formValues, sliceNotes } = get();
     try {
@@ -322,7 +325,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
           label_id: labelId,
           comment: comment || null,
           geometry_wkt: geometryToWkt(geometry),
-          imagery_slice_id: viewedSliceId(),
+          imagery_slice_id: sliceId,
           form_values: formValues,
           slice_comments: listNotes(sliceNotes),
         },
@@ -336,24 +339,20 @@ export const useWorkStore = create<WorkState>((set, get) => {
 
   /** The one commit path, for a shape being stored and for one already stored.
    *  A failure leaves it as a retryable `draft` rather than dropping it. */
-  const commit = async (
-    labelId: number,
-    geometry: GeoJSON.Geometry,
-    savedId: number | null
-  ): Promise<boolean> => {
-    const committing: Draft = { phase: 'committing', labelId, geometry, savedId };
+  const commit = async (shape: Shape): Promise<boolean> => {
+    const committing: Draft = { ...shape, phase: 'committing' };
     set({ draft: committing });
     const ok =
-      savedId === null
-        ? (await createShape(labelId, geometry)) !== null
-        : await updateShape(savedId, labelId, geometry);
+      shape.savedId === null
+        ? (await createShape(shape)) !== null
+        : await updateShape(shape.savedId, shape);
     set((s) => {
       // A save takes a round trip and the user can draw the next shape inside
       // it. Whatever they started since is theirs; resolving onto it would
       // wipe the new draft.
       if (s.draft !== committing) return {};
       return {
-        draft: ok ? { phase: 'idle' } : { phase: 'draft', labelId, geometry, savedId },
+        draft: ok ? { phase: 'idle' } : { ...shape, phase: 'draft' },
         // Only what this shape said clears - its answers and its slice notes.
         // Label, comment, confidence and flags are the annotator's current
         // settings, not this shape's: clearing them would disarm the tool
@@ -365,13 +364,11 @@ export const useWorkStore = create<WorkState>((set, get) => {
   };
 
   /** Store the shape now and keep its questions open. */
-  const storeOnDraw = async (labelId: number, geometry: GeoJSON.Geometry): Promise<SaveOutcome> => {
-    const committing: Draft = { phase: 'committing', labelId, geometry, savedId: null };
+  const storeOnDraw = async (shape: Shape): Promise<SaveOutcome> => {
+    const committing: Draft = { ...shape, phase: 'committing' };
     set({ draft: committing });
-    const savedId = await createShape(labelId, geometry);
-    set((s) =>
-      s.draft === committing ? { draft: { phase: 'draft', labelId, geometry, savedId } } : {}
-    );
+    const savedId = await createShape(shape);
+    set((s) => (s.draft === committing ? { draft: { ...shape, savedId, phase: 'draft' } } : {}));
     if (savedId === null) return 'save-failed';
     return 'saved';
   };
@@ -566,31 +563,42 @@ export const useWorkStore = create<WorkState>((set, get) => {
     drawEnd: async (geometry) => {
       const { draft } = get();
       if (draft.phase !== 'sketching') return 'nothing';
+      const shape: Shape = {
+        labelId: draft.labelId,
+        geometry,
+        savedId: null,
+        sliceId: viewedSliceId(),
+      };
       const fields = formFields();
       if (fields.length === 0) {
-        return (await commit(draft.labelId, geometry, null)) ? 'saved' : 'save-failed';
+        return (await commit(shape)) ? 'saved' : 'save-failed';
       }
       // A required question is the only reason to hold a shape back: it cannot
       // be stored without one. Everything else is stored as drawn, so a shape
       // whose optional questions are never answered is not lost.
       if (fields.some((f) => f.required)) {
         set({
-          draft: { phase: 'draft', labelId: draft.labelId, geometry, savedId: null },
+          draft: { ...shape, phase: 'draft' },
           activeFieldIndex: fields[0]?.required ? 0 : null,
         });
         return 'drafted';
       }
-      return storeOnDraw(draft.labelId, geometry);
+      return storeOnDraw(shape);
     },
 
+    // A reshape is drawn on whatever is showing now.
     editDraftGeometry: (geometry) =>
-      set((s) => (s.draft.phase === 'draft' ? { draft: { ...s.draft, geometry } } : {})),
+      set((s) =>
+        s.draft.phase === 'draft'
+          ? { draft: { ...s.draft, geometry, sliceId: viewedSliceId() } }
+          : {}
+      ),
 
     commitDraft: async () => {
       const { draft, formValues } = get();
       if (draft.phase !== 'draft') return false;
       if (!validateForm(formFields(), formValues).ok) return false;
-      return commit(draft.labelId, draft.geometry, draft.savedId);
+      return commit(draft);
     },
 
     closeDraft: async () => {
@@ -602,9 +610,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
           set({ draft: { phase: 'idle' }, activeFieldIndex: null });
           return 'saved';
         }
-        return (await commit(draft.labelId, draft.geometry, draft.savedId))
-          ? 'saved'
-          : 'save-failed';
+        return (await commit(draft)) ? 'saved' : 'save-failed';
       }
       // An Explore annotation cannot be stored incomplete, so an unanswered
       // draft is thrown away rather than left half-filled.
@@ -612,7 +618,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
         set({ draft: { phase: 'idle' }, formValues: {}, activeFieldIndex: null });
         return 'discarded';
       }
-      return (await commit(draft.labelId, draft.geometry, null)) ? 'saved' : 'save-failed';
+      return (await commit({ ...draft, savedId: null })) ? 'saved' : 'save-failed';
     },
 
     openEdit: async (annotationId) => {

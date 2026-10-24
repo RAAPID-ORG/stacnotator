@@ -304,14 +304,16 @@ export function seedFilter(
 // Navigation
 // ---------------------------------------------------------------------------
 
-/** The mode the page opens in when no link asks for one: Tasks while one of
- *  the tasks is the viewer's to answer, Explore otherwise. */
+/** The mode the page opens in when no link asks for one: Tasks while a task
+ *  the viewer may answer is still waiting on them, Explore otherwise. */
 export function openingWorkMode(
   tasks: TaskOut[],
   policy: LabellingPolicy,
   ctx: PolicyContext
 ): 'tasks' | 'explore' {
   const mayAnswer = tasks.some((task) => {
+    if (task.task_status === 'done' || task.task_status === 'skipped') return false;
+    if (task.annotations.some((a) => a.created_by_user_id === ctx.userId)) return false;
     if (task.assignments.length === 0) return isAudienceMember(policy.unassigned_tasks, ctx);
     const isAssigned = task.assignments.some((a) => a.user_id === ctx.userId);
     return isAudienceMember(policy.assigned_tasks, { ...ctx, isAssigned });

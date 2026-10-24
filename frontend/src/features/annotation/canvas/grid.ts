@@ -333,7 +333,7 @@ export function scaleWidthToScreen(w: number, sourcePx: number, targetPx: number
  * timeseries groups, the minimap, and every visible window.
  */
 export function mobileStack(
-  windows: Record<number, LayoutItem>,
+  windowIds: number[],
   timeseriesKeys: string[],
   viewportH: number
 ): LayoutItem[] {
@@ -350,10 +350,7 @@ export function mobileStack(
   push('controls', half);
   for (const key of timeseriesKeys) push(key, rest);
   push('minimap', rest);
-  for (const id of Object.keys(windows)
-    .map(Number)
-    .sort((a, b) => a - b))
-    push(String(id), rest);
+  for (const id of [...windowIds].sort((a, b) => a - b)) push(String(id), rest);
 
   return items;
 }

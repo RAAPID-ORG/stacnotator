@@ -32,6 +32,7 @@ import { ScreenWindow } from './canvas/Screens/ScreenWindow';
 import { Toolbar } from './chrome/Toolbar/Toolbar';
 import { TourOverlay } from './chrome/Tour/TourOverlay';
 import { useHotkeys } from './hotkeys';
+import { windowsShown } from './campaign/imagery';
 import { groupTimeseriesIntoWindows } from './campaign/timeseries';
 import { isAudienceMember } from '~/features/campaigns/utils/labellingPolicy';
 import {
@@ -253,11 +254,12 @@ export function AnnotationPage() {
   // Hotkeys
   // ------------------------------------------------------------------
   // pageKeymap() reads the stores directly, so the deps are what should
-  // rebuild the table rather than what the closure literally names.
+  // rebuild the table rather than what the closure literally names: the
+  // campaign's id and settings, not the object a status poll replaces.
   const bindings = useMemo(
     () => (campaign && catalog ? pageKeymap() : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [campaign, catalog, view, workMode, isMobile, i18n.language]
+    [campaign?.id, campaign?.settings, catalog, view, workMode, isMobile, i18n.language]
   );
   useHotkeys(bindings, [bindings]);
 
@@ -406,10 +408,11 @@ export function AnnotationPage() {
   // rows are sized off the viewport rather than the canvas box, which would
   // need the grid laid out before its own layout could be computed.
   const mobileLayout = useMemo(() => {
-    if (!isMobile || !campaign) return undefined;
+    if (!isMobile || !campaign || !catalog) return undefined;
     const keys = groupTimeseriesIntoWindows(campaign.time_series).map((w) => w.key);
-    return mobileStack(currentLayout.windows, keys, window.innerHeight);
-  }, [isMobile, campaign, currentLayout.windows]);
+    const windowIds = windowsShown(catalog, view, currentLayout.hidden).map((c) => c.id);
+    return mobileStack(windowIds, keys, window.innerHeight);
+  }, [isMobile, campaign, catalog, view, currentLayout.hidden]);
 
   // A sent-away panel keeps its slot in the stored layout (that is where it
   // returns to) but is withheld from the grid so it can use the space.

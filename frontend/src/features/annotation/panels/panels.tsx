@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { collectionsInView, type ImageryCatalog } from '../campaign/imagery';
+import { windowsShown, type ImageryCatalog } from '../campaign/imagery';
 import { groupTimeseriesIntoWindows } from '../campaign/timeseries';
 import type { WorkspaceLayout } from '../canvas/grid';
 import { ExploreControls } from './ExploreControls/ExploreControls';
@@ -137,8 +137,7 @@ export function buildPanels({
     });
   }
 
-  for (const collection of collectionsInView(catalog, view)) {
-    if (layout.hidden.includes(collection.id)) continue;
+  for (const collection of windowsShown(catalog, view, layout.hidden)) {
     const activate = () => useImageryStore.getState().activateCollection(catalog, collection.id);
     panels.push({
       id: String(collection.id),

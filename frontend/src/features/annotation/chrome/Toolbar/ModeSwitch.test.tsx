@@ -107,6 +107,7 @@ describe('leaving Explore with a draft open', () => {
       labelId: 1,
       geometry: GEOMETRY,
       savedId: null,
+      sliceId: null,
     });
     expect(useCampaignStore.getState().workMode).toBe('explore');
     expect(alerts).toContainEqual(expect.stringContaining('Could not save'));

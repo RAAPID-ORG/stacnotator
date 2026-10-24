@@ -6,7 +6,7 @@ import { SliceCommentButton } from '../../chrome/SliceComments';
 import { SliceNavigation } from '../../chrome/SliceNavigation';
 import { useContainerSize } from '~/shared/hooks/useContainerSize';
 import { useHotkeyTip } from '../../hotkeys';
-import { collectionsInView } from '../../campaign/imagery';
+import { windowsShown } from '../../campaign/imagery';
 import { awaitingImageryRegistration } from '../../campaign/tileUrls';
 import { computeTaskProgress } from '../../campaign/tasks';
 import { handleProbeClick, useDrawingInteractions, useEditDrawnId } from '../../drawing';
@@ -263,13 +263,11 @@ function MainMapActions() {
   const address = useImageryStore((s) => s.address);
   const isTaskMode = mode === 'tasks';
   const sourceIds = view?.source_ids ?? [];
-  const windows = useLayoutStore((s) => s.currentLayout.windows);
+  const hidden = useLayoutStore((s) => s.currentLayout.hidden);
   const hotkeyTip = useHotkeyTip();
 
   // View sync only means something with more than one window to keep in step.
-  const windowCount = collectionsInView(catalog, { source_ids: sourceIds }).filter(
-    (c) => windows[c.id] !== undefined
-  ).length;
+  const windowCount = windowsShown(catalog, { source_ids: sourceIds }, hidden).length;
 
   return (
     <div className="flex flex-wrap items-center justify-center gap-1" data-tour="map-actions">
@@ -410,8 +408,12 @@ export function MainMapBody() {
   const { containerRef, width, height } = useContainerSize();
   const [mapLoading, setMapLoading] = useState(false);
   const foregroundLoading = useForegroundLoading();
-  const windowLayout = useLayoutStore((s) => s.currentLayout.windows);
-  const visibleCollectionIds = useMemo(() => Object.keys(windowLayout).map(Number), [windowLayout]);
+  const hidden = useLayoutStore((s) => s.currentLayout.hidden);
+  const view = useCampaignStore((s) => s.view);
+  const visibleCollectionIds = useMemo(
+    () => windowsShown(catalog, view, hidden).map((c) => c.id),
+    [catalog, view, hidden]
+  );
   useEffect(() => () => setForegroundMapLoading('main', false), []);
 
   // A shape is a sketch only until it is stored. Stored the moment it was

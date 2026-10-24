@@ -71,7 +71,8 @@ export function vectorLayer(layer: VectorLayerLike, opacity = 1): VectorTileLaye
     sourceLayers: layer.source_layer ? [layer.source_layer] : undefined,
     style: {
       stroke: { color: layer.color, width: 1.5 },
-      fill: { color: `${layer.color}33` },
+      // The fill is the line colour at 20%, whatever alpha the colour itself carries.
+      fill: { color: `${layer.color.slice(0, 7)}33` },
     },
   };
 }

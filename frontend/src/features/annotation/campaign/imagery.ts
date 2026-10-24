@@ -183,6 +183,16 @@ export function collectionsInView(
   return out;
 }
 
+/** The imagery windows a view shows: every collection of its sources the layout does
+ *  not hide, whether or not the layout has placed it yet. */
+export function windowsShown(
+  cat: ImageryCatalog,
+  view: Pick<ImageryViewOut, 'source_ids'> | null,
+  hidden: readonly number[]
+): ImageryCollectionOut[] {
+  return collectionsInView(cat, view).filter((c) => !hidden.includes(c.id));
+}
+
 // ---------------------------------------------------------------------------
 // Chronology. Collections arrive in insertion order, so historical imagery
 // added later has to be sorted by its earliest slice wherever it is shown.

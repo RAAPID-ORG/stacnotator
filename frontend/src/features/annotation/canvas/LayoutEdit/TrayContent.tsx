@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import type { ImageryViewOut } from '~/api/client';
 import type { ImageryCatalog } from '../../campaign/imagery';
-import { collectionsInView } from '../../campaign/imagery';
+import { collectionsInView, windowsShown } from '../../campaign/imagery';
 import { IconSliders } from '~/shared/ui/Icons';
 import { useLayoutStore } from '../../stores/layout';
 import { toGridLayout } from '../grid';
@@ -130,7 +130,7 @@ export function TrayContent({
 
   const inView = view ? collectionsInView(catalog, view) : [];
   const hiddenCollections = inView.filter((c) => currentLayout.hidden.includes(c.id));
-  const shown = inView.filter((c) => !currentLayout.hidden.includes(c.id)).map((c) => c.id);
+  const shown = view ? windowsShown(catalog, view, currentLayout.hidden).map((c) => c.id) : [];
 
   const items: HiddenTrayItem[] = hiddenCollections.map((collection) => {
     const sourceId = catalog.sourceOf.get(collection.id);
