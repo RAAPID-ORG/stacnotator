@@ -68,7 +68,7 @@ Each domain module under `backend/src/<domain>/` follows the same layout:
 - `router.py` -FastAPI endpoints, dependency wiring
 - `service.py` -orchestration: DB I/O + external calls (STAC, Earth Engine, tiler)
 - `models.py` -SQLAlchemy models; `schemas.py` -Pydantic request/response models
-- **functional-core modules** -pure logic extracted out of `service.py` so it can be unit-tested without a DB: `tasks/assignments.py`, `tasks/status.py`, `tasks/completion.py`, `campaigns/statistics.py`, `annotation/spatial.py`, `planet/scenes.py`, `canvas/layout.py`. When adding logic, prefer extending these pure cores over fattening `service.py`.
+- **functional-core modules** -pure logic extracted out of `service.py` so it can be unit-tested without a DB: `tasks/assignments.py`, `tasks/status.py`, `campaigns/statistics.py`, `imagery/tiles.py`, `annotation/spatial.py`, `planet/scenes.py`, `canvas/layout.py`. When adding logic, prefer extending these pure cores over fattening `service.py`.
 
 `canvas/` is a routerless domain module that owns canvas-layout state (the `CanvasLayout` model, the react-grid-layout item schema, the chrome defaults and copy remapping in `layout.py`, DB writes in `service.py`). Which windows exist is never stored in a layout: every time-series window of the campaign (a `TimeseriesWindow` row, keyed `timeseries:<id>`) and every collection of a view's sources (`view_sources`) is one. A layout only places windows and lists the ones it `hidden`s; the client places any window it does neither for, so adding imagery or a time series never writes a layout. Layouts are saved through `POST /campaigns/{id}/layouts` in `imagery/router.py`.
 
