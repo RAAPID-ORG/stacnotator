@@ -35,6 +35,7 @@ from src.annotation.service import (
 )
 from src.annotation.sync import deletion_cursor_expired
 from src.campaigns.schemas import default_labelling_policy
+from src.imagery.models import ImagerySlice
 from src.projects.models import ProjectUser
 from src.tasks.claims import claim_next_task, claim_task, is_free_work
 from src.tasks.ingest import create_tasks_from_csv
@@ -327,20 +328,25 @@ class TestCreateAnnotations:
         assert [a.label_id for a in anns] == [1, 2, 1]
         db.commit.assert_called_once()
 
-    def test_persists_imagery_snapshot(self):
-        payload = AnnotationCreate(
-            label_id=1,
-            geometry_wkt="POINT(0 0)",
-            imagery_slice_id=42,
-            imagery_source_name="Sentinel-2",
-            imagery_start_date="2024-01-01",
-            imagery_end_date="2024-01-31",
-        )
-        (annotation,) = create_annotations(_mock_db(), _make_campaign(), [payload], uuid4())
+    def test_records_the_viewed_slice_from_the_slice_itself(self):
+        db = _mock_db()
+        viewed = ImagerySlice(id=42, start_date="2024-01-01", end_date="2024-01-31")
+        db.execute.return_value.all.return_value = [(viewed, "Sentinel-2")]
+        payload = AnnotationCreate(label_id=1, geometry_wkt="POINT(0 0)", imagery_slice_id=42)
+        (annotation,) = create_annotations(db, _make_campaign(), [payload], uuid4())
         assert annotation.imagery_slice_id == 42
         assert annotation.imagery_source_name == "Sentinel-2"
         assert annotation.imagery_start_date == "2024-01-01"
         assert annotation.imagery_end_date == "2024-01-31"
+
+    def test_a_slice_of_another_campaign_is_refused(self):
+        db = _mock_db()
+        db.execute.return_value.all.return_value = []
+        payload = AnnotationCreate(label_id=1, geometry_wkt="POINT(0 0)", imagery_slice_id=42)
+        with pytest.raises(HTTPException) as exc_info:
+            create_annotations(db, _make_campaign(), [payload], uuid4())
+        assert exc_info.value.status_code == 400
+        db.add_all.assert_not_called()
 
     def test_empty_list_is_a_noop(self):
         db = _mock_db()
@@ -414,6 +420,8 @@ class TestUpdateAnnotation:
         existing.imagery_start_date = "2020-01-01"
         existing.imagery_end_date = "2020-01-31"
         db.execute.return_value.scalar_one_or_none.return_value = existing
+        viewed = ImagerySlice(id=99, start_date="2024-06-01", end_date="2024-06-30")
+        db.execute.return_value.all.return_value = [(viewed, "New Source")]
 
         payload = AnnotationUpdate(
             label_id=None,
@@ -421,9 +429,6 @@ class TestUpdateAnnotation:
             geometry_wkt="POLYGON((0 0,1 0,1 1,0 1,0 0))",
             is_authoritative=None,
             imagery_slice_id=99,
-            imagery_source_name="New Source",
-            imagery_start_date="2024-06-01",
-            imagery_end_date="2024-06-30",
         )
         update_annotation(db, 5, payload, uuid4(), campaign=_make_campaign())
 
@@ -449,9 +454,6 @@ class TestUpdateAnnotation:
             geometry_wkt=None,
             flagged_for_review=True,
             imagery_slice_id=99,
-            imagery_source_name="New Source",
-            imagery_start_date="2024-06-01",
-            imagery_end_date="2024-06-30",
         )
         update_annotation(db, 5, payload, uuid4(), campaign=_make_campaign())
 

@@ -31,6 +31,7 @@ import {
   useCanModifyAnnotation,
   useDrawsShapes,
   useLabels,
+  viewedSliceId,
 } from './stores/campaign';
 import { useImageryStore } from './stores/imagery';
 import { usePrefsStore } from './stores/prefs';
@@ -90,9 +91,8 @@ export async function labelGeometries(geometries: GeoJSON.Geometry[]): Promise<L
 
   const campaignId = campaignState().campaign.id;
   const link = shapeTaskLink();
-  const bodies = geometries.map((geometry) =>
-    newAnnotationBody(geometry, labelId, { formValues: work.formValues }, link)
-  );
+  const details = { formValues: work.formValues, imagerySliceId: viewedSliceId() };
+  const bodies = geometries.map((geometry) => newAnnotationBody(geometry, labelId, details, link));
   try {
     let count = 1;
     if (bodies.length === 1) {
@@ -141,7 +141,7 @@ export async function commitEdit(): Promise<boolean> {
   try {
     const result = await updateAnnotation({
       path: { campaign_id: campaignState().campaign.id, annotation_id: edit.annotation.id },
-      body: { geometry_wkt: geometryToWkt(edit.pending) },
+      body: { geometry_wkt: geometryToWkt(edit.pending), imagery_slice_id: viewedSliceId() },
     });
     if (result.data) work.setEditAnnotation(result.data);
     work.recordWrites([

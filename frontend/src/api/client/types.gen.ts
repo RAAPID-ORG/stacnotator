@@ -298,18 +298,6 @@ export type AnnotationCreate = {
      */
     imagery_slice_id?: number | null;
     /**
-     * Imagery Source Name
-     */
-    imagery_source_name?: string | null;
-    /**
-     * Imagery Start Date
-     */
-    imagery_start_date?: string | null;
-    /**
-     * Imagery End Date
-     */
-    imagery_end_date?: string | null;
-    /**
      * Comment
      */
     comment?: string | null;
@@ -711,7 +699,7 @@ export type AnnotationOut = {
 /**
  * AnnotationUpdate
  *
- * Fields left out stay as they are. The imagery snapshot only changes
+ * Fields left out stay as they are. The imagery viewed only changes
  * together with the geometry.
  */
 export type AnnotationUpdate = {
@@ -719,18 +707,6 @@ export type AnnotationUpdate = {
      * Imagery Slice Id
      */
     imagery_slice_id?: number | null;
-    /**
-     * Imagery Source Name
-     */
-    imagery_source_name?: string | null;
-    /**
-     * Imagery Start Date
-     */
-    imagery_start_date?: string | null;
-    /**
-     * Imagery End Date
-     */
-    imagery_end_date?: string | null;
     /**
      * Comment
      */
@@ -4341,6 +4317,10 @@ export type StorageAccessOut = {
  * TaskAnswerCreate
  */
 export type TaskAnswerCreate = {
+    /**
+     * Imagery Slice Id
+     */
+    imagery_slice_id?: number | null;
     /**
      * Comment
      */

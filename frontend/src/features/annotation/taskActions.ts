@@ -20,7 +20,7 @@ import {
 } from './campaign/annotation';
 import { listNotes, type SliceComment } from './campaign/sliceComments';
 import { usesClaimPool } from './campaign/tasks';
-import { campaignState, formFields, useCampaignStore } from './stores/campaign';
+import { campaignState, formFields, useCampaignStore, viewedSliceId } from './stores/campaign';
 import { currentTask, useTasksStore } from './stores/tasks';
 import { usePrefsStore } from './stores/prefs';
 import { forgetTaskActiveMs, readTaskActiveMs } from './taskTiming';
@@ -176,6 +176,7 @@ export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome
         form_values: Object.keys(params.formValues).length ? params.formValues : null,
         slice_comments: params.sliceComments,
         outcome: params.outcome ?? null,
+        imagery_slice_id: viewedSliceId(),
         active_ms: readTaskActiveMs(task.id),
       },
     });

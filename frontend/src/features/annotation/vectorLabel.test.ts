@@ -55,7 +55,8 @@ beforeEach(() => {
 
 describe('newAnnotationBody', () => {
   it('carries the geometry as WKT and omits an empty answer set', () => {
-    expect(newAnnotationBody(POINT, 7, { formValues: {} }, { origin_task_id: 4 })).toEqual({
+    const details = { formValues: {}, imagerySliceId: 12 };
+    expect(newAnnotationBody(POINT, 7, details, { origin_task_id: 4 })).toEqual({
       label_id: 7,
       comment: null,
       geometry_wkt: 'POINT (5 6)',
@@ -64,6 +65,7 @@ describe('newAnnotationBody', () => {
       flagged_for_review: false,
       flag_comment: null,
       slice_comments: undefined,
+      imagery_slice_id: 12,
       origin_task_id: 4,
     });
   });

@@ -416,6 +416,7 @@ export interface AnnotationDetails {
   flagged?: boolean;
   flagComment?: string;
   sliceComments?: SliceComment[];
+  imagerySliceId?: number | null;
 }
 
 /** The body that stores one drawn or picked shape. */
@@ -425,7 +426,15 @@ export function newAnnotationBody(
   details: AnnotationDetails,
   link: Pick<AnnotationCreate, 'origin_task_id' | 'output_of_task_id'>
 ): AnnotationCreate {
-  const { formValues, comment, confidence, flagged = false, flagComment, sliceComments } = details;
+  const {
+    formValues,
+    comment,
+    confidence,
+    flagged = false,
+    flagComment,
+    sliceComments,
+    imagerySliceId,
+  } = details;
   return {
     label_id: labelId,
     geometry_wkt: geometryToWkt(geometry),
@@ -436,6 +445,7 @@ export function newAnnotationBody(
     flagged_for_review: flagged,
     flag_comment: flagged ? flagComment || null : null,
     slice_comments: sliceComments,
+    imagery_slice_id: imagerySliceId ?? null,
     ...link,
   };
 }

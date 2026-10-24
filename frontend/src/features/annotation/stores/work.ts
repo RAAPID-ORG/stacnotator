@@ -42,7 +42,13 @@ import {
 } from '../campaign/sliceComments';
 import type { SavedAnnotations } from '../map/compose';
 import type { LonLat } from '~/shared/map/types';
-import { campaignState, drawsShapes, formFields, useCampaignStore } from './campaign';
+import {
+  campaignState,
+  drawsShapes,
+  formFields,
+  useCampaignStore,
+  viewedSliceId,
+} from './campaign';
 import { useImageryStore } from './imagery';
 import { usePrefsStore } from './prefs';
 
@@ -286,6 +292,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
             flagged,
             flagComment,
             sliceComments: listNotes(sliceNotes),
+            imagerySliceId: viewedSliceId(),
           },
           draftLink
         ),
@@ -315,6 +322,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
           label_id: labelId,
           comment: comment || null,
           geometry_wkt: geometryToWkt(geometry),
+          imagery_slice_id: viewedSliceId(),
           form_values: formValues,
           slice_comments: listNotes(sliceNotes),
         },

@@ -35,6 +35,7 @@ from src.campaigns.policy import (
     is_allowed,
 )
 from src.geometry import ewkt
+from src.imagery.models import ImageryCollection, ImagerySlice, ImagerySource
 from src.tasks.completion import (
     attach_counts_toward_completion,
 )
@@ -202,11 +203,47 @@ def _require_drawing_access(
         require_task_access(db, campaign, task, user_id)
 
 
+_NOTHING_VIEWED = dict.fromkeys(
+    ("imagery_slice_id", "imagery_source_name", "imagery_start_date", "imagery_end_date")
+)
+
+
+def viewed_imagery(db: Session, campaign: Campaign, slice_ids: set[int | None]) -> dict:
+    """slice id -> the ``Annotation.imagery_*`` columns recording it, read from the
+    slice so a client cannot misstate them. A slice of another campaign is refused."""
+    wanted = {i for i in slice_ids if i is not None}
+    rows = (
+        db.execute(
+            select(ImagerySlice, ImagerySource.name)
+            .join(ImageryCollection, ImageryCollection.id == ImagerySlice.collection_id)
+            .join(ImagerySource, ImagerySource.id == ImageryCollection.source_id)
+            .where(ImagerySlice.id.in_(wanted), ImagerySource.campaign_id == campaign.id)
+        ).all()
+        if wanted
+        else []
+    )
+    found: dict[int | None, dict] = {
+        sl.id: {
+            "imagery_slice_id": sl.id,
+            "imagery_source_name": source_name,
+            "imagery_start_date": sl.start_date,
+            "imagery_end_date": sl.end_date,
+        }
+        for sl, source_name in rows
+    }
+    if missing := wanted - found.keys():
+        raise HTTPException(
+            status_code=400, detail=f"Imagery slices not in this campaign: {sorted(missing)}"
+        )
+    return {None: _NOTHING_VIEWED, **found}
+
+
 def _standalone_annotation(
     campaign: Campaign,
     user_id: UUID,
     item: AnnotationCreate,
     form_values: dict | None,
+    imagery: dict,
 ) -> Annotation:
     return Annotation(
         geometry=ewkt(item.geometry_wkt),
@@ -215,10 +252,7 @@ def _standalone_annotation(
         task_id=None,
         origin_task_id=item.origin_task_id,
         output_of_task_id=item.output_of_task_id,
-        imagery_slice_id=item.imagery_slice_id,
-        imagery_source_name=item.imagery_source_name,
-        imagery_start_date=item.imagery_start_date,
-        imagery_end_date=item.imagery_end_date,
+        **imagery[item.imagery_slice_id],
         **annotation_values(
             label_id=item.label_id,
             comment=item.comment,
@@ -321,6 +355,11 @@ def add_annotation_for_task(
         is_authoritative=annotation_create.is_authoritative,
     )
     values["outcome"] = outcome
+    values.update(
+        viewed_imagery(db, campaign, {annotation_create.imagery_slice_id})[
+            annotation_create.imagery_slice_id
+        ]
+    )
 
     # A skip takes the same path: its row is the only record that this user
     # acted on the task.
@@ -343,6 +382,8 @@ def add_annotation_for_task(
             annotation_create.active_ms / 1000
         )
 
+    # A task's answer is drawn in the annotation tiles too, coloured by its label.
+    bump_campaign_annotations_version(db, campaign.id)
     db.commit()
     db.refresh(annotation)
     annotation.counts_toward_completion = counts_toward_completion(policy, has_assignments, ctx)
@@ -430,9 +471,10 @@ def create_annotations(
     except FormValidationError as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc
 
+    imagery = viewed_imagery(db, campaign, {a.imagery_slice_id for a in annotations_create})
     try:
         annotations = [
-            _standalone_annotation(campaign, user_id, a, form_values)
+            _standalone_annotation(campaign, user_id, a, form_values, imagery)
             for a, form_values in zip(annotations_create, normalized_form_values, strict=True)
         ]
         db.add_all(annotations)
@@ -475,12 +517,11 @@ def update_annotation(
         if annotation_update.geometry_wkt is not None:
             annotation.geometry = ewkt(annotation_update.geometry_wkt)
 
-            # The imagery snapshot reflects what was viewed during this geometry
-            # edit, so it only refreshes alongside a geometry change.
-            annotation.imagery_slice_id = annotation_update.imagery_slice_id
-            annotation.imagery_source_name = annotation_update.imagery_source_name
-            annotation.imagery_start_date = annotation_update.imagery_start_date
-            annotation.imagery_end_date = annotation_update.imagery_end_date
+            # What was viewed during this geometry edit, so it only changes
+            # alongside the geometry.
+            viewed = viewed_imagery(db, campaign, {annotation_update.imagery_slice_id})
+            for column, value in viewed[annotation_update.imagery_slice_id].items():
+                setattr(annotation, column, value)
 
         # Update label if provided
         if annotation_update.label_id is not None:

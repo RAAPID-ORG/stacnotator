@@ -209,16 +209,14 @@ class _AnnotationFields(BaseModel):
     form_values: dict[str, FormValue] | None = None
 
 
-class _ImagerySnapshot(BaseModel):
-    """The imagery the annotator was looking at when drawing (see Annotation)."""
+class _ViewedImagery(BaseModel):
+    """The slice the annotator was looking at. Its source and dates are recorded
+    from the slice itself (see Annotation)."""
 
     imagery_slice_id: int | None = None
-    imagery_source_name: str | None = None
-    imagery_start_date: str | None = None
-    imagery_end_date: str | None = None
 
 
-class TaskAnswerCreate(_AnnotationFields):
+class TaskAnswerCreate(_AnnotationFields, _ViewedImagery):
     label_id: int | None = None
     is_authoritative: bool | None = None
     # Required for draw tasks; a classify submission's label already says it.
@@ -228,7 +226,7 @@ class TaskAnswerCreate(_AnnotationFields):
     active_ms: int | None = Field(default=None, ge=0, le=3_600_000)
 
 
-class AnnotationCreate(_AnnotationFields, _ImagerySnapshot):
+class AnnotationCreate(_AnnotationFields, _ViewedImagery):
     label_id: int
     geometry_wkt: str
     # The task the annotator was on when they drew this standalone annotation.
@@ -303,8 +301,8 @@ class BatchCreateAnnotationsResponse(BaseModel):
     created_count: int
 
 
-class AnnotationUpdate(_AnnotationFields, _ImagerySnapshot):
-    """Fields left out stay as they are. The imagery snapshot only changes
+class AnnotationUpdate(_AnnotationFields, _ViewedImagery):
+    """Fields left out stay as they are. The imagery viewed only changes
     together with the geometry."""
 
     label_id: int | None = None

@@ -202,6 +202,14 @@ export function useCatalog(): ImageryCatalog {
   return catalog;
 }
 
+/** The slice the main window shows: what an annotation records it was drawn on. */
+export function viewedSliceId(): number | null {
+  const { catalog } = useCampaignStore.getState();
+  const { address } = useImageryStore.getState();
+  if (!catalog || !address) return null;
+  return catalog.collections.get(address.collectionId)?.slices[address.sliceIndex]?.id ?? null;
+}
+
 /** Imperative twin of the hooks above, for hotkeys and event handlers. */
 export function campaignState() {
   const { campaign, catalog, view, workMode, isMobile } = useCampaignStore.getState();
