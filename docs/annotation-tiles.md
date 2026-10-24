@@ -112,7 +112,7 @@ that.
 
 ## Multiple annotators on one campaign
 
-While an explore-mode campaign is open, the page polls
+While the annotation page is in Explore, the page polls
 `GET /api/campaigns/{id}/annotations/changes?since=<cursor>` every 5 seconds
 (paused while the tab is hidden; the cursor stays put, so the poll that resumes
 covers the whole gap). What comes back is merged into the same delta as local

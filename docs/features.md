@@ -20,7 +20,7 @@ Imagery registration runs per campaign but succeeds per source: each source repo
   - Each annotator's task row stores its outcome (`labelled`, `skipped`, `drawn`, `none_found`), which is what task status compares across annotators.
 - **Explore Mode** - Free-form annotation. Annotators navigate freely and create annotations anywhere within the campaign's bounding box.
 
-Every campaign supports both; who may do what is governed by the labelling policy (four audience axes: explore, unassigned tasks, assigned tasks, counting toward completion). See [labelling-policy.md](labelling-policy.md). The campaign's `default_work_mode` is the mode the annotation page opens in.
+Every campaign supports both; who may do what is governed by the labelling policy (five audience axes: explore, unassigned tasks, assigned tasks, counting toward completion, modifying others' annotations). See [labelling-policy.md](labelling-policy.md). The annotation page opens in Tasks while a task the viewer may answer is still waiting on them, and in Explore otherwise; `?mode=` in the link overrides it.
 
 ## Imagery Configuration
 
@@ -79,7 +79,7 @@ Every campaign supports both; who may do what is governed by the labelling polic
   or a mouse release is missed, on both the main canvas and secondary screens.
 - While dragging a panel in edit mode, holding it near the canvas's top or bottom edge scrolls the canvas automatically. Scrolling stops on release or focus loss and works in secondary screens too.
 - Split between (Main map + minimap + control panel) and imagery windows items on the canvas. Prior are constant, latter may change.
-- Personal layouts saved per user, default layouts per campaign; a collection is a window exactly when its key is in the layout
+- Personal layouts saved per user, default layouts per campaign; every collection of a view's sources is a window, and a layout only places windows and lists the ones it hides
 - Per-view state (active slice, empty detection, selected viz), saved and restored when switching views
 - Imagery windows (ImageryContainer) can be hidden from the canvas; a layout remembers what it hides, and a collection added to a view's source appears as a window on its own. The timeline sidebar lists the active source's collections within the selected view
 - Multi-monitor pop-out: canvas cards can be sent to secondary browser windows, one grid per screen, persisted per user + campaign and restored with one click

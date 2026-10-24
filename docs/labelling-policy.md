@@ -87,10 +87,11 @@ policy along with the rest of the campaign.
   most three queries whether a request asks about one user (enforcement,
   `build_policy_context`) or about every author in a task list or export
   (`tasks/completion.py`).
-- Enforcement: 403s in `annotation/service.py` on annotation-creating paths;
-  annotation updates gate on the `explore` axis. Deletion is not
-  policy-gated (only the public-campaign ownership rule applies), and
-  claiming a task is not policy-gated either. A claim is a lease held on the
+- Enforcement: 403s in `annotation/service.py` on annotation-creating paths.
+  Editing a shape gates on the `explore` axis (a draw task's shapes on that
+  task's axis), editing a task answer on its task's axis; editing or deleting
+  somebody else's annotation also needs `modify_others`. Claiming a task is
+  not policy-gated. A claim is a lease held on the
   task itself (`tasks.claimed_by_user_id`), not an assignment, so
   picking a task out of the unassigned pool leaves it on the
   `unassigned_tasks` axis for everyone, however long it is held. The server
@@ -98,6 +99,5 @@ policy along with the rest of the campaign.
   is UX only.
 - Editing: campaign wizard and the settings "Labelling access" card, via
   `labelling_policy` in `PATCH /campaigns/{id}` (admin only). It replaces
-  the whole policy (the four labelling axes required, `modify_others`
-  optional and defaulting to admins); `anyone` on a non-public
+  the whole policy (all five axes required); `anyone` on a non-public
   project is rejected (400).
