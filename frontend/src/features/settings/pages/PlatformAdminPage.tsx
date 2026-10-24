@@ -95,7 +95,7 @@ export const PlatformAdminPage = () => {
 
   const grant = useMutation({
     ...grantAdminMutation(),
-    meta: reportedByCaller(t('toasts.grantAdminFailed')),
+    meta: { errorMessage: t('toasts.grantAdminFailed') },
     onSuccess: (result) => {
       void refetchUsers();
       showAlert(t('toasts.adminGranted', { count: result.success.length }), 'success');
@@ -103,7 +103,7 @@ export const PlatformAdminPage = () => {
   });
   const revoke = useMutation({
     ...revokeAdminMutation(),
-    meta: reportedByCaller(t('toasts.revokeAdminFailed')),
+    meta: { errorMessage: t('toasts.revokeAdminFailed') },
     onSuccess: (result) => {
       void refetchUsers();
       showAlert(t('toasts.adminRevoked', { count: result.success.length }), 'success');

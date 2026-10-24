@@ -13,6 +13,7 @@ import {
   getCampaignOptions,
   getCampaignSummaryOptions,
   getCampaignQueryKey,
+  getCampaignSummaryQueryKey,
   getAnnotationFacetsOptions,
   getCampaignStatisticsOptions,
   listAnnotationsForCampaignOptions,
@@ -131,15 +132,17 @@ export const useCampaignStatistics = (campaignId: number, taskSetId?: number) =>
   return { statistics: data, loading: isPending, error };
 };
 
+/** After a write to the campaign: both reads of it, so the sidebar and the summary
+ *  pages show the change as well as the settings editor. */
 export const useRefreshCampaign = (campaignId: number) => {
   const queryClient = useQueryClient();
-  return useCallback(
-    () =>
-      queryClient.invalidateQueries({
-        queryKey: getCampaignQueryKey({ path: { campaign_id: campaignId } }),
-      }),
-    [queryClient, campaignId]
-  );
+  return useCallback(() => {
+    const path = { campaign_id: campaignId };
+    return Promise.all([
+      queryClient.invalidateQueries({ queryKey: getCampaignQueryKey({ path }) }),
+      queryClient.invalidateQueries({ queryKey: getCampaignSummaryQueryKey({ path }) }),
+    ]);
+  }, [queryClient, campaignId]);
 };
 
 export const useRefreshCampaignTasks = (campaignId: number) => {

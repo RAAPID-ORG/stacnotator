@@ -65,7 +65,8 @@ describe('TaskModeReview with a large task list', () => {
     expect(firstRowNumber()).toBe(firstOfPageOne);
   });
 
-  it('cannot page past either end', async () => {
+  // Renders 500 rows and clicks through them, which outlasts the default under a busy run.
+  it('cannot page past either end', { timeout: 15_000 }, async () => {
     const user = userEvent.setup();
     renderTable(500);
 

@@ -10,7 +10,7 @@ import type {
   VizParams,
 } from './types';
 import { emptySlice, emptyVizParams, sliceDateRange } from './types';
-import { buildStacAutoQuery } from './stacQuery';
+import { buildStacAutoQuery, pinnedItemOf } from './stacQuery';
 import {
   IconTrash,
   IconChevronDown,
@@ -576,6 +576,14 @@ export const CollectionEditor = ({
                     {sb.isMpc && (
                       <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-semibold">
                         MPC
+                      </span>
+                    )}
+                    {pinnedItemOf(sb.searchQuery) && (
+                      <span
+                        className="text-[9px] bg-neutral-200 text-neutral-600 px-1.5 py-0.5 rounded-full font-medium"
+                        title={pinnedItemOf(sb.searchQuery) ?? undefined}
+                      >
+                        {t('collection.singleItem')}
                       </span>
                     )}
                   </div>

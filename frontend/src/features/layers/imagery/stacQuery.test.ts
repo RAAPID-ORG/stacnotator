@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildStacAutoQuery, cloudCoverOf, readStoredQuery } from './stacQuery';
+import { buildStacAutoQuery, cloudCoverOf, pinnedItemOf, readStoredQuery } from './stacQuery';
 
 interface Cql2Filter {
   op: string;
@@ -76,5 +76,13 @@ describe('reading a stored query back', () => {
     const query = buildStacAutoQuery('sentinel-2-l2a', { itemId: 'S2A_123' });
 
     expect(readStoredQuery('sentinel-2-l2a', query, undefined).custom).toBe(query);
+  });
+});
+
+describe('pinnedItemOf', () => {
+  it('names the item a single-item search is pinned to, and nothing for a mosaic', () => {
+    expect(pinnedItemOf(buildStacAutoQuery('s2', { itemId: 'S2A_1' }))).toBe('S2A_1');
+    expect(pinnedItemOf(buildStacAutoQuery('s2', { maxCloudCover: 20 }))).toBeNull();
+    expect(pinnedItemOf(null)).toBeNull();
   });
 });

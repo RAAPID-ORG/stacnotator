@@ -19,6 +19,11 @@ export const reportedByCaller = (errorMessage: string): RequestMeta => ({
   showUser: false,
 });
 
+/** How often a page re-reads a record while a background run on it (imagery
+ *  registration, embeddings) is going; the poll stops itself once the run is
+ *  done. */
+export const RUN_POLL_MS = 5000;
+
 /** For lists other people change while you are looking at them - task progress,
  *  the review list, campaign statistics. Every mount re-reads, and coming back
  *  to the tab counts as asking whether it is still current.
@@ -27,11 +32,6 @@ export const reportedByCaller = (errorMessage: string): RequestMeta => ({
  *  list, which is too much to re-send on a schedule for a page someone leaves
  *  open. The annotation page, where freshness has to be immediate, does not use
  *  this at all - it syncs deltas against a cursor (`stores/work.ts`). */
-/** How often a page re-reads a record while a background run on it (imagery
- *  registration, embeddings) is going; the poll stops itself once the run is
- *  done. */
-export const RUN_POLL_MS = 5000;
-
 export const SHARED_WORK = {
   staleTime: 0,
   refetchOnWindowFocus: true,

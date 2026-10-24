@@ -254,14 +254,14 @@ export const GeneralSettingsTab: React.FC<Props> = ({
       if (!confirmed) return;
     }
 
-    // A new year fetches every task's embedding again; clearing it fetches nothing.
-    const recomputes = embeddingYear !== null;
     saveEmbeddingYear.mutate(
       { path, body: { embedding_year: embeddingYear } },
       {
-        onSuccess: () =>
+        // The saved campaign says whether a run started: a new year with tasks to
+        // fetch for does, clearing the year or a campaign without tasks does not.
+        onSuccess: (saved) =>
           showAlert(
-            recomputes
+            saved.embedding_status === 'registering'
               ? t('generalTab.toasts.embeddingsRecomputed', { year: embeddingYear })
               : t('generalTab.toasts.embeddingYearUpdated'),
             'success'

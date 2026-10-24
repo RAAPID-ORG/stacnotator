@@ -44,8 +44,10 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
   const users = membersQuery.data?.users ?? NO_MEMBERS;
   const loading = membersQuery.isPending;
 
+  // Invites are an admin's to see; anyone else would only be refused them.
   const invitesQuery = useQuery({
     ...listProjectInvitesOptions({ path }),
+    enabled: canManage,
     meta: { errorMessage: t('members.loadInvitesFailed') },
   });
 

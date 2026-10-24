@@ -54,6 +54,25 @@ export const buildStacAutoQuery = (
   };
 };
 
+/** The one STAC item a query is pinned to (the wizard's single-item pick), if any. */
+export const pinnedItemOf = (query: unknown): string | null => {
+  const args = (query as { filter?: { args?: unknown[] } } | null)?.filter?.args;
+  for (const clause of Array.isArray(args) ? args : []) {
+    const { op, args: inner } = (clause ?? {}) as { op?: unknown; args?: unknown[] };
+    if (
+      op === 'in' &&
+      Array.isArray(inner) &&
+      sameValue(inner[0], { property: 'id' }) &&
+      Array.isArray(inner[1]) &&
+      inner[1].length === 1 &&
+      typeof inner[1][0] === 'string'
+    ) {
+      return inner[1][0];
+    }
+  }
+  return null;
+};
+
 /** The sort a stored query was built with, if it is one of ours. */
 const itemSortOf = (query: unknown): ItemSortOption | undefined => {
   const sortby = (query as { sortby?: unknown } | null)?.sortby;

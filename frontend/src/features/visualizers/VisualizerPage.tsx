@@ -73,7 +73,8 @@ export function VisualizerPage({ slug }: { slug: string }) {
       query.state.data?.registration_status === 'registering' ? RUN_POLL_MS : false,
   });
   const [sessionFailed, setSessionFailed] = useState(false);
-  const failed = loadFailed || sessionFailed;
+  // A failed re-read while registration runs leaves the page as it was.
+  const failed = (loadFailed && !view) || sessionFailed;
   const [state, setState] = useState<ViewerState | null>(null);
   // On a touch device the panel covers the map, so it starts out of the way.
   // Same test the `desktop:` variant makes.
@@ -127,10 +128,19 @@ export function VisualizerPage({ slug }: { slug: string }) {
     return () => setTilerSessionMinter(null);
   }, [slug]);
 
+  // The page is set up once. A re-read while registration runs brings imagery in
+  // without undoing what the viewer has chosen or where they have moved since;
+  // only a page that had no imagery to choose from starts over with it.
+  const framed = useRef(false);
   useEffect(() => {
     if (!view) return;
-    setState(initialState(view));
-    if (view.area) {
+    setState((current) =>
+      current === null || (current.sourceId === null && view.imagery.length > 0)
+        ? initialState(view)
+        : current
+    );
+    if (view.area && !framed.current) {
+      framed.current = true;
       const { west, south, east, north } = view.area;
       camera.current?.fitBounds([west, south, east, north], {
         paddingPx: AREA_PADDING_PX,
