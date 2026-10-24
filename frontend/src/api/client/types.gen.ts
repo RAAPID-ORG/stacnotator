@@ -1187,10 +1187,6 @@ export type CampaignCreate = {
      */
     name: string;
     /**
-     * Default Work Mode
-     */
-    default_work_mode?: 'tasks' | 'explore';
-    /**
      * Project Id
      */
     project_id: number;
@@ -1330,10 +1326,6 @@ export type CampaignOut = {
      */
     created_at: string;
     /**
-     * Default Work Mode
-     */
-    default_work_mode: 'tasks' | 'explore';
-    /**
      * Is Public
      */
     is_public?: boolean;
@@ -1423,10 +1415,6 @@ export type CampaignOutFull = {
      * Created At
      */
     created_at: string;
-    /**
-     * Default Work Mode
-     */
-    default_work_mode: 'tasks' | 'explore';
     /**
      * Is Public
      */
@@ -1673,10 +1661,6 @@ export type CampaignSummaryOut = {
      * Created At
      */
     created_at: string;
-    /**
-     * Default Work Mode
-     */
-    default_work_mode: 'tasks' | 'explore';
     /**
      * Is Public
      */
@@ -5667,10 +5651,6 @@ export type CampaignOutWritable = {
      */
     created_at: string;
     /**
-     * Default Work Mode
-     */
-    default_work_mode: 'tasks' | 'explore';
-    /**
      * Is Public
      */
     is_public?: boolean;
@@ -5760,10 +5740,6 @@ export type CampaignOutFullWritable = {
      * Created At
      */
     created_at: string;
-    /**
-     * Default Work Mode
-     */
-    default_work_mode: 'tasks' | 'explore';
     /**
      * Is Public
      */

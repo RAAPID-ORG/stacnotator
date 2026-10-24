@@ -13,7 +13,6 @@ BASE = "https://app.example.org"
 CAMPAIGN_PAYLOAD = {
     "id": 42,
     "name": "Crop mapping",
-    "default_work_mode": "explore",
     "annotations_version": 3,
     "settings": {
         "labels": [
@@ -84,7 +83,6 @@ def test_campaign_builds_campaign_object():
     assert isinstance(campaign, Campaign)
     assert campaign.id == 42
     assert campaign.name == "Crop mapping"
-    assert campaign.default_work_mode == "explore"
     assert campaign.labels == {1: "Maize", 2: "Other"}
     assert campaign.extent == (-10.0, 35.0, 10.0, 55.0)
 

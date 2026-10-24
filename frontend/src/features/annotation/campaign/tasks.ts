@@ -1,5 +1,12 @@
 import i18n from '~/shared/i18n';
-import type { AnnotationFromTaskOut, TaskAssignmentOut, TaskOut, TaskSetOut } from '~/api/client';
+import type {
+  AnnotationFromTaskOut,
+  LabellingPolicy,
+  TaskAssignmentOut,
+  TaskOut,
+  TaskSetOut,
+} from '~/api/client';
+import { isAudienceMember, type PolicyContext } from '~/features/campaigns/utils/labellingPolicy';
 import { TASK_STATUSES, type TaskStatus } from '~/shared/utils/taskStatus';
 
 const t = i18n.getFixedT(null, 'annotation');
@@ -296,6 +303,21 @@ export function seedFilter(
 // ---------------------------------------------------------------------------
 // Navigation
 // ---------------------------------------------------------------------------
+
+/** The mode the page opens in when no link asks for one: Tasks while one of
+ *  the tasks is the viewer's to answer, Explore otherwise. */
+export function openingWorkMode(
+  tasks: TaskOut[],
+  policy: LabellingPolicy,
+  ctx: PolicyContext
+): 'tasks' | 'explore' {
+  const mayAnswer = tasks.some((task) => {
+    if (task.assignments.length === 0) return isAudienceMember(policy.unassigned_tasks, ctx);
+    const isAssigned = task.assignments.some((a) => a.user_id === ctx.userId);
+    return isAudienceMember(policy.assigned_tasks, { ...ctx, isAssigned });
+  });
+  return mayAnswer ? 'tasks' : 'explore';
+}
 
 export function nextIndex(visible: TaskOut[], current: number): number {
   if (visible.length === 0) return current;

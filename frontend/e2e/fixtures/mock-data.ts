@@ -144,7 +144,6 @@ export const MOCK_CAMPAIGN = {
   project_id: 7,
   name: 'Test Campaign',
   created_at: '2024-01-01T00:00:00Z',
-  default_work_mode: 'tasks',
   // Viewer roles are stamped on the campaign response; the default user is a
   // plain project member. `elevateToAuthoritativeReviewer` overrides them.
   viewer_is_admin: false,
@@ -831,7 +830,6 @@ export const EXPLORE_CENTER = { lat: 50.5, lon: 30.5 };
 export const MOCK_CAMPAIGN_EXPLORE = {
   ...MOCK_CAMPAIGN,
   name: 'Test Campaign (Explore)',
-  default_work_mode: 'explore',
   settings: { ...MOCK_CAMPAIGN.settings, labels: EXPLORE_LABELS },
   time_series: [MOCK_TIMESERIES_ENTRY],
 };
@@ -877,7 +875,6 @@ export const MOCK_CAMPAIGN_EXPLORE_FORMS = {
  */
 export const MOCK_CAMPAIGN_EXPLORE_MULTI = {
   ...MOCK_CAMPAIGN_MULTI_SOURCE,
-  default_work_mode: 'explore',
   settings: { ...MOCK_CAMPAIGN.settings, labels: EXPLORE_LABELS },
   time_series: [MOCK_TIMESERIES_ENTRY],
   // Layout that gives the minimap a real on-screen size so it is clickable.

@@ -375,7 +375,6 @@ def seed_dev_data(firebase_uid: str | None = None):
         campaign = create_campaign(
             db,
             name=CAMPAIGN_NAME,
-            default_work_mode="tasks",
             project_id=project.id,
             settings=settings,
             user_id=user.id,
@@ -393,7 +392,6 @@ def seed_dev_data(firebase_uid: str | None = None):
         explore_campaign = create_campaign(
             db,
             name=EXPLORE_CAMPAIGN_NAME,
-            default_work_mode="explore",
             project_id=project.id,
             settings=settings,
             user_id=user.id,

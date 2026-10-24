@@ -38,10 +38,6 @@ class Campaign(Base):
     __tablename__ = "campaigns"
     __table_args__ = (
         Index("idx_campaigns_project_id", "project_id"),
-        CheckConstraint(
-            "default_work_mode IN ('tasks', 'explore')",
-            name="campaigns_default_work_mode_values",
-        ),
         CheckConstraint("bbox_west BETWEEN -180 AND 180", name="campaigns_bbox_west_range"),
         CheckConstraint("bbox_east BETWEEN -180 AND 180", name="campaigns_bbox_east_range"),
         CheckConstraint("bbox_south BETWEEN -90 AND 90", name="campaigns_bbox_south_range"),
@@ -62,9 +58,6 @@ class Campaign(Base):
         server_default=func.current_timestamp(),
         nullable=False,
     )
-    # Which work mode the annotation page opens in. Who may do which kind of work
-    # is the labelling policy's business, not this.
-    default_work_mode: Mapped[str] = mapped_column(String(20), nullable=False)
     # Imagery registration status: pending, registering, ready, failed
     registration_status: Mapped[str] = mapped_column(
         String(20), server_default="ready", nullable=False

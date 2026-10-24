@@ -9,7 +9,7 @@ async function loadExploreForms(page: Page, api: ApiCapture): Promise<void> {
   await page.route('**/api/campaigns/*/detailed', async (route) => {
     await route.fulfill({ json: MOCK_CAMPAIGN_EXPLORE_FORMS });
   });
-  await page.reload();
+  await page.goto('/projects/7/campaigns/42/annotate?mode=explore');
   await page.waitForSelector('[data-tour="toolbar"]', { timeout: 15_000 });
   await page.locator('[title="Pan (P)"]').waitFor({ state: 'visible', timeout: 10_000 });
   await page

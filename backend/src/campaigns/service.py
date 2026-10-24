@@ -148,7 +148,6 @@ def create_campaign(
     db: Session,
     *,
     name: str,
-    default_work_mode: str,
     project_id: int,
     settings: CampaignSettingsCreate,
     user_id: UUID,
@@ -163,7 +162,6 @@ def create_campaign(
     Args:
         db: Database session
         name: Campaign name
-        default_work_mode: The work mode the annotation page opens in
         project_id: Owning project; its is_public flag governs the default
             labelling policy and the 'anyone' audience check
         settings: Campaign configuration settings
@@ -185,7 +183,6 @@ def create_campaign(
 
     campaign = Campaign(
         name=name,
-        default_work_mode=default_work_mode,
         project_id=project_id,
         guide_markdown="# Campaign Guide\n\nWelcome! This guide helps annotators understand the campaign goals and labeling conventions.\n",
         labelling_policy=resolved_policy.model_dump(mode="json"),

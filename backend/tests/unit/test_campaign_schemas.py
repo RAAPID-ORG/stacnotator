@@ -26,35 +26,6 @@ def _minimal_settings() -> dict:
     }
 
 
-@pytest.mark.parametrize("mode", ["tasks", "explore"])
-def test_campaign_create_accepts_both_work_modes(mode):
-    data = CampaignCreate(
-        name="x",
-        default_work_mode=mode,
-        project_id=1,
-        settings=CampaignSettingsCreate(**_minimal_settings()),
-    )
-    assert data.default_work_mode == mode
-
-
-@pytest.mark.parametrize("mode", ["open", "bogus"])
-def test_campaign_create_rejects_unknown_work_modes(mode):
-    with pytest.raises(ValidationError):
-        CampaignCreate(
-            name="x",
-            default_work_mode=mode,
-            project_id=1,
-            settings=CampaignSettingsCreate(**_minimal_settings()),
-        )
-
-
-def test_campaign_create_work_mode_defaults_to_tasks():
-    data = CampaignCreate(
-        name="x", project_id=1, settings=CampaignSettingsCreate(**_minimal_settings())
-    )
-    assert data.default_work_mode == "tasks"
-
-
 def test_campaign_create_labelling_policy_defaults_to_none():
     data = CampaignCreate(
         name="x", project_id=1, settings=CampaignSettingsCreate(**_minimal_settings())
@@ -80,7 +51,6 @@ def _campaign_orm_stub(project_id: int = 7) -> SimpleNamespace:
         project_id=project_id,
         name="Campaign",
         created_at=datetime(2026, 1, 1, tzinfo=UTC),
-        default_work_mode="explore",
         is_public=False,
         annotations_version=0,
         settings=SimpleNamespace(

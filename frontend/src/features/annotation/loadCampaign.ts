@@ -2,8 +2,13 @@ import { listTasks, getCampaignWithImageryWindows, listTaskSets } from '~/api/cl
 import { buildImageryCatalog } from './campaign/imagery';
 import { restoreSnapshot } from './campaign/imageryNav';
 import { layoutForView } from './canvas/grid';
-import { seedFilter } from './campaign/tasks';
-import { startCollectionFor, useCampaignStore, type WorkMode } from './stores/campaign';
+import { openingWorkMode, seedFilter } from './campaign/tasks';
+import {
+  startCollectionFor,
+  toPolicyContext,
+  useCampaignStore,
+  type WorkMode,
+} from './stores/campaign';
 import { useImageryStore } from './stores/imagery';
 import { useLayoutStore } from './stores/layout';
 import { resetScenes } from './stores/scenes';
@@ -51,11 +56,13 @@ export async function loadCampaign(
     isPublic: campaign.is_public,
   });
 
-  // A campaign with no tasks has nothing to claim, so it opens in Explore
-  // unless a deep link asked for a mode.
   const workMode: WorkMode =
     options.workMode ??
-    (campaign.default_work_mode === 'explore' || tasks.length === 0 ? 'explore' : 'tasks');
+    openingWorkMode(
+      tasks,
+      campaign.settings.labelling_policy,
+      toPolicyContext(campaign, options.currentUserId)
+    );
 
   const layout = layoutForView(campaign, view);
   const startCollectionId = startCollectionFor(catalog, view, layout.hidden);

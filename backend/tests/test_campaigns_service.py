@@ -906,7 +906,6 @@ def test_create_campaign_creates_default_task_set(sample_settings_data, sample_u
         service.create_campaign(
             db,
             name="c",
-            default_work_mode="tasks",
             project_id=1,
             settings=CampaignSettingsCreate(**sample_settings_data),
             user_id=sample_user_id,

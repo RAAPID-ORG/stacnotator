@@ -175,7 +175,6 @@ for (const mode of ['tasks', 'explore']) {
       route.fulfill({
         json: {
           ...MOCK_CAMPAIGN_MULTI_SOURCE,
-          default_work_mode: mode,
           viewer_is_admin: true,
           imagery_views: [view, alternateView],
         },
@@ -189,7 +188,8 @@ for (const mode of ['tasks', 'explore']) {
     await page.route(/\/api\/campaigns\/\d+\/(custom-maps|vector-layers)(\?.*)?$/, (route) =>
       route.fulfill({ json: [] })
     );
-    await page.reload();
+    const annotateUrl = `/projects/7/campaigns/42/annotate?mode=${mode}`;
+    await page.goto(annotateUrl);
     const activeLayer = page.locator('[data-tour="layer-selector"] button').first();
     await expect(activeLayer).toContainText('Sentinel-2');
     await page.getByTestId('edit-layout-trigger').click();
@@ -213,7 +213,7 @@ for (const mode of ['tasks', 'explore']) {
     await expect(firstSource).toContainText('VHR');
     await expect(sources.getByRole('button', { name: 'Move source VHR up' })).toBeDisabled();
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
-    await page.reload();
+    await page.goto(annotateUrl);
     await expect(activeLayer).toContainText('VHR');
     await page.getByTestId('edit-layout-trigger').click();
     await expect(firstSource).toContainText('VHR');

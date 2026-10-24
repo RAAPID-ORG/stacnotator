@@ -127,7 +127,6 @@ def _campaign_row():
         project_id=PROJECT_ID,
         name="Campaign",
         created_at=datetime(2026, 1, 1),
-        default_work_mode="explore",
         settings=SimpleNamespace(
             labels=[{"id": 1, "name": "Forest", "geometry_type": "polygon"}],
             bbox_west=0.0,

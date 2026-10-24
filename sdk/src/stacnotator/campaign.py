@@ -33,10 +33,6 @@ class Campaign:
         return str(self._data["name"])
 
     @property
-    def default_work_mode(self) -> str:
-        return str(self._data["default_work_mode"])
-
-    @property
     def labels(self) -> dict[int, str]:
         settings = self._data.get("settings") or {}
         return {int(label["id"]): label["name"] for label in settings.get("labels") or []}

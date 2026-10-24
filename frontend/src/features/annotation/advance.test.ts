@@ -38,7 +38,7 @@ const currentId = () => {
 
 describe('advance', () => {
   it('asks the server for the next free task when working the unassigned pool', async () => {
-    seedCampaign(makeCampaign({ default_work_mode: 'tasks' }), {
+    seedCampaign(makeCampaign(), {
       currentUserId: 'u1',
       tasks: [free(1), free(2)],
       filter: POOL,
@@ -55,7 +55,7 @@ describe('advance', () => {
   });
 
   it('passes the task set through, so the pool stays scoped to it', async () => {
-    seedCampaign(makeCampaign({ default_work_mode: 'tasks' }), {
+    seedCampaign(makeCampaign(), {
       currentUserId: 'u1',
       tasks: [free(1)],
       filter: { ...POOL, taskSetId: 4 },
@@ -68,7 +68,7 @@ describe('advance', () => {
   });
 
   it('says so and stays put once the pool is drained', async () => {
-    seedCampaign(makeCampaign({ default_work_mode: 'tasks' }), {
+    seedCampaign(makeCampaign(), {
       currentUserId: 'u1',
       tasks: [free(1)],
       filter: POOL,
@@ -84,7 +84,7 @@ describe('advance', () => {
   it('steps locally for a filter that is a fixed list, without a round trip', async () => {
     const assigned = (id: number) =>
       makeTask({ id, annotation_number: id, assignments: [{ user_id: 'u1', status: 'pending' }] });
-    seedCampaign(makeCampaign({ default_work_mode: 'tasks' }), {
+    seedCampaign(makeCampaign(), {
       currentUserId: 'u1',
       tasks: [assigned(1), assigned(2)],
       filter: MINE,
@@ -97,7 +97,7 @@ describe('advance', () => {
   });
 
   it('keeps the user where they are when the request fails', async () => {
-    seedCampaign(makeCampaign({ default_work_mode: 'tasks' }), {
+    seedCampaign(makeCampaign(), {
       currentUserId: 'u1',
       tasks: [free(1)],
       filter: POOL,

@@ -36,7 +36,7 @@ from tests.conftest import make_policy
 
 
 def _campaign(visibility: str = "private") -> Campaign:
-    campaign = Campaign(id=1, name="x", default_work_mode="tasks")
+    campaign = Campaign(id=1, name="x")
     campaign.project = Project(id=1, visibility=visibility, organization_id=5)
     campaign.labelling_policy = {}
     return campaign
@@ -434,7 +434,6 @@ def test_create_campaign_rejects_anyone_for_private_campaign():
         service.create_campaign(
             db,
             name="x",
-            default_work_mode="tasks",
             project_id=1,
             settings=_campaign_settings_create(),
             user_id=uuid4(),
@@ -453,7 +452,6 @@ def test_create_campaign_allows_anyone_for_public_campaign():
     service.create_campaign(
         db,
         name="x",
-        default_work_mode="tasks",
         project_id=1,
         settings=_campaign_settings_create(),
         user_id=uuid4(),
@@ -474,7 +472,6 @@ def test_create_campaign_no_explicit_policy_public_gets_anyone_default():
     service.create_campaign(
         db,
         name="x",
-        default_work_mode="tasks",
         project_id=1,
         settings=_campaign_settings_create(),
         user_id=uuid4(),
@@ -491,7 +488,6 @@ def test_create_campaign_no_explicit_policy_private_gets_private_default():
     service.create_campaign(
         db,
         name="x",
-        default_work_mode="tasks",
         project_id=1,
         settings=_campaign_settings_create(),
         user_id=uuid4(),

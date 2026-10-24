@@ -2,8 +2,10 @@
 
 Who may label what in a campaign, and whose labels count toward task
 completion. Every campaign supports both free exploration (Explore) and task
-work, and the policy controls access to each. The campaign's
-`default_work_mode` only picks which of the two the annotation page opens in.
+work, and the policy controls access to each. The policy also picks which of
+the two the annotation page opens in: Tasks while one of the tasks is the
+viewer's to answer (`unassigned_tasks` for a task nobody is on, `assigned_tasks`
+for one somebody is on), Explore otherwise. A `?mode=` link overrides it.
 
 ## The axes
 

@@ -22,7 +22,7 @@ async function loadExplore(page: Page, api: ApiCapture): Promise<void> {
   await page.route('**/api/campaigns/*/detailed', async (route) => {
     await route.fulfill({ json: MOCK_CAMPAIGN_EXPLORE });
   });
-  await page.reload();
+  await page.goto('/projects/7/campaigns/42/annotate?mode=explore');
   await waitExploreReady(page);
   api.clear();
 }
@@ -67,7 +67,7 @@ test.describe('Explore - per-label styling', () => {
 
     // Reload the whole app: the override must come back from localStorage,
     // not reset to the default color.
-    await page.reload();
+    await page.goto('/projects/7/campaigns/42/annotate?mode=explore');
     await waitExploreReady(page);
 
     const reopened = await openFirstLabelStyleEditor(page);

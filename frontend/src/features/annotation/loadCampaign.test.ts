@@ -48,16 +48,13 @@ const task = (overrides: Partial<TaskOut> = {}): TaskOut =>
 function mockApi({
   tasks = [task()],
   taskSets = [] as TaskSetOut[],
-  mode = 'tasks' as 'tasks' | 'explore',
   isPublic = false,
 }: {
   tasks?: TaskOut[];
   taskSets?: TaskSetOut[];
-  mode?: 'tasks' | 'explore';
   isPublic?: boolean;
 } = {}) {
   const campaign = makeCampaign({
-    default_work_mode: mode,
     is_public: isPublic,
     imagery_sources: [source],
     imagery_views: [view],
@@ -134,7 +131,6 @@ describe('loadCampaign happy path', () => {
     });
     const source2 = { ...source, collections: [source.collections[0], second] };
     const campaign = makeCampaign({
-      default_work_mode: 'tasks',
       imagery_sources: [source2],
       imagery_views: [view],
     });
@@ -149,7 +145,7 @@ describe('loadCampaign happy path', () => {
   });
 
   it('stages a deep-linked annotation id only in explore mode', async () => {
-    mockApi({ mode: 'explore', tasks: [] });
+    mockApi({ tasks: [] });
     const result = await loadCampaign(5, {
       now: 1000,
       currentUserId: 'u1',
@@ -160,7 +156,7 @@ describe('loadCampaign happy path', () => {
   });
 
   it('does not stage a deep-linked annotation id in tasks mode', async () => {
-    mockApi({ mode: 'tasks', tasks: [task()] });
+    mockApi({ tasks: [task()] });
     const result = await loadCampaign(5, {
       now: 1000,
       currentUserId: 'u1',
@@ -170,16 +166,29 @@ describe('loadCampaign happy path', () => {
     expect(result.annotationId).toBeNull();
   });
 
-  it('lands a zero-task tasks-mode campaign in explore instead', async () => {
-    mockApi({ mode: 'tasks', tasks: [] });
+  it('opens a campaign with no tasks in explore', async () => {
+    mockApi({ tasks: [] });
     await loadCampaign(5, { now: 1000, currentUserId: 'u1' });
     expect(useCampaignStore.getState().workMode).toBe('explore');
     expect(useCampaignStore.getState().isReviewMode).toBe(false);
     expect(useTasksStore.getState().allTasks).toEqual([]);
   });
 
+  it('opens in explore when none of the tasks is the viewer’s to answer', async () => {
+    const campaign = mockApi({ tasks: [task()] });
+    campaign.settings = {
+      ...campaign.settings,
+      labelling_policy: {
+        ...campaign.settings.labelling_policy,
+        unassigned_tasks: { kinds: ['admins'] },
+      },
+    };
+    await loadCampaign(5, { now: 1000, currentUserId: 'u1' });
+    expect(useCampaignStore.getState().workMode).toBe('explore');
+  });
+
   it('respects an explicit initialWorkMode even for a zero-task campaign', async () => {
-    mockApi({ mode: 'tasks', tasks: [] });
+    mockApi({ tasks: [] });
     await loadCampaign(5, { now: 1000, currentUserId: 'u1', workMode: 'tasks' });
     expect(useCampaignStore.getState().workMode).toBe('tasks');
   });
