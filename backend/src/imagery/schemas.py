@@ -43,6 +43,7 @@ class CollectionSearchOut(BaseModel):
     stac_collection_id: str
     # null => default tiler.
     tiler: str | None = None
+    max_cloud_cover: float | None = None
     search_query: dict | None = None
     cover_search_query: dict | None = None
     internal_storage: bool = False
@@ -247,6 +248,7 @@ class CollectionSearchCreate(BaseModel):
     catalog_url: str
     stac_collection_id: str
     tiler: str | None = None  # hosted tiler name; null => DEFAULT_TILER
+    max_cloud_cover: float | None = None
     search_query: dict | None = None
     cover_search_query: dict | None = None
     internal_storage: bool = False

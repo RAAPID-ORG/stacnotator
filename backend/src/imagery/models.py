@@ -239,6 +239,10 @@ class ImageryCollection(Base):
     # CQL2-JSON; slice dates are filled in at registration.
     search_query: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     cover_search_query: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # The editor's cloud ceiling: 100 is "no filter", null a collection without cloud cover.
+    # What is searched is the filter it writes into search_query, which is also what caps a
+    # hosted tiler's ingest (tiles.cloud_cover_ceiling).
+    max_cloud_cover: Mapped[float | None] = mapped_column(nullable=True)
     # Assets live in internal storage the tiler reads with its managed identity.
     internal_storage: Mapped[bool] = mapped_column(Boolean, server_default="false", nullable=False)
     # A private catalog's own access, provided by the customer (see src/storage_access.py).

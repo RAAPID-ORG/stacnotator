@@ -115,6 +115,7 @@ function collectionToBackend(
               catalog_url: data.catalogUrl,
               stac_collection_id: data.stacCollectionId,
               tiler: data.tiler ?? null,
+              max_cloud_cover: data.maxCloudCover,
               // A query left to the settings is built from them here, so the
               // stored search always matches what the editor shows.
               search_query:

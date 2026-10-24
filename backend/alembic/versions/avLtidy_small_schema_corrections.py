@@ -10,7 +10,7 @@
   the same column already provides.
 
 Revision ID: avLtidy
-Revises: avKcloud
+Revises: avJinvites
 Create Date: 2026-10-24
 """
 
@@ -21,7 +21,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "avLtidy"
-down_revision: str | Sequence[str] | None = "avKcloud"
+down_revision: str | Sequence[str] | None = "avJinvites"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -283,9 +283,12 @@ function mapCollectionOutToFe(
     const namesForViz = vizNames.size > 0 ? [...vizNames.values()] : ['Default'];
     const hasDedicatedCover = col.has_dedicated_cover ?? false;
     const stacId = sc.stac_collection_id;
-    const regularCloud = cloudCoverOf(sc.search_query);
-    const regular = readStoredQuery(stacId, sc.search_query, regularCloud);
-    const coverCloud = cloudCoverOf(sc.cover_search_query);
+    const regular = readStoredQuery(stacId, sc.search_query, sc.max_cloud_cover ?? undefined);
+    // A cover query without a cloud filter on a collection that has cloud cover was
+    // saved at 100, which writes no filter.
+    const coverCloud =
+      cloudCoverOf(sc.cover_search_query) ??
+      (sc.cover_search_query && sc.max_cloud_cover != null ? 100 : undefined);
     const cover = readStoredQuery(stacId, sc.cover_search_query, coverCloud);
     data = {
       type: 'stac_browser',
@@ -293,7 +296,7 @@ function mapCollectionOutToFe(
       stacCollectionId: stacId,
       isMpc: isMpcCatalogUrl(sc.catalog_url),
       tiler: sc.tiler ?? null,
-      maxCloudCover: regularCloud,
+      maxCloudCover: sc.max_cloud_cover ?? undefined,
       itemSort: regular.itemSort,
       coverMaxCloudCover: coverCloud,
       coverItemSort: cover.itemSort,
