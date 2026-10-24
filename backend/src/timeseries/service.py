@@ -58,9 +58,7 @@ def add_timeseries(
     for ts in ts_creates:
         window = windows.get(ts.window_name)
         if window is None:
-            window = TimeseriesWindow(
-                campaign_id=campaign_id, name=ts.window_name, display_order=len(windows)
-            )
+            window = TimeseriesWindow(campaign_id=campaign_id, name=ts.window_name)
             db.add(window)
             windows[ts.window_name] = window
         new_items.append(

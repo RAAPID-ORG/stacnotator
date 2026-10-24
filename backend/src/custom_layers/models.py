@@ -30,8 +30,8 @@ class CustomMap(Base, OwnedLayer):
     __tablename__ = "custom_maps"
     __table_args__ = (
         UniqueConstraint("campaign_id", "name", name="uq_custom_maps_campaign_name"),
+        UniqueConstraint("visualizer_id", "name", name="uq_custom_maps_visualizer_name"),
         one_owner_check("custom_maps"),
-        Index("idx_custom_maps_visualizer_id", "visualizer_id"),
         {"schema": "data"},
     )
 

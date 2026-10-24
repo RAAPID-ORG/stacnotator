@@ -2,7 +2,6 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
-    SmallInteger,
     String,
     UniqueConstraint,
 )
@@ -18,7 +17,6 @@ class TimeseriesWindow(Base):
     __tablename__ = "timeseries_windows"
     __table_args__ = (
         UniqueConstraint("campaign_id", "name", name="uq_timeseries_windows_campaign_name"),
-        Index("idx_timeseries_windows_campaign_id", "campaign_id"),
         {"schema": "data"},
     )
 
@@ -28,7 +26,6 @@ class TimeseriesWindow(Base):
         nullable=False,
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
-    display_order: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
 
     series: Mapped[list["Timeseries"]] = relationship(back_populates="window")
 
