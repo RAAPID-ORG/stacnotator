@@ -9,6 +9,7 @@ from src.auth.models import User
 from src.campaigns.models import Campaign
 from src.campaigns.policy import strip_anyone_kind
 from src.campaigns.schemas import CampaignListItemOut, LabellingPolicy
+from src.campaigns.service import delete_campaigns
 from src.organizations.models import (
     ORG_STATUS_APPROVED,
     Organization,
@@ -145,11 +146,14 @@ def update_project(
 
 
 def delete_project(db: Session, project_id: int) -> None:
-    """Deletes the project and, via the database's own cascade, all its
-    campaigns and everything under them. Deleting the ORM object instead would
-    load every task and annotation into the session and delete them one
-    statement at a time."""
+    """Deletes the project's campaigns the way a single campaign is deleted, then
+    the project and, via the database's own cascade, everything else under it.
+    Deleting the ORM object instead would load every task and annotation into
+    the session and delete them one statement at a time."""
     _get_project(db, project_id)
+    delete_campaigns(
+        db, list(db.scalars(select(Campaign.id).where(Campaign.project_id == project_id)))
+    )
     db.execute(delete(Project).where(Project.id == project_id))
     db.commit()
 

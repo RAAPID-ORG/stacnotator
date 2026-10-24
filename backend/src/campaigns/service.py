@@ -6,6 +6,7 @@ from fastapi import HTTPException
 from sqlalchemy import ARRAY, Text, and_, cast, delete, exists, func, or_, select, update
 from sqlalchemy.orm import Session, joinedload, selectinload
 
+from src.agents.models import LabellingAgent
 from src.annotation.forms import campaign_form_fields
 from src.annotation.models import Annotation
 from src.auth.models import User
@@ -370,11 +371,27 @@ def _apply_form_field_changes(db: Session, campaign: Campaign, form_fields: list
 
 
 def delete_campaign(db: Session, campaign_id: int) -> None:
-    """Delete a campaign and everything hanging off it - settings, canvas
+    delete_campaigns(db, [campaign_id])
+    db.commit()
+
+
+def delete_campaigns(db: Session, campaign_ids: list[int]) -> None:
+    """Delete campaigns and everything hanging off them - settings, canvas
     layouts, imagery, timeseries, tasks and annotations - through the database's
     own ON DELETE CASCADE. It is issued as a Core statement on purpose: deleting
     the ORM object cascades in Python instead, loading every task and annotation
-    into the session to delete them one statement at a time."""
-    revoke_campaign_private_searches(db, campaign_id)
-    db.execute(delete(Campaign).where(Campaign.id == campaign_id))
-    db.commit()
+    into the session to delete them one statement at a time.
+
+    A labelling agent is a user made for one campaign, so its user row (and with
+    it its project membership) goes too, once the campaign's annotations no
+    longer hold it. Does not commit."""
+    agent_ids = list(
+        db.scalars(
+            select(LabellingAgent.user_id).where(LabellingAgent.campaign_id.in_(campaign_ids))
+        )
+    )
+    for campaign_id in campaign_ids:
+        revoke_campaign_private_searches(db, campaign_id)
+    db.execute(delete(Campaign).where(Campaign.id.in_(campaign_ids)))
+    if agent_ids:
+        db.execute(delete(User).where(User.id.in_(agent_ids)))
