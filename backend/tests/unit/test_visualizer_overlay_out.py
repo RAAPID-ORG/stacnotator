@@ -18,7 +18,6 @@ def _overlay(**custom_map_kwargs) -> VisualizerOverlay:
         cog_url="https://example.org/worldcover.tif",
         render_config=RENDER_CONFIG,
         status="ready",
-        tile_url="https://tiler.example.org/searches/abc/tiles/{z}/{x}/{y}.png",
         **custom_map_kwargs,
     )
     return VisualizerOverlay(id=1, custom_map=custom_map, visible=True, opacity=1.0)

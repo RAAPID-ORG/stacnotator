@@ -1,8 +1,10 @@
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 
-from src.custom_layers import service
+from src.config import TilerCfg
+from src.custom_layers import render, service
 from src.custom_layers.models import CustomMap
 from src.custom_layers.schemas import CustomMapCreate, CustomMapUpdate
 
@@ -21,23 +23,24 @@ def _cm(**kw):
     return CustomMap(**{**defaults, **kw})
 
 
-def test_run_registration_bakes_tile_url(monkeypatch):
+@pytest.fixture
+def tilers(monkeypatch):
+    settings = SimpleNamespace(
+        DEFAULT_TILER="hosted", TILERS={"hosted": TilerCfg(url="https://tiler.test")}
+    )
+    monkeypatch.setattr(service, "get_settings", lambda: settings)
+    monkeypatch.setattr(render, "get_settings", lambda: settings)
+    monkeypatch.setattr(service, "resolve_tiler", lambda name: settings.TILERS[name])
+
+
+def test_run_registration_records_the_search_and_its_tiler(monkeypatch, tilers):
     cm = _cm()
     monkeypatch.setattr(service, "register_cog_on_tiler", lambda *a, **k: "search-9")
-    monkeypatch.setattr(service, "resolve_tiler", lambda *a, **k: object())
-    monkeypatch.setattr(
-        service,
-        "build_tile_url",
-        lambda *a, **k: (
-            "https://tiler.test/searches/search-9/tiles/WebMercatorQuad/{z}/{x}/{y}.png?assets=data"
-        ),
-    )
 
     service.run_registration(MagicMock(), cm)
 
-    assert cm.status == "ready"
-    assert cm.mosaic_id == "search-9"
-    assert "search-9" in cm.tile_url
+    assert (cm.status, cm.mosaic_id, cm.tiler) == ("ready", "search-9", "hosted")
+    assert cm.tile_url.startswith("https://tiler.test/searches/search-9/tiles/")
     assert cm.status_errors is None
 
 
@@ -59,7 +62,7 @@ def test_update_reregisters_when_cog_url_changes(monkeypatch):
     cm = _cm(status="ready", cog_url="https://old/a.tif")
     monkeypatch.setattr(service, "_get_custom_map", lambda *a, **k: cm)
     spawned = []
-    monkeypatch.setattr(service, "_spawn_registration", lambda map_id: spawned.append(map_id))
+    monkeypatch.setattr(service, "spawn_registration", lambda map_id: spawned.append(map_id))
 
     service.update_custom_map(MagicMock(), 5, 1, CustomMapUpdate(cog_url="https://new/b.tif"))
 
@@ -73,7 +76,7 @@ def test_update_name_only_does_not_reregister(monkeypatch):
     monkeypatch.setattr(service, "_get_custom_map", lambda *a, **k: cm)
     monkeypatch.setattr(service, "_name_taken", lambda *a, **k: False)
     spawned = []
-    monkeypatch.setattr(service, "_spawn_registration", lambda map_id: spawned.append(map_id))
+    monkeypatch.setattr(service, "spawn_registration", lambda map_id: spawned.append(map_id))
 
     service.update_custom_map(MagicMock(), 5, 1, CustomMapUpdate(name="renamed"))
 
@@ -82,22 +85,11 @@ def test_update_name_only_does_not_reregister(monkeypatch):
     assert spawned == []
 
 
-def test_update_render_config_restamps_tile_url_without_reregister(monkeypatch):
-    """A colour edit is URL-side only: no tiler round trip, and the map stays usable."""
-    cm = _cm(status="ready", mosaic_id="search-9", tile_url="https://tiler.test/old?x=1")
+def test_a_colour_edit_shows_in_the_tile_url_without_registering(monkeypatch, tilers):
+    cm = _cm(status="ready", mosaic_id="search-9", tiler="hosted")
     monkeypatch.setattr(service, "_get_custom_map", lambda *a, **k: cm)
-    monkeypatch.setattr(service, "resolve_tiler", lambda *a, **k: object())
     spawned = []
-    monkeypatch.setattr(service, "_spawn_registration", lambda map_id: spawned.append(map_id))
-    seen = {}
-
-    def fake_build(provider, ref, viz_params, **kw):
-        seen["ref"] = ref
-        return (
-            f"https://tiler.test/searches/{ref}/x.png?colormap_name={viz_params['colormap_name']}"
-        )
-
-    monkeypatch.setattr(service, "build_tile_url", fake_build)
+    monkeypatch.setattr(service, "spawn_registration", lambda map_id: spawned.append(map_id))
 
     service.update_custom_map(
         MagicMock(),
@@ -110,31 +102,11 @@ def test_update_render_config_restamps_tile_url_without_reregister(monkeypatch):
 
     assert spawned == []
     assert cm.status == "ready"
-    assert seen["ref"] == "search-9"
-    assert "colormap_name=magma" in cm.tile_url
+    assert "search-9" in cm.tile_url and "colormap_name=magma" in cm.tile_url
 
 
-def test_update_does_not_restamp_a_map_whose_search_is_stale(monkeypatch):
-    """mosaic_id still points at the previous search while a re-registration is in flight,
-    so a colour edit must leave the URL to that registration rather than stamp the old one."""
-    cm = _cm(status="registering", mosaic_id="search-old", tile_url="https://tiler.test/old")
-    monkeypatch.setattr(service, "_get_custom_map", lambda *a, **k: cm)
-    monkeypatch.setattr(service, "_spawn_registration", lambda map_id: None)
-    monkeypatch.setattr(
-        service, "build_tile_url", lambda *a, **k: pytest.fail("must not restamp a stale search")
-    )
-
-    service.update_custom_map(
-        MagicMock(),
-        5,
-        1,
-        CustomMapUpdate(
-            render_config={"mode": "continuous", "colormap_name": "magma", "rescale": [0, 2]}
-        ),
-    )
-
-    assert cm.render_config["colormap_name"] == "magma"
-    assert cm.tile_url == "https://tiler.test/old"
+def test_a_map_on_a_tiler_no_longer_configured_has_no_tile_url(tilers):
+    assert _cm(status="ready", mosaic_id="search-9", tiler="gone").tile_url is None
 
 
 def test_update_of_failed_map_retries_registration(monkeypatch):
@@ -142,7 +114,7 @@ def test_update_of_failed_map_retries_registration(monkeypatch):
     monkeypatch.setattr(service, "_get_custom_map", lambda *a, **k: cm)
     monkeypatch.setattr(service, "_name_taken", lambda *a, **k: False)
     spawned = []
-    monkeypatch.setattr(service, "_spawn_registration", lambda map_id: spawned.append(map_id))
+    monkeypatch.setattr(service, "spawn_registration", lambda map_id: spawned.append(map_id))
 
     service.update_custom_map(MagicMock(), 5, 1, CustomMapUpdate(name="renamed"))
 

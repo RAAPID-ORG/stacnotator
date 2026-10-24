@@ -41,7 +41,8 @@ class CustomMap(Base, OwnedLayer):
     render_config: Mapped[dict] = mapped_column(JSONB, nullable=False)
     max_native_zoom: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     mosaic_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    tile_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # The tiler mosaic_id is registered on, which its tile URL and a revoke address.
+    tiler: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # registering, ready, failed, or pending: owed a run the next booting worker starts
     status: Mapped[str] = mapped_column(String(16), server_default="registering", nullable=False)
     status_errors: Mapped[list | None] = mapped_column(JSONB, nullable=True)
@@ -70,6 +71,12 @@ class CustomMap(Base, OwnedLayer):
     @property
     def tile_layer(self) -> str:
         return f"custom_map:{self.id}"
+
+    @property
+    def tile_url(self) -> str | None:
+        from src.custom_layers.render import tile_url
+
+        return tile_url(self)
 
 
 class VectorLayer(Base, OwnedLayer):

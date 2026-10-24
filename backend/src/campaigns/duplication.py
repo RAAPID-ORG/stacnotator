@@ -1,9 +1,10 @@
 """Deep-copy a campaign, into its own project or into another one.
 
-The full setup is always copied: settings, imagery sources/collections/slices
-with their registered mosaics (pgstac/MPC mosaic searches are content
-addressed, so both campaigns can safely point at the same ones), basemaps,
-views, default canvas layouts, time series and overlay layers. Tasks,
+The full setup is always copied: settings, imagery sources/collections/slices,
+basemaps, views, default canvas layouts, time series and overlay layers. MPC
+mosaics are content addressed and come along; a hosted tiler's search is stamped
+with the campaign and layer that registered it, so the copy registers its own
+hosted mosaics and custom maps once it is committed. Tasks,
 annotations and personal canvas layouts are opt-in. Task claims are runtime
 state of the original campaign and are never copied.
 
@@ -19,6 +20,7 @@ from sqlalchemy import exists, func, select
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import Session, selectinload, undefer
 
+from src import background
 from src.annotation.models import Annotation
 from src.auth.constants import AGENT_ISSUER
 from src.auth.models import User
@@ -26,6 +28,7 @@ from src.campaigns.models import Campaign
 from src.canvas.layout import remapped_layout
 from src.canvas.models import CanvasLayout
 from src.custom_layers.models import CustomMap
+from src.custom_layers.service import CUSTOM_MAP_RUN, spawn_registration
 from src.imagery.models import (
     ImageryCollection,
     ImageryGenerationSeries,
@@ -34,10 +37,12 @@ from src.imagery.models import (
     ImageryView,
     SliceMosaic,
 )
+from src.imagery.registration import commit_and_register
 from src.organizations.models import Organization
 from src.projects.models import Project
 from src.tasks.models import Task, TaskAssignment, TaskSet
 from src.tasks.task_sets import DEFAULT_TASK_SET_NAME
+from src.tilers import registry
 from src.timeseries.models import Timeseries, TimeseriesWindow
 from src.timeseries.windows import window_grid_key
 
@@ -292,7 +297,8 @@ def _duplicate_imagery(
     )
     for sl in slices:
         for mosaic in sl.mosaics:
-            db.add(clone_row(mosaic, slice_id=slice_map[sl.id]))
+            if mosaic.provider == registry.MPC:
+                db.add(clone_row(mosaic, slice_id=slice_map[sl.id]))
         for template in sl.templates:
             db.add(
                 clone_row(
@@ -359,8 +365,13 @@ def duplicate_campaign(
     )
     for series in db.scalars(select(Timeseries).where(Timeseries.campaign_id == campaign.id)):
         db.add(clone_row(series, campaign_id=dup.id, window_id=window_map[series.window_id]))
-    for custom_map in campaign.custom_maps:
-        db.add(clone_row(custom_map, campaign_id=dup.id))
+    copied_maps = [
+        clone_row(custom_map, campaign_id=dup.id, mosaic_id=None, tiler=None, status_errors=None)
+        for custom_map in campaign.custom_maps
+    ]
+    for copied_map in copied_maps:
+        background.begin_status_run(copied_map, CUSTOM_MAP_RUN)
+        db.add(copied_map)
     for vector_layer in campaign.vector_layers:
         db.add(clone_row(vector_layer, campaign_id=dup.id))
 
@@ -480,6 +491,9 @@ def duplicate_campaign(
             )
         )
 
-    db.commit()
+    db.flush()
+    commit_and_register(db, dup, dup.bbox)
+    for copied_map in copied_maps:
+        spawn_registration(copied_map.id)
     db.refresh(dup)
     return dup

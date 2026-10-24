@@ -1,6 +1,22 @@
 import json
+from typing import TYPE_CHECKING
+
+from src.config import get_settings
+from src.tilers.providers import build_tile_url
+
+if TYPE_CHECKING:
+    from src.custom_layers.models import CustomMap
 
 ASSET_KEY = "data"
+
+
+def tile_url(cm: "CustomMap") -> str | None:
+    """The map's XYZ template, derived from its search and render config like a slice's,
+    so a colour edit shows at once. None until registered, or once its tiler is gone."""
+    tiler = get_settings().TILERS.get(cm.tiler) if cm.tiler else None
+    if cm.mosaic_id is None or tiler is None:
+        return None
+    return build_tile_url("hosted", cm.mosaic_id, build_viz_params(cm.render_config), tiler=tiler)
 
 
 def build_viz_params(render_config: dict) -> dict:
