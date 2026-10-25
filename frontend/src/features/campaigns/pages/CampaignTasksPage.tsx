@@ -149,17 +149,18 @@ export const CampaignTasksPage = () => {
     unassignTasks.isPending ||
     deleteTasks.isPending;
 
-  // Without a URL param the scope starts on the campaign's first (default) set;
-  // "All tasks" is an explicit choice carried as taskSet=all. The requested set is
-  // trusted until the sets load, so the scope does not flash to "All tasks" first.
+  // Without a URL param a campaign with a single set opens on it, so tasks can be
+  // added straight away; with several, on "All tasks", since any one of them may be
+  // empty. The requested set is trusted until the sets load, so the scope does not
+  // flash to "All tasks" first.
   const taskSetParam = searchParams.get('taskSet');
   const requestedSetId = taskSetParam !== null ? Number(taskSetParam) : null;
   const taskScope: TaskScope =
     requestedSetId !== null && (taskSetsLoading || taskSets.some((s) => s.id === requestedSetId))
       ? requestedSetId
-      : taskSetParam === 'all' || taskSets.length === 0
-        ? 'all'
-        : taskSets[0].id;
+      : taskSetParam === null && taskSets.length === 1
+        ? taskSets[0].id
+        : 'all';
 
   const handleSelectScope = (scope: TaskScope) => {
     setSearchParams(
