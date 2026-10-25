@@ -130,7 +130,7 @@ test.describe('Label always goes to the displayed task', () => {
     expect(lastAnnotate(api.requests)!.pathParams.task_id).toBe(String(TASK_2.id));
   });
 
-  test('navigate W (wraps to TASK_2) then submit targets TASK_2', async ({
+  test('W on the first task stays there, submit targets TASK_1', async ({
     annotationPage,
     api,
   }) => {
@@ -138,14 +138,13 @@ test.describe('Label always goes to the displayed task', () => {
     await page.keyboard.press('w');
     await waitForNavIdle(page);
 
-    await assertCrosshairAt(page, TASK_2.id, 'after W wrap');
-    expect(await readGoToValue(page)).toBe(String(TASK_2.annotation_number));
+    await assertCrosshairAt(page, TASK_1.id, 'after W on first task');
+    expect(await readGoToValue(page)).toBe(String(TASK_1.annotation_number));
 
     await pressLabel(page, 1);
     await doSubmit(page);
 
-    assertTilesFetchedForTask(api.requests, 0, TASK_2.id, 'after W tiles');
-    expect(lastAnnotate(api.requests)!.pathParams.task_id).toBe(String(TASK_2.id));
+    expect(lastAnnotate(api.requests)!.pathParams.task_id).toBe(String(TASK_1.id));
   });
 
   test('GoTo 2 then submit targets TASK_2', async ({ annotationPage, api }) => {
