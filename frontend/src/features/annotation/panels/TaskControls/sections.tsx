@@ -249,11 +249,13 @@ export function ActionBar({ task }: { task: TaskOut }) {
                   : submitAnnotation())
             }
             title={
-              asAuthoritative
-                ? isAssignedToTask
-                  ? t('task.authoritativeAssignedTitle')
-                  : t('task.authoritativeUnassignedTitle')
-                : undefined
+              drawTask
+                ? t('task.doneTitle')
+                : asAuthoritative
+                  ? isAssignedToTask
+                    ? t('task.authoritativeAssignedTitle')
+                    : t('task.authoritativeUnassignedTitle')
+                  : undefined
             }
             className={`flex-1 min-w-[5rem] inline-flex items-center justify-center h-7 px-3 text-xs font-medium text-white rounded-md shadow-sm transition-colors whitespace-nowrap disabled:bg-neutral-300 disabled:text-neutral-500 disabled:shadow-none disabled:cursor-not-allowed ${
               asAuthoritative

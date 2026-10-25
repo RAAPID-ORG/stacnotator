@@ -25,6 +25,7 @@
     "setConfidence": "Establecer el nivel de confianza",
     "previousTask": "Tarea anterior",
     "nextTask": "Tarea siguiente",
+    "finishDrawTask": "Terminar la tarea de dibujo (Listo)",
     "decreaseConfidence": "Reducir la confianza",
     "increaseConfidence": "Aumentar la confianza",
     "focusComment": "Enfocar el comentario",

@@ -253,6 +253,7 @@
     "authoritativeUnassignedTitle": "Submit as authoritative: this task isn't assigned to you, but your label will be recorded as the canonical answer and the task will be marked completed without needing consensus from assignees.",
     "submitAuthoritative": "Submit authoritative",
     "done": "Done",
+    "doneTitle": "Finish this task with the shapes you drew (Shift+Enter)",
     "nothingHere": "Nothing here",
     "drewHereTitle": "You drew shapes for this task - press Done",
     "authoritativeToggle": "Submit as authoritative",

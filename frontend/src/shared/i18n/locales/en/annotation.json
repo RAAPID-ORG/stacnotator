@@ -25,6 +25,7 @@
     "setConfidence": "Set confidence level",
     "previousTask": "Previous task",
     "nextTask": "Next task",
+    "finishDrawTask": "Finish the draw task (Done)",
     "decreaseConfidence": "Decrease confidence",
     "increaseConfidence": "Increase confidence",
     "focusComment": "Focus comment",

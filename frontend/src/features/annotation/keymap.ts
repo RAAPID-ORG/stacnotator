@@ -36,9 +36,11 @@ import { currentTask, useTasksStore } from './stores/tasks';
 import { useWorkStore, type Tool } from './stores/work';
 import {
   advance,
+  finishDrawTask,
   skipCurrent,
   submitAnnotation,
   submitAuthoritative,
+  taskLabellingPolicy,
   DEFAULT_CONFIDENCE,
 } from './taskActions';
 
@@ -430,9 +432,20 @@ function taskStepBindings(): Binding[] {
 }
 
 /** A draw task is worked with Explore's drawing keys, plus stepping between
- *  tasks. Finishing one is the panel's Done button. */
+ *  tasks. Plain Enter already finishes a shape and saves its draft, so Done
+ *  takes Shift+Enter. */
 function drawTaskBindings(): Binding[] {
-  return [...exploreBindings(), ...taskStepBindings()];
+  return [
+    ...exploreBindings(),
+    ...taskStepBindings(),
+    {
+      key: 'shift+enter',
+      help: t('keymap.finishDrawTask'),
+      when: () =>
+        !useTasksStore.getState().isSubmitting && taskLabellingPolicy(currentTask()).mayLabel,
+      run: () => void finishDrawTask('drawn'),
+    },
+  ];
 }
 
 function taskBindings(): Binding[] {
