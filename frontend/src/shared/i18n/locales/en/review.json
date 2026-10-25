@@ -139,9 +139,11 @@
     "footerMatching": "Matching:",
     "footerWithConfidence": "With Confidence:",
     "deleteFailed": "Failed to delete annotations",
-    "deleted": "Deleted {{count}} annotation(s)",
+    "deleted_one": "Deleted {{count}} annotation",
+    "deleted_other": "Deleted {{count}} annotations",
     "confirmDeleteTitle": "Delete selected annotations?",
-    "confirmDeleteDescription": "This will permanently delete {{count}} annotation(s). This action cannot be undone."
+    "confirmDeleteDescription_one": "This will permanently delete {{count}} annotation. This action cannot be undone.",
+    "confirmDeleteDescription_other": "This will permanently delete {{count}} annotations. This action cannot be undone."
   },
   "tasks": {
     "filterAndSort": "Filter and sort",
@@ -203,11 +205,15 @@
     "annotate": "Annotate",
     "pageRange": "Showing {{from}} to {{to}} of {{total}}",
     "confirmDeleteTitle": "Delete selected tasks?",
-    "confirmDeleteWithAnnotations": "This will permanently delete {{count}} selected task(s). Their annotations are deleted with them. This action cannot be undone.",
-    "confirmDeleteKeepAnnotations": "This will permanently delete {{count}} selected task(s). Their annotations are kept, no longer linked to a task. This action cannot be undone.",
-    "alsoDeleteAnnotations": "Also delete their {{count}} annotation(s)",
+    "confirmDeleteWithAnnotations_one": "This will permanently delete {{count}} selected task. Their annotations are deleted with them. This action cannot be undone.",
+    "confirmDeleteWithAnnotations_other": "This will permanently delete {{count}} selected tasks. Their annotations are deleted with them. This action cannot be undone.",
+    "confirmDeleteKeepAnnotations_one": "This will permanently delete {{count}} selected task. Their annotations are kept, no longer linked to a task. This action cannot be undone.",
+    "confirmDeleteKeepAnnotations_other": "This will permanently delete {{count}} selected tasks. Their annotations are kept, no longer linked to a task. This action cannot be undone.",
+    "alsoDeleteAnnotations_one": "Also delete their {{count}} annotation",
+    "alsoDeleteAnnotations_other": "Also delete their {{count}} annotations",
     "confirmUnassignTitle": "Unassign selected tasks?",
-    "confirmUnassignDescription": "This will remove all user assignments from {{count}} selected task(s). Annotations already submitted are preserved. This action cannot be undone.",
+    "confirmUnassignDescription_one": "This will remove all user assignments from {{count}} selected task. Annotations already submitted are preserved. This action cannot be undone.",
+    "confirmUnassignDescription_other": "This will remove all user assignments from {{count}} selected tasks. Annotations already submitted are preserved. This action cannot be undone.",
     "unassign": "Unassign"
   }
 }

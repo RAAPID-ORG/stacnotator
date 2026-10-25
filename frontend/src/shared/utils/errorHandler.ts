@@ -36,6 +36,8 @@ const isNetworkError = (err: unknown): boolean => {
   return msg.includes('fetch') || msg.includes('network') || msg.includes('load failed');
 };
 
+const PYDANTIC_VALUE_ERROR_PREFIX = /^Value error, /;
+
 const extractBaseMessage = (err: unknown, fallback: string): string => {
   if (isNetworkError(err)) {
     return t('errors.unreachable');
@@ -52,7 +54,7 @@ const extractBaseMessage = (err: unknown, fallback: string): string => {
           typeof d === 'object' &&
           'msg' in d &&
           typeof (d as { msg: unknown }).msg === 'string'
-            ? (d as { msg: string }).msg
+            ? (d as { msg: string }).msg.replace(PYDANTIC_VALUE_ERROR_PREFIX, '')
             : null
         )
         .filter((m): m is string => m !== null);
