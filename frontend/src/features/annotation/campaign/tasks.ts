@@ -132,12 +132,13 @@ const isHeldBy = (task: TaskOut, userId: string | null | undefined, now: number)
 
 /** Whether "next" means "ask the server for a free task".
  *
- *  Only the unassigned pool works that way. A filter naming real users is a
- *  view over their assigned work, where nothing is being raced for; and no
- *  other filter dimension can coexist with a claimable task, so a pool with
- *  one of those set renders empty and never gets here. */
+ *  Only the unassigned pool's pending work works that way. A filter naming
+ *  real users is a view over their assigned work, and answered tasks are
+ *  history to look back through; in neither is anything being raced for. */
 export const usesClaimPool = (filter: TaskFilter): boolean =>
-  filter.assignedTo.length === 1 && filter.assignedTo[0] === UNASSIGNED;
+  filter.assignedTo.length === 1 &&
+  filter.assignedTo[0] === UNASSIGNED &&
+  filter.statuses.every((status) => status === 'pending');
 
 export interface FilteredTasks {
   visibleTasks: TaskOut[];
@@ -167,9 +168,12 @@ export function applyTaskFilter(
         assignments.some(
           (a) => selectedUserIds.includes(a.user_id) && filter.statuses.includes(a.status)
         );
+      // Pending work is free or yours to take; answered work is history,
+      // and the status filter alone decides on it.
+      const answered = assignments.length === 0 && annotations.length > 0;
       const matchesUnassigned =
         wantUnassigned &&
-        (isClaimable(task, now) || isHeldBy(task, currentUserId, now)) &&
+        (answered || isClaimable(task, now) || isHeldBy(task, currentUserId, now)) &&
         filter.statuses.includes(task.task_status);
       if (!matchesUser && !matchesUnassigned) return false;
     } else if (!filter.statuses.includes(task.task_status)) {
