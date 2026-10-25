@@ -573,7 +573,13 @@ describe('what the tiles have not caught up with', () => {
   it('ends the edit of a shape another annotator deleted', async () => {
     seedCampaign(makeCampaign({ id: 99 }), { currentUserId: 'me' });
     useWorkStore.setState({
-      edit: { annotation: makeAnnotation({ id: 7 }), geometry, pending: geometry, busy: false },
+      edit: {
+        annotation: makeAnnotation({ id: 7 }),
+        geometry,
+        pending: geometry,
+        revision: 0,
+        busy: false,
+      },
       selection: [7],
     });
     vi.mocked(getAnnotationChanges).mockResolvedValue(changes({ deleted: [7] }));

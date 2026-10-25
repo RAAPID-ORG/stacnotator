@@ -95,6 +95,8 @@ export interface EditSession {
   geometry: GeoJSON.Geometry;
   /** Where the user has dragged it, awaiting confirmation. */
   pending: GeoJSON.Geometry | null;
+  /** Bumped when a pending reshape is discarded, so the map re-seeds from `geometry`. */
+  revision: number;
   busy: boolean;
 }
 
@@ -482,7 +484,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
       set((s) =>
         s.edit?.pending
           ? {
-              edit: { ...s.edit, geometry: { ...s.edit.geometry }, pending: null },
+              edit: { ...s.edit, pending: null, revision: s.edit.revision + 1 },
               selectionAnchor: geometryTopRight(s.edit.geometry),
             }
           : {}
@@ -691,7 +693,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
         if (!annotation) throw result.error;
         const geometry = wktToGeometry(annotation.geometry_wkt);
         set({
-          edit: { annotation, geometry, pending: null, busy: false },
+          edit: { annotation, geometry, pending: null, revision: 0, busy: false },
           selection: [annotationId],
           selectionAnchor: geometryTopRight(geometry),
         });
