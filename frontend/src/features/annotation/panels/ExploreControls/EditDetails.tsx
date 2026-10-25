@@ -87,7 +87,11 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
         <LabelChips
           labels={selectable}
           selectedId={labelId}
-          onSelect={(label) => setLabelId(label.id)}
+          onSelect={(label) => {
+            // An unconfirmed reshape does not carry over to another label.
+            useWorkStore.getState().setPendingGeometry(null);
+            setLabelId(label.id);
+          }}
           disabled={saving || readOnly}
           showIndex={false}
         />
