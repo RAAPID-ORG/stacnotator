@@ -87,7 +87,7 @@ export function DraftCatalog({
           {error ? t('draft.retry') : saved ? t('draft.saveAnswers') : t('draft.save')}
         </span>
         <span className="text-[10px] font-normal text-white/70" aria-hidden>
-          Enter
+          {t('draft.saveKey')}
         </span>
       </button>
       <p className="text-[11px] text-neutral-500">

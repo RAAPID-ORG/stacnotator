@@ -94,6 +94,7 @@
     "closeUnsaved": "Close (unanswered required fields discard the annotation)",
     "retry": "Retry save",
     "saveAnswers": "Save answers",
+    "saveKey": "Enter",
     "save": "Save annotation",
     "savedHint": {
       "point": "The point is saved. Answers are added when you save.",

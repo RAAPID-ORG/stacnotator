@@ -95,6 +95,7 @@
     "closeUnsaved": "Cerrar (los campos obligatorios sin responder descartan la anotación)",
     "retry": "Reintentar guardado",
     "saveAnswers": "Guardar respuestas",
+    "saveKey": "Intro",
     "save": "Guardar anotación",
     "savedHint": {
       "point": "El punto está guardado. Las respuestas se añaden al guardar.",

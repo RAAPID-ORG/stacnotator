@@ -190,6 +190,8 @@ interface WorkState {
   clearProbePoints: () => void;
   setProbeMarkerHidden: (hidden: boolean) => void;
   setPendingGeometry: (geometry: GeoJSON.Geometry | null) => void;
+  /** Drop an unconfirmed reshape and put the saved geometry back on the map. */
+  discardPendingGeometry: () => void;
   setEditAnnotation: (annotation: AnnotationOut) => void;
   setEditBusy: (busy: boolean) => void;
   /** Refresh the annotation tiles, retiring the delta they now carry. The
@@ -473,6 +475,15 @@ export const useWorkStore = create<WorkState>((set, get) => {
           ? {
               edit: { ...s.edit, pending },
               selectionAnchor: pending ? geometryTopRight(pending) : s.selectionAnchor,
+            }
+          : {}
+      ),
+    discardPendingGeometry: () =>
+      set((s) =>
+        s.edit?.pending
+          ? {
+              edit: { ...s.edit, geometry: { ...s.edit.geometry }, pending: null },
+              selectionAnchor: geometryTopRight(s.edit.geometry),
             }
           : {}
       ),

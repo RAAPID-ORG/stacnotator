@@ -90,8 +90,7 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
           labels={selectable}
           selectedId={labelId}
           onSelect={(label) => {
-            // An unconfirmed reshape does not carry over to another label.
-            useWorkStore.getState().setPendingGeometry(null);
+            useWorkStore.getState().discardPendingGeometry();
             setLabelId(label.id);
           }}
           disabled={saving || readOnly}
