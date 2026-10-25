@@ -48,6 +48,7 @@ class Task(Base):
         Index("idx_tasks_campaign_id", "campaign_id"),
         UniqueConstraint("campaign_id", "annotation_number"),
         Index("idx_tasks_task_set_id", "task_set_id"),
+        Index("idx_tasks_campaign_changed_at", "campaign_id", "changed_at"),
         Index("idx_tasks_geometry", "geometry", postgresql_using="gist"),
         Index(
             "idx_tasks_embedding_cosine",
@@ -116,6 +117,16 @@ class Task(Base):
         nullable=True,
     )
 
+    # When something the task poll reports changed that leaves no annotation
+    # row to read: an assignment, an answer deleted, a move to another set.
+    # Stamped by ``annotation.sync.touch_tasks``; an answer written is read off
+    # the annotation itself.
+    changed_at: Mapped[dt_datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
     # Relationships
     campaign: Mapped["Campaign"] = relationship(back_populates="tasks")
     claimed_by: Mapped["User | None"] = relationship(foreign_keys=[claimed_by_user_id])
@@ -129,6 +140,29 @@ class Task(Base):
         "Annotation",
         foreign_keys="[Annotation.task_id]",
         back_populates="task",
+    )
+
+
+class DeletedTask(Base):
+    """A tombstone for a deleted task, so other annotators' task lists drop it.
+    Same contract as ``DeletedAnnotation``: written with the delete, pruned past
+    ``DELETION_RETENTION``."""
+
+    __tablename__ = "deleted_tasks"
+    __table_args__ = (
+        Index("idx_deleted_tasks_campaign_deleted_at", "campaign_id", "deleted_at"),
+        {"schema": "data"},
+    )
+
+    task_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    campaign_id: Mapped[int] = mapped_column(
+        ForeignKey("data.campaigns.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    deleted_at: Mapped[dt_datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
     )
 
 

@@ -1,10 +1,10 @@
 import secrets
-from typing import Any, Literal, cast
+from typing import Literal
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException
 from geoalchemy2.shape import to_shape
-from sqlalchemy import CursorResult, delete, exists, func, select, update
+from sqlalchemy import delete, exists, func, select, update
 from sqlalchemy.orm import Session, aliased, joinedload
 
 from src.agents.models import LabellingAgent
@@ -18,6 +18,7 @@ from src.agents.schemas import (
 from src.annotation import service as annotation_service
 from src.annotation.models import Annotation
 from src.annotation.schemas import TaskAnswerCreate
+from src.annotation.sync import touch_tasks
 from src.auth.constants import AGENT_ISSUER
 from src.auth.models import User
 from src.campaigns.dependencies import require_campaign_access
@@ -136,6 +137,7 @@ def _hand_over_own_tasks(
     ).all()
     for assignment in assignments:
         assignment.user_id = agent.user_id
+    touch_tasks(db, (assignment.task_id for assignment in assignments))
     db.commit()
     return len(assignments)
 
@@ -310,6 +312,7 @@ def _take_over_task(db: Session, agent: LabellingAgent) -> bool:
             if assignment is None:
                 continue
             assignment.user_id = agent.user_id
+            touch_tasks(db, [task_id])
             db.commit()
             return True
     return False
@@ -329,13 +332,20 @@ def release_tasks(db: Session, owner: User, role: Role, agents: list[LabellingAg
         owner_has_task = exists().where(
             owners.task_id == TaskAssignment.task_id, owners.user_id == owner.id
         )
-        returned = db.execute(
-            update(TaskAssignment).where(*unfinished, ~owner_has_task).values(user_id=owner.id)
-        )
-        released += cast("CursorResult[Any]", returned).rowcount
-    deleted = db.execute(delete(TaskAssignment).where(*unfinished))
+        returned = db.scalars(
+            update(TaskAssignment)
+            .where(*unfinished, ~owner_has_task)
+            .values(user_id=owner.id)
+            .returning(TaskAssignment.task_id)
+        ).all()
+        released += len(returned)
+        touch_tasks(db, returned)
+    deleted = db.scalars(
+        delete(TaskAssignment).where(*unfinished).returning(TaskAssignment.task_id)
+    ).all()
+    touch_tasks(db, deleted)
     db.commit()
-    return released + cast("CursorResult[Any]", deleted).rowcount
+    return released + len(deleted)
 
 
 def submit_annotation(

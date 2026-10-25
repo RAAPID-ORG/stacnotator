@@ -25,7 +25,11 @@ from src.annotation.schemas import (
     TaskAnswerCreate,
     normalize_slice_comments,
 )
-from src.annotation.sync import bump_campaign_annotations_version, record_annotation_deletions
+from src.annotation.sync import (
+    bump_campaign_annotations_version,
+    record_annotation_deletions,
+    touch_tasks,
+)
 from src.auth.models import User
 from src.campaigns.models import Campaign
 from src.campaigns.policy import (
@@ -846,6 +850,7 @@ def delete_annotations(
         for annotation in annotations:
             db.delete(annotation)
         record_annotation_deletions(db, campaign.id, sorted(found_ids))
+        touch_tasks(db, (a.task_id for a in annotations if a.task_id is not None))
         bump_campaign_annotations_version(db, campaign.id)
         db.commit()
         return len(annotations)

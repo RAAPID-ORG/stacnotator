@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from datetime import datetime
 
 from sqlalchemy import delete, func, insert, select, update
@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from src.annotation.constants import CHANGES_OVERLAP, DELETION_RETENTION
 from src.annotation.models import DeletedAnnotation
 from src.campaigns.models import Campaign
+from src.tasks.models import DeletedTask, Task
 
 
 def record_annotation_deletions(
@@ -52,6 +53,41 @@ def get_deleted_annotation_ids(db: Session, campaign_id: int, since: datetime) -
         select(DeletedAnnotation.annotation_id).where(
             DeletedAnnotation.campaign_id == campaign_id,
             DeletedAnnotation.deleted_at >= since - CHANGES_OVERLAP,
+        )
+    ).all()
+    return list(rows)
+
+
+def touch_tasks(db: Session, task_ids: Iterable[int]) -> None:
+    """Stamp tasks the task poll should re-read for a change no annotation row
+    shows: an assignment added, moved or removed, or an answer deleted."""
+    ids = sorted(set(task_ids))
+    if ids:
+        db.execute(update(Task).where(Task.id.in_(ids)).values(changed_at=func.now()))
+
+
+def record_task_deletions(db: Session, campaign_id: int, task_ids: Sequence[int]) -> None:
+    """Tombstone deleted tasks for the task poll, as ``record_annotation_deletions``
+    does for annotations."""
+    if not task_ids:
+        return
+    db.execute(
+        insert(DeletedTask),
+        [{"task_id": task_id, "campaign_id": campaign_id} for task_id in task_ids],
+    )
+    db.execute(
+        delete(DeletedTask).where(
+            DeletedTask.campaign_id == campaign_id,
+            DeletedTask.deleted_at < func.now() - DELETION_RETENTION,
+        )
+    )
+
+
+def get_deleted_task_ids(db: Session, campaign_id: int, since: datetime) -> list[int]:
+    rows = db.scalars(
+        select(DeletedTask.task_id).where(
+            DeletedTask.campaign_id == campaign_id,
+            DeletedTask.deleted_at >= since - CHANGES_OVERLAP,
         )
     ).all()
     return list(rows)

@@ -105,6 +105,10 @@ def move_tasks_to_set(db: Session, campaign_id: int, task_set_id: int, task_ids:
     if not task_ids:
         return 0
     found = assignments.verify_tasks_in_campaign(db, campaign_id, task_ids)
-    db.execute(update(Task).where(Task.id.in_(task_ids)).values(task_set_id=task_set_id))
+    db.execute(
+        update(Task)
+        .where(Task.id.in_(task_ids))
+        .values(task_set_id=task_set_id, changed_at=func.now())
+    )
     db.commit()
     return len(found)

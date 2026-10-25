@@ -171,11 +171,13 @@ class TaskDensityCell(BaseModel):
 
 
 class TaskChangesOut(BaseModel):
-    """Tasks somebody annotated since a cursor, re-read whole, plus the cursor
-    for the next poll. Same clock as :class:`AnnotationChangesOut`."""
+    """Tasks that changed since a cursor, re-read whole, the ids of those
+    deleted, and the cursor for the next poll. Same clock as
+    :class:`AnnotationChangesOut`."""
 
     server_time: datetime
     tasks: list[TaskOut]
+    deleted: list[int] = []
 
 
 class ValidateLabelSubmissionsResponse(BaseModel):

@@ -12,7 +12,6 @@ annotation/forms.py (form-field parsing) and tasks/completion.py
 
 from uuid import UUID
 
-import numpy as np
 import pandas as pd
 from fastapi import HTTPException
 from geoalchemy2.shape import to_shape
@@ -581,11 +580,17 @@ def build_annotations_export(
         include_geometry_wkt=True,
     )
 
-    for record in records:
-        for col in columns:
-            record.setdefault(col, np.nan)
+    frame = pd.DataFrame(records, columns=list(columns))
+    # A gap would otherwise turn a whole integer column into floats (71460.0).
+    for col in columns:
+        values = [record.get(col) for record in records]
+        if any(_is_int(v) for v in values) and all(v is None or _is_int(v) for v in values):
+            frame[col] = pd.array(values, dtype="Int64")
+    return frame
 
-    return pd.DataFrame(records, columns=list(columns))
+
+def _is_int(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
 
 
 def build_annotations_geojson_export(

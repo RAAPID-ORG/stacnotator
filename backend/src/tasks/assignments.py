@@ -11,6 +11,7 @@ from sqlalchemy import CursorResult, Result, delete, func, select
 from sqlalchemy.orm import Session, joinedload
 
 from src.annotation.models import Annotation
+from src.annotation.sync import touch_tasks
 from src.auth.constants import AGENT_ISSUER
 from src.auth.models import User
 from src.campaigns.models import Campaign
@@ -180,6 +181,7 @@ def assign_tasks_to_users(
                     user_id=user_id,
                 )
             )
+        touch_tasks(db, (task_id for task_id, _ in new_pairs))
         db.commit()
 
     return AssignTasksToUsersResult(total_assigned=len(new_pairs))
@@ -211,6 +213,8 @@ def unassign_users_from_tasks(
         where_clauses.append(TaskAssignment.user_id.in_(user_ids))
 
     deleted = _deleted_rows(db.execute(delete(TaskAssignment).where(*where_clauses)))
+    if deleted:
+        touch_tasks(db, task_ids)
     db.commit()
     return deleted
 
@@ -284,6 +288,7 @@ def _top_up_review_assignments(
                 is_review=True,
             )
         )
+    touch_tasks(db, (task_id for task_id, _ in new_pairs))
 
     db.commit()
 
@@ -577,6 +582,7 @@ def import_task_assignments(db: Session, campaign_id: int, file_bytes: bytes) ->
                 is_review=is_review,
             )
         )
+    touch_tasks(db, (task_by_number[number].id for number, _, _ in parsed))
 
     db.commit()
 

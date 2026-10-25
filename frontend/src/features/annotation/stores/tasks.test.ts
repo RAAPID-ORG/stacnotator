@@ -305,6 +305,17 @@ describe('task session remote progress', () => {
     expect(state.visibleTasks.map((t) => t.id)).toEqual([1, 2]);
     expect(state.visibleTasks[state.currentIndex].id).toBe(1);
   });
+
+  it('removeTasks() drops a task deleted elsewhere and moves on from it when current', () => {
+    const TASK_C = task(3, 3, 20, 20);
+    initialize([TASK_A, TASK_B, TASK_C]);
+
+    useTasksStore.getState().removeTasks([1], CATALOG);
+
+    const state = useTasksStore.getState();
+    expect(state.allTasks.map((t) => t.id)).toEqual([2, 3]);
+    expect(state.visibleTasks[state.currentIndex].id).toBe(2);
+  });
 });
 
 describe('the session trail', () => {
