@@ -16,8 +16,10 @@ Revises: avCemberr
 Create Date: 2026-10-23
 """
 
+import json
 import logging
 from collections.abc import Sequence
+from urllib.parse import parse_qsl, urlsplit
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
@@ -39,6 +41,134 @@ SELECT
      SELECT 1 FROM data.visualizations r
      WHERE r.source_id = c.source_id AND r.name = u.visualization_name))
 """
+
+# p3droplegacy gave a collection saved before per-visualization parameters the one
+# set it had for every visualization of its source. The slices' finished URLs were
+# still built per visualization, so the duplicates never showed until URLs started
+# being derived from the parameters. Such a collection's parameters are read back
+# from those URLs before they are dropped.
+_FANNED = """
+SELECT v.id, v.collection_id, v.name, v.render_params, v.cover_render_params,
+       c.has_dedicated_cover, c.cover_slice_index
+FROM data.collection_viz_configs v
+JOIN data.imagery_collections c ON c.id = v.collection_id
+WHERE c.catalog_url IS NOT NULL AND (
+  SELECT count(*) FROM data.collection_viz_configs o
+  WHERE o.collection_id = v.collection_id AND o.render_params = v.render_params) > 1
+"""
+
+_URLS = """
+SELECT u.tile_url, s.id
+FROM data.slice_tile_urls u
+JOIN data.imagery_slices s ON s.id = u.slice_id
+WHERE s.collection_id = :collection AND u.visualization_name = :name
+ORDER BY s.display_order, s.id
+"""
+
+_SLICE_IDS = """
+SELECT id FROM data.imagery_slices WHERE collection_id = :collection ORDER BY display_order, id
+"""
+
+# What a tile URL's query carries of the parameters, as build_viz_query_string
+# wrote it; MPC's leaves out the local-only ones. ``collection`` and
+# ``pixel_selection`` are the URL's own, not the visualization's.
+_URL_OWN = {"collection", "pixel_selection"}
+_ON_EVERY_URL = {
+    "assets",
+    "asset_as_band",
+    "expression",
+    "rescale",
+    "colormap_name",
+    "color_formula",
+    "resampling",
+    "nodata",
+}
+_HOSTED_ONLY = {
+    "bidx",
+    "compositing",
+    "mask_layer",
+    "mask_values",
+    "nir_band",
+    "red_band",
+    "max_items",
+}
+
+
+def _number(value: str) -> int | float | str:
+    for kind in (int, float):
+        try:
+            return kind(value)
+        except ValueError:
+            pass
+    return value
+
+
+def _params_from_url(url: str, stored: dict) -> dict:
+    """The parameters a finished tile URL was drawn with. What the URL cannot carry
+    (an MPC URL's local-only parameters) is kept from ``stored``."""
+    pairs = parse_qsl(urlsplit(url).query, keep_blank_values=True)
+    carried = _ON_EVERY_URL | (set() if url.startswith(MPC_HOST) else _HOSTED_ONLY)
+    params = {k: v for k, v in stored.items() if k not in carried and k != "extra_params"}
+    extra: dict[str, str] = {}
+    for key, value in pairs:
+        if key == "assets":
+            params.setdefault("assets", []).append(value)
+        elif key == "mask_values":
+            params.setdefault("mask_values", []).append(_number(value))
+        elif key == "rescale":
+            params.setdefault("rescale", value)  # repeated once per output band
+        elif key == "asset_as_band":
+            params["asset_as_band"] = value == "true"
+        elif key == "bidx":
+            params["bidx"] = [int(b) for b in value.split(",") if b]
+        elif key in ("nodata", "max_items"):
+            params[key] = _number(value)
+        elif key in carried:
+            params[key] = value
+        elif key not in _URL_OWN:
+            extra[key] = value
+    if extra:
+        params["extra_params"] = extra
+    return params
+
+
+def _repair_fanned_params(bind: sa.Connection) -> int:
+    repaired = 0
+    for row in bind.execute(sa.text(_FANNED)).mappings().all():
+        slice_ids = bind.execute(sa.text(_SLICE_IDS), {"collection": row["collection_id"]})
+        slice_ids = slice_ids.scalars().all()
+        index = row["cover_slice_index"]
+        cover_id = (
+            slice_ids[index] if row["has_dedicated_cover"] and 0 <= index < len(slice_ids) else None
+        )
+        urls = bind.execute(
+            sa.text(_URLS), {"collection": row["collection_id"], "name": row["name"]}
+        ).all()
+        regular = next((u for u, sid in urls if sid != cover_id), None)
+        cover = next((u for u, sid in urls if sid == cover_id), None)
+        if regular is None:
+            continue
+        params = _params_from_url(regular, row["render_params"] or {})
+        cover_params = row["cover_render_params"]
+        if cover is not None and cover_params is not None:
+            cover_params = _params_from_url(cover, cover_params)
+        if params == row["render_params"] and cover_params == row["cover_render_params"]:
+            continue
+        bind.execute(
+            sa.text(
+                "UPDATE data.collection_viz_configs "
+                "SET render_params = cast(:params AS jsonb), "
+                "    cover_render_params = cast(:cover AS jsonb) WHERE id = :id"
+            ),
+            {
+                "id": row["id"],
+                "params": json.dumps(params),
+                "cover": json.dumps(cover_params) if cover_params is not None else None,
+            },
+        )
+        repaired += 1
+    return repaired
+
 
 # Every MPC tile URL starts here; the search id follows /mosaic/.
 MPC_HOST = "https://planetarycomputer.microsoft.com/"
@@ -114,6 +244,10 @@ def upgrade() -> None:
         "(catalog_url IS NULL) = (stac_collection_id IS NULL)",
         schema="data",
     )
+
+    repaired = _repair_fanned_params(op.get_bind())
+    if repaired:
+        logger.info("avDmosaics: read %d visualizations' parameters back from their URLs", repaired)
 
     op.create_table(
         "collection_visualizations",
