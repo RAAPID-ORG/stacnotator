@@ -118,6 +118,10 @@ export interface SubmitParams {
 export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome> {
   const campaignId = campaignState().campaign.id;
   const { task, currentUserId, labelId, comment } = params;
+  // Read before the first await: what the user is looking at can change while
+  // the validation round trip is out.
+  const imagerySliceId = viewedSliceId();
+  const activeMs = readTaskActiveMs(task.id);
 
   // Guarded here rather than only in the button's disabled state: the Enter
   // key calls this directly and would otherwise reach the backend's 422.
@@ -176,8 +180,8 @@ export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome
         form_values: Object.keys(params.formValues).length ? params.formValues : null,
         slice_comments: params.sliceComments,
         outcome: params.outcome ?? null,
-        imagery_slice_id: viewedSliceId(),
-        active_ms: readTaskActiveMs(task.id),
+        imagery_slice_id: imagerySliceId,
+        active_ms: activeMs,
       },
     });
     const result: TaskSubmitResponse | undefined = response.data;
@@ -259,7 +263,9 @@ async function run(options: {
   else if (outcome.kind === 'error') alert(outcome.message, 'error');
   else if (outcome.kind === 'submitted') {
     tasks.replaceTask(outcome.task, catalog);
-    await advance();
+    // Only off the task that was answered: anything else is where the user
+    // has since chosen to be.
+    if (currentTask()?.id === task.id) await advance();
   } else if (outcome.kind === 'removed') {
     tasks.replaceTask(outcome.task, catalog);
   }
@@ -301,6 +307,10 @@ export async function advance(): Promise<void> {
   }
 }
 
+/** Next, from the button and the key. Held to one at a time like a submit, so
+ *  quick presses cannot race each other's claims and skip tasks unseen. */
+export const goToNextTask = () => guarded(advance);
+
 const mismatchConfirm = () => ({
   title: t('taskActions.mismatch.title'),
   description: t('taskActions.mismatch.description'),
@@ -309,8 +319,8 @@ const mismatchConfirm = () => ({
   isDangerous: true,
 });
 
-/** Runs `body` only while no submit is in flight - the same guard the buttons
- *  enforce through `isSubmitting`. */
+/** Runs `body` only while no submit or step is in flight - the same guard the
+ *  buttons enforce through `isSubmitting`. */
 async function guarded(body: () => Promise<void>): Promise<void> {
   const tasks = useTasksStore.getState();
   if (tasks.isSubmitting) return;

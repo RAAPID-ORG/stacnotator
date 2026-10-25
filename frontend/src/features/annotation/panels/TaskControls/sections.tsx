@@ -9,9 +9,9 @@ import type { TaskOut } from '~/api/client';
 import { useTasksStore } from '../../stores/tasks';
 import { useWorkStore } from '../../stores/work';
 import {
-  advance,
   DEFAULT_CONFIDENCE,
   finishDrawTask,
+  goToNextTask,
   skipCurrent,
   submitAnnotation,
   submitAuthoritative,
@@ -290,7 +290,7 @@ export function ActionBar({ task }: { task: TaskOut }) {
           <button
             type="button"
             disabled={isBusy}
-            onClick={() => void advance()}
+            onClick={() => void goToNextTask()}
             aria-label={t('task.nextPoint')}
             title={t('task.nextPoint')}
             className={navButtonClass}
