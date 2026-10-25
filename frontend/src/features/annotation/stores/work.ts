@@ -55,6 +55,7 @@ import { usePrefsStore } from './prefs';
 const t = i18n.getFixedT(null, 'annotation');
 
 export type Tool = 'pan' | 'annotate' | 'edit' | 'labelVector' | 'timeseries';
+const DEFAULT_TOOL: Tool = 'annotate';
 
 /** The task a shape is saved against, fixed when drawing starts so a shape
  *  finished after moving on still belongs to the task it was drawn for. */
@@ -375,7 +376,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
 
   return {
     ...emptyForm,
-    tool: 'pan',
+    tool: DEFAULT_TOOL,
     commenting: null,
     draft: { phase: 'idle' },
     draftLink: {},
@@ -496,7 +497,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
     resetAll: () =>
       set({
         ...emptyForm,
-        tool: 'pan',
+        tool: DEFAULT_TOOL,
         commenting: null,
         draft: { phase: 'idle' },
         draftLink: {},
@@ -542,7 +543,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
     },
 
     toggleProbeTool: () =>
-      void get().selectTool(get().tool === 'timeseries' ? 'pan' : 'timeseries'),
+      void get().selectTool(get().tool === 'timeseries' ? DEFAULT_TOOL : 'timeseries'),
 
     // Slice notes survive the reset: noticing something about an image and
     // then drawing what it is about is one gesture, and the note belongs to

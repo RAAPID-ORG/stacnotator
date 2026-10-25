@@ -14,7 +14,6 @@ import { usePrefsStore } from '../../stores/prefs';
 import { useCampaign } from '../../stores/campaign';
 import { MAX_PROBES, useWorkStore, type Tool } from '../../stores/work';
 import { helpRows } from '../../hotkeys';
-import { fitAnnotations } from '../../map/camera';
 import { activeGroupClass, FormFields } from '../../components/FormFields';
 import { LabelChips } from '../../components/LabelChips';
 import { DraftCatalog } from './DraftCatalog';
@@ -30,14 +29,14 @@ interface ToolDef {
 
 const TOOLS: ToolDef[] = [
   {
-    id: 'pan',
-    shortcut: 'P',
-    icon: 'M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15',
-  },
-  {
     id: 'annotate',
     shortcut: 'R',
     icon: 'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z',
+  },
+  {
+    id: 'pan',
+    shortcut: 'P',
+    icon: 'M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15',
   },
   {
     id: 'edit',
@@ -55,10 +54,6 @@ const TOOLS: ToolDef[] = [
     icon: 'M3 17l4-7 4 3 4-7M16 12a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm3 7 3 3',
   },
 ];
-
-const EYE_ICON = 'M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7zM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z';
-const EYE_OFF_ICON =
-  'M9.88 9.88a3 3 0 1 0 4.24 4.24M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61M2 2l20 20';
 
 const GEAR_ICON =
   'M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2zM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z';
@@ -175,8 +170,6 @@ export function ExploreControls() {
   const activeFieldIndex = useWorkStore((s) => s.activeFieldIndex);
   const setFormValues = useWorkStore((s) => s.setFormValues);
   const draft = useWorkStore((s) => s.draft);
-  const showAnnotations = useImageryStore((s) => s.showAnnotations);
-  const toggleAnnotations = useImageryStore((s) => s.toggleAnnotations);
   const showTaskAnnotations = useImageryStore((s) => s.showTaskAnnotations);
   const toggleTaskAnnotations = useImageryStore((s) => s.toggleTaskAnnotations);
   const labelStyles = usePrefsStore((s) => s.labelStyles);
@@ -241,31 +234,11 @@ export function ExploreControls() {
               >
                 <Icon path={def.icon} />
                 <span className="truncate">{t(`tools.${def.id}`)}</span>
+                <span className="text-[10px] text-neutral-400" aria-hidden>
+                  {def.shortcut}
+                </span>
               </button>
             ))}
-            <button
-              type="button"
-              onClick={toggleAnnotations}
-              title={showAnnotations ? t('explore.hideDrawnTitle') : t('explore.showDrawnTitle')}
-              className={
-                showAnnotations
-                  ? chipClass(false)
-                  : 'flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-600 cursor-pointer'
-              }
-            >
-              <Icon path={showAnnotations ? EYE_ICON : EYE_OFF_ICON} />
-              <span className="truncate">
-                {showAnnotations ? t('explore.hide') : t('explore.show')}
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => void fitAnnotations(campaign.id, showTaskAnnotations)}
-              title={t('explore.fitTitle')}
-              className={chipClass(false)}
-            >
-              <span className="truncate">{t('explore.fit')}</span>
-            </button>
           </div>
         </div>
 

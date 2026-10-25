@@ -38,9 +38,9 @@ export interface PanelDef {
   className?: string;
   onHeaderClick?: () => void;
   onBodyClick?: () => void;
-  /** Edit mode replaces the body with a cheap placeholder, so an expensive
-   *  panel is not rendered behind a drag ghost. */
-  hideTarget?: boolean;
+  /** Edit mode replaces the body with this, so an expensive panel is not
+   *  rendered behind a drag ghost and can still be told apart from the rest. */
+  placeholder?: { name: string; description: string };
   /** May leave the grid entirely, so the hide action is offered. Fixed page
    *  chrome is not hidable - the layout would just put it back. */
   hidable?: boolean;
@@ -79,14 +79,14 @@ export function buildPanels({
       header: <MainMapHeader />,
       body: <MainMapBody />,
       // Rendering a live map behind a drag ghost costs tiles nobody is looking at.
-      hideTarget: true,
+      placeholder: { name: t('mainMap.title'), description: t('placeholders.mainMap') },
     },
     {
       id: MINIMAP_PANEL,
       role: 'minimap',
       header: <MinimapHeader />,
       body: <MinimapBody />,
-      hideTarget: true,
+      placeholder: { name: t('titles.minimap'), description: t('placeholders.minimap') },
     },
     mode === 'tasks'
       ? {
@@ -110,7 +110,7 @@ export function buildPanels({
       role: 'imagery-timeline',
       title: t('titles.timeline'),
       headerless: true,
-      hideTarget: true,
+      placeholder: { name: t('titles.timeline'), description: t('placeholders.timeline') },
       body: <Timeline orientation={layout.main.timeline.orientation ?? 'vertical'} />,
     });
   }
@@ -148,7 +148,10 @@ export function buildPanels({
         `grid-card-hoverable ${collection.id === activeCollectionId ? 'active-window' : ''}`.trim(),
       header: <ImageryWindowHeader collection={collection} />,
       body: <ImageryWindowBody collection={collection} />,
-      hideTarget: true,
+      placeholder: {
+        name: collection.name,
+        description: t('placeholders.imageryWindow'),
+      },
       hidable: true,
       onHeaderClick: activate,
       onBodyClick: activate,

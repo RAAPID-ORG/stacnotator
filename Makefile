@@ -6,6 +6,7 @@
 	ci-check ci-check-docker pre-commit-install pre-commit-run \
 	dev-restore-backup \
 	az-deploy-prod az-deploy-dev az-deploy-dev-dry-run az-sync-prod-to-dev \
+	az-download-prod-db az-download-dev-db \
 	az-logs-prod az-logs-dev az-bootstrap-prod az-bootstrap-dev
 
 help: ## Show this help message
@@ -305,6 +306,12 @@ az-deploy-dev-dry-run: ## Print the resolved dev deploy config without writing a
 
 az-sync-prod-to-dev: ## Sync production database into dev Azure Postgres + run migrations
 	./deployment/azure/utils/sync-prod-data-to-dev.sh
+
+az-download-prod-db: ## Download the production database into the local dev DB
+	./deployment/azure/utils/download-prod-db.sh
+
+az-download-dev-db: ## Download the deployed dev database into the local dev DB
+	./deployment/azure/utils/download-dev-db.sh
 
 az-logs-prod: ## View prod container app logs (use APP=tiler for tiler)
 	./deployment/azure/utils/view-logs.sh prod $(APP)

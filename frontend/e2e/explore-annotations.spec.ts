@@ -16,6 +16,7 @@ import {
   clickMapAt,
   clickMapCenter,
   ctrlClickMapCenter,
+  drawLine,
   drawPolygon,
   fitAllAnnotations,
   getMinimapCenter,
@@ -96,8 +97,8 @@ test.describe('Explore renders', () => {
     assertCoordsMatch(c, EXPLORE_CENTER, 'initial centre');
   });
 
-  test('default active tool is Pan', async ({ annotationPage }) => {
-    await expect(tool(annotationPage, 'Pan (P)')).toHaveClass(ACTIVE);
+  test('default active tool is Annotate', async ({ annotationPage }) => {
+    await expect(tool(annotationPage, 'Annotate (R)')).toHaveClass(ACTIVE);
   });
 });
 
@@ -130,13 +131,11 @@ test.describe('Tools and label selection', () => {
     await annotationPage.keyboard.press('1');
     await expect(tool(annotationPage, 'Annotate (R)')).toHaveClass(ACTIVE);
     await expect(controls(annotationPage)).toContainText('✓ Tree');
-    await expect(controls(annotationPage)).toContainText('Tree - click the map to draw a point.');
+    await expect(controls(annotationPage)).toContainText('click the map to draw a point');
 
     await annotationPage.keyboard.press('2');
     await expect(controls(annotationPage)).toContainText('✓ Field');
-    await expect(controls(annotationPage)).toContainText(
-      'Field - click the map to draw a polygon.'
-    );
+    await expect(controls(annotationPage)).toContainText('click the map to draw a polygon');
   });
 
   test('label rows show the geometry icon per type', async ({ annotationPage }) => {
@@ -236,7 +235,7 @@ test.describe('Creating annotations', () => {
     await annotationPage.keyboard.press('3'); // line label
     await Promise.all([
       waitForCreate(annotationPage),
-      drawPolygon(annotationPage, [
+      drawLine(annotationPage, [
         [-50, 0],
         [50, 0],
       ]),

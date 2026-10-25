@@ -418,15 +418,8 @@ test('detach, resize, save and reload navigation panels with one-click imagery c
 
   const timelinePanel = page.locator('[data-panel-id="timeline"]');
   await expect(timelinePanel.getByRole('slider')).toHaveCount(0);
-  const timelineHeader = timelinePanel.locator('.panel-drag-handle.editable');
-  await expect(timelineHeader).toContainText('Timeline');
-  await expect
-    .poll(async () => {
-      const panel = await timelinePanel.boundingBox();
-      const header = await timelineHeader.boundingBox();
-      return panel && header ? Math.abs(panel.height - header.height) : Infinity;
-    })
-    .toBeLessThan(3);
+  const timelinePlaceholder = page.getByTestId('edit-placeholder-timeline');
+  await expect(timelinePlaceholder).toContainText('Timeline');
   await timelinePanel.scrollIntoViewIfNeeded();
   const before = await timelinePanel.boundingBox();
   const handle = await timelinePanel.locator('.react-resizable-handle-e').boundingBox();
@@ -439,8 +432,8 @@ test('detach, resize, save and reload navigation panels with one-click imagery c
     .poll(async () => (await timelinePanel.boundingBox())?.width)
     .toBeLessThan(before.width);
 
-  const dragFrom = await timelineHeader.boundingBox();
-  if (!dragFrom) throw new Error('Full-size timeline drag header missing');
+  const dragFrom = await timelinePlaceholder.boundingBox();
+  if (!dragFrom) throw new Error('Timeline placeholder missing');
   await page.mouse.move(dragFrom.x + dragFrom.width / 4, dragFrom.y + dragFrom.height * 0.6);
   await page.mouse.down();
   await page.mouse.move(dragFrom.x + dragFrom.width / 4 + 24, dragFrom.y + dragFrom.height * 0.6, {

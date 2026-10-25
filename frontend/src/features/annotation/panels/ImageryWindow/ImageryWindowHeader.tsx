@@ -31,14 +31,15 @@ export function ImageryWindowHeader({ collection }: ImageryWindowHeaderProps) {
   return (
     <div className="flex min-w-0 flex-1 items-center gap-1">
       <span
-        data-window-active={isActive}
         // A canvas of windows named by period says nothing about which imagery each
         // one is of, so hovering a window names its source - dimmed and after the
         // period, so a narrow window loses the source rather than the date it shows.
         title={source ? `${source.name} - ${collection.name}` : collection.name}
         className={`flex min-w-0 flex-1 items-baseline gap-1 truncate text-xs ${isActive ? 'font-semibold text-brand-700' : 'text-neutral-700'}`}
       >
-        <span className="shrink-0">{collection.name}</span>
+        <span data-window-active={isActive} className="shrink-0">
+          {collection.name}
+        </span>
         {source && (
           <span className="truncate font-normal text-neutral-400 opacity-0 transition-opacity group-hover/card:opacity-100">
             {source.name}

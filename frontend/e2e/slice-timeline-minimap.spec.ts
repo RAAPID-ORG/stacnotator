@@ -90,11 +90,10 @@ test.describe('Slice cycling via keyboard (A / D)', () => {
     await annotationPage.keyboard.press('d');
     await expect(mainSliceBtn(annotationPage)).toContainText(SLICE_2024_06.name, { timeout: 3000 });
 
-    const tileArrived = expectTile(annotationPage, 'search-jan-2024');
+    // No tile assertion: Jan's tiles were loaded on arrival, so whether going
+    // back refetches them is up to OL's cache.
     await annotationPage.keyboard.press('a');
-
     await expect(mainSliceBtn(annotationPage)).toContainText(SLICE_2024_01.name, { timeout: 3000 });
-    await tileArrived;
   });
 
   test('D at last slice of S2 L2A advances to NDVI collection', async ({ annotationPage }) => {

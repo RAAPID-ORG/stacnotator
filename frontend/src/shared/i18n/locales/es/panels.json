@@ -3,7 +3,14 @@
     "task": "Tarea",
     "controls": "Controles",
     "timeline": "Línea de tiempo",
-    "imagery": "Imágenes"
+    "imagery": "Imágenes",
+    "minimap": "Minimapa"
+  },
+  "placeholders": {
+    "mainMap": "Imágenes satelitales del lugar en el que trabajas",
+    "minimap": "Vista general del área alrededor",
+    "timeline": "Recorre las fechas de las imágenes",
+    "imageryWindow": "Imágenes satelitales de este periodo, junto al mapa principal"
   },
   "minimap": {
     "copyCoordinates": "Copiar coordenadas al portapapeles",
@@ -19,12 +26,6 @@
   "explore": {
     "tools": "Herramientas",
     "shortcuts": "Atajos",
-    "hide": "Ocultar",
-    "show": "Mostrar",
-    "hideDrawnTitle": "Ocultar objetos dibujados (Shift+X)",
-    "showDrawnTitle": "Mostrar objetos dibujados (Shift+X)",
-    "fit": "Ajustar a anotaciones",
-    "fitTitle": "Hacer zoom a todas las anotaciones (Espacio)",
     "labels": "Etiquetas",
     "customizeStyles": "Personalizar estilos de etiquetas",
     "customizeLabelStyle": "Personalizar el estilo de esta etiqueta",
@@ -65,7 +66,7 @@
     "draw": {
       "point": "- haz clic en el mapa para dibujar un punto.",
       "line": "- haz clic en el mapa para dibujar una línea.",
-      "polygon": "- haz clic en el mapa para dibujar un polígono. Haz doble clic para terminar."
+      "polygon": "- haz clic en el mapa para dibujar un polígono. Haz clic en el primer punto o pulsa Enter para terminar."
     }
   },
   "labelStyle": {
@@ -119,7 +120,9 @@
     "answerToSave": "Responde para guardar: {{fields}}",
     "answerHelp": "Tab cambia de pregunta, Enter guarda.",
     "pickLabel": "Elige una etiqueta en el panel de controles (o pulsa su número) para empezar a dibujar",
-    "loadingImagery": "Cargando imágenes"
+    "loadingImagery": "Cargando imágenes",
+    "hideDrawnTitle": "Ocultar objetos dibujados (Shift+X)",
+    "showDrawnTitle": "Mostrar objetos dibujados (Shift+X)"
   },
   "selection": {
     "confirm": "Confirmar cambios (Enter)",

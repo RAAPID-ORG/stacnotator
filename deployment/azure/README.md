@@ -397,7 +397,7 @@ After this, hitting **Run workflow** on `Deploy Dev` from the `develop` branch w
 | `deploy.sh` | Every release | Resolve config, build all three concurrently, one write per resource, gate on backend health |
 | `bootstrap.sh` | Once per environment | Upload Firebase + EE credentials, generate the shared secrets when absent, create the Static Web App, add the tiler workload profile |
 | `env.sh` | Sourced | Config resolution shared by both; holds no identifiers |
-| `download-prod-db.sh` | As needed | Pull production DB to local development (no env argument, prod-only) |
+| `download-db.sh` | As needed | Pull a deployed DB (`prod` or `dev`) into the local dev DB; `download-prod-db.sh` / `download-dev-db.sh` are shortcuts |
 | `sync-prod-data-to-dev.sh` | As needed | Sync production DB to dev Azure environment (no env argument) |
 | `dev-restore-backup.sh` | As needed | Restore a SQL dump into the **local** docker dev stack (wipe, restore, migrate, restart); run via `make dev-restore-backup FILE=...` |
 | `view-logs.sh` | Debugging | Stream real-time logs from Container Apps |
@@ -411,6 +411,8 @@ make az-deploy-dev-dry-run   # Print the resolved dev config, write nothing
 make az-bootstrap-prod       # One-time prod setup
 make az-bootstrap-dev        # One-time dev setup
 make az-sync-prod-to-dev     # Sync prod DB to dev + run migrations
+make az-download-prod-db     # Pull prod DB into the local dev DB
+make az-download-dev-db      # Pull deployed dev DB into the local dev DB
 make az-logs-prod            # View prod backend logs (APP=tiler for tiler)
 make az-logs-dev             # View dev backend logs (APP=tiler for tiler)
 ```
@@ -465,4 +467,4 @@ The database is accessible via:
 - **Container Apps**: private endpoint (VNet-routed, no public exposure)
 - **Admin scripts**: public access restricted to VPN IP ranges only
 
-For local DB dumps, connect via VPN and use `download-prod-db.sh`.
+For local DB dumps, connect via VPN and use `download-prod-db.sh` (or `download-dev-db.sh` for the dev environment).

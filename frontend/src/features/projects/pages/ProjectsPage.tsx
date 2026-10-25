@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { type ProjectOut } from '~/api/client';
 import { listProjectsOptions } from '~/api/queries';
-import { newOrganizationPath, newProjectPath, projectPath } from '~/app/routes';
+import { newOrganizationPath, newProjectPath, organizationsPath, projectPath } from '~/app/routes';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { useOrgStore } from '~/shared/stores/org.store';
 import { Button, IconButton, Input } from '~/shared/ui/forms';
@@ -109,9 +109,14 @@ export const ProjectsPage = () => {
               <p className="text-sm font-medium text-neutral-900">{t('list.gatingTitle')}</p>
               <p className="text-xs text-neutral-600 mt-0.5">{t('list.gatingBody')}</p>
             </div>
-            <Button variant="secondary" size="sm" onClick={() => navigate(newOrganizationPath())}>
-              {t('list.requestOrganization')}
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="secondary" size="sm" onClick={() => navigate(organizationsPath())}>
+                {t('list.browseOrganizations')}
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => navigate(newOrganizationPath())}>
+                {t('list.requestOrganization')}
+              </Button>
+            </div>
           </div>
         )}
 

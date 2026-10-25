@@ -168,17 +168,23 @@ export async function clickMapAt(page: Page, dx: number, dy: number): Promise<vo
   await viewport.click({ position: { x: box.width / 2 + dx, y: box.height / 2 + dy } });
 }
 
-/** Draw a polygon/line: click each (dx, dy) offset, then double-click the last to finish. */
-export async function drawPolygon(page: Page, points: Array<[number, number]>): Promise<void> {
+/** Click each (dx, dy) offset from the main map centre. */
+async function clickPath(page: Page, points: Array<[number, number]>): Promise<void> {
   const box = await mainViewport(page).boundingBox();
   if (!box) throw new Error('main map viewport has no bounding box');
   const cx = box.x + box.width / 2;
   const cy = box.y + box.height / 2;
-  for (let i = 0; i < points.length - 1; i++) {
-    await page.mouse.click(cx + points[i][0], cy + points[i][1]);
-  }
-  const [lx, ly] = points[points.length - 1];
-  await page.mouse.dblclick(cx + lx, cy + ly);
+  for (const [dx, dy] of points) await page.mouse.click(cx + dx, cy + dy);
+}
+
+/** Draw a polygon, closing it with a click on its first vertex. */
+export async function drawPolygon(page: Page, points: Array<[number, number]>): Promise<void> {
+  await clickPath(page, [...points, points[0]]);
+}
+
+/** Draw a line, finishing it with a second click on its last vertex. */
+export async function drawLine(page: Page, points: Array<[number, number]>): Promise<void> {
+  await clickPath(page, [...points, points[points.length - 1]]);
 }
 
 /** Minimal WKT parser: returns the geometry type and the first coordinate. */

@@ -9,13 +9,14 @@ describe('PanelHost', () => {
     const panel: PanelDef = {
       id: '10',
       role: 'imagery-window',
-      hideTarget: true,
+      placeholder: { name: 'Sentinel-2', description: 'Satellite imagery' },
       hidable: true,
       body: <div>Imagery map</div>,
     };
     const { rerender } = render(<PanelHost panel={panel} editing onHidePanel={onHidePanel} />);
     const placeholder = screen.getByTestId('edit-placeholder-10');
     expect(screen.queryByText('Imagery map')).toBeNull();
+    expect(placeholder.textContent).toBe('Sentinel-2Satellite imagery');
     fireEvent.click(placeholder);
     expect(onHidePanel).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Hide 10' }));
@@ -26,13 +27,13 @@ describe('PanelHost', () => {
     expect(screen.getByText('Imagery map')).toBeTruthy();
   });
 
-  it('replaces a headerless timeline with a full drag header while editing, then restores it', () => {
+  it('replaces a headerless timeline with its placeholder while editing, then restores it', () => {
     const panel: PanelDef = {
       id: 'timeline',
       role: 'imagery-timeline',
       title: 'Timeline',
       headerless: true,
-      hideTarget: true,
+      placeholder: { name: 'Timeline', description: 'Steps through dates' },
       body: <div>slider</div>,
     };
     const { container, rerender } = render(<PanelHost panel={panel} editing={false} />);
@@ -40,12 +41,12 @@ describe('PanelHost', () => {
     expect(screen.getByText('slider').textContent).toBe('slider');
 
     rerender(<PanelHost panel={panel} editing />);
-    expect(container.querySelector('.panel-drag-handle')?.textContent).toBe('Timeline');
+    expect(container.querySelector('.card-header')).toBeNull();
+    expect(screen.getByTestId('edit-placeholder-timeline').textContent).toBe(
+      'TimelineSteps through dates'
+    );
     expect(screen.queryByText('slider')).toBeNull();
     expect(container.querySelector('.panel-body')).toBeNull();
-    expect(container.querySelector('.panel-drag-handle')?.classList.contains('editable')).toBe(
-      true
-    );
 
     rerender(<PanelHost panel={panel} editing={false} />);
     expect(container.querySelector('.panel-drag-handle')).toBeNull();

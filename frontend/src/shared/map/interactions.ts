@@ -7,6 +7,7 @@ import Feature, { type FeatureLike } from 'ol/Feature';
 import RenderFeature, { toGeometry } from 'ol/render/Feature';
 import type Geometry from 'ol/geom/Geometry';
 import LineString from 'ol/geom/LineString';
+import Point from 'ol/geom/Point';
 import Polygon from 'ol/geom/Polygon';
 import Draw from 'ol/interaction/Draw';
 import Modify from 'ol/interaction/Modify';
@@ -14,7 +15,11 @@ import Translate from 'ol/interaction/Translate';
 import DragBox from 'ol/interaction/DragBox';
 import Extent from 'ol/interaction/Extent';
 import Snap from 'ol/interaction/Snap';
-import { altKeyOnly, always, shiftKeyOnly } from 'ol/events/condition';
+import { altKeyOnly, always, noModifierKeys, shiftKeyOnly } from 'ol/events/condition';
+import type MapBrowserEvent from 'ol/MapBrowserEvent';
+import type { Coordinate } from 'ol/coordinate';
+import { Circle as CircleStyle, Fill, Stroke, Style } from 'ol/style';
+import type { StyleFunction } from 'ol/style/Style';
 import { toLonLat, transformExtent } from 'ol/proj';
 import GeoJSONFormat from 'ol/format/GeoJSON';
 import { LAYER_ID_PROP, featurePropsOf, layerFeatureId, toOlStyle } from './layers';
@@ -83,6 +88,49 @@ const DEFAULT_SKETCH_STYLE: StyleSpec = {
     fill: { color: 'rgba(0,0,0,0.85)' },
   },
 };
+
+/** How far from the first vertex a click still closes a polygon. */
+const CLOSE_TOLERANCE_PX = 10;
+/** OL's 6px default drops fast clicks whose pointer drifts between down and
+ *  up, which reads as the sketch ignoring a click. */
+const CLICK_TOLERANCE_PX = 12;
+
+function withinPx(map: OLMap, pixel: number[], coordinate: Coordinate, px: number): boolean {
+  const [x, y] = map.getPixelFromCoordinate(coordinate);
+  return Math.hypot(pixel[0] - x, pixel[1] - y) <= px;
+}
+
+/** The sketch style plus a dot on a polygon's first vertex, the one place a
+ *  click closes it. The dot grows while the pointer is close enough to close. */
+function sketchStyleOf(spec: StyleSpec): StyleFunction {
+  const base = toOlStyle(spec);
+  const color = spec.circle?.stroke?.color ?? spec.stroke?.color ?? 'rgba(0,0,0,0.85)';
+  const firstVertex = (feature: FeatureLike) => {
+    const geometry = feature.getGeometry();
+    return geometry instanceof Polygon ? new Point(geometry.getCoordinates()[0][0]) : undefined;
+  };
+  const dot = (radius: number) =>
+    new Style({
+      image: new CircleStyle({
+        radius,
+        fill: new Fill({ color }),
+        stroke: new Stroke({ color: 'white', width: 2 }),
+      }),
+      geometry: firstVertex,
+    });
+  const idle = dot(5);
+  const closing = dot(8);
+  return (feature, resolution) => {
+    const geometry = feature.getGeometry();
+    if (!(geometry instanceof Polygon)) return base;
+    // The ring is [...corners, pointer, first].
+    const ring = geometry.getCoordinates()[0];
+    const [first, pointer] = [ring[0], ring[ring.length - 2]];
+    const pointerOnFirst =
+      Math.hypot(pointer[0] - first[0], pointer[1] - first[1]) / resolution <= CLOSE_TOLERANCE_PX;
+    return [base, sketchIsFinishable('Polygon', geometry) && pointerOnFirst ? closing : idle];
+  };
+}
 
 function sameStyle(a: StyleSpec | undefined, b: StyleSpec | undefined): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
@@ -254,11 +302,32 @@ function setup(map: OLMap, spec: InteractionSpec, sketchLayer: SketchLayer): Att
     // shape stays behind, drawn in the sketch layer's default style on top of
     // the annotation the caller renders. The sketch is scratch surface only -
     // the committed result is drawn from the caller's own layer spec.
+    let sketch: Feature<Geometry> | null = null;
+    // OL treats the first *and* the last vertex of a polygon as its finish
+    // point: it closes on a click near either and pins the sketch cursor to
+    // them, so after every click the cursor stuck on the vertex just placed.
+    // Polygons get a 1px tolerance to keep that out of the way, and close here
+    // instead, on a press near the first vertex only.
+    const closesPolygonAt = (e: MapBrowserEvent) => {
+      const geometry = sketch?.getGeometry();
+      if (shape !== 'Polygon' || !(geometry instanceof Polygon)) return false;
+      if (!sketchIsFinishable(shape, geometry)) return false;
+      return withinPx(map, e.pixel, geometry.getCoordinates()[0][0], CLOSE_TOLERANCE_PX);
+    };
     const draw = new Draw({
       type: shape,
-      style: toOlStyle(sketchStyle ?? DEFAULT_SKETCH_STYLE),
+      style: sketchStyleOf(sketchStyle ?? DEFAULT_SKETCH_STYLE),
+      snapTolerance: shape === 'Polygon' ? 1 : CLOSE_TOLERANCE_PX,
+      clickTolerance: CLICK_TOLERANCE_PX,
+      condition: (e) => {
+        if (!closesPolygonAt(e)) return noModifierKeys(e);
+        draw.finishDrawing();
+        return false;
+      },
+      // What still reaches OL's own finish check for a polygon is the second
+      // click of a double-click on the last vertex, which should do nothing.
+      finishCondition: () => shape !== 'Polygon',
     });
-    let sketch: Feature<Geometry> | null = null;
     draw.on('drawstart', (evt) => {
       attached.drawing = true;
       sketch = evt.feature;
