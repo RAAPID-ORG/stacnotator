@@ -4,6 +4,8 @@ export interface Segment<T extends string> {
   value: T;
   label: ReactNode;
   Icon?: ComponentType<{ className?: string }>;
+  disabled?: boolean;
+  title?: string;
 }
 
 interface SegmentedControlProps<T extends string> {
@@ -11,6 +13,10 @@ interface SegmentedControlProps<T extends string> {
   value: T;
   onChange: (value: T) => void;
   'aria-label': string;
+  /** `bar` matches the controls of a page's top bar (BarButton). */
+  size?: 'form' | 'bar';
+  title?: string;
+  'data-testid'?: string;
 }
 
 /** A choice between a few peers, shown side by side as one control. */
@@ -19,13 +25,18 @@ export const SegmentedControl = <T extends string>({
   value,
   onChange,
   'aria-label': ariaLabel,
+  size = 'form',
+  title,
+  'data-testid': testId,
 }: SegmentedControlProps<T>) => (
   <div
     role="radiogroup"
     aria-label={ariaLabel}
-    className="inline-flex rounded-md border border-neutral-200 bg-neutral-50 p-0.5"
+    title={title}
+    data-testid={testId}
+    className="inline-flex shrink-0 rounded-md border border-neutral-200 bg-neutral-50 p-0.5"
   >
-    {segments.map(({ value: option, label, Icon }) => {
+    {segments.map(({ value: option, label, Icon, disabled, title: segmentTitle }) => {
       const selected = option === value;
       return (
         <button
@@ -33,8 +44,12 @@ export const SegmentedControl = <T extends string>({
           type="button"
           role="radio"
           aria-checked={selected}
+          disabled={disabled}
+          title={segmentTitle}
           onClick={() => onChange(option)}
-          className={`inline-flex h-7 items-center gap-1.5 rounded px-2.5 text-xs transition-colors cursor-pointer ${
+          className={`inline-flex items-center gap-1.5 rounded transition-colors cursor-pointer disabled:cursor-not-allowed disabled:text-neutral-300 ${
+            size === 'bar' ? 'h-7 px-2.5 text-[13px]' : 'h-7 px-2.5 text-xs'
+          } ${
             selected
               ? 'bg-white text-neutral-900 shadow-sm ring-1 ring-neutral-200'
               : 'text-neutral-500 hover:text-neutral-800'

@@ -218,4 +218,4 @@ Both work modes (**Tasks**, predefined locations; **Explore**, free-form) share 
 
 ## Further docs
 
-`docs/architecture.md` (services overview), `docs/development.md` (branching/CI/deploy), `docs/features.md` (full feature list), `docs/tile-serving.md` + `docs/tilers.md` (tiler internals), `docs/annotation-tiles.md` (annotation vector tiles, editing, multi-user sync), `deployment/azure/README.md` (deployment), `docs/upgrading.md` (deploying the redesigned data model and the API changes it brought).
+`docs/architecture.md` (services overview), `docs/development.md` (branching/CI/deploy), `docs/features.md` (full feature list), `docs/tile-serving.md` + `docs/tilers.md` (tiler internals), `docs/annotation-tiles.md` (annotation vector tiles, editing, multi-user sync), `deployment/azure/README.md` (deployment), `docs/upgrading.md` (deploying the redesigned data model and the API changes it brought), `docs/ui.md` (type, icon and control conventions: read before styling a control).

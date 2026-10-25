@@ -2,7 +2,7 @@ import { Fragment, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
 import { useLayoutStore } from '~/shared/stores/layout.store';
-import { IconUploadFilled } from '~/shared/ui/Icons';
+import { IconUpload } from '~/shared/ui/Icons';
 import { Button } from '~/shared/ui/forms';
 import { FadeIn } from '~/shared/ui/motion';
 import { AnnotationsReview } from '../components/review/AnnotationsReview';
@@ -50,7 +50,7 @@ export const ReviewPage = () => {
                 size="sm"
                 onClick={() => setShowImport((v) => !v)}
                 aria-expanded={showImport}
-                leading={<IconUploadFilled className="w-4 h-4" />}
+                leading={<IconUpload className="w-4 h-4" />}
               >
                 {t('reviewPage.importAnnotations')}
               </Button>

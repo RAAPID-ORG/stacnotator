@@ -33,7 +33,7 @@ import {
   IconPencil,
   IconRobot,
   IconShield,
-  IconTaskListFilled,
+  IconTaskList,
   IconUsers,
 } from '~/shared/ui/Icons';
 import { AccountMenu } from './AccountMenu';
@@ -57,7 +57,7 @@ const PROJECT_SECTION_ICON: Record<ProjectSection, ReactNode> = {
 const CAMPAIGN_SECTION_ICON = {
   overview: <IconOverview />,
   annotate: <IconPencil />,
-  tasks: <IconTaskListFilled />,
+  tasks: <IconTaskList />,
   annotations: <IconChart />,
   agents: <IconRobot />,
   settings: <IconGear />,

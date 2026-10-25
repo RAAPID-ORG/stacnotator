@@ -9,7 +9,9 @@ import {
 } from '~/features/campaigns/utils/annotationExport';
 import { useDismissOnOutside } from '~/shared/hooks/useDismissOnOutside';
 import { useLayoutStore } from '~/shared/stores/layout.store';
-import { IconChevronDownFilled, IconDownloadFilled } from '~/shared/ui/Icons';
+import { BarButton } from '~/shared/ui/BarButton';
+import { Button } from '~/shared/ui/forms';
+import { IconChevronDown, IconDownload } from '~/shared/ui/Icons';
 import { Dropdown } from '~/shared/ui/motion';
 import { Spinner } from '~/shared/ui/Spinner';
 import { handleError } from '~/shared/utils/errorHandler';
@@ -100,24 +102,31 @@ export function ExportMenu({
   const busy = exporting !== null;
   return (
     <div ref={containerRef} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        disabled={busy || disabled}
-        title={t('export.title')}
-        data-testid="export-menu-trigger"
-        className={
-          compact
-            ? `flex items-center gap-1 desktop:gap-2 px-2 desktop:px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${open ? 'bg-neutral-100' : ''}`
-            : 'px-4 py-2 bg-white border border-neutral-300 text-neutral-700 rounded-lg hover:bg-neutral-50 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2'
-        }
-      >
-        {busy && !compact ? <Spinner size="xs" /> : <IconDownloadFilled className="w-4 h-4" />}
-        <span className={compact ? 'hidden desktop:inline' : undefined}>
+      {compact ? (
+        <BarButton
+          icon={IconDownload}
+          label={busy ? t('export.exporting') : t('export.label')}
+          menu
+          collapse
+          active={open}
+          onClick={() => setOpen((o) => !o)}
+          disabled={busy || disabled}
+          title={t('export.title')}
+          data-testid="export-menu-trigger"
+        />
+      ) : (
+        <Button
+          variant="secondary"
+          onClick={() => setOpen((o) => !o)}
+          disabled={busy || disabled}
+          title={t('export.title')}
+          data-testid="export-menu-trigger"
+          leading={busy ? <Spinner size="xs" /> : <IconDownload className="h-4 w-4" />}
+          trailing={<IconChevronDown className="h-3.5 w-3.5 text-neutral-400" />}
+        >
           {busy ? t('export.exporting') : t('export.label')}
-        </span>
-        <IconChevronDownFilled className={compact ? 'hidden desktop:block w-3 h-3' : 'w-3 h-3'} />
-      </button>
+        </Button>
+      )}
       <Dropdown
         open={open}
         className={`absolute top-full mt-1 z-30 ${compact ? 'left-0 origin-top-left' : 'right-0 origin-top-right'}`}

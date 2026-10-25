@@ -21,7 +21,7 @@ test.describe('empty-slice no-data alert', () => {
 
     await annotationPage
       .getByTestId('work-mode-switch')
-      .getByRole('button', { name: 'Explore' })
+      .getByRole('radio', { name: 'Explore' })
       .click();
     await annotationPage.locator('body').click();
     for (let i = 0; i < 3; i++) {

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { saveCanvasLayout, type CampaignOutFull, type ImageryViewOut } from '~/api/client';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import { Button } from '~/shared/ui/forms';
+import { BarButton } from '~/shared/ui/BarButton';
 import { IconLayoutGrid } from '~/shared/ui/Icons';
 import { useLayoutStore as useAppLayoutStore } from '~/shared/stores/layout.store';
 import { useIsMobile } from '~/shared/utils/useIsMobile';
@@ -93,17 +94,14 @@ export function LayoutEditControls({
     // back to on mobile if editing were somehow entered anyway.
     if (isMobile) return null;
     return (
-      <button
-        type="button"
+      <BarButton
+        icon={IconLayoutGrid}
+        label={t('layoutEdit.edit')}
         onClick={startEditing}
         title={t('layoutEdit.editTip')}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-neutral-600 hover:bg-neutral-100 rounded transition-all"
         data-testid="edit-layout-trigger"
         data-tour="layout-controls"
-      >
-        <IconLayoutGrid className="w-3.5 h-3.5" />
-        {t('layoutEdit.edit')}
-      </button>
+      />
     );
   }
 

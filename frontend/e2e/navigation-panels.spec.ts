@@ -251,7 +251,7 @@ test('work list follows settings in both task and explore modes', async ({
     'button[title="Campaign Settings"] + [data-testid="open-work-list"]'
   );
   await expect(workList).toHaveText('All tasks');
-  await page.getByRole('button', { name: 'Explore', exact: true }).click();
+  await page.getByRole('radio', { name: 'Explore', exact: true }).click();
   await expect(workList).toHaveText('All annotations');
 });
 

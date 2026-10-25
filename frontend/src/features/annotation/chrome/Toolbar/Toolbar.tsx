@@ -4,16 +4,16 @@ import type { CampaignOutFull, ImageryViewOut, TaskOut, TaskSetOut } from '~/api
 import { useDismissOnOutside } from '~/shared/hooks/useDismissOnOutside';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Dropdown } from '~/shared/ui/motion';
+import { BarButton } from '~/shared/ui/BarButton';
 import {
-  IconChevronDownFilled,
   IconChevronLeft,
   IconDocument,
-  IconFullscreenExitFilled,
-  IconFullscreenFilled,
-  IconGearFilled,
-  IconImageFilled,
+  IconFilter,
+  IconFullscreen,
+  IconFullscreenExit,
+  IconGear,
+  IconImage,
   IconQuestion,
-  IconTaskListFilled,
 } from '~/shared/ui/Icons';
 import type { PolicyContext } from '~/features/campaigns/utils/labellingPolicy';
 import { useCampaignStore } from '../../stores/campaign';
@@ -56,19 +56,16 @@ function ViewPicker({ campaign }: { campaign: CampaignOutFull }) {
 
   return (
     <div ref={containerRef} className="relative" data-tour="imagery-selector">
-      <button
-        type="button"
+      <BarButton
+        icon={IconImage}
+        label={selected ? selected.name : t('toolbar.selectView')}
+        menu
+        collapse
+        active={open}
         onClick={() => setOpen((o) => !o)}
-        className={`flex items-center gap-1 desktop:gap-2 px-2 desktop:px-3 py-1.5 text-sm text-neutral-900 hover:bg-neutral-100 rounded transition-colors ${open ? 'bg-neutral-100' : ''}`}
         title={selected ? t('toolbar.viewTip', { name: selected.name }) : t('toolbar.switchView')}
         data-testid="view-picker-trigger"
-      >
-        <IconImageFilled className="w-5 h-5" />
-        <span className="hidden desktop:inline">
-          {selected ? selected.name : t('toolbar.selectView')}
-        </span>
-        <IconChevronDownFilled className="hidden desktop:block w-4 h-4" />
-      </button>
+      />
       <Dropdown
         open={open}
         className="absolute top-full left-0 mt-0.5 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 min-w-[200px] max-h-[400px] overflow-y-auto origin-top-left"
@@ -127,21 +124,18 @@ export function Toolbar({
       data-tour="toolbar"
       className="flex items-center justify-between px-2 desktop:px-4 py-1 bg-white border-b border-neutral-200 flex-shrink-0 gap-1"
     >
-      <div className="flex items-center gap-0.5 desktop:gap-2">
+      <div className="flex min-w-0 items-center gap-1">
         {onNavigateCampaign && (
-          <button
-            type="button"
+          <BarButton
+            icon={IconChevronLeft}
             onClick={onNavigateCampaign}
-            className="flex items-center rounded px-1.5 py-1.5 text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900"
             title={t('toolbar.backTo', { name: campaign.name })}
             aria-label={t('toolbar.backTo', { name: campaign.name })}
             data-testid="back-to-campaign"
-          >
-            <IconChevronLeft className="h-4 w-4 shrink-0" />
-          </button>
+          />
         )}
 
-        <div className="h-5 w-px bg-neutral-200" />
+        <div className="mx-1 h-5 w-px bg-neutral-200" />
 
         <ModeSwitch campaign={campaign} hasTasks={tasks.length > 0} policy={policy} />
         <OriginTaskChip />
@@ -150,17 +144,16 @@ export function Toolbar({
 
         {workMode === 'tasks' && (
           <div ref={taskFilterRef} className="relative" data-tour="task-filter">
-            <button
-              type="button"
+            <BarButton
+              icon={IconFilter}
+              label={t('toolbar.filter')}
+              menu
+              collapse
+              active={taskFilterOpen}
               onClick={() => setTaskFilterOpen((o) => !o)}
-              className={`flex items-center gap-1 desktop:gap-2 px-2 desktop:px-3 py-1.5 text-sm text-neutral-900 hover:bg-neutral-100 rounded transition-colors ${taskFilterOpen ? 'bg-neutral-100' : ''}`}
               title={t('toolbar.filterTip')}
               data-testid="task-filter-trigger"
-            >
-              <IconTaskListFilled className="w-5 h-5" />
-              <span className="hidden desktop:inline">{t('toolbar.filter')}</span>
-              <IconChevronDownFilled className="hidden desktop:block w-4 h-4" />
-            </button>
+            />
             <Dropdown
               open={taskFilterOpen || forcedOpen}
               className="absolute top-full left-0 mt-1 origin-top-left z-20"
@@ -179,35 +172,29 @@ export function Toolbar({
           </div>
         )}
 
-        <div className="flex items-center rounded overflow-hidden" data-tour="review-toggle">
+        <div className="flex items-center" data-tour="review-toggle">
           {workMode === 'tasks' && <ReviewToggle onTaskFilterChange={onTaskFilterChange} />}
         </div>
 
         {policy.isAdmin && onNavigateSettings && (
-          <button
-            type="button"
+          <BarButton
+            icon={IconGear}
+            label={t('toolbar.settings')}
+            collapse
             onClick={onNavigateSettings}
-            className="flex items-center gap-1 desktop:gap-2 px-2 desktop:px-3 py-1.5 text-sm text-neutral-700 bg-white hover:bg-neutral-50 rounded transition-colors"
             title={t('toolbar.settingsTip')}
-          >
-            <IconGearFilled className="w-5 h-5" />
-            <span className="hidden desktop:inline">{t('toolbar.settings')}</span>
-          </button>
+          />
         )}
 
         {onNavigateWorkPage && (
-          <button
-            type="button"
+          <BarButton
+            icon={IconDocument}
+            label={workMode === 'tasks' ? t('toolbar.allTasks') : t('toolbar.allAnnotations')}
+            collapse
             onClick={onNavigateWorkPage}
-            className="flex items-center gap-1.5 rounded px-2 py-1.5 text-sm text-neutral-700 transition-colors hover:bg-neutral-100"
             title={workMode === 'tasks' ? t('toolbar.allTasksTip') : t('toolbar.allAnnotationsTip')}
             data-testid="open-work-list"
-          >
-            <IconDocument className="h-4 w-4" />
-            <span>
-              {workMode === 'tasks' ? t('toolbar.allTasks') : t('toolbar.allAnnotations')}
-            </span>
-          </button>
+          />
         )}
 
         <ExportMenu
@@ -219,31 +206,23 @@ export function Toolbar({
         />
       </div>
 
-      <div className="flex items-center gap-0.5 desktop:gap-2">
+      <div className="flex items-center gap-1">
         {layoutControls}
 
-        <button
-          type="button"
+        <BarButton
+          icon={isFullscreen ? IconFullscreenExit : IconFullscreen}
           onClick={toggleFullscreen}
-          className="flex items-center justify-center w-8 h-8 text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 rounded transition-colors"
           title={isFullscreen ? t('toolbar.exitFullscreen') : t('toolbar.enterFullscreen')}
-        >
-          {isFullscreen ? (
-            <IconFullscreenExitFilled className="w-5 h-5" />
-          ) : (
-            <IconFullscreenFilled className="w-5 h-5" />
-          )}
-        </button>
+          aria-label={isFullscreen ? t('toolbar.exitFullscreen') : t('toolbar.enterFullscreen')}
+        />
 
         {onOpenTour && (
-          <button
-            type="button"
+          <BarButton
+            icon={IconQuestion}
             onClick={onOpenTour}
-            className="flex items-center justify-center w-8 h-8 text-neutral-500 hover:text-brand-600 hover:bg-brand-50 rounded transition-colors"
             title={t('toolbar.tour')}
-          >
-            <IconQuestion className="w-5 h-5" />
-          </button>
+            aria-label={t('toolbar.tour')}
+          />
         )}
 
         <GuidePanel campaign={campaign} />
