@@ -24,7 +24,7 @@ import { campaignState, formFields, useCampaignStore, viewedSliceId } from './st
 import { currentTask, useTasksStore } from './stores/tasks';
 import { usePrefsStore } from './stores/prefs';
 import { forgetTaskActiveMs, readTaskActiveMs } from './taskTiming';
-import { useWorkStore } from './stores/work';
+import { drewFor, useWorkStore } from './stores/work';
 
 const t = i18n.getFixedT(null, ['annotation', 'common']);
 
@@ -396,9 +396,15 @@ export async function skipCurrent(): Promise<void> {
  *  map (the server checks there is at least one), `none_found` when there was
  *  nothing to draw. */
 export async function finishDrawTask(outcome: 'drawn' | 'none_found'): Promise<void> {
-  const { draft } = useWorkStore.getState();
+  const { draft, drawnShapes } = useWorkStore.getState();
   if ((draft.phase === 'draft' || draft.phase === 'committing') && draft.savedId === null) {
     alert(t('taskActions.finishDraftFirst'), 'error');
+    return;
+  }
+  const task = currentTask();
+  const { currentUserId } = useCampaignStore.getState();
+  if (outcome === 'drawn' && task && !drewFor(task, currentUserId, drawnShapes)) {
+    alert(t('taskActions.drawFirst'), 'error');
     return;
   }
   await guarded(async () => {

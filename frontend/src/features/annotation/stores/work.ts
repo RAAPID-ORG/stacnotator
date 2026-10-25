@@ -7,6 +7,7 @@ import {
   updateAnnotation,
   type AnnotationCreate,
   type AnnotationOut,
+  type TaskOut,
 } from '~/api/client';
 import { useLayoutStore as useGlobalLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
@@ -122,9 +123,10 @@ interface WorkState {
   draft: Draft;
   /** The task the shape being drawn is saved against. */
   draftLink: TaskLink;
-  /** Draw tasks this user saved shapes for in this session; the server's
+  /** Draw tasks this user saved shapes for in this session, with the ids of
+   *  those shapes where the save reported them; the server's
    *  `drawn_by_user_ids` covers the ones from before it. */
-  drawnTaskIds: number[];
+  drawnShapes: ReadonlyMap<number, number[]>;
   selection: number[];
   /** Where the selection's on-map controls sit: the top-right of the geometry
    *  being edited, or of the box that selected many. */
@@ -216,7 +218,7 @@ interface WorkState {
   toggleProbeTool: () => void;
 
   beginDraft: (labelId: number, link?: TaskLink) => void;
-  noteDrawn: (link: TaskLink) => void;
+  noteDrawn: (link: TaskLink, ids: number[]) => void;
   /** A shape finished drawing. Only an unanswered required question holds it
    *  back as a draft; otherwise it is stored right away, with its optional
    *  questions still open for answers. */
@@ -266,6 +268,31 @@ const alert = (message: string, kind: 'error' | 'success') =>
  */
 const REMOTE_POLL_MS = 5_000;
 
+/** Forget deleted shapes. A task whose last known shape went is no longer
+ *  drawn; one saved in a batch, whose ids never came back, stays drawn. */
+function withoutShapes(
+  drawn: ReadonlyMap<number, number[]>,
+  deleted: number[]
+): ReadonlyMap<number, number[]> {
+  const gone = new Set(deleted);
+  if (![...drawn.values()].some((ids) => ids.some((id) => gone.has(id)))) return drawn;
+  const next = new Map<number, number[]>();
+  for (const [taskId, ids] of drawn) {
+    const kept = ids.filter((id) => !gone.has(id));
+    if (kept.length > 0 || ids.length === 0) next.set(taskId, kept);
+  }
+  return next;
+}
+
+/** Whether this user has shapes saved as draw task `task`'s answer. */
+export function drewFor(
+  task: TaskOut,
+  userId: string | null,
+  drawnShapes: ReadonlyMap<number, number[]>
+): boolean {
+  return drawnShapes.has(task.id) || (task.drawn_by_user_ids ?? []).some((id) => id === userId);
+}
+
 export const useWorkStore = create<WorkState>((set, get) => {
   /** Record a change the tiles do not have yet, refreshing them instead once
    *  the delta has grown past what an overlay should be drawing. */
@@ -305,7 +332,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
       const id = result.data?.id ?? null;
       if (id !== null) {
         recordLocal(id, labelId, geometry);
-        get().noteDrawn(draftLink);
+        get().noteDrawn(draftLink, [id]);
       }
       return id;
     } catch {
@@ -380,7 +407,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
     commenting: null,
     draft: { phase: 'idle' },
     draftLink: {},
-    drawnTaskIds: [],
+    drawnShapes: new Map(),
     selection: [],
     selectionAnchor: null,
     edit: null,
@@ -455,7 +482,13 @@ export const useWorkStore = create<WorkState>((set, get) => {
     refreshTiles: () =>
       set((s) => ({ tileRefreshes: s.tileRefreshes + 1, delta: rotate(s.delta) })),
     recordWrites: (writes) => applyDelta((d) => withWrites(d, writes)),
-    recordDeletes: (ids) => applyDelta((d) => withDeletes(d, ids)),
+    recordDeletes: (ids) => {
+      applyDelta((d) => withDeletes(d, ids));
+      set((s) => {
+        const drawnShapes = withoutShapes(s.drawnShapes, ids);
+        return drawnShapes === s.drawnShapes ? {} : { drawnShapes };
+      });
+    },
 
     syncRemoteAnnotations: async () => {
       try {
@@ -501,7 +534,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
         commenting: null,
         draft: { phase: 'idle' },
         draftLink: {},
-        drawnTaskIds: [],
+        drawnShapes: new Map(),
         selection: [],
         selectionAnchor: null,
         edit: null,
@@ -548,8 +581,14 @@ export const useWorkStore = create<WorkState>((set, get) => {
     // Slice notes survive the reset: noticing something about an image and
     // then drawing what it is about is one gesture, and the note belongs to
     // the shape that follows it.
-    noteDrawn: ({ output_of_task_id: taskId }) => {
-      if (taskId != null) set((s) => ({ drawnTaskIds: [...s.drawnTaskIds, taskId] }));
+    noteDrawn: ({ output_of_task_id: taskId }, ids) => {
+      if (taskId == null) return;
+      set((s) => ({
+        drawnShapes: new Map(s.drawnShapes).set(taskId, [
+          ...(s.drawnShapes.get(taskId) ?? []),
+          ...ids,
+        ]),
+      }));
     },
 
     beginDraft: (labelId, link = {}) =>

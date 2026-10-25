@@ -95,8 +95,10 @@ export async function labelGeometries(geometries: GeoJSON.Geometry[]): Promise<L
   const bodies = geometries.map((geometry) => newAnnotationBody(geometry, labelId, details, link));
   try {
     let count = 1;
+    let ids: number[] = [];
     if (bodies.length === 1) {
-      await createAnnotation({ path: { campaign_id: campaignId }, body: bodies[0] });
+      const result = await createAnnotation({ path: { campaign_id: campaignId }, body: bodies[0] });
+      ids = result.data ? [result.data.id] : [];
     } else {
       // One request and one transaction for the set: labelling hundreds of
       // vector features must not be hundreds of round trips.
@@ -106,7 +108,7 @@ export async function labelGeometries(geometries: GeoJSON.Geometry[]): Promise<L
       });
       count = result.data?.created_count ?? bodies.length;
     }
-    work.noteDrawn(link);
+    work.noteDrawn(link, ids);
     return { kind: 'saved', count };
   } catch (error) {
     return { kind: 'error', message: extractErrorMessage(error) };

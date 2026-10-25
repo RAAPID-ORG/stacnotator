@@ -720,7 +720,8 @@
       "description": "Puedes volver a ella más tarde.",
       "confirm": "Omitir"
     },
-    "finishDraftFirst": "Guarda o descarta primero la forma que estás dibujando."
+    "finishDraftFirst": "Guarda o descarta primero la forma que estás dibujando.",
+    "drawFirst": "Dibuja primero una forma para esta tarea, o pulsa Nada aquí."
   },
   "drawing": {
     "labelFailed": "No se pudieron etiquetar las entidades: {{message}}",

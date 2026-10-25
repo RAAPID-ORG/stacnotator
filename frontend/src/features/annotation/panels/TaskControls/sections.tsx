@@ -7,7 +7,7 @@ import { FormFields } from '../../components/FormFields';
 import { useCampaign, useCampaignStore, useCatalog } from '../../stores/campaign';
 import type { TaskOut } from '~/api/client';
 import { useTasksStore } from '../../stores/tasks';
-import { useWorkStore } from '../../stores/work';
+import { drewFor, useWorkStore } from '../../stores/work';
 import {
   DEFAULT_CONFIDENCE,
   finishDrawTask,
@@ -140,7 +140,7 @@ export function ConfidenceSection() {
  *  reach however many fields a campaign asks for. The point navigation wraps
  *  onto a line of its own when the panel is too narrow for one row. */
 export function ActionBar({ task }: { task: TaskOut }) {
-  const { t } = useTranslation(['panels', 'common']);
+  const { t } = useTranslation(['panels', 'common', 'annotation']);
   const campaign = useCampaign();
   const catalog = useCatalog();
   const currentUserId = useCampaignStore((s) => s.currentUserId);
@@ -166,9 +166,11 @@ export function ActionBar({ task }: { task: TaskOut }) {
   // Skipping is labelling with no label, so it is gated the same way. Keying
   // it on assignment would put it out of reach on the whole unassigned pool.
   const isSkipDisabled = isBusy || !mayLabel;
-  const drewHere =
-    useWorkStore((s) => s.drawnTaskIds.includes(task.id)) ||
-    (task.drawn_by_user_ids ?? []).some((id) => id === currentUserId);
+  const drewHere = drewFor(
+    task,
+    currentUserId,
+    useWorkStore((s) => s.drawnShapes)
+  );
   const submitLabel = isBusy
     ? t('task.submitting')
     : drawTask
@@ -242,7 +244,7 @@ export function ActionBar({ task }: { task: TaskOut }) {
           )}
           <button
             type="button"
-            disabled={drawTask ? isSkipDisabled : isSubmitDisabled}
+            disabled={drawTask ? isSkipDisabled || !drewHere : isSubmitDisabled}
             onClick={() =>
               void (drawTask
                 ? finishDrawTask('drawn')
@@ -252,7 +254,9 @@ export function ActionBar({ task }: { task: TaskOut }) {
             }
             title={
               drawTask
-                ? t('task.doneTitle')
+                ? drewHere
+                  ? t('task.doneTitle')
+                  : t('annotation:taskActions.drawFirst')
                 : asAuthoritative
                   ? isAssignedToTask
                     ? t('task.authoritativeAssignedTitle')

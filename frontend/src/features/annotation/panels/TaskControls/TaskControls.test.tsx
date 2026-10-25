@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import * as api from '~/api/client';
 import type { TaskOut, CampaignOutFull } from '~/api/client';
 import { buildImageryCatalog } from '../../campaign/imagery';
@@ -164,7 +164,9 @@ describe('TaskControls draw task', () => {
         assignment_status: 'done',
       })
     );
-    seed(makeCampaign({ settings: { ...OPEN_POLICY.settings, task_output: 'draw' } }), [OPEN_TASK]);
+    seed(makeCampaign({ settings: { ...OPEN_POLICY.settings, task_output: 'draw' } }), [
+      { ...OPEN_TASK, drawn_by_user_ids: ['u1'] },
+    ]);
 
     render(<TaskControls />);
     expect(screen.queryByRole('button', { name: /submit/i })).toBeNull();
@@ -186,6 +188,22 @@ describe('TaskControls draw task', () => {
 
     const nothingHere = await screen.findByRole('button', { name: 'Nothing here' });
     expect((nothingHere as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('offers Done only while this user has a shape on the task', async () => {
+    seed(makeCampaign({ settings: { ...OPEN_POLICY.settings, task_output: 'draw' } }), [OPEN_TASK]);
+    render(<TaskControls />);
+    const done = await screen.findByRole('button', { name: 'Done' });
+    const nothingHere = screen.getByRole('button', { name: 'Nothing here' });
+    expect(done).toHaveProperty('disabled', true);
+
+    act(() => useWorkStore.getState().noteDrawn({ output_of_task_id: OPEN_TASK.id }, [21]));
+    expect(done).toHaveProperty('disabled', false);
+    expect(nothingHere).toHaveProperty('disabled', true);
+
+    act(() => useWorkStore.getState().recordDeletes([21]));
+    expect(done).toHaveProperty('disabled', true);
+    expect(nothingHere).toHaveProperty('disabled', false);
   });
 });
 
