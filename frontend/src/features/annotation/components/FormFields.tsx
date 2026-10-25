@@ -49,6 +49,11 @@ export interface FormFieldsProps {
  *  one custom field. Shared so every group in the panel reads the same. */
 export const activeGroupClass = 'ring-1 ring-inset ring-brand-500/50 rounded bg-brand-50/35';
 
+export const sectionHeaderClass = (active = false) =>
+  `text-[11px] font-medium uppercase tracking-wider ${
+    active ? 'text-brand-700' : 'text-neutral-500'
+  }`;
+
 // Laid out and sized like the label chips, so every choice in the panel reads the same.
 const optionButtonClass = (selected: boolean, disabled: boolean) =>
   `min-w-0 text-left px-2.5 py-1 text-[11px] font-medium rounded transition-colors flex gap-2 justify-between items-center ${
@@ -94,11 +99,7 @@ function applyDateRangeSide(
 
 function FieldHeader({ field, active }: { field: FormField; active: boolean }) {
   return (
-    <div
-      className={`flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider ${
-        active ? 'text-brand-700' : 'text-neutral-500'
-      }`}
-    >
+    <div className={`flex items-center gap-1 ${sectionHeaderClass(active)}`}>
       <span>{field.title}</span>
       {field.required && <span className="text-red-500">*</span>}
       {field.description && (

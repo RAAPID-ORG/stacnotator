@@ -1,8 +1,3 @@
-export const sectionHeaderClass = (active = false) =>
-  `text-[11px] font-medium uppercase tracking-wider ${
-    active ? 'text-brand-700' : 'text-neutral-500'
-  }`;
-
 /** Lays out the labels and sections above the action bar: one per row when
  *  narrow, as many cells across as fit when wide, each row as tall as its
  *  tallest cell. Cells draw their own right and bottom rules; the grid hangs a

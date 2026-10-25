@@ -15,6 +15,7 @@ import { useCampaign, useCanModifyAnnotation } from '../../stores/campaign';
 import { useWorkStore } from '../../stores/work';
 import { FormFields } from '../../components/FormFields';
 import { LabelChips } from '../../components/LabelChips';
+import { CHIP_MIN_WIDTH } from '../../components/chipGrid';
 
 function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
   const { t } = useTranslation('panels');
@@ -85,6 +86,7 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
 
       {selectable.length > 1 && (
         <LabelChips
+          minWidth={CHIP_MIN_WIDTH}
           labels={selectable}
           selectedId={labelId}
           onSelect={(label) => {

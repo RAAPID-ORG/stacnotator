@@ -18,7 +18,8 @@ import {
   taskLabellingPolicy,
 } from '../../taskActions';
 import { PointJumper } from './PointJumper';
-import { sectionCellClass, sectionHeaderClass } from './styles';
+import { sectionCellClass } from './styles';
+import { sectionHeaderClass } from '../../components/FormFields';
 
 const textareaClass =
   'w-full resize-none px-2.5 py-2 text-xs text-neutral-900 bg-white border border-neutral-300 rounded-md focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 disabled:bg-neutral-50 disabled:opacity-60 placeholder:text-neutral-400 transition-colors';

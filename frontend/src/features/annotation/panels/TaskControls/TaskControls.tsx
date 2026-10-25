@@ -12,7 +12,8 @@ import { ExploreControls } from '../ExploreControls/ExploreControls';
 import { LabelGrid } from './LabelGrid';
 import { ReviewList } from './ReviewList';
 import { ActionBar, CommentSection, ConfidenceSection, FieldsSection } from './sections';
-import { sectionCellClass, sectionGridClass, sectionHeaderClass } from './styles';
+import { sectionCellClass, sectionGridClass } from './styles';
+import { sectionHeaderClass } from '../../components/FormFields';
 import { currentTask, useTasksStore } from '../../stores/tasks';
 import { useClaims } from './useClaims';
 

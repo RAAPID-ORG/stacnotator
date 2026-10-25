@@ -14,8 +14,9 @@ import { usePrefsStore } from '../../stores/prefs';
 import { useCampaign } from '../../stores/campaign';
 import { MAX_PROBES, useWorkStore, type Tool } from '../../stores/work';
 import { helpRows } from '../../hotkeys';
-import { activeGroupClass, FormFields } from '../../components/FormFields';
+import { activeGroupClass, FormFields, sectionHeaderClass } from '../../components/FormFields';
 import { LabelChips } from '../../components/LabelChips';
+import { CHIP_MIN_WIDTH } from '../../components/chipGrid';
 import { DraftCatalog } from './DraftCatalog';
 import { EditDetails } from './EditDetails';
 import { LabelStyleEditor } from './LabelStyleEditor';
@@ -81,7 +82,7 @@ function Icon({ path }: { path: string }) {
 const chipRowClass = 'grid grid-cols-[repeat(auto-fill,minmax(min(8.5rem,100%),1fr))] gap-1.5';
 
 const chipClass = (active: boolean) =>
-  `flex min-w-0 items-center justify-center gap-1.5 px-2 py-1.5 rounded text-[11px] font-medium transition-colors cursor-pointer ${
+  `flex min-w-0 items-center justify-center gap-1.5 px-2 py-1 rounded text-[11px] font-medium transition-colors cursor-pointer ${
     active
       ? 'bg-brand-50 text-brand-700 border border-brand-600'
       : 'bg-neutral-50 text-neutral-600 border border-neutral-200 hover:bg-neutral-100 hover:border-neutral-300'
@@ -99,7 +100,7 @@ function ShortcutLegend() {
       data-testid="explore-shortcuts"
       className="group pt-2 border-t border-neutral-200 w-full"
     >
-      <summary className="flex items-center gap-1 cursor-pointer select-none list-none font-semibold text-neutral-700 text-[11px] [&::-webkit-details-marker]:hidden">
+      <summary className="flex items-center gap-1 cursor-pointer select-none list-none text-[11px] font-medium uppercase tracking-wider text-neutral-500 [&::-webkit-details-marker]:hidden">
         <IconChevronRight className="w-3 h-3 text-neutral-400 transition-transform group-open:rotate-90" />
         {t('explore.shortcuts')}
       </summary>
@@ -133,9 +134,7 @@ function ProbeControls() {
 
   return (
     <div className="flex flex-col gap-1.5 w-full">
-      <span className="font-semibold text-neutral-700 text-xs tracking-wide">
-        {t('tools.timeseries')}
-      </span>
+      <span className={sectionHeaderClass()}>{t('tools.timeseries')}</span>
       <p className="text-[11px] text-neutral-500 leading-relaxed">{t('probes.help')}</p>
       <div className={chipRowClass}>
         <button
@@ -228,9 +227,7 @@ export function ExploreControls() {
     <div className="w-full h-full p-2 bg-white overflow-y-auto">
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-1.5">
-          <span className="font-semibold text-neutral-700 text-xs tracking-wide">
-            {t('explore.tools')}
-          </span>
+          <span className={sectionHeaderClass()}>{t('explore.tools')}</span>
           <div className={chipRowClass}>
             {availableTools.map((def) => (
               <button
@@ -290,11 +287,7 @@ export function ExploreControls() {
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span
-                    className={`font-semibold text-xs tracking-wide ${
-                      labelGroupActive ? 'text-brand-700' : 'text-neutral-700'
-                    }`}
-                  >
+                  <span className={sectionHeaderClass(labelGroupActive)}>
                     {t('explore.labels')}
                   </span>
                   {labels.length > 0 && (
@@ -320,6 +313,7 @@ export function ExploreControls() {
                 ) : (
                   <LabelChips
                     fill
+                    minWidth={CHIP_MIN_WIDTH}
                     labels={labels.map(swatch)}
                     selectedId={selectedLabelId}
                     onSelect={(label) => useWorkStore.getState().selectLabel(label.id)}
@@ -386,9 +380,7 @@ export function ExploreControls() {
 
         {tool === 'edit' && (
           <div className="flex flex-col gap-2 w-full">
-            <span className="font-semibold text-neutral-700 text-xs tracking-wide">
-              {t('explore.editTool')}
-            </span>
+            <span className={sectionHeaderClass()}>{t('explore.editTool')}</span>
             {/* Once a geometry is open the panel is about that geometry; the
                 how-to would push its fields out of view for no one's benefit. */}
             {!editing && (
@@ -402,9 +394,7 @@ export function ExploreControls() {
 
         {tool === 'pan' && (
           <div className="flex flex-col gap-1.5 w-full">
-            <span className="font-semibold text-neutral-700 text-xs tracking-wide">
-              {t('explore.navigation')}
-            </span>
+            <span className={sectionHeaderClass()}>{t('explore.navigation')}</span>
             <p className="text-[11px] text-neutral-600 leading-relaxed">{t('explore.panHelp')}</p>
             <p className="text-[11px] text-neutral-500 mt-0.5">{t('explore.panTip')}</p>
             <EditDetails />
@@ -412,7 +402,7 @@ export function ExploreControls() {
         )}
 
         <div className="pt-2 border-t border-neutral-200 w-full flex flex-col gap-1.5">
-          <span className="font-semibold text-neutral-700 text-[11px]">{t('explore.display')}</span>
+          <span className={sectionHeaderClass()}>{t('explore.display')}</span>
           <label className="flex items-center gap-2 text-[11px] text-neutral-600 cursor-pointer">
             <input
               type="checkbox"
