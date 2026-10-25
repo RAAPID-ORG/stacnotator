@@ -258,7 +258,8 @@
     "saveFailed": "No se pudieron guardar los cambios de imágenes",
     "saveBeforeReregister": "Guarda tus cambios antes de volver a registrar esta fuente.",
     "cannotReregister": "No se puede volver a registrar",
-    "reregisterFailed": "No se pudo volver a registrar la fuente"
+    "reregisterFailed": "No se pudo volver a registrar la fuente",
+    "reregisterStarted": "Volviendo a registrar las imágenes. El recuento de cortes registrados se actualiza al terminar."
   },
   "tiler": {
     "methods": {

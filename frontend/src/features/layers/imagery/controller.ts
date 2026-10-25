@@ -580,6 +580,7 @@ export function usePersistedController({
             path: { campaign_id: campaignId, source_id: Number(sourceId) },
           });
           refetch?.();
+          useLayoutStore.getState().showAlert(t('controller.reregisterStarted'), 'success');
         } catch (e) {
           handleError(e, t('controller.reregisterFailed'));
         } finally {
