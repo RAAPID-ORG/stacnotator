@@ -19,7 +19,7 @@ from src import perf
 from src.agents.router import router as agents_router
 from src.annotation.router import router as annotations_router
 from src.auth.router import router as auth_router
-from src.background import fail_stale_status_runs
+from src.background import fail_stale_status_runs, requeue_stale_runs
 from src.campaigns.router import router as campaigns_router
 from src.config import (
     DEV_APIKEY_ENCRYPTION_SECRET,
@@ -108,10 +108,10 @@ def _recover_background_runs() -> None:
     try:
         db = SessionLocal()
         try:
-            fail_stale_status_runs(
-                db,
-                (REGISTRATION_RUN, EMBEDDING_RUN, VISUALIZER_REGISTRATION_RUN, CUSTOM_MAP_RUN),
-            )
+            # A registration registers only what is still missing, so one cut off by
+            # a restart (a deploy during a long catch-up) is simply owed again.
+            requeue_stale_runs(db, (REGISTRATION_RUN, VISUALIZER_REGISTRATION_RUN))
+            fail_stale_status_runs(db, (EMBEDDING_RUN, CUSTOM_MAP_RUN))
             db.commit()
             registration.resume_pending(db)
             custom_layers_service.resume_pending(db)

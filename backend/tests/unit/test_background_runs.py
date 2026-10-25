@@ -160,6 +160,20 @@ class TestFailStaleStatusRuns:
         assert "interrupted - retry" in params["interrupted"]
 
 
+def test_an_interrupted_run_that_can_start_over_goes_back_to_pending():
+    db = MagicMock()
+    db.execute.return_value.scalars.return_value.all.return_value = [3, 5]
+
+    assert background.requeue_stale_runs(db, (FIELD,)) == 2
+
+    sql = str(db.execute.call_args.args[0])
+    assert "registration_status = 'pending'" in sql
+    assert "registration_status = 'registering'" in sql
+    assert "make_interval" in sql
+    # Nothing failed, so nothing is appended to its errors.
+    assert "registration_errors" not in sql
+
+
 def test_a_pending_run_is_claimed_by_the_update_that_starts_it():
     db = MagicMock()
     db.execute.return_value.scalars.return_value = [4, 9]
