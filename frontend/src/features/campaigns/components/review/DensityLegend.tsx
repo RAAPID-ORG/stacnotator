@@ -44,7 +44,7 @@ export const DensityLegend = <K extends DensityKey>({
                 boxShadow: '0 0 0 1px rgba(0,0,0,0.1)',
               }}
             />
-            <span className="capitalize">
+            <span>
               {name} ({count.toLocaleString()})
             </span>
           </button>

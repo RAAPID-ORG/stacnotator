@@ -202,7 +202,7 @@ export const DensityMap = <K extends DensityKey>({
                 offset: [8, -28],
                 content: (
                   <div className="pointer-events-none whitespace-nowrap rounded bg-white px-2 py-1 text-xs text-neutral-800 shadow">
-                    <span className="capitalize">{nameOf(hoveredCell.key)}</span>
+                    <span>{nameOf(hoveredCell.key)}</span>
                     {hoveredCell.count > 1 &&
                       ` · ${t('densityMap.countHere', { n: hoveredCell.count.toLocaleString() })}`}
                   </div>
