@@ -33,12 +33,12 @@ larger than Tailwind's defaults: `text-sm` is about 16px, `h-8` is 36px.
 
 ## Controls
 
-| Need                               | Use                                                                                                                                |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| A page action                      | `Button` (`primary` for the one main action, `secondary` beside it)                                                                |
-| A control in a top bar             | `BarButton`: h-8, 13px, 16px icon; `menu` adds a chevron, `active` marks pressed or open, `collapse` drops the label below desktop |
-| A choice between a few peers       | `SegmentedControl` (`size="bar"`: flat and borderless, in a top bar)                                                               |
-| A small icon action inside content | `IconButton`                                                                                                                       |
+| Need                               | Use                                                                                                                                                                        |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A page action                      | `Button` (`primary` for the one main action, `secondary` beside it)                                                                                                        |
+| A control in a top bar             | `BarButton`: h-8, 13px, 16px icon; `menu` adds a chevron, `active` marks pressed or open, `collapse` drops the label on touch and in a bar (`@container/bar`) under 1260px |
+| A choice between a few peers       | `SegmentedControl` (`size="bar"`: flat and borderless, in a top bar)                                                                                                       |
+| A small icon action inside content | `IconButton`                                                                                                                                                               |
 
 A bar's controls sit `gap-1` apart, with a `h-5 w-px bg-neutral-200` rule
 between groups. Dropdowns opened from a page header or bar sit at `z-30`, above

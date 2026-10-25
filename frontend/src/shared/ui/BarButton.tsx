@@ -12,7 +12,8 @@ interface BarButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   /** Pressed, or its menu is open. */
   active?: boolean;
   tone?: Tone;
-  /** Below the desktop breakpoint only the icon shows. */
+  /** Only the icon shows on touch devices, and in a bar (an `@container/bar`)
+   *  too narrow for every label. */
   collapse?: boolean;
 }
 
@@ -49,11 +50,12 @@ export function BarButton({
   ...rest
 }: BarButtonProps) {
   const colors = tones[tone];
-  const hideBelowDesktop = collapse ? 'hidden desktop:inline' : '';
+  // 1260px fits every label of the annotation toolbar, the widest bar.
+  const collapsedLabel = collapse ? 'hidden desktop:@min-[1260px]/bar:inline' : '';
   const shape =
     label === undefined
       ? 'w-8 justify-center'
-      : `gap-1.5 ${collapse ? 'px-2 desktop:px-2.5' : 'px-2.5'}`;
+      : `gap-1.5 ${collapse ? 'px-2 desktop:@min-[1260px]/bar:px-2.5' : 'px-2.5'}`;
   return (
     <button
       type={type ?? 'button'}
@@ -63,10 +65,10 @@ export function BarButton({
       {...rest}
     >
       <Icon className={`h-4 w-4 shrink-0 ${active ? colors.activeIcon : colors.icon}`} />
-      {label !== undefined && <span className={`truncate ${hideBelowDesktop}`}>{label}</span>}
+      {label !== undefined && <span className={`truncate ${collapsedLabel}`}>{label}</span>}
       {menu && (
         <IconChevronDown
-          className={`h-3.5 w-3.5 shrink-0 text-neutral-400 ${collapse ? 'hidden desktop:block' : ''}`}
+          className={`h-3.5 w-3.5 shrink-0 text-neutral-400 ${collapse ? 'hidden desktop:@min-[1260px]/bar:block' : ''}`}
         />
       )}
     </button>

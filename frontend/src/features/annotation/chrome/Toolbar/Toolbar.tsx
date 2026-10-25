@@ -122,7 +122,7 @@ export function Toolbar({
   return (
     <header
       data-tour="toolbar"
-      className="flex items-center justify-between px-2 desktop:px-4 py-1 bg-white border-b border-neutral-200 flex-shrink-0 gap-1"
+      className="@container/bar flex items-center justify-between px-2 desktop:px-4 py-1 bg-white border-b border-neutral-200 flex-shrink-0 gap-1"
     >
       <div className="flex min-w-0 items-center gap-1">
         {onNavigateCampaign && (
