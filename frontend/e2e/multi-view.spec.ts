@@ -534,8 +534,11 @@ test.describe('View switching via toolbar dropdown', () => {
 
   test('dropdown lists both views', async ({ annotationPage }) => {
     await viewSelector(annotationPage).locator('button').first().click();
-    await expect(annotationPage.getByText('Sentinel-2 View').first()).toBeVisible();
-    await expect(annotationPage.getByText('VHR View').first()).toBeVisible();
+    for (const name of ['Sentinel-2 View', 'VHR View']) {
+      await expect(
+        viewSelector(annotationPage).getByRole('button', { name, exact: true })
+      ).toBeVisible();
+    }
   });
 
   test('selecting VHR View from dropdown activates VHR source', async ({ annotationPage }) => {
