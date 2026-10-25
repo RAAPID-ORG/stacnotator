@@ -395,7 +395,7 @@ export function useDrawingInteractions(): {
       if (!edit || !editable) return { boxSelect };
       return {
         edit: {
-          feature: { id: edit.annotation.id, geometry: edit.geometry },
+          feature: { id: edit.annotation.id, geometry: edit.pending ?? edit.geometry },
           style: editStyle,
           onGeometryChange: useWorkStore.getState().setPendingGeometry,
         },
@@ -413,7 +413,9 @@ export function useDrawingInteractions(): {
     }
     return undefined;
     // `edit.geometry` is the identity that matters: rebuilding the spec on a
-    // pending drag would tear the interaction down mid-gesture.
+    // pending drag would tear the interaction down mid-gesture. A rebuild for
+    // any other reason (a label change restyles it) starts from the pending
+    // geometry, so what the map shows is what the confirm button saves.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     drawsShapes,
