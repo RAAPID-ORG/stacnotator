@@ -167,12 +167,15 @@ def unmet_org_requirements(
 
 
 def clone_row(obj, **overrides):
-    """New instance carrying every mapped column of ``obj`` except primary
-    keys; FKs onto the duplicated parents come in as overrides."""
+    """New instance carrying every mapped column of ``obj`` except its
+    generated key; FKs onto the duplicated parents come in as overrides. A
+    composite key is plain data (a mosaic's provider), so it is copied."""
     mapper = sa_inspect(type(obj))
-    pk_keys = {mapper.get_property_by_column(col).key for col in mapper.primary_key}
+    generated = mapper.local_table.autoincrement_column
     data = {
-        prop.key: getattr(obj, prop.key) for prop in mapper.column_attrs if prop.key not in pk_keys
+        prop.key: getattr(obj, prop.key)
+        for prop in mapper.column_attrs
+        if generated is None or prop.columns[0] is not generated
     }
     data.update(overrides)
     return type(obj)(**data)

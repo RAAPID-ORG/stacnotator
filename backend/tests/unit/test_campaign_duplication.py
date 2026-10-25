@@ -3,7 +3,7 @@
 from types import SimpleNamespace
 
 from src.campaigns.duplication import clone_row, plan_copy
-from src.imagery.models import ImagerySlice
+from src.imagery.models import ImagerySlice, SliceMosaic
 from src.tasks.models import TaskSet
 
 
@@ -33,6 +33,11 @@ class TestCloneRow:
         assert copy.id is None
         assert copy.campaign_id == 2
         assert copy.name == "Round 1"
+
+    def test_a_composite_key_is_data_and_carries_over(self):
+        original = SliceMosaic(slice_id=5, provider="mpc", mosaic_id="abc")
+        copy = clone_row(original, slice_id=50)
+        assert (copy.slice_id, copy.provider, copy.mosaic_id) == (50, "mpc", "abc")
 
 
 class TestPlanCopy:
