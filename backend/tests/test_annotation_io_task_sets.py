@@ -30,6 +30,7 @@ CAMPAIGN = SimpleNamespace(id=1, embedding_year=None)
 
 def test_csv_ingest_stamps_task_set_id():
     db = MagicMock()
+    db.scalars.return_value.all.return_value = []  # none of the file's ids are taken
     ingest.create_tasks_from_csv(db, CAMPAIGN, contents=CSV, task_set_id=7)
     records = _inserted_task_records(db)
     assert all(r["task_set_id"] == 7 for r in records)
