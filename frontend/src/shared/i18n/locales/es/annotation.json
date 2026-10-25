@@ -635,6 +635,7 @@
     "deleteFailed": "No se pudo eliminar la vista",
     "reorderFailed": "No se pudieron reordenar las vistas",
     "sourcesFailed": "No se pudieron actualizar las fuentes de la vista",
+    "lastSource": "Una vista necesita al menos una fuente de imágenes",
     "add": "Añadir vista",
     "name": "Nombre de la vista",
     "untitled": "Vista sin título",

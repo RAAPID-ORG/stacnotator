@@ -121,11 +121,16 @@ export function ViewAdmin() {
       });
     }, t('views.sourcesFailed'));
 
-  const toggleSource = (view: ImageryViewOut, sourceId: number, include: boolean) =>
-    saveSources(
-      view,
-      include ? [...view.source_ids, sourceId] : view.source_ids.filter((id) => id !== sourceId)
-    );
+  const toggleSource = (view: ImageryViewOut, sourceId: number, include: boolean) => {
+    const sourceIds = include
+      ? [...view.source_ids, sourceId]
+      : view.source_ids.filter((id) => id !== sourceId);
+    if (sourceIds.length === 0) {
+      showAlert(t('views.lastSource'), 'error');
+      return;
+    }
+    return saveSources(view, sourceIds);
+  };
 
   const moveSource = (view: ImageryViewOut, sourceId: number, direction: -1 | 1) => {
     const index = view.source_ids.indexOf(sourceId);

@@ -631,6 +631,7 @@
     "deleteFailed": "Failed to delete view",
     "reorderFailed": "Failed to reorder views",
     "sourcesFailed": "Failed to update view sources",
+    "lastSource": "A view needs at least one imagery source",
     "add": "Add view",
     "name": "View name",
     "untitled": "Untitled view",
