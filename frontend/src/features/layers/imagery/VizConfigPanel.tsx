@@ -131,7 +131,12 @@ interface VizConfigPanelProps {
   showCompositing?: boolean;
   /** Compositing methods the tiler serving this catalog can actually produce. */
   compositingMethods?: string[];
+  /** The visualization's name; picking a preset renames it unless the user typed it. */
+  name?: string;
+  onNameChange?: (name: string) => void;
 }
+
+const GENERATED_NAME = /^Viz \d+$/;
 
 export const VizConfigPanel = ({
   collectionId,
@@ -140,6 +145,8 @@ export const VizConfigPanel = ({
   onChange,
   showCompositing = false,
   compositingMethods,
+  name,
+  onNameChange,
 }: VizConfigPanelProps) => {
   const { t } = useTranslation('imagery');
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -340,6 +347,9 @@ export const VizConfigPanel = ({
     setPendingMapping(undefined);
     setSingleBandMode(undefined);
     onChange(params);
+    const nameIsDefault =
+      !name || GENERATED_NAME.test(name) || presets.some((p) => p.label === name);
+    if (nameIsDefault) onNameChange?.(preset.label);
   };
 
   const showColormap = activeRenderMode === 'single';
