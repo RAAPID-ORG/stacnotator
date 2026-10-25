@@ -1,5 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { act, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import * as api from '~/api/client';
 import { makeAnnotation, makeCampaign, makeSettings } from '~/features/annotation/testing/fixtures';
 import { seedCampaign } from '../../testing/seed';
 import { useWorkStore } from '../../stores/work';
@@ -10,6 +11,11 @@ const ROCK = { id: 2, name: 'rock', color: '#888888', geometry_type: 'point' as 
 const SAVED: GeoJSON.Point = { type: 'Point', coordinates: [1, 2] };
 const DRAGGED: GeoJSON.Point = { type: 'Point', coordinates: [3, 4] };
 const HINT = /Confirm \(Enter\) or cancel \(Esc\) the reshape/;
+
+vi.mock('~/api/client', async () => {
+  const actual = await vi.importActual<typeof import('~/api/client')>('~/api/client');
+  return { ...actual, updateAnnotation: vi.fn() };
+});
 
 const chip = (id: number) =>
   document.querySelector<HTMLButtonElement>(`button[data-label-id="${id}"]`)!;
@@ -49,5 +55,52 @@ describe('EditDetails while a reshape is pending', () => {
 
     expect(chip(ROCK.id).disabled).toBe(false);
     expect(screen.queryByText(HINT)).toBeNull();
+  });
+});
+
+describe('EditDetails label', () => {
+  const open = (labels: (typeof TREE)[]) => {
+    seedCampaign(makeCampaign({ id: 5, settings: makeSettings({ labels } as never) }), {
+      mode: 'explore',
+      currentUserId: 'u1',
+    });
+    useWorkStore.setState({
+      tool: 'edit',
+      edit: {
+        annotation: makeAnnotation({ id: 7, label_id: TREE.id }),
+        geometry: SAVED,
+        pending: null,
+        busy: false,
+      },
+      selection: [7],
+    } as never);
+  };
+  afterEach(() => {
+    useWorkStore.getState().resetAll();
+    vi.mocked(api.updateAnnotation).mockReset();
+  });
+
+  it("shows the shape's label when its type has only one", () => {
+    open([TREE]);
+    render(<EditDetails />);
+    expect(chip(TREE.id).textContent).toMatch(/tree/i);
+    expect(screen.queryByTestId('edit-details-save')).toBeNull();
+  });
+
+  it('saves a picked label at once', async () => {
+    open([TREE, ROCK]);
+    vi.mocked(api.updateAnnotation).mockResolvedValue({
+      data: makeAnnotation({ id: 7, label_id: ROCK.id }),
+    } as never);
+    render(<EditDetails />);
+
+    fireEvent.click(chip(ROCK.id));
+
+    await waitFor(() =>
+      expect(api.updateAnnotation).toHaveBeenCalledWith(
+        expect.objectContaining({ body: { label_id: ROCK.id, form_values: {} } })
+      )
+    );
+    await waitFor(() => expect(useWorkStore.getState().edit?.annotation.label_id).toBe(ROCK.id));
   });
 });

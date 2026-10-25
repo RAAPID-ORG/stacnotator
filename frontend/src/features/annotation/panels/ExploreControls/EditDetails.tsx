@@ -30,15 +30,23 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
   const labels = extendedLabels(campaign);
   const selectable = labelsForGeometry(labels, wktToGeometry(annotation.geometry_wkt));
   const fields = campaign.settings.form_fields;
-  const dirty =
-    labelId !== annotation.label_id || !formValuesEqual(values, annotation.form_values ?? {});
+  const dirty = !formValuesEqual(values, annotation.form_values ?? {});
 
-  const save = async () => {
-    if (labelId === null) return;
+  /** Picking a label saves it, as the flag does: the map paints the shape by its
+   *  label, so a pick waiting on a separate save looked done and was not. */
+  const saveLabel = async (next: number) => {
+    if (next === labelId) return;
+    const previous = labelId;
+    setLabelId(next);
+    if (!(await save(next))) setLabelId(previous);
+  };
+
+  const save = async (labelId: number | null): Promise<boolean> => {
+    if (labelId === null) return false;
     const { ok, missing } = validateForm(fields, values);
     if (!ok) {
       showAlert(t('editDetails.missingRequired', { fields: missing.join(', ') }), 'error');
-      return;
+      return false;
     }
     setSaving(true);
     try {
@@ -65,8 +73,10 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
           .recordWrites([{ id: annotation.id, labelId, geometry, origin: 'local' }]);
       }
       showAlert(t('editDetails.updated'), 'success');
+      return true;
     } catch (error) {
       handleError(error, t('editDetails.updateFailed'));
+      return false;
     } finally {
       setSaving(false);
     }
@@ -87,12 +97,12 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
         </span>
       )}
 
-      {selectable.length > 1 && (
+      {selectable.length > 0 && (
         <LabelChips
           minWidth={CHIP_MIN_WIDTH}
           labels={selectable}
           selectedId={labelId}
-          onSelect={(label) => setLabelId(label.id)}
+          onSelect={(label) => void saveLabel(label.id)}
           disabled={saving || readOnly || reshaping}
           showIndex={false}
         />
@@ -151,11 +161,11 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
         />
       )}
 
-      {!readOnly && (fields.length > 0 || selectable.length > 1) && (
+      {!readOnly && fields.length > 0 && (
         <button
           type="button"
           data-testid="edit-details-save"
-          onClick={() => void save()}
+          onClick={() => void save(labelId)}
           disabled={saving || !dirty || labelId === null}
           className="self-start px-3 py-1.5 rounded text-[11px] font-semibold bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
         >

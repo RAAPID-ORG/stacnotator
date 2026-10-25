@@ -433,6 +433,24 @@ class TestUpdateAnnotation:
 
         assert existing.comment == "updated comment"
 
+    def test_relabelling_an_explore_shape_stores_the_label_and_redraws(self):
+        db = _mock_db()
+        existing = _make_annotation(ann_id=5, task_id=None, label_id=1)
+        db.execute.return_value.scalar_one_or_none.return_value = existing
+
+        with patch("src.annotation.service.bump_campaign_annotations_version") as bump:
+            update_annotation(
+                db,
+                5,
+                AnnotationUpdate(label_id=2, form_values={}),
+                uuid4(),
+                campaign=_make_campaign(),
+            )
+
+        assert existing.label_id == 2
+        bump.assert_called_once_with(db, existing.campaign_id)
+        db.commit.assert_called_once()
+
     def test_update_geometry_replaces_the_rows_own(self):
         db = _mock_db()
         user_id = uuid4()
