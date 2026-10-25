@@ -55,6 +55,12 @@ export interface TasksState {
   focus: MapFocus | null;
   /** Database clock the next task poll asks for changes since. */
   syncCursor: string | null;
+  /** Ids of the tasks opened this session, oldest first, and where in that
+   *  trail the current task sits. Back and forward walk it like a browser's
+   *  history, so a task the filter has since dropped (one just finished) is
+   *  still one step back. */
+  history: number[];
+  historyPos: number;
 
   initialize: (options: {
     tasks: TaskOut[];
@@ -66,8 +72,15 @@ export interface TasksState {
   }) => void;
   setFilter: (filter: TaskFilter, now: number, catalog: ImageryCatalog) => void;
   goToAnnotationNumber: (annotationNumber: number, catalog: ImageryCatalog) => boolean;
+  /** Forward along the trail, or to the next task in the list at its end. */
   next: (catalog: ImageryCatalog) => void;
+  /** Back along the trail, or to the previous task in the list at its start. */
   previous: (catalog: ImageryCatalog) => void;
+  /** Forward one step along the trail. False at its end, where the caller
+   *  decides what the next new task is. */
+  forward: (catalog: ImageryCatalog) => boolean;
+  /** Back to the newest task on the trail. */
+  latest: (catalog: ImageryCatalog) => void;
   replaceTask: (updated: TaskOut, catalog: ImageryCatalog) => void;
   /** Swap in newer copies of tasks without re-filtering, so work others
    *  finished counts toward progress without pulling the current task away. */
@@ -91,6 +104,8 @@ const initialState = {
   knnValidationEnabled: false,
   focus: null as MapFocus | null,
   syncCursor: null as string | null,
+  history: [] as number[],
+  historyPos: 0,
 };
 
 const currentOf = (state: TasksState) => state.visibleTasks[state.currentIndex] ?? null;
@@ -146,6 +161,45 @@ function deriveFocus(state: TasksState, task: TaskOut | null, catalog: ImageryCa
   };
 }
 
+/** Put `taskId` in the visible list if the filter has dropped it since, at its
+ *  place in the campaign's order, and return the state that makes it current.
+ *  Null when the task no longer exists. */
+function showTask(state: TasksState, taskId: number): Partial<TasksState> | null {
+  const index = state.visibleTasks.findIndex((t) => t.id === taskId);
+  if (index >= 0) return { currentIndex: index };
+  const order = new Map(state.allTasks.map((t, i) => [t.id, i]));
+  const rank = order.get(taskId);
+  if (rank === undefined) return null;
+  const at = state.visibleTasks.findIndex((t) => (order.get(t.id) ?? -1) > rank);
+  const insertAt = at === -1 ? state.visibleTasks.length : at;
+  const visibleTasks = [...state.visibleTasks];
+  visibleTasks.splice(insertAt, 0, state.allTasks[rank]);
+  return { visibleTasks, currentIndex: insertAt };
+}
+
+/** Step `delta` along the trail, skipping tasks deleted since. False when
+ *  there is no such step. */
+function stepHistory(delta: 1 | -1, catalog: ImageryCatalog): boolean {
+  const state = useTasksStore.getState();
+  for (let pos = state.historyPos + delta; pos >= 0 && pos < state.history.length; pos += delta) {
+    const shown = showTask(state, state.history[pos]);
+    if (!shown) continue;
+    useTasksStore.setState({ ...shown, historyPos: pos });
+    publishSelection(catalog);
+    return true;
+  }
+  return false;
+}
+
+/** Note the current task on the trail. Opening a task other than by walking
+ *  the trail drops what lay ahead, as a browser does. */
+function recordVisit(state: TasksState): Partial<TasksState> | null {
+  const task = currentOf(state);
+  if (!task || state.history[state.historyPos] === task.id) return null;
+  const history = [...state.history.slice(0, state.historyPos + 1), task.id];
+  return { history, historyPos: history.length - 1 };
+}
+
 /**
  * Everything selecting a task implies. Keeping it in here means no caller can
  * change which task is current without also moving the imagery, the probe
@@ -172,6 +226,9 @@ function publishSelection(catalog: ImageryCatalog): void {
   } else {
     imagery.setEmptyScope(scope);
   }
+
+  const visit = recordVisit(state);
+  if (visit) useTasksStore.setState(visit);
 
   const focus = deriveFocus(state, task, catalog);
   if (!sameFocus(focus, state.focus)) useTasksStore.setState({ focus });
@@ -201,6 +258,8 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       filter: effective,
       loaded: true,
       syncCursor: null,
+      history: [],
+      historyPos: 0,
     });
     publishSelection(catalog);
   },
@@ -222,13 +281,35 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   },
 
   next: (catalog) => {
+    if (get().forward(catalog)) return;
     set((s) => ({ currentIndex: nextIndex(s.visibleTasks, s.currentIndex) }));
     publishSelection(catalog);
   },
 
   previous: (catalog) => {
+    if (stepHistory(-1, catalog)) return;
+    // Before the trail's start: step the list, and the trail grows backwards
+    // so forward still leads back through what was already seen.
+    const before = currentOf(get());
     set((s) => ({ currentIndex: prevIndex(s.visibleTasks, s.currentIndex) }));
+    const task = currentOf(get());
+    if (task && task.id !== before?.id) {
+      set((s) => ({ history: [task.id, ...s.history.slice(s.historyPos)], historyPos: 0 }));
+    }
     publishSelection(catalog);
+  },
+
+  forward: (catalog) => stepHistory(1, catalog),
+
+  latest: (catalog) => {
+    const { history, historyPos } = get();
+    for (let pos = history.length - 1; pos > historyPos; pos--) {
+      const shown = showTask(get(), history[pos]);
+      if (!shown) continue;
+      set({ ...shown, historyPos: pos });
+      publishSelection(catalog);
+      return;
+    }
   },
 
   replaceTask: (updated, catalog) => get().mergeTasks([updated], catalog),

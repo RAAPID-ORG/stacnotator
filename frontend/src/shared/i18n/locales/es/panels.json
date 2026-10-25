@@ -266,6 +266,11 @@
     "currentPoint": "Punto actual",
     "currentPointTitle": "Punto actual. Escribe un número y pulsa Enter para ir a él; Esc cancela.",
     "prev": "Anterior",
+    "historyBack_one": "1 tarea atrás",
+    "historyBack_other": "{{count}} tareas atrás",
+    "historyBack_many": "{{count}} tareas atrás",
+    "historyBackTitle": "Anterior y Siguiente recorren las tareas abiertas en esta sesión",
+    "historyLatest": "Última →",
     "claimFailed": "No se pudo reclamar esta tarea"
   },
   "review": {

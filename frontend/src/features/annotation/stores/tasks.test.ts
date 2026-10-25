@@ -306,3 +306,70 @@ describe('task session remote progress', () => {
     expect(state.visibleTasks[state.currentIndex].id).toBe(1);
   });
 });
+
+describe('the session trail', () => {
+  const TASK_C = task(3, 3, 20, 20);
+  const current = () => {
+    const s = useTasksStore.getState();
+    return s.visibleTasks[s.currentIndex]?.id;
+  };
+  const done = (t: TaskOut): TaskOut => ({ ...t, task_status: 'done' });
+
+  afterEach(() => useTasksStore.getState().reset());
+
+  it('goes back to a task the filter dropped once it was finished', () => {
+    useCampaignStore.setState({ campaign: CAMPAIGN });
+    initialize([TASK_A, TASK_B, TASK_C]);
+    const store = useTasksStore.getState();
+    store.replaceTask(done(TASK_A), CATALOG);
+    // The pool hands out B and re-filters; A is done and drops out.
+    store.adoptTask(TASK_B, CATALOG);
+    expect(useTasksStore.getState().visibleTasks.map((t) => t.id)).toEqual([2, 3]);
+
+    useTasksStore.getState().previous(CATALOG);
+    expect(current()).toBe(1);
+    expect(useTasksStore.getState().visibleTasks[0].task_status).toBe('done');
+
+    useTasksStore.getState().next(CATALOG);
+    expect(current()).toBe(2);
+    // At the trail's end, next is the list's next task again.
+    useTasksStore.getState().next(CATALOG);
+    expect(current()).toBe(3);
+  });
+
+  it('walks several steps back and forward again', () => {
+    useCampaignStore.setState({ campaign: CAMPAIGN });
+    initialize([TASK_A, TASK_B, TASK_C]);
+    const { next, previous } = useTasksStore.getState();
+    next(CATALOG);
+    next(CATALOG);
+    previous(CATALOG);
+    previous(CATALOG);
+    expect(current()).toBe(1);
+    expect(useTasksStore.getState().historyPos).toBe(0);
+    expect(useTasksStore.getState().forward(CATALOG)).toBe(true);
+    expect(current()).toBe(2);
+
+    useTasksStore.getState().latest(CATALOG);
+    expect(current()).toBe(3);
+    expect(useTasksStore.getState().forward(CATALOG)).toBe(false);
+  });
+
+  it('opening another task while back drops what lay ahead', () => {
+    useCampaignStore.setState({ campaign: CAMPAIGN });
+    initialize([TASK_A, TASK_B, TASK_C]);
+    useTasksStore.getState().next(CATALOG);
+    useTasksStore.getState().previous(CATALOG);
+    useTasksStore.getState().goToAnnotationNumber(3, CATALOG);
+    expect(useTasksStore.getState().history).toEqual([1, 3]);
+  });
+
+  it('stepping back past the trail start keeps forward leading through it', () => {
+    useCampaignStore.setState({ campaign: CAMPAIGN });
+    initialize([TASK_A, TASK_B, TASK_C]);
+    useTasksStore.getState().previous(CATALOG);
+    expect(current()).toBe(3);
+    useTasksStore.getState().next(CATALOG);
+    expect(current()).toBe(1);
+  });
+});

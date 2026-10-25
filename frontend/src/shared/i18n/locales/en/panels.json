@@ -264,6 +264,10 @@
     "currentPoint": "Current point",
     "currentPointTitle": "Current point. Type a number and press Enter to jump to it; Esc cancels.",
     "prev": "Prev",
+    "historyBack_one": "1 task back",
+    "historyBack_other": "{{count}} tasks back",
+    "historyBackTitle": "Prev and Next walk the tasks opened this session",
+    "historyLatest": "Latest →",
     "claimFailed": "Could not claim this task"
   },
   "review": {

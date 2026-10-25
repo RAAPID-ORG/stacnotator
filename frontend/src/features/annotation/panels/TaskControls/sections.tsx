@@ -146,6 +146,8 @@ export function ActionBar({ task }: { task: TaskOut }) {
   const currentUserId = useCampaignStore((s) => s.currentUserId);
   const isBusy = useTasksStore((s) => s.isSubmitting);
   const previous = useTasksStore((s) => s.previous);
+  const latest = useTasksStore((s) => s.latest);
+  const stepsBack = useTasksStore((s) => Math.max(0, s.history.length - 1 - s.historyPos));
   const goToAnnotationNumber = useTasksStore((s) => s.goToAnnotationNumber);
   const selectedLabelId = useWorkStore((s) => s.selectedLabelId);
   const showAlert = useAppLayoutStore((s) => s.showAlert);
@@ -298,6 +300,24 @@ export function ActionBar({ task }: { task: TaskOut }) {
           </button>
         </div>
       </div>
+      {stepsBack > 0 && (
+        <div
+          data-testid="task-history"
+          className="flex items-center justify-between gap-2 whitespace-nowrap text-[11px] text-neutral-500"
+        >
+          <span title={t('task.historyBackTitle')}>
+            {t('task.historyBack', { count: stepsBack })}
+          </span>
+          <button
+            type="button"
+            disabled={isBusy}
+            onClick={() => latest(catalog)}
+            className="font-medium text-brand-700 hover:text-brand-800 disabled:opacity-40 cursor-pointer"
+          >
+            {t('task.historyLatest')}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

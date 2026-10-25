@@ -267,7 +267,8 @@ async function run(options: {
 }
 
 /**
- * Move to the next task to work on.
+ * Move to the next task to work on. Behind the newest task of the session
+ * that is the next one already visited; past it, a new one.
  *
  * In the unassigned pool the server picks it: only it knows what is still
  * free, and it claims the task in the same transaction, so annotators working
@@ -278,6 +279,7 @@ async function run(options: {
 export async function advance(): Promise<void> {
   const { catalog } = campaignState();
   const tasks = useTasksStore.getState();
+  if (tasks.forward(catalog)) return;
   if (!usesClaimPool(tasks.filter)) {
     tasks.next(catalog);
     return;
