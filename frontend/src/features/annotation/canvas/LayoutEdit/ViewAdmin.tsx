@@ -17,9 +17,7 @@ import {
   IconPlus,
   IconTrash,
 } from '~/shared/ui/Icons';
-import { collectionsInView } from '../../campaign/imagery';
 import { useCampaign, useCampaignStore } from '../../stores/campaign';
-import { useLayoutStore as useCanvasLayoutStore } from '../../stores/layout';
 
 const iconButton =
   'grid h-5 w-5 shrink-0 place-items-center rounded text-neutral-400 transition-colors ' +

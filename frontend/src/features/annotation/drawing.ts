@@ -6,7 +6,6 @@ import {
   deleteAnnotation,
   getAnnotationIdsInBbox,
   updateAnnotation,
-  type AnnotationCreate,
 } from '~/api/client';
 import i18n from '~/shared/i18n';
 import { useLayoutStore as useGlobalLayoutStore } from '~/shared/stores/layout.store';
@@ -17,7 +16,6 @@ import {
   newAnnotationBody,
   validateForm,
   type ExtendedLabel,
-  type FormValues,
   type GeometryType,
 } from './campaign/annotation';
 import { resolveLabelStyle, toDraftStyleSpec } from './campaign/labelStyle';

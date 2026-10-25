@@ -10,7 +10,6 @@ import { listCatalogs, getCollections, getPrivateCollections, search } from '~/a
 import type { StacCatalogOut, StacCollectionOut, StacItemOut, AssetInfo } from '~/api/client';
 import type {
   CollectionItem,
-  ImagerySlice,
   VizParams,
   NamedVizParams,
   ItemSortOption,

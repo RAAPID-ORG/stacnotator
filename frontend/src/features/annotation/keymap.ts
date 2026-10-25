@@ -37,9 +37,7 @@ import { useWorkStore, type Tool } from './stores/work';
 import {
   finishDrawTask,
   goToNextTask,
-  skipCurrent,
   submitAnnotation,
-  submitAuthoritative,
   taskLabellingPolicy,
   DEFAULT_CONFIDENCE,
 } from './taskActions';

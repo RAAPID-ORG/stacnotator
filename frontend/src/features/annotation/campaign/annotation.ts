@@ -1,9 +1,7 @@
-import i18n from '~/shared/i18n';
 import { isDateRangeValue } from '~/shared/utils/formValues';
 import type {
   AnnotationCreate,
   AnnotationOut,
-  TaskOut,
   CampaignOutFull,
   CampaignSettingsOut,
   LabelBase,
@@ -12,8 +10,6 @@ import type {
 } from '~/api/client';
 import { labelColor } from '~/features/campaigns/utils/labelColors';
 import { isAudienceMember, type PolicyContext } from '~/features/campaigns/utils/labellingPolicy';
-
-const t = i18n.getFixedT(null, 'annotation');
 
 export type FormField = NonNullable<CampaignSettingsOut['form_fields']>[number];
 export type FormValues = NonNullable<AnnotationOut['form_values']>;
