@@ -4,6 +4,7 @@ from uuid import UUID
 
 from geoalchemy2.shape import to_shape
 from pydantic import (
+    AfterValidator,
     AliasChoices,
     BaseModel,
     BeforeValidator,
@@ -13,6 +14,7 @@ from pydantic import (
 )
 
 from src.annotation.constants import TaskOutcome
+from src.geometry import valid_wkt
 
 
 class DateRangeValue(TypedDict):
@@ -228,7 +230,7 @@ class TaskAnswerCreate(_AnnotationFields, _ViewedImagery):
 
 class AnnotationCreate(_AnnotationFields, _ViewedImagery):
     label_id: int
-    geometry_wkt: str
+    geometry_wkt: Annotated[str, AfterValidator(valid_wkt)]
     # The task the annotator was on when they drew this standalone annotation.
     origin_task_id: int | None = None
     # The draw task this shape answers. At most one of the two links is set.
@@ -306,4 +308,6 @@ class AnnotationUpdate(_AnnotationFields, _ViewedImagery):
     together with the geometry."""
 
     label_id: int | None = None
-    geometry_wkt: str | None = None
+    geometry_wkt: Annotated[
+        str | None, AfterValidator(lambda v: v if v is None else valid_wkt(v))
+    ] = None
