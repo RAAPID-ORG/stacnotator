@@ -24,6 +24,7 @@ import {
   LAYER_ID_PROP,
   destroyLayer,
   featurePropsOf,
+  isHitTestable,
   layerFeatureId,
   syncLayers,
   type MountedLayer,
@@ -97,7 +98,7 @@ function hitAt(
       found = feature;
       return true;
     },
-    { hitTolerance: HIT_TOLERANCE_PX }
+    { hitTolerance: HIT_TOLERANCE_PX, layerFilter: isHitTestable }
   );
   return { hit, feature: found };
 }

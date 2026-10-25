@@ -381,9 +381,18 @@ function setup(map: OLMap, spec: InteractionSpec, sketchLayer: SketchLayer): Att
     const modify = new Modify({ source });
     modify.on('modifyend', report);
     // Alt-drag translates the whole feature; plain drag is reserved for
-    // vertex editing via Modify above.
-    const translate = new Translate({ layers: [sketchLayer], condition: altKeyOnly });
-    translate.on('translateend', report);
+    // vertex editing via Modify above. On a vertex handle Alt belongs to
+    // Modify, whose Alt+click removes that vertex.
+    const onHandle = () => (modify.getOverlay().getSource()?.getFeatures().length ?? 0) > 0;
+    const translate = new Translate({
+      layers: [sketchLayer],
+      condition: (e) => altKeyOnly(e) && !onHandle(),
+    });
+    // A press that never moved is not a move: reporting it would save the
+    // geometry back with nothing but projection drift in it.
+    translate.on('translateend', (e) => {
+      if (e.coordinate.join() !== e.startCoordinate.join()) report();
+    });
 
     map.addInteraction(modify);
     map.addInteraction(translate);

@@ -52,11 +52,21 @@ export function extendedLabels(
   }));
 }
 
+const LABEL_GEOMETRY: Partial<Record<GeoJSON.Geometry['type'], GeometryType>> = {
+  Point: 'point',
+  MultiPoint: 'point',
+  LineString: 'line',
+  MultiLineString: 'line',
+  Polygon: 'polygon',
+  MultiPolygon: 'polygon',
+};
+
 /** Labels an annotation may be reassigned to on edit: the drawn geometry
- *  cannot change type, so only labels of the same type qualify. */
-export function labelsWithSameGeometry(labels: ExtendedLabel[], labelId: number | null) {
-  const current = labels.find((l) => l.id === labelId);
-  return current ? labels.filter((l) => l.geometry_type === current.geometry_type) : labels;
+ *  cannot change type, so only labels of its type qualify. Read from the shape
+ *  itself, since a task answer can carry a label of another type. */
+export function labelsForGeometry(labels: ExtendedLabel[], geometry: GeoJSON.Geometry) {
+  const type = LABEL_GEOMETRY[geometry.type];
+  return type ? labels.filter((l) => l.geometry_type === type) : labels;
 }
 
 // ---------------------------------------------------------------------------

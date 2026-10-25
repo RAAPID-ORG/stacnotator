@@ -7,8 +7,9 @@ import { handleError } from '~/shared/utils/errorHandler';
 import {
   extendedLabels,
   formValuesEqual,
-  labelsWithSameGeometry,
+  labelsForGeometry,
   validateForm,
+  wktToGeometry,
 } from '../../campaign/annotation';
 import { useCampaign, useCanModifyAnnotation } from '../../stores/campaign';
 import { useWorkStore } from '../../stores/work';
@@ -26,7 +27,7 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
   const readOnly = !useCanModifyAnnotation()(annotation);
 
   const labels = extendedLabels(campaign);
-  const selectable = labelsWithSameGeometry(labels, annotation.label_id);
+  const selectable = labelsForGeometry(labels, wktToGeometry(annotation.geometry_wkt));
   const fields = campaign.settings.form_fields;
   const dirty =
     labelId !== annotation.label_id || !formValuesEqual(values, annotation.form_values ?? {});

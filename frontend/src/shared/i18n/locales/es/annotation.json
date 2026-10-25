@@ -730,6 +730,7 @@
     "labeled_other": "{{count}} entidades etiquetadas",
     "updated": "Anotación actualizada correctamente",
     "geometryFailed": "No se pudo guardar la geometría",
+    "deletedWhileEditing": "Otra persona eliminó esta anotación",
     "deleted_one": "Anotación eliminada",
     "deleted_many": "{{count}} anotaciones eliminadas",
     "deleted_other": "{{count}} anotaciones eliminadas",

@@ -570,6 +570,20 @@ describe('what the tiles have not caught up with', () => {
     expect(deltaIds(useWorkStore.getState().delta)).toEqual(new Set([7]));
   });
 
+  it('ends the edit of a shape another annotator deleted', async () => {
+    seedCampaign(makeCampaign({ id: 99 }), { currentUserId: 'me' });
+    useWorkStore.setState({
+      edit: { annotation: makeAnnotation({ id: 7 }), geometry, pending: geometry, busy: false },
+      selection: [7],
+    });
+    vi.mocked(getAnnotationChanges).mockResolvedValue(changes({ deleted: [7] }));
+
+    await useWorkStore.getState().syncRemoteAnnotations();
+
+    expect(useWorkStore.getState().edit).toBeNull();
+    expect(useWorkStore.getState().selection).toEqual([]);
+  });
+
   // The click is how we find out, so it is also where we stop drawing it.
   it('drops an annotation that is already gone when it is opened', async () => {
     seedCampaign(makeCampaign({ id: 99 }), { currentUserId: 'me' });

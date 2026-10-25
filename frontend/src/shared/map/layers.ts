@@ -141,6 +141,11 @@ export function layerFeatureId(layer: BaseLayer, feature: FeatureLike) {
   return featureIdOf(feature, spec?.kind === 'vector-tiles' ? spec.idProperty : undefined);
 }
 
+export function isHitTestable(layer: BaseLayer): boolean {
+  const spec = layer.get(SPEC_PROP) as LayerSpec | undefined;
+  return !(spec?.kind === 'features' && spec.decorative);
+}
+
 /** Properties as the caller declared them: no OL or bookkeeping keys. */
 export function featurePropsOf(feature: FeatureLike): Record<string, unknown> {
   const props = { ...feature.getProperties() };

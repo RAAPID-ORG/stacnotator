@@ -482,7 +482,10 @@ export const useWorkStore = create<WorkState>((set, get) => {
     refreshTiles: () =>
       set((s) => ({ tileRefreshes: s.tileRefreshes + 1, delta: rotate(s.delta) })),
     recordWrites: (writes) => applyDelta((d) => withWrites(d, writes)),
+    // A deleted annotation leaves nothing to edit: its handles and confirm go too.
     recordDeletes: (ids) => {
+      const editing = get().edit?.annotation.id;
+      if (editing !== undefined && ids.includes(editing)) get().clearEdit();
       applyDelta((d) => withDeletes(d, ids));
       set((s) => {
         const drawnShapes = withoutShapes(s.drawnShapes, ids);
@@ -665,14 +668,16 @@ export const useWorkStore = create<WorkState>((set, get) => {
       try {
         const result = await getAnnotation({
           path: { campaign_id: campaignState().campaign.id, annotation_id: annotationId },
+          throwOnError: false,
         });
-        const annotation = result.data;
-        if (!annotation) {
-          // Someone deleted it between our last poll and this click. The click
-          // is how we found out, so it is also where we stop drawing it.
-          if (result.response.status === 404) get().recordDeletes([annotationId]);
+        // Someone deleted it between our last poll and this click. The click
+        // is how we found out, so it is also where we stop drawing it.
+        if (result.response.status === 404) {
+          get().recordDeletes([annotationId]);
           return;
         }
+        const annotation = result.data;
+        if (!annotation) throw result.error;
         const geometry = wktToGeometry(annotation.geometry_wkt);
         set({
           edit: { annotation, geometry, pending: null, busy: false },

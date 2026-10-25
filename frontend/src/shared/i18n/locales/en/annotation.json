@@ -724,6 +724,7 @@
     "labeled_other": "Labeled {{count}} feature(s)",
     "updated": "Annotation updated successfully",
     "geometryFailed": "Could not save the geometry",
+    "deletedWhileEditing": "This annotation was deleted by someone else",
     "deleted_one": "Annotation deleted",
     "deleted_other": "Deleted {{count}} annotations",
     "deleteFailed": "Could not delete",
