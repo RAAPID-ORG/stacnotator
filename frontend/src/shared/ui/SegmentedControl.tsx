@@ -13,7 +13,7 @@ interface SegmentedControlProps<T extends string> {
   value: T;
   onChange: (value: T) => void;
   'aria-label': string;
-  /** `bar` matches the controls of a page's top bar (BarButton). */
+  /** `bar` is the flat, borderless strip used in a page's top bar. */
   size?: 'form' | 'bar';
   title?: string;
   'data-testid'?: string;
@@ -34,7 +34,9 @@ export const SegmentedControl = <T extends string>({
     aria-label={ariaLabel}
     title={title}
     data-testid={testId}
-    className="inline-flex shrink-0 rounded-md border border-neutral-200 bg-neutral-50 p-0.5"
+    className={`inline-flex shrink-0 rounded-md p-0.5 ${
+      size === 'bar' ? 'bg-neutral-100' : 'border border-neutral-200 bg-neutral-50'
+    }`}
   >
     {segments.map(({ value: option, label, Icon, disabled, title: segmentTitle }) => {
       const selected = option === value;
@@ -48,10 +50,10 @@ export const SegmentedControl = <T extends string>({
           title={segmentTitle}
           onClick={() => onChange(option)}
           className={`inline-flex items-center gap-1.5 rounded transition-colors cursor-pointer disabled:cursor-not-allowed disabled:text-neutral-300 ${
-            size === 'bar' ? 'h-7 px-2.5 text-[13px]' : 'h-7 px-2.5 text-xs'
+            size === 'bar' ? 'h-6 px-2.5 text-xs' : 'h-7 px-2.5 text-xs'
           } ${
             selected
-              ? 'bg-white text-neutral-900 shadow-sm ring-1 ring-neutral-200'
+              ? `bg-white text-neutral-900 shadow-sm ${size === 'bar' ? '' : 'ring-1 ring-neutral-200'}`
               : 'text-neutral-500 hover:text-neutral-800'
           }`}
         >
