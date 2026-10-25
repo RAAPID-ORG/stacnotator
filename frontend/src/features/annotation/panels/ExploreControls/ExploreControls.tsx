@@ -182,7 +182,9 @@ export function ExploreControls() {
   const selectedLabel = labels.find((l) => l.id === selectedLabelId) ?? null;
   const draftLabel =
     draft.phase === 'idle' ? null : (labels.find((l) => l.id === draft.labelId) ?? null);
-  const draftOpen = draft.phase === 'draft' || draft.phase === 'committing';
+  // A shape with no questions to answer is saved as soon as it is drawn; the
+  // panel has nothing to show for that brief save.
+  const draftOpen = draft.phase === 'draft' || (draft.phase === 'committing' && fields.length > 0);
   const draftSaved = draftOpen && draft.savedId !== null;
 
   const availableTools = TOOLS.filter(
