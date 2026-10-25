@@ -336,7 +336,9 @@
     "working": "Working…",
     "reregister": "Re-register imagery",
     "confirmDeleteTitle": "Delete imagery source \"{{name}}\"?",
-    "confirmDeleteDescription": "This cannot be undone.",
+    "confirmDeleteDescription": "Nothing is deleted until you save changes.",
+    "confirmDeleteCollectionTitle": "Delete collection \"{{name}}\"?",
+    "confirmDeleteCollectionDescription": "Nothing is deleted until you save. On save, annotations made on this collection's slices stay but lose their link to the imagery they were drawn on.",
     "outsideSeries": {
       "title": "Collections outside this generated series",
       "continue": "Continue",

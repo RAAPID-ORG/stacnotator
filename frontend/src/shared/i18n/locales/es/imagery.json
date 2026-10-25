@@ -348,7 +348,9 @@
     "working": "Procesando…",
     "reregister": "Volver a registrar imágenes",
     "confirmDeleteTitle": "¿Eliminar la fuente de imágenes \"{{name}}\"?",
-    "confirmDeleteDescription": "Esta acción no se puede deshacer.",
+    "confirmDeleteDescription": "No se elimina nada hasta que guardes los cambios.",
+    "confirmDeleteCollectionTitle": "¿Eliminar la colección \"{{name}}\"?",
+    "confirmDeleteCollectionDescription": "No se elimina nada hasta que guardes. Al guardar, las anotaciones hechas sobre los cortes de esta colección se conservan, pero pierden el vínculo con las imágenes en las que se dibujaron.",
     "outsideSeries": {
       "title": "Colecciones fuera de esta serie generada",
       "continue": "Continuar",
