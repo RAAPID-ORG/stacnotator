@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Annotated, Any, Literal
 
 from pydantic import (
@@ -9,6 +10,7 @@ from pydantic import (
 )
 
 from src.canvas.schemas import CanvasLayoutOut, viewer_layouts
+from src.layers import HttpUrl
 from src.planet.schemas import PlanetScenesGenerationConfig
 from src.storage_access import StorageAccessCreate, StorageAccessOut
 
@@ -207,11 +209,21 @@ class SliceTemplateCreate(BaseModel):
 
 class ImagerySliceCreate(BaseModel):
     id: int | None = None
-    name: str = ""
-    start_date: str
-    end_date: str
+    name: str = Field(min_length=1, pattern=r"\S")
+    start_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    end_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     # A manual slice's tile template per visualization; a STAC slice has none.
     templates: list[SliceTemplateCreate] = []
+
+    @model_validator(mode="after")
+    def dates_are_real_and_ordered(self) -> "ImagerySliceCreate":
+        try:
+            start, end = date.fromisoformat(self.start_date), date.fromisoformat(self.end_date)
+        except ValueError as exc:
+            raise ValueError(f"slice '{self.name}' has a date that does not exist") from exc
+        if end < start:
+            raise ValueError(f"slice '{self.name}' ends before it starts")
+        return self
 
 
 class RenderParams(BaseModel):
@@ -315,6 +327,13 @@ class ImagerySourceCreate(ProviderKeyCreate):
                 )
             if col.search is None and drawn:
                 raise ValueError(f"collection '{col.name}' has no search to render")
+            for viz in col.visualizations:
+                drawn_params = [viz.params, viz.cover_params if col.has_dedicated_cover else None]
+                if any(p is not None and not (p.assets or p.expression) for p in drawn_params):
+                    raise ValueError(
+                        f"visualization '{viz.visualization}' of collection '{col.name}' "
+                        f"in source '{self.name}' has no bands selected"
+                    )
             for sl in col.slices:
                 templated = [t.visualization for t in sl.templates]
                 if col.search is not None and templated:
@@ -354,7 +373,7 @@ class ImagerySourceCreate(ProviderKeyCreate):
 class BasemapCreate(ProviderKeyCreate):
     id: int | None = None
     name: str
-    url: str
+    url: HttpUrl
     max_native_zoom: int | None = None
 
 

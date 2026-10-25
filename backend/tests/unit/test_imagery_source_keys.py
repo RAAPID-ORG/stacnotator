@@ -129,10 +129,12 @@ def test_a_new_basemap_is_saved_with_the_key_typed_for_it():
 def test_choosing_a_shared_key_drops_the_typed_one_and_back():
     basemap = keyed_basemap(encrypted_api_key=crypto.encrypt("typed"))
 
-    [saved] = save([basemap], {"id": 3, "name": "P", "url": "u", "organization_api_key_id": 11})
+    [saved] = save(
+        [basemap], {"id": 3, "name": "P", "url": "https://p/{z}", "organization_api_key_id": 11}
+    )
     assert (saved.encrypted_api_key, saved.organization_api_key_id) == (None, 11)
 
-    [saved] = save([basemap], {"id": 3, "name": "P", "url": "u", "api_key": "new"})
+    [saved] = save([basemap], {"id": 3, "name": "P", "url": "https://p/{z}", "api_key": "new"})
     assert saved.organization_api_key_id is None
     assert crypto.decrypt(saved.encrypted_api_key) == "new"
 
@@ -146,7 +148,9 @@ def test_a_basemap_left_out_of_the_save_is_deleted():
 
 
 def test_a_basemap_naming_another_organizations_key_is_rejected():
-    basemap = BasemapCreate(name="P", url="u", organization_api_key_id=99)
+    basemap = BasemapCreate(
+        name="P", url="https://tiles.example/{z}/{x}/{y}.png", organization_api_key_id=99
+    )
 
     with pytest.raises(HTTPException) as exc:
         _check_layers(org_with_keys(4), [], [basemap])
@@ -165,7 +169,7 @@ def test_internal_storage_needs_an_organization_cleared_for_it():
                     "stac_collection_id": "c",
                     "internal_storage": True,
                 },
-                "visualizations": [{"visualization": "Visual", "params": {}}],
+                "visualizations": [{"visualization": "Visual", "params": {"assets": ["visual"]}}],
             }
         ]
     )

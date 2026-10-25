@@ -205,6 +205,8 @@ export const VectorLayersEditor = ({
               onChange={(e) => setForm((f) => ({ ...f, pmtiles_url: e.target.value }))}
               placeholder="https://example.com/predictions.pmtiles"
               required
+              pattern="https?://\S+"
+              title={t('vectorLayers.urlInvalid')}
               data-testid="vector-layer-url"
               className="font-mono text-[11px]"
             />

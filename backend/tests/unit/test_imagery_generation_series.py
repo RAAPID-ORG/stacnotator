@@ -43,7 +43,7 @@ def source_payload(*, series_id=None):
                 {
                     "name": "January",
                     "generation_series_key": "series-a",
-                    "slices": [{"start_date": "2025-01-01", "end_date": "2025-01-31"}],
+                    "slices": [{"name": "s", "start_date": "2025-01-01", "end_date": "2025-01-31"}],
                 }
             ],
         }
@@ -208,7 +208,7 @@ def planet_payload(*, series_id=None, **config_overrides):
                 {
                     "name": "January",
                     "generation_series_key": "series-a",
-                    "slices": [{"start_date": "2024-01-05", "end_date": "2024-01-05"}],
+                    "slices": [{"name": "s", "start_date": "2024-01-05", "end_date": "2024-01-05"}],
                 }
             ],
         }

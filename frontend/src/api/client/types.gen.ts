@@ -2476,7 +2476,7 @@ export type ImagerySliceCreate = {
     /**
      * Name
      */
-    name?: string;
+    name: string;
     /**
      * Start Date
      */

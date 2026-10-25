@@ -255,7 +255,7 @@ def test_a_visualizer_cannot_register_a_private_catalog_of_its_own():
                         "stac_collection_id": "c",
                         "storage_access": {"kind": AZURE_SAS, "secret": SAS},
                     },
-                    "visualizations": [{"visualization": "RGB", "params": {}}],
+                    "visualizations": [{"visualization": "RGB", "params": {"assets": ["visual"]}}],
                 }
             ],
         }

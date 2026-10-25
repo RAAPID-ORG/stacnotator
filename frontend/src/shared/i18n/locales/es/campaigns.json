@@ -93,6 +93,14 @@
     "missingVizUrls_one": "Fuente \"{{source}}\", colección \"{{collection}}\": a {{count}} corte le faltan URL de visualización.",
     "missingVizUrls_many": "Fuente \"{{source}}\", colección \"{{collection}}\": a {{count}} cortes les faltan URL de visualización.",
     "missingVizUrls_other": "Fuente \"{{source}}\", colección \"{{collection}}\": a {{count}} cortes les faltan URL de visualización.",
+    "basemapUrl": "Mapa base \"{{basemap}}\": la URL debe empezar por http:// o https://.",
+    "sliceUnnamed_one": "Fuente \"{{source}}\", colección \"{{collection}}\": {{count}} corte no tiene nombre.",
+    "sliceUnnamed_many": "Fuente \"{{source}}\", colección \"{{collection}}\": {{count}} cortes no tienen nombre.",
+    "sliceUnnamed_other": "Fuente \"{{source}}\", colección \"{{collection}}\": {{count}} cortes no tienen nombre.",
+    "sliceDates_one": "Fuente \"{{source}}\", colección \"{{collection}}\": {{count}} corte tiene una fecha que falta o no es válida, o termina antes de empezar.",
+    "sliceDates_many": "Fuente \"{{source}}\", colección \"{{collection}}\": {{count}} cortes tienen una fecha que falta o no es válida, o terminan antes de empezar.",
+    "sliceDates_other": "Fuente \"{{source}}\", colección \"{{collection}}\": {{count}} cortes tienen una fecha que falta o no es válida, o terminan antes de empezar.",
+    "vizNoBands": "Fuente \"{{source}}\", colección \"{{collection}}\": la visualización \"{{viz}}\" no tiene bandas seleccionadas.",
     "timeseries": {
       "name": "Serie temporal {{index}}: el nombre es obligatorio.",
       "start": "Serie temporal {{index}}: la fecha de inicio es obligatoria.",
@@ -271,6 +279,7 @@
   "vectorLayers": {
     "loadFailed": "No se pudieron cargar las capas vectoriales",
     "addFailed": "No se pudo añadir la capa vectorial",
+    "urlInvalid": "La URL debe empezar por http:// o https://",
     "deleteFailed": "No se pudo eliminar la capa vectorial",
     "title": "Capas vectoriales (PMTiles)",
     "description": "Actívalas o desactívalas al anotar, pasa el cursor para resaltar y etiqueta entidades haciendo clic con la herramienta Etiquetar vector.",

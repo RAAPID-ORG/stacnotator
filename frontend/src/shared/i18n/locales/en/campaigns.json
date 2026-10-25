@@ -89,6 +89,12 @@
     "noSlices": "Source \"{{source}}\", Collection \"{{collection}}\": Has no time slices.",
     "missingVizUrls_one": "Source \"{{source}}\", Collection \"{{collection}}\": {{count}} slice(s) have missing visualization URLs.",
     "missingVizUrls_other": "Source \"{{source}}\", Collection \"{{collection}}\": {{count}} slice(s) have missing visualization URLs.",
+    "basemapUrl": "Basemap \"{{basemap}}\": URL must start with http:// or https://.",
+    "sliceUnnamed_one": "Source \"{{source}}\", Collection \"{{collection}}\": {{count}} slice has no name.",
+    "sliceUnnamed_other": "Source \"{{source}}\", Collection \"{{collection}}\": {{count}} slices have no name.",
+    "sliceDates_one": "Source \"{{source}}\", Collection \"{{collection}}\": {{count}} slice has a missing or invalid date, or ends before it starts.",
+    "sliceDates_other": "Source \"{{source}}\", Collection \"{{collection}}\": {{count}} slices have a missing or invalid date, or end before they start.",
+    "vizNoBands": "Source \"{{source}}\", Collection \"{{collection}}\": Visualization \"{{viz}}\" has no bands selected.",
     "timeseries": {
       "name": "Timeseries {{index}}: Name is required.",
       "start": "Timeseries {{index}}: Start date is required.",
@@ -257,6 +263,7 @@
   "vectorLayers": {
     "loadFailed": "Failed to load vector layers",
     "addFailed": "Failed to add vector layer",
+    "urlInvalid": "The URL must start with http:// or https://",
     "deleteFailed": "Failed to delete vector layer",
     "title": "Vector layers (PMTiles)",
     "description": "Toggle them on or off while annotating, hover to highlight, and label features by clicking with the Label vector tool.",
