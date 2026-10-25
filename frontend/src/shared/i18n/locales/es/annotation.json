@@ -677,7 +677,10 @@
   },
   "formFields": {
     "from": "Desde",
-    "to": "Hasta"
+    "to": "Hasta",
+    "wholeNumber": "Introduce un número entero",
+    "atLeast": "Debe ser al menos {{value}}",
+    "atMost": "Debe ser como máximo {{value}}"
   },
   "headerSelect": {
     "collapse": "Contraer",
