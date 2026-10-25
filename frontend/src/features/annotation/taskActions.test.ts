@@ -235,4 +235,17 @@ describe('submitCurrent', () => {
 
     expect(outcome).toEqual({ kind: 'error', message: 'network down' });
   });
+
+  it('reports a task deleted under the annotator as gone, not as an error', async () => {
+    vi.mocked(api.annotateTask).mockResolvedValue({
+      data: undefined,
+      error: { detail: [] },
+      request: new Request('http://localhost/api'),
+      response: new Response(null, { status: 404 }),
+    });
+
+    const outcome = await submitCurrent(BASE_PARAMS);
+
+    expect(outcome).toEqual({ kind: 'gone' });
+  });
 });

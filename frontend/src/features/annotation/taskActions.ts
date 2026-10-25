@@ -81,6 +81,7 @@ type SubmitOutcome =
   | { kind: 'needsConfirm' }
   | { kind: 'submitted'; task: TaskOut }
   | { kind: 'removed'; task: TaskOut }
+  | { kind: 'gone' }
   | { kind: 'error'; message: string };
 
 function withAssignmentStatus(
@@ -183,7 +184,10 @@ export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome
         imagery_slice_id: imagerySliceId,
         active_ms: activeMs,
       },
+      throwOnError: false,
     });
+    if (response.response.status === 404) return { kind: 'gone' };
+    if (response.error) return { kind: 'error', message: extractErrorMessage(response.error) };
     const result: TaskSubmitResponse | undefined = response.data;
     if (!result) return { kind: 'error', message: t('taskActions.submitFailed') };
 
@@ -268,6 +272,9 @@ async function run(options: {
     if (currentTask()?.id === task.id) await advance();
   } else if (outcome.kind === 'removed') {
     tasks.replaceTask(outcome.task, catalog);
+  } else if (outcome.kind === 'gone') {
+    tasks.removeTasks([task.id], catalog);
+    alert(t('taskActions.taskDeleted'), 'error');
   }
   return outcome;
 }

@@ -372,9 +372,6 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       set({ syncCursor: data.server_time });
       if (fresh?.annotations.some(isNew)) set({ answeredElsewhereId: fresh.id });
       if (data.tasks.length > 0) get().mergeTasks(data.tasks, catalog);
-      const known = new Set(get().allTasks.map((task) => task.id));
-      const deleted = (data.deleted ?? []).filter((id) => known.has(id));
-      if (deleted.length > 0) get().removeTasks(deleted, catalog);
     } catch {
       // A missed poll is picked up by the next one.
     }

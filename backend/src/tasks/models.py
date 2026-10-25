@@ -143,29 +143,6 @@ class Task(Base):
     )
 
 
-class DeletedTask(Base):
-    """A tombstone for a deleted task, so other annotators' task lists drop it.
-    Same contract as ``DeletedAnnotation``: written with the delete, pruned past
-    ``DELETION_RETENTION``."""
-
-    __tablename__ = "deleted_tasks"
-    __table_args__ = (
-        Index("idx_deleted_tasks_campaign_deleted_at", "campaign_id", "deleted_at"),
-        {"schema": "data"},
-    )
-
-    task_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
-    campaign_id: Mapped[int] = mapped_column(
-        ForeignKey("data.campaigns.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    deleted_at: Mapped[dt_datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
-    )
-
-
 class TaskAssignment(Base):
     """A user an admin put on a task.
 

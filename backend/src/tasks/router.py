@@ -18,7 +18,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
-from src.annotation import spatial, sync
+from src.annotation import spatial
 from src.annotation.tiles import InvalidBBoxError, parse_bbox
 from src.auth.dependencies import require_authenticated_user
 from src.auth.models import User
@@ -77,7 +77,7 @@ def list_task_changes(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_access),
 ) -> TaskChangesOut:
-    """Tasks changed or deleted since ``since``, so one annotator's list reflects
+    """Tasks changed since ``since``, so one annotator's list reflects
     everyone's work and the admins' edits without reloading it. Without ``since``
     it only hands back the cursor, like the annotation changes poll."""
     now = spatial.server_now(db)
@@ -85,8 +85,7 @@ def list_task_changes(
         return TaskChangesOut(server_time=now, tasks=[])
     task_ids = service.get_changed_task_ids(db, campaign.id, since)
     tasks = service.get_tasks(db, campaign, task_ids) if task_ids else []
-    deleted = sync.get_deleted_task_ids(db, campaign.id, since)
-    return TaskChangesOut(server_time=now, tasks=tasks, deleted=deleted)
+    return TaskChangesOut(server_time=now, tasks=tasks)
 
 
 @router.post(

@@ -989,7 +989,7 @@ export const listTasks = <ThrowOnError extends boolean = false>(options: Options
 /**
  * List Task Changes
  *
- * Tasks changed or deleted since ``since``, so one annotator's list reflects
+ * Tasks changed since ``since``, so one annotator's list reflects
  * everyone's work and the admins' edits without reloading it. Without ``since``
  * it only hands back the cursor, like the annotation changes poll.
  */

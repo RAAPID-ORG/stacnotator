@@ -698,6 +698,7 @@
   },
   "sliceFallback": "Slice {{number}}",
   "taskActions": {
+    "taskDeleted": "This task was deleted by an admin. Moving on.",
     "submitFailed": "The task could not be submitted",
     "noTask": "No current task to submit",
     "noneLeft": "No unassigned tasks left to work on.",

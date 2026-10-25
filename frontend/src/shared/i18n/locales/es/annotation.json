@@ -703,6 +703,7 @@
   },
   "sliceFallback": "Corte {{number}}",
   "taskActions": {
+    "taskDeleted": "Un administrador eliminó esta tarea. Pasamos a la siguiente.",
     "submitFailed": "No se pudo enviar la tarea",
     "noTask": "No hay ninguna tarea actual que enviar",
     "noneLeft": "No quedan tareas sin asignar en las que trabajar.",

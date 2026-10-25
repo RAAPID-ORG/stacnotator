@@ -12,7 +12,6 @@ from src.annotation.models import Annotation
 from src.annotation.sync import (
     bump_campaign_annotations_version,
     record_annotation_deletions,
-    record_task_deletions,
 )
 from src.campaigns.models import Campaign
 from src.campaigns.policy import (
@@ -336,7 +335,6 @@ def delete_tasks(
     if task_rows or drop:
         record_annotation_deletions(db, campaign_id, [row.id for row in drop])
         bump_campaign_annotations_version(db, campaign_id)
-    record_task_deletions(db, campaign_id, task_ids)
     for doomed in (*drop, *tasks):
         db.delete(doomed)
 
