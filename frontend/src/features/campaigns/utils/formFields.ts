@@ -6,10 +6,13 @@ const t = i18n.getFixedT(null, 'campaigns');
 export type FormField = NonNullable<CampaignSettingsCreate['form_fields']>[number];
 
 export function formFieldSlug(title: string): string {
-  return title
+  const slug = title
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\p{L}\p{N}]+/gu, '_')
     .replace(/^_+|_+$/g, '');
+  return slug || 'field';
 }
 
 function fieldLabel(field: FormField): string {

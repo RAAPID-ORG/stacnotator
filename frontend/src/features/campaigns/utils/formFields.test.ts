@@ -47,6 +47,12 @@ describe('formFieldSlug', () => {
   it('strips leading and trailing separators', () => {
     expect(formFieldSlug('  Hello World!!  ')).toBe('hello_world');
   });
+
+  it('keeps letters of any script and drops accents', () => {
+    expect(formFieldSlug('状態')).toBe('状態');
+    expect(formFieldSlug('Condición')).toBe('condicion');
+    expect(formFieldSlug('%%')).toBe('field');
+  });
 });
 
 describe('validateFormFields', () => {
