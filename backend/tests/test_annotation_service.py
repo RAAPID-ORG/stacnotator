@@ -1,5 +1,7 @@
 """Tests for annotation service layer."""
 
+import csv
+import io
 import json
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -1020,6 +1022,17 @@ class TestExportMergeCorrectness:
         assert len(df) == 2
         assert set(df["stacnotator_annotation_id"]) == {1, 2}
         assert set(df["stacnotator_label_name"]) == {"Forest"}
+
+    def test_csv_keeps_integer_columns_whole_beside_gaps(self):
+        task = self._task(task_id=71460)
+        on_task = self._ann(ann_id=1, label_id=3, task=task, confidence=5)
+        standalone = self._ann(ann_id=2, label_id=None)
+        text = self._csv([on_task, standalone]).to_csv(index=False)
+
+        row, gap = csv.DictReader(io.StringIO(text))
+        assert (row["stacnotator_task_id"], row["stacnotator_label_id"]) == ("71460", "3")
+        assert row["stacnotator_confidence"] == "5"
+        assert gap["stacnotator_task_id"] == ""
 
     def test_standalone_annotation_exports_imagery_snapshot(self):
         # Standalone annotation (no task) carrying the imagery it was drawn on.
