@@ -23,6 +23,7 @@ import {
   NotFoundGate,
   RegisteringGate,
 } from './chrome/Gates';
+import { panelName } from './canvas/PanelHost';
 import { LayoutEditControls } from './canvas/LayoutEdit/LayoutEditControls';
 import { TrayContent } from './canvas/LayoutEdit/TrayContent';
 import { SliceNavigation } from './chrome/SliceNavigation';
@@ -373,7 +374,7 @@ export function AnnotationPage() {
                 {panel.header}
                 <SendToScreenButton
                   panelId={panel.id}
-                  label={panel.title ?? panel.id}
+                  label={panelName(panel)}
                   screenIds={screens.screens.map((s) => s.id)}
                   currentScreen={screens.assignment[panel.id]}
                   onSend={(target) => {

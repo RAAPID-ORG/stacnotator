@@ -19,7 +19,7 @@ describe('PanelHost', () => {
     expect(placeholder.textContent).toBe('Sentinel-2Satellite imagery');
     fireEvent.click(placeholder);
     expect(onHidePanel).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Hide 10' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Hide Sentinel-2' }));
     expect(onHidePanel).toHaveBeenCalledWith('10');
 
     rerender(<PanelHost panel={panel} editing={false} onHidePanel={onHidePanel} />);
