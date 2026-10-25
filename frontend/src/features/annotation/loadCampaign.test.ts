@@ -187,6 +187,14 @@ describe('loadCampaign happy path', () => {
     expect(useCampaignStore.getState().workMode).toBe('explore');
   });
 
+  it('opens a linked task in tasks mode even when it has no work left', async () => {
+    mockApi({ tasks: [task({ task_status: 'done' })] });
+    await loadCampaign(5, { now: 1000, currentUserId: 'u1', preferTaskId: 1, isReviewMode: true });
+    expect(useCampaignStore.getState().workMode).toBe('tasks');
+    expect(useCampaignStore.getState().isReviewMode).toBe(true);
+    expect(useTasksStore.getState().visibleTasks.map((t) => t.id)).toContain(1);
+  });
+
   it('respects an explicit initialWorkMode even for a zero-task campaign', async () => {
     mockApi({ tasks: [] });
     await loadCampaign(5, { now: 1000, currentUserId: 'u1', workMode: 'tasks' });

@@ -83,6 +83,15 @@ export async function fitAnnotations(campaignId: number, includeTasks: boolean):
   }
 }
 
+/** Frame one annotation: at the working zoom when it fits there, zoomed out
+ *  until it does when it is larger. */
+export function fitAnnotation(bbox: Bbox, workingZoom: number | null): void {
+  mainCamera.fitBounds(bbox, {
+    paddingPx: FIT_PADDING_PX,
+    maxZoom: workingZoom ?? DEFAULT_MAP_ZOOM,
+  });
+}
+
 export type PanDirection = 'up' | 'down' | 'left' | 'right';
 
 const PAN_VECTORS: Record<PanDirection, [number, number]> = {

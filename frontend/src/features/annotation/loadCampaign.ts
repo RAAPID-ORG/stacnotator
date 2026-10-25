@@ -56,13 +56,17 @@ export async function loadCampaign(
     isPublic: campaign.is_public,
   });
 
+  // A link to a task opens that task, even one with no work left for the
+  // viewer: the review pages link done tasks too.
   const workMode: WorkMode =
     options.workMode ??
-    openingWorkMode(
-      tasks,
-      campaign.settings.labelling_policy,
-      toPolicyContext(campaign, options.currentUserId)
-    );
+    (options.preferTaskId != null
+      ? 'tasks'
+      : openingWorkMode(
+          tasks,
+          campaign.settings.labelling_policy,
+          toPolicyContext(campaign, options.currentUserId)
+        ));
 
   const layout = layoutForView(campaign, view);
   const startCollectionId = startCollectionFor(catalog, view, layout.hidden);

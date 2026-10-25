@@ -32,6 +32,7 @@ import { ScreenWindow } from './canvas/Screens/ScreenWindow';
 import { Toolbar } from './chrome/Toolbar/Toolbar';
 import { TourOverlay } from './chrome/Tour/TourOverlay';
 import { useHotkeys } from './hotkeys';
+import { extentOf } from './campaign/annotation';
 import { windowsShown } from './campaign/imagery';
 import { groupTimeseriesIntoWindows } from './campaign/timeseries';
 import { isAudienceMember } from '~/features/campaigns/utils/labellingPolicy';
@@ -48,7 +49,12 @@ import {
 } from './canvas/grid';
 import { reviewFilterPatch, type TaskFilter } from './campaign/tasks';
 import { TASK_STATUSES } from '~/shared/utils/taskStatus';
-import { applyCameraTarget, focusFirstViewSetup, loadCameraTarget } from './map/camera';
+import {
+  applyCameraTarget,
+  fitAnnotation,
+  focusFirstViewSetup,
+  loadCameraTarget,
+} from './map/camera';
 import { buildPanels, MAIN_MAP_PANEL, type PanelDef } from './panels/panels';
 import { loadCampaign } from './loadCampaign';
 import { usePolicy, useCampaignStore } from './stores/campaign';
@@ -209,14 +215,15 @@ export function AnnotationPage() {
         // would open on the whole world.
         const { catalog: cat, workMode: mode } = useCampaignStore.getState();
         const address = useImageryStore.getState().address;
+        const workingZoom = address
+          ? (cat?.sources.get(address.sourceId)?.default_zoom ?? null)
+          : null;
         applyCameraTarget(
           loadCameraTarget({
             mode,
             taskCenter: useTasksStore.getState().focus?.center ?? null,
             campaignBbox: cat?.bbox ?? null,
-            workingZoom: address
-              ? (cat?.sources.get(address.sourceId)?.default_zoom ?? null)
-              : null,
+            workingZoom,
             deepLinkCenter: link.center,
           })
         );
@@ -226,6 +233,12 @@ export function AnnotationPage() {
           // tool has to be armed before the annotation is opened.
           await useWorkStore.getState().selectTool('edit');
           await useWorkStore.getState().openEdit(annotationId);
+          // The link only carries a centre; a shape larger than the working
+          // view would show as a fill with no outline.
+          const opened = useWorkStore.getState().edit;
+          if (!cancelled && opened?.annotation.id === annotationId) {
+            fitAnnotation(extentOf(opened.geometry), workingZoom);
+          }
         }
       })
       .catch((error) => {

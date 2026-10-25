@@ -274,7 +274,7 @@ export function maySubmitTask(state: SubmitReadiness): boolean {
 // Geometry
 // ---------------------------------------------------------------------------
 
-function extentOf(geometry: GeoJSON.Geometry): [number, number, number, number] {
+export function extentOf(geometry: GeoJSON.Geometry): [number, number, number, number] {
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
