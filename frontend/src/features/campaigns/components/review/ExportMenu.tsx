@@ -120,7 +120,7 @@ export function ExportMenu({
       </button>
       <Dropdown
         open={open}
-        className={`absolute top-full mt-1 z-20 ${compact ? 'left-0 origin-top-left' : 'right-0 origin-top-right'}`}
+        className={`absolute top-full mt-1 z-30 ${compact ? 'left-0 origin-top-left' : 'right-0 origin-top-right'}`}
       >
         <div
           className="bg-white border border-neutral-200 rounded-lg shadow-lg min-w-[240px]"
