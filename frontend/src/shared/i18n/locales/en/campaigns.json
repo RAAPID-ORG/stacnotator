@@ -529,7 +529,7 @@
     "duplicatePanel": "A panel with this name already exists.",
     "renamePanelAria": "Rename {{name}} panel",
     "rename": "Rename",
-    "series": "Series {{number}}",
+    "series": "Series {{number}} (no name yet)",
     "name": "Timeseries name",
     "startDate": "Start Date",
     "endDate": "End Date",

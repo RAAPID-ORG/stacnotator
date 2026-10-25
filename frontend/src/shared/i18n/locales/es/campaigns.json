@@ -555,7 +555,7 @@
     "duplicatePanel": "Ya existe un panel con este nombre.",
     "renamePanelAria": "Renombrar el panel {{name}}",
     "rename": "Renombrar",
-    "series": "Serie {{number}}",
+    "series": "Serie {{number}} (sin nombre)",
     "name": "Nombre de la serie temporal",
     "startDate": "Fecha de inicio",
     "endDate": "Fecha de fin",
