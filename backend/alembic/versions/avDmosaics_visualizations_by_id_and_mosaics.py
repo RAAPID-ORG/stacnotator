@@ -40,6 +40,9 @@ SELECT
      WHERE r.source_id = c.source_id AND r.name = u.visualization_name))
 """
 
+# Every MPC tile URL starts here; the search id follows /mosaic/.
+MPC_HOST = "https://planetarycomputer.microsoft.com/"
+
 revision: str = "avDmosaics"
 down_revision: str | Sequence[str] | None = "avCemberr"
 branch_labels: str | Sequence[str] | None = None
@@ -154,16 +157,27 @@ def upgrade() -> None:
         sa.Column("mosaic_id", sa.String(64), nullable=False),
         schema="data",
     )
+    # Rows written while mosaic_id still referenced the local mosaic table could not
+    # hold an MPC search id, so an MPC slice from then has it only in its URL.
     op.execute(
-        """
+        sa.text(
+            """
         INSERT INTO data.slice_mosaics (slice_id, provider, mosaic_id)
-        SELECT DISTINCT ON (u.slice_id, u.tiler) u.slice_id, u.tiler, u.mosaic_id
-        FROM data.slice_tile_urls u
-        JOIN data.imagery_slices s ON s.id = u.slice_id
-        JOIN data.imagery_collections c ON c.id = s.collection_id
-        WHERE c.catalog_url IS NOT NULL AND u.tiler IS NOT NULL AND u.mosaic_id IS NOT NULL
-        ORDER BY u.slice_id, u.tiler, u.id
+        SELECT DISTINCT ON (r.slice_id, r.provider) r.slice_id, r.provider, r.mosaic_id
+        FROM (
+          SELECT u.id, u.slice_id,
+                 COALESCE(u.tiler, CASE WHEN u.tile_url LIKE :mpc THEN 'mpc' END) AS provider,
+                 COALESCE(u.mosaic_id, CASE WHEN u.tile_url LIKE :mpc
+                   THEN substring(u.tile_url FROM '/mosaic/([^/?]+)/tiles') END) AS mosaic_id
+          FROM data.slice_tile_urls u
+          JOIN data.imagery_slices s ON s.id = u.slice_id
+          JOIN data.imagery_collections c ON c.id = s.collection_id
+          WHERE c.catalog_url IS NOT NULL
+        ) r
+        WHERE r.provider IS NOT NULL AND r.mosaic_id IS NOT NULL
+        ORDER BY r.slice_id, r.provider, r.id
         """
+        ).bindparams(mpc=f"{MPC_HOST}%")
     )
 
     op.create_table(
