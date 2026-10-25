@@ -330,9 +330,11 @@ export function nextIndex(visible: TaskOut[], current: number): number {
   return current >= visible.length - 1 ? 0 : current + 1;
 }
 
+/** Unlike next, back stops at the first task: wrapping would open the far
+ *  end of the list, which the user has not reached. */
 export function prevIndex(visible: TaskOut[], current: number): number {
   if (visible.length === 0) return current;
-  return current === 0 ? visible.length - 1 : current - 1;
+  return Math.max(0, current - 1);
 }
 
 // ---------------------------------------------------------------------------

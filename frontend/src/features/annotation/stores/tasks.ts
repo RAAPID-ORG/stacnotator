@@ -55,10 +55,11 @@ export interface TasksState {
   focus: MapFocus | null;
   /** Database clock the next task poll asks for changes since. */
   syncCursor: string | null;
-  /** Ids of the tasks opened this session, oldest first, and where in that
-   *  trail the current task sits. Back and forward walk it like a browser's
-   *  history, so a task the filter has since dropped (one just finished) is
-   *  still one step back. */
+  /** Ids of the tasks opened under the current filter, oldest first, and
+   *  where in that trail the current task sits. Back and forward walk it like
+   *  a browser's history, so a task the filter has since dropped (one just
+   *  finished) is still one step back. Changing the filter starts a new one:
+   *  the old trail leads into tasks the user has filtered away. */
   history: number[];
   historyPos: number;
 
@@ -268,7 +269,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     const { allTasks } = get();
     const currentUserId = useCampaignStore.getState().currentUserId;
     const { visibleTasks, suggestedIndex } = applyTaskFilter(allTasks, filter, currentUserId, now);
-    set({ filter, visibleTasks, currentIndex: suggestedIndex });
+    set({ filter, visibleTasks, currentIndex: suggestedIndex, history: [], historyPos: 0 });
     publishSelection(catalog);
   },
 
