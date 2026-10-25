@@ -118,7 +118,7 @@ export function retainMatchingIds(
   });
 }
 
-type PeriodUnit = 'days' | 'weeks' | 'months' | 'years';
+export type PeriodUnit = 'days' | 'weeks' | 'months' | 'years';
 
 const toDateStr = (d: Date) =>
   `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
@@ -132,13 +132,24 @@ function addPeriod(from: Date, interval: number, unit: PeriodUnit): Date {
   return next;
 }
 
-/** [start, end) periods of ``interval`` ``unit`` covering [from, to), the last cut short. */
-function periods(from: Date, to: Date, interval: number, unit: PeriodUnit): Array<[Date, Date]> {
+const MIN_TAIL_MS = 3 * 86_400_000;
+
+/** [start, end) periods of ``interval`` ``unit`` covering [from, to), the last cut short.
+ *  A cut-short remainder under three days joins the period before it rather than
+ *  standing as a slice of a day or two. */
+export function periods(
+  from: Date,
+  to: Date,
+  interval: number,
+  unit: PeriodUnit
+): Array<[Date, Date]> {
   const out: Array<[Date, Date]> = [];
   for (let start = from; start < to; ) {
     const next = addPeriod(start, interval, unit);
     const end = next > to ? to : next;
-    out.push([start, end]);
+    const isShortTail = end < next && end.getTime() - start.getTime() < MIN_TAIL_MS;
+    if (isShortTail && out.length > 0) out[out.length - 1][1] = end;
+    else out.push([start, end]);
     start = end;
   }
   return out;
