@@ -64,9 +64,13 @@ function PendingCard({
   const { t } = useTranslation('panels');
   return (
     <div className={`${cardFrame} border-dashed border-neutral-300 bg-neutral-50`}>
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-bold text-neutral-500">{resolveDisplayName(row, currentUserId)}</span>
-        <span className="text-neutral-400 italic">{t('review.notLabeled')}</span>
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
+        <span className="min-w-0 truncate font-bold text-neutral-500">
+          {resolveDisplayName(row, currentUserId)}
+        </span>
+        <span className="ml-auto whitespace-nowrap text-neutral-400 italic">
+          {t('review.notLabeled')}
+        </span>
       </div>
     </div>
   );
@@ -108,8 +112,10 @@ function AnnotationCard({
 
   return (
     <div className={`${cardFrame} ${bg} ${isExtra ? 'opacity-60' : ''}`}>
-      <div className="flex items-center justify-between gap-2">
-        <span className={`font-bold ${nameColor}`}>
+      {/* A narrow panel moves the answer under the name rather than breaking
+          either across lines. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
+        <span className={`min-w-0 truncate font-bold ${nameColor}`}>
           {resolveDisplayName(row, currentUserId)}
           {isAuthoritative && (
             <span className="ml-1 text-amber-600" title={t('review.authoritative')}>
@@ -133,7 +139,7 @@ function AnnotationCard({
             </span>
           )}
         </span>
-        <div className="flex items-center gap-1.5 text-neutral-500">
+        <div className="ml-auto flex shrink-0 items-center gap-1.5 whitespace-nowrap text-neutral-500">
           <span className={`font-medium ${labelColor}`}>{labelName}</span>
           {annotation.confidence != null && (
             <>
@@ -203,8 +209,8 @@ export function ReviewList({ task, currentUserId, labels }: ReviewListProps) {
       data-testid="review-list"
       className="flex flex-col gap-1.5 p-3 border-b border-neutral-100 w-full"
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+        <span className="whitespace-nowrap text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
           {t('review.all')}
         </span>
         {isConflicting && (

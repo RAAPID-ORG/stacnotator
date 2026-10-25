@@ -76,8 +76,12 @@ function Icon({ path }: { path: string }) {
   );
 }
 
+/** Chips sit as many to a row as fit, each row filling the width, so a
+ *  narrow panel shows one full-width chip per row rather than ragged ones. */
+const chipRowClass = 'grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-1.5';
+
 const chipClass = (active: boolean) =>
-  `flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-[11px] font-medium transition-colors cursor-pointer ${
+  `flex min-w-0 items-center justify-center gap-1.5 px-2 py-1.5 rounded text-[11px] font-medium transition-colors cursor-pointer ${
     active
       ? 'bg-brand-50 text-brand-700 border border-brand-600'
       : 'bg-neutral-50 text-neutral-600 border border-neutral-200 hover:bg-neutral-100 hover:border-neutral-300'
@@ -130,7 +134,7 @@ function ProbeControls() {
         {t('tools.timeseries')}
       </span>
       <p className="text-[11px] text-neutral-500 leading-relaxed">{t('probes.help')}</p>
-      <div className="flex flex-row flex-wrap gap-1.5">
+      <div className={chipRowClass}>
         <button
           type="button"
           onClick={() => useWorkStore.getState().armAddProbe(!armed)}
@@ -224,7 +228,7 @@ export function ExploreControls() {
           <span className="font-semibold text-neutral-700 text-xs tracking-wide">
             {t('explore.tools')}
           </span>
-          <div className="flex flex-row flex-wrap gap-1.5">
+          <div className={chipRowClass}>
             {availableTools.map((def) => (
               <button
                 key={def.id}
