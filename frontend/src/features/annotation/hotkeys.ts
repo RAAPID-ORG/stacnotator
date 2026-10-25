@@ -79,13 +79,21 @@ function matchKey(e: KeyboardEvent, spec: string): boolean {
   return MODIFIERS.every((name) => MODIFIER_HELD[name](e) === modifiers.includes(name));
 }
 
-function isTyping(target: EventTarget | null): boolean {
+const CHOICE_KEYS = [' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+
+function isTyping(e: KeyboardEvent): boolean {
+  const target = e.target;
   if (!(target instanceof HTMLElement)) return false;
+  // A focused checkbox or radio is not text entry: it only uses Space and the
+  // arrows, so every other key still reaches the page.
+  if (target instanceof HTMLInputElement && ['checkbox', 'radio'].includes(target.type)) {
+    return CHOICE_KEYS.includes(e.key);
+  }
   return ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
 }
 
 function onKeyDown(e: KeyboardEvent): void {
-  const typing = isTyping(e.target);
+  const typing = isTyping(e);
   const matches = (b: Binding) =>
     matchKey(e, b.key) &&
     (!e.repeat || b.allowRepeat) &&
