@@ -143,12 +143,12 @@ describe('startEditing / saveLayout / cancelEditing', () => {
     layout = useLayoutStore.getState().currentLayout;
     expect(layout.main.timeline).toMatchObject({
       x: 2,
-      y: 19,
+      y: 21,
       w: 30,
-      h: 4,
+      h: 2,
       orientation: 'horizontal',
     });
-    expect(layout.main.main).toMatchObject({ x: 2, y: 3, w: 30, h: 16 });
+    expect(layout.main.main).toMatchObject({ x: 2, y: 3, w: 30, h: 18 });
     expect(layout.main.minimap).toEqual(initial.main.minimap);
     expect(layout.windows).toEqual(initial.windows);
     for (const item of toGridLayout(layout)) {
@@ -266,5 +266,15 @@ describe('setNewWindowSize', () => {
       w: 20,
       h: 12,
     });
+  });
+});
+
+describe('sendToScreen', () => {
+  it('opens a timeline-only screen as a full-width horizontal strip', () => {
+    useLayoutStore.getState().setScope('test');
+    useLayoutStore.getState().sendToScreen('timeline', 'new', undefined, 1200);
+    const [screen] = useLayoutStore.getState().screens.screens;
+    expect(screen.layout).toEqual([expect.objectContaining({ i: 'timeline', w: 60, h: 2 })]);
+    expect(screen.bounds?.height).toBeLessThan(200);
   });
 });

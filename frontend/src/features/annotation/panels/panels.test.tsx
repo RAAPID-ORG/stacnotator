@@ -39,6 +39,7 @@ const panelsFor = (activeCollectionId: number | null) =>
     mode: 'explore',
     layout: LAYOUT,
     activeCollectionId,
+    onScreen: new Set(),
   });
 
 describe('buildPanels', () => {
@@ -68,5 +69,32 @@ describe('buildPanels', () => {
     // The outline follows a collection change rather than staying where it was.
     expect(active(200)).toEqual(['200']);
     expect(active(null)).toEqual([]);
+  });
+});
+
+describe('the timeline panel', () => {
+  const withTimeline: WorkspaceLayout = {
+    ...LAYOUT,
+    main: { ...LAYOUT.main, timeline: { ...item, i: 'timeline', orientation: 'vertical' } },
+  };
+  const timelineOrientation = (onScreen: Set<string>) => {
+    const panel = buildPanels({
+      campaign: CAMPAIGN,
+      catalog: CATALOG,
+      view: VIEW,
+      mode: 'explore',
+      layout: withTimeline,
+      activeCollectionId: null,
+      onScreen,
+    }).find((p) => p.id === 'timeline');
+    return (panel?.body as { props: { orientation: string } }).props.orientation;
+  };
+
+  it('keeps its canvas orientation on the main canvas', () => {
+    expect(timelineOrientation(new Set())).toBe('vertical');
+  });
+
+  it('runs horizontally on a screen', () => {
+    expect(timelineOrientation(new Set(['timeline']))).toBe('horizontal');
   });
 });

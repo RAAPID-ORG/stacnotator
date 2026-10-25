@@ -12,6 +12,8 @@ import {
   toGridLayout,
   viewLayout,
   EMPTY_LAYOUT,
+  GRID_COLS,
+  TIMELINE_HORIZONTAL_ROWS,
   type LayoutItem,
   type WorkspaceLayout,
 } from '../canvas/grid';
@@ -29,6 +31,9 @@ import {
 
 /** Initial OS-window size for a newly opened screen. */
 export const SCREEN_DEFAULT_BOUNDS: ScreenBounds = { width: 1280, height: 860, left: 80, top: 60 };
+/** A screen opened for the timeline alone: a strip as wide as the default
+ *  screen and as tall as the window bar plus a horizontal timeline. */
+const TIMELINE_SCREEN_BOUNDS: ScreenBounds = { ...SCREEN_DEFAULT_BOUNDS, height: 100 };
 /** Rough horizontal overhead of a screen window, used to estimate its canvas
  *  width before the window has reported one. */
 const SCREEN_CHROME_PX = 40;
@@ -238,17 +243,25 @@ export const useLayoutStore = create<LayoutState>((set, get) => {
         const opened = target === 'new' ? openScreen(current) : { state: current, id: target };
         // A new screen is seeded with the bounds it will actually open at, so
         // the width the panel is scaled against is the real one.
+        const timeline = panelId === 'timeline';
         const seeded =
           target === 'new'
-            ? rememberScreenBounds(opened.state, opened.id, SCREEN_DEFAULT_BOUNDS)
+            ? rememberScreenBounds(
+                opened.state,
+                opened.id,
+                timeline ? TIMELINE_SCREEN_BOUNDS : SCREEN_DEFAULT_BOUNDS
+              )
             : opened.state;
         const bounds = seeded.screens.find((s) => s.id === opened.id)?.bounds;
         const screenPx = (bounds?.width ?? SCREEN_DEFAULT_BOUNDS.width) - SCREEN_CHROME_PX;
         // Rows are a fixed height so h transfers as-is, but a grid column is
         // narrower in a screen window.
-        const size = item
-          ? { w: scaleWidthToScreen(item.w, canvasPx, screenPx), h: item.h }
-          : { w: 20, h: 12 };
+        // The timeline runs horizontally on a screen, across its full width.
+        const size = timeline
+          ? { w: GRID_COLS, h: TIMELINE_HORIZONTAL_ROWS }
+          : item
+            ? { w: scaleWidthToScreen(item.w, canvasPx, screenPx), h: item.h }
+            : { w: 20, h: 12 };
         return sendToScreen(seeded, panelId, opened.id, size);
       }),
 

@@ -358,6 +358,7 @@ export function AnnotationPage() {
       mode: workMode,
       layout: currentLayout,
       activeCollectionId,
+      onScreen: new Set(Object.keys(screens.assignment)),
     });
     // The main map is the leader every other camera follows and the page would
     // be left with no map at all, so it gets no send control.

@@ -5,6 +5,8 @@ import { sameValue } from '~/shared/utils/equality';
 export const GRID_COLS = 60;
 export const ROW_HEIGHT = 15;
 export const GRID_MARGIN: [number, number] = [6, 6];
+/** A horizontal timeline is one track and its date chip: two rows hold it. */
+export const TIMELINE_HORIZONTAL_ROWS = 2;
 
 export type LayoutItem = CanvasLayoutItem;
 
@@ -264,7 +266,7 @@ export function placeTimeline(
     const size =
       orientation === 'vertical'
         ? { w: 4, h: Math.max(1, map.h) }
-        : { w: Math.max(1, map.w), h: 4 };
+        : { w: Math.max(1, map.w), h: TIMELINE_HORIZONTAL_ROWS };
     return {
       ...next,
       main: {
@@ -295,7 +297,7 @@ export function placeTimeline(
     map.x += timeline.w;
     map.w -= timeline.w;
   } else {
-    timeline.h = Math.min(4, map.h - 1);
+    timeline.h = Math.min(TIMELINE_HORIZONTAL_ROWS, map.h - 1);
     map.h -= timeline.h;
     timeline.y = map.y + map.h;
   }
