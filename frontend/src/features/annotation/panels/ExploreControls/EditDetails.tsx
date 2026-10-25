@@ -12,7 +12,9 @@ import {
   wktToGeometry,
 } from '../../campaign/annotation';
 import { useCampaign, useCanModifyAnnotation } from '../../stores/campaign';
+import { usePrefsStore } from '../../stores/prefs';
 import { useWorkStore } from '../../stores/work';
+import { labelSwatch } from '../../campaign/labelStyle';
 import { FormFields } from '../../components/FormFields';
 import { LabelChips } from '../../components/LabelChips';
 import { CHIP_MIN_WIDTH } from '../../components/chipGrid';
@@ -27,7 +29,8 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
   const showAlert = useLayoutStore((s) => s.showAlert);
   const readOnly = !useCanModifyAnnotation()(annotation);
 
-  const labels = extendedLabels(campaign);
+  const labelStyles = usePrefsStore((s) => s.labelStyles);
+  const labels = extendedLabels(campaign).map((label) => labelSwatch(label, labelStyles[label.id]));
   const selectable = labelsForGeometry(labels, wktToGeometry(annotation.geometry_wkt));
   const fields = campaign.settings.form_fields;
   const dirty = !formValuesEqual(values, annotation.form_values ?? {});

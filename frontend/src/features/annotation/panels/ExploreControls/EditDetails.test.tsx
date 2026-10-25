@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import * as api from '~/api/client';
 import { makeAnnotation, makeCampaign, makeSettings } from '~/features/annotation/testing/fixtures';
 import { seedCampaign } from '../../testing/seed';
+import { usePrefsStore } from '../../stores/prefs';
 import { useWorkStore } from '../../stores/work';
 import { EditDetails } from './EditDetails';
 
@@ -85,6 +86,15 @@ describe('EditDetails label', () => {
     render(<EditDetails />);
     expect(chip(TREE.id).textContent).toMatch(/tree/i);
     expect(screen.queryByTestId('edit-details-save')).toBeNull();
+  });
+
+  it("colours the chips as the map paints the shapes, with the viewer's style", () => {
+    open([TREE, ROCK]);
+    usePrefsStore.getState().setLabelStyle(ROCK.id, { fillColor: '#123456' });
+    render(<EditDetails />);
+    const swatch = chip(ROCK.id).querySelector<HTMLElement>('span span')!;
+    expect(swatch.style.backgroundColor).toBe('rgb(18, 52, 86)');
+    usePrefsStore.getState().resetLabelStyle(ROCK.id);
   });
 
   it('saves a picked label at once', async () => {

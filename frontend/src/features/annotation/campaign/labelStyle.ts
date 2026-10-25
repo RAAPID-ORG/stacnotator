@@ -35,6 +35,17 @@ export function resolveLabelStyle(
   };
 }
 
+/** A label as its chip shows it: the viewer's resolved fill inside their
+ *  resolved border, the same colours the map paints its shapes with. Every
+ *  label chip takes its swatch from here, so a chip never disagrees with the map. */
+export function labelSwatch<L extends { color: string; geometry_type: GeometryType }>(
+  label: L,
+  override?: Partial<LabelStyle>
+): L & { borderColor: string } {
+  const style = resolveLabelStyle(label.color, label.geometry_type, override);
+  return { ...label, color: style.fillColor, borderColor: style.strokeColor };
+}
+
 /** Selected wins over hovered. */
 export function emphasizedFillOpacity(base: number, { selected, hovered }: Emphasis): number {
   return Math.min(1, base + (selected ? 0.15 : hovered ? 0.05 : 0));

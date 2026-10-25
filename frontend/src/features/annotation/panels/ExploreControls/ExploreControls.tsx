@@ -8,7 +8,7 @@ import {
   type ExtendedLabel,
   type GeometryType,
 } from '../../campaign/annotation';
-import { resolveLabelStyle } from '../../campaign/labelStyle';
+import { labelSwatch } from '../../campaign/labelStyle';
 import { useImageryStore } from '../../stores/imagery';
 import { usePrefsStore } from '../../stores/prefs';
 import { useCampaign } from '../../stores/campaign';
@@ -199,12 +199,7 @@ export function ExploreControls() {
       (def.id !== 'labelVector' || (campaign.vector_layers?.length ?? 0) > 0)
   );
 
-  /** The chip swatch shows the label as the map draws it: the user's resolved
-   *  fill inside their resolved border. */
-  const swatch = (label: ExtendedLabel) => {
-    const style = resolveLabelStyle(label.color, label.geometry_type, labelStyles[label.id]);
-    return { ...label, color: style.fillColor, borderColor: style.strokeColor };
-  };
+  const swatch = (label: ExtendedLabel) => labelSwatch(label, labelStyles[label.id]);
 
   // Enter and Escape resolve the draft too (explore-work/hotkeys.ts), so the
   // failure notice clears on the draft itself going away, not only on the
