@@ -87,6 +87,8 @@ export interface FeatureLayerSpec {
   zIndex?: number;
   visible?: boolean;
   minZoom?: number;
+  /** Drawn only: a click on it reaches whatever lies underneath. */
+  decorative?: boolean;
 }
 
 export type LayerSpec = RasterLayerSpec | GlStyleLayerSpec | VectorTileLayerSpec | FeatureLayerSpec;

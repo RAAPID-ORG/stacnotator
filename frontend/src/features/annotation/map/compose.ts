@@ -298,6 +298,7 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
     layers.push({
       kind: 'features',
       id: EXTENT_LAYER_ID,
+      decorative: true,
       features: [state.focusExtent],
       style: {
         stroke: {
@@ -420,6 +421,7 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
     layers.push({
       kind: 'features',
       id: ORIGIN_TASK_LAYER_ID,
+      decorative: true,
       features: [
         {
           id: ORIGIN_TASK_LAYER_ID,
@@ -446,6 +448,7 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
     layers.push({
       kind: 'features',
       id: CROSSHAIR_LAYER_ID,
+      decorative: true,
       features: [
         { id: CROSSHAIR_LAYER_ID, geometry: { type: 'Point', coordinates: state.crosshairPoint } },
       ],
