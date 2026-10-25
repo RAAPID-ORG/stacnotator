@@ -300,8 +300,15 @@ export async function advance(): Promise<void> {
         after_annotation_number: current?.annotation_number,
       },
     });
-    if (data?.task) useTasksStore.getState().adoptTask(data.task, catalog);
-    else alert(t('taskActions.noneLeft'), 'success');
+    if (data?.task) {
+      useTasksStore.getState().adoptTask(data.task, catalog);
+      return;
+    }
+    alert(t('taskActions.noneLeft'), 'success');
+    // Re-filtering drops the tasks just finished, so an empty pool shows the
+    // all-done state now rather than on the next reload.
+    const { filter, setFilter } = useTasksStore.getState();
+    setFilter(filter, Date.now(), catalog);
   } catch (error) {
     handleError(error, t('taskActions.nextFailed'));
   }

@@ -83,6 +83,27 @@ describe('advance', () => {
     expect(alerts).toContainEqual(expect.stringContaining('No unassigned tasks left'));
   });
 
+  it('shows the all-done state once the task just finished was the last', async () => {
+    const catalog = seedCampaign(makeCampaign(), {
+      currentUserId: 'u1',
+      tasks: [free(1)],
+      filter: POOL,
+    });
+    useTasksStore.getState().replaceTask(
+      {
+        ...free(1),
+        task_status: 'done',
+        annotations: [makeTaskAnnotation({ created_by_user_id: 'u1' })],
+      },
+      catalog
+    );
+    vi.mocked(api.claimNextTask).mockResolvedValue(apiSuccess({ task: null }));
+
+    await advance();
+
+    expect(useTasksStore.getState().visibleTasks).toEqual([]);
+  });
+
   it('steps locally for a filter that is a fixed list, without a round trip', async () => {
     const assigned = (id: number) =>
       makeTask({ id, annotation_number: id, assignments: [{ user_id: 'u1', status: 'pending' }] });
