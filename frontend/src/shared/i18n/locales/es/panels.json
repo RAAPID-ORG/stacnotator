@@ -90,13 +90,12 @@
     "save": "Guardar cambios"
   },
   "draft": {
-    "title": "{{label}} - responde las preguntas",
     "annotation": "Anotación",
     "closeSaved": "Cerrar (la anotación está guardada, las respuestas se conservan)",
     "closeUnsaved": "Cerrar (los campos obligatorios sin responder descartan la anotación)",
-    "retry": "Reintentar guardado (Enter)",
-    "saveAnswers": "Guardar respuestas (Enter)",
-    "save": "Guardar anotación (Enter)",
+    "retry": "Reintentar guardado",
+    "saveAnswers": "Guardar respuestas",
+    "save": "Guardar anotación",
     "savedHint": {
       "point": "El punto está guardado. Las respuestas se añaden al guardar.",
       "line": "La línea está guardada. Las respuestas se añaden al guardar.",

@@ -384,7 +384,7 @@ export function FormFields({
           key={field.id}
           data-form-field-id={field.id}
           tabIndex={-1}
-          className={`flex flex-col gap-1.5 p-3 border-r border-b border-neutral-100 flex-1 min-w-[10rem] focus:outline-none ${
+          className={`flex flex-col gap-1.5 p-3 border-r border-b border-neutral-100 flex-1 basis-40 min-w-0 focus:outline-none ${
             activeFieldIndex === index ? activeGroupClass : ''
           }`}
         >

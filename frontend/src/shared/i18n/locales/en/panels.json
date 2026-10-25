@@ -89,13 +89,12 @@
     "save": "Save changes"
   },
   "draft": {
-    "title": "{{label}} - answer questions",
     "annotation": "Annotation",
     "closeSaved": "Close (the annotation is saved, answers are kept)",
     "closeUnsaved": "Close (unanswered required fields discard the annotation)",
-    "retry": "Retry save (Enter)",
-    "saveAnswers": "Save answers (Enter)",
-    "save": "Save annotation (Enter)",
+    "retry": "Retry save",
+    "saveAnswers": "Save answers",
+    "save": "Save annotation",
     "savedHint": {
       "point": "The point is saved. Answers are added when you save.",
       "line": "The line is saved. Answers are added when you save.",
