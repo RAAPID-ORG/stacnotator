@@ -173,6 +173,16 @@ export const CampaignTasksPage = () => {
 
   const isAdmin = campaign?.viewer_is_admin ?? false;
 
+  // Started from the task list, annotating means working those tasks, in the
+  // set on screen; left to itself the page would open in Explore whenever none
+  // of them is the viewer's to answer.
+  const annotateTasksPath =
+    annotationTasks.length === 0
+      ? campaignPath(projectId, campaignId, 'annotate')
+      : `${campaignPath(projectId, campaignId, 'annotate')}?mode=tasks${
+          taskScope === 'all' ? '' : `&taskSet=${taskScope}`
+        }`;
+
   const scopedAnnotationTasks = useMemo(
     () =>
       taskScope === 'all'
@@ -357,9 +367,7 @@ export const CampaignTasksPage = () => {
                   disabled={annotationTasks.length === 0}
                   hasConflicts={annotationTasks.some((task) => task.task_status === 'conflicting')}
                 />
-                <Button onClick={() => navigate(campaignPath(projectId, campaignId, 'annotate'))}>
-                  {t('startAnnotating')}
-                </Button>
+                <Button onClick={() => navigate(annotateTasksPath)}>{t('startAnnotating')}</Button>
               </div>
             )}
           </header>
