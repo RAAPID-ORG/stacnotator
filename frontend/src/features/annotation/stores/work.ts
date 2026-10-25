@@ -95,8 +95,6 @@ export interface EditSession {
   geometry: GeoJSON.Geometry;
   /** Where the user has dragged it, awaiting confirmation. */
   pending: GeoJSON.Geometry | null;
-  /** Bumped when a pending reshape is discarded, so the map re-seeds from `geometry`. */
-  revision: number;
   busy: boolean;
 }
 
@@ -192,8 +190,6 @@ interface WorkState {
   clearProbePoints: () => void;
   setProbeMarkerHidden: (hidden: boolean) => void;
   setPendingGeometry: (geometry: GeoJSON.Geometry | null) => void;
-  /** Drop an unconfirmed reshape and put the saved geometry back on the map. */
-  discardPendingGeometry: () => void;
   setEditAnnotation: (annotation: AnnotationOut) => void;
   setEditBusy: (busy: boolean) => void;
   /** Refresh the annotation tiles, retiring the delta they now carry. The
@@ -480,15 +476,6 @@ export const useWorkStore = create<WorkState>((set, get) => {
             }
           : {}
       ),
-    discardPendingGeometry: () =>
-      set((s) =>
-        s.edit?.pending
-          ? {
-              edit: { ...s.edit, pending: null, revision: s.edit.revision + 1 },
-              selectionAnchor: geometryTopRight(s.edit.geometry),
-            }
-          : {}
-      ),
     setEditAnnotation: (annotation) =>
       set((s) => (s.edit ? { edit: { ...s.edit, annotation } } : {})),
     setEditBusy: (busy) => set((s) => (s.edit ? { edit: { ...s.edit, busy } } : {})),
@@ -693,7 +680,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
         if (!annotation) throw result.error;
         const geometry = wktToGeometry(annotation.geometry_wkt);
         set({
-          edit: { annotation, geometry, pending: null, revision: 0, busy: false },
+          edit: { annotation, geometry, pending: null, busy: false },
           selection: [annotationId],
           selectionAnchor: geometryTopRight(geometry),
         });

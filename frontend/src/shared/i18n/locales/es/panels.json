@@ -79,6 +79,7 @@
     "width": "Grosor"
   },
   "editDetails": {
+    "finishReshapeFirst": "Confirma (Enter) o cancela (Esc) el cambio de forma antes de cambiar la etiqueta.",
     "missingRequired": "Faltan campos obligatorios: {{fields}}",
     "updated": "Anotación actualizada correctamente",
     "updateFailed": "No se pudo actualizar la anotación",

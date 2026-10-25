@@ -156,9 +156,7 @@ function sameDraw(a: InteractionSpec['draw'], b: InteractionSpec['draw']): boole
 function sameEdit(a: InteractionSpec['edit'], b: InteractionSpec['edit']): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
-  return (
-    sameGeoFeature(a.feature, b.feature) && sameStyle(a.style, b.style) && a.revision === b.revision
-  );
+  return sameGeoFeature(a.feature, b.feature) && sameStyle(a.style, b.style);
 }
 
 function sameBox(a: InteractionSpec['box'], b: InteractionSpec['box']): boolean {

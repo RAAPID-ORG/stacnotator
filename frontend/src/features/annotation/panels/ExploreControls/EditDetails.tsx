@@ -72,6 +72,9 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
     }
   };
 
+  // A label switch mid-reshape would leave map and form disagreeing; finish one first.
+  const reshaping = useWorkStore((s) => s.edit?.pending != null);
+
   return (
     <div className="flex flex-col gap-1.5 pt-2 border-t border-neutral-200">
       <span className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide">
@@ -89,13 +92,13 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
           minWidth={CHIP_MIN_WIDTH}
           labels={selectable}
           selectedId={labelId}
-          onSelect={(label) => {
-            useWorkStore.getState().discardPendingGeometry();
-            setLabelId(label.id);
-          }}
-          disabled={saving || readOnly}
+          onSelect={(label) => setLabelId(label.id)}
+          disabled={saving || readOnly || reshaping}
           showIndex={false}
         />
+      )}
+      {reshaping && selectable.length > 1 && (
+        <span className="text-[11px] text-neutral-500">{t('editDetails.finishReshapeFirst')}</span>
       )}
 
       {fields.length > 0 && (

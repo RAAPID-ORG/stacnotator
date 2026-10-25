@@ -118,9 +118,6 @@ export interface InteractionSpec {
     /** Fires on modify/translate end. */
     onGeometryChange: (g: GeoJSON.Geometry) => void;
     style?: StyleSpec;
-    /** Bumping it re-seeds the feature even when its geometry is unchanged,
-     *  dropping whatever the user dragged since. */
-    revision?: number;
   };
   boxSelect?: {
     /** `hits` holds the features of `hitLayerIds` inside the box, empty when no

@@ -317,28 +317,6 @@ describe('attachInteractions', () => {
     expect(geometry.coordinates[1]).toBeCloseTo(2, 6);
   });
 
-  it('re-seeds the saved edit geometry when the revision bumps, dropping a dragged reshape', () => {
-    const map = new OLMap({ interactions: [] });
-    const sketchLayer = makeSketchLayer();
-    const onGeometryChange = vi.fn();
-    const feature: GeoFeature = { id: 7, geometry: { type: 'Point', coordinates: [5, 6] } };
-    attachInteractions(map, { edit: { feature, onGeometryChange, revision: 0 } }, sketchLayer);
-    const dragged = sketchLayer.getSource()!.getFeatures()[0];
-    (dragged.getGeometry() as Point).setCoordinates(fromLonLat([8, 9]));
-
-    attachInteractions(map, { edit: { feature, onGeometryChange, revision: 0 } }, sketchLayer);
-    expect(toGeo(sketchLayer.getSource()!.getFeatures()[0].getGeometry()!)).toMatchObject({
-      coordinates: [expect.closeTo(8, 6), expect.closeTo(9, 6)],
-    });
-
-    attachInteractions(map, { edit: { feature, onGeometryChange, revision: 1 } }, sketchLayer);
-    const reseeded = sketchLayer.getSource()!.getFeatures();
-    expect(reseeded).toHaveLength(1);
-    expect(toGeo(reseeded[0].getGeometry()!)).toMatchObject({
-      coordinates: [expect.closeTo(5, 6), expect.closeTo(6, 6)],
-    });
-  });
-
   it('adds a DragBox for boxSelect and reports the box in lon/lat', () => {
     const map = new OLMap({ interactions: [] });
     const sketchLayer = makeSketchLayer();
