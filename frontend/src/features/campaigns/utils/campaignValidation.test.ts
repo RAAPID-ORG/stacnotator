@@ -21,6 +21,28 @@ const form = (bbox: Partial<Record<string, number>>): CampaignCreate =>
     },
   }) as unknown as CampaignCreate;
 
+describe('label names', () => {
+  const withLabels = (...names: string[]) =>
+    ({
+      name: 'c',
+      settings: {
+        labels: names.map((name) => ({ name, geometry_type: 'polygon' })),
+        bbox_west: 0,
+        bbox_south: 0,
+        bbox_east: 1,
+        bbox_north: 1,
+      },
+    }) as unknown as CampaignCreate;
+
+  it('rejects duplicates regardless of case and spacing', () => {
+    expect(validateSettingsStep(withLabels('Crop', ' crop ')).errors.labels).toMatch(/unique/);
+  });
+
+  it('accepts distinct names', () => {
+    expect(validateSettingsStep(withLabels('Crop', 'Forest')).isValid).toBe(true);
+  });
+});
+
 describe('the campaign area', () => {
   it('accepts an ordinary box', () => {
     expect(validateSettingsStep(form({})).isValid).toBe(true);

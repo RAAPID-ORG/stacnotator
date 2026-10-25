@@ -9,6 +9,7 @@ import { useRefreshCampaign } from '~/features/campaigns/hooks/campaignQueries';
 import { projectPath } from '~/app/routes';
 import { BoundingBoxEditor } from '~/features/layers/BoundingBoxEditor';
 import { FormFieldsEditor } from '~/features/campaigns/components/FormFieldsEditor';
+import { labelNamesError } from '~/features/campaigns/utils/campaignValidation';
 import { LabelsEditor } from '~/features/campaigns/components/LabelsEditor';
 import {
   diffFormFields,
@@ -85,9 +86,8 @@ export const GeneralSettingsTab: React.FC<Props> = ({
   });
   const savingLabels = saveLabels.isPending;
   const labelsChanged = JSON.stringify(labelsDraft) !== JSON.stringify(campaign.settings.labels);
-  const labelsAreValid =
-    labelsDraft.every((l) => l.name.trim().length > 0) &&
-    new Set(labelsDraft.map((l) => l.name.trim().toLowerCase())).size === labelsDraft.length;
+  const labelsError = labelNamesError(labelsDraft);
+  const labelsAreValid = labelsError === null;
   const renamedLabels = labelsDraft.filter((l) => {
     const original = campaign.settings.labels.find((o) => o.id === l.id);
     return original && original.name !== l.name;
@@ -439,9 +439,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
               {t('settingsPage.discard')}
             </button>
           )}
-          {!labelsAreValid && (
-            <span className="text-xs text-red-600">{t('generalTab.labels.invalid')}</span>
-          )}
+          {labelsError && <span className="text-xs text-red-600">{labelsError}</span>}
         </div>
       </section>
 

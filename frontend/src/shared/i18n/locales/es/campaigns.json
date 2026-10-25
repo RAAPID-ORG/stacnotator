@@ -82,6 +82,7 @@
     "emptyLabels_one": "{{count}} etiqueta tiene el nombre vacío.",
     "emptyLabels_many": "{{count}} etiquetas tienen el nombre vacío.",
     "emptyLabels_other": "{{count}} etiquetas tienen el nombre vacío.",
+    "duplicateLabels": "Los nombres de las etiquetas deben ser únicos.",
     "sourcesRequired": "Añade al menos una fuente de imágenes.",
     "sourceNameRequired": "Fuente {{index}}: el nombre es obligatorio.",
     "vizRequired": "Fuente \"{{source}}\": se requiere al menos una visualización.",
@@ -755,8 +756,7 @@
     "labels": {
       "title": "Etiquetas de anotación",
       "description": "Los nombres de clase entre los que eligen los anotadores al etiquetar. Puedes añadir etiquetas nuevas y renombrar las existentes; renombrar requiere confirmación porque cambia cómo se muestran las anotaciones anteriores. No se pueden eliminar etiquetas (dejaría huérfanas las anotaciones existentes).",
-      "save": "Guardar etiquetas",
-      "invalid": "Los nombres de las etiquetas no pueden estar vacíos y deben ser únicos."
+      "save": "Guardar etiquetas"
     },
     "formFields": {
       "title": "Campos de formulario personalizados",

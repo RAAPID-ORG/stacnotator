@@ -35,6 +35,17 @@ function validateCampaignStep(form: CampaignCreate): StepValidationResult {
   return { errors, isValid: Object.keys(errors).length === 0 };
 }
 
+/** The one rule for label names, the wizard's and the settings' alike. */
+export function labelNamesError(labels: { name: string }[]): string | null {
+  const names = labels.map((label) => label.name.trim());
+  const empty = names.filter((name) => !name).length;
+  if (empty > 0) return t('validation.emptyLabels', { count: empty });
+  if (new Set(names.map((name) => name.toLowerCase())).size !== names.length) {
+    return t('validation.duplicateLabels');
+  }
+  return null;
+}
+
 export function validateSettingsStep(form: CampaignCreate): StepValidationResult {
   const errors: FieldErrors = {};
   const s = form.settings;
@@ -70,10 +81,8 @@ export function validateSettingsStep(form: CampaignCreate): StepValidationResult
   if (!s.labels || s.labels.length === 0) {
     errors.labels = t('validation.labelsRequired');
   } else {
-    const emptyLabels = s.labels.filter((l) => !l.name.trim());
-    if (emptyLabels.length > 0) {
-      errors.labels = t('validation.emptyLabels', { count: emptyLabels.length });
-    }
+    const labelsError = labelNamesError(s.labels);
+    if (labelsError) errors.labels = labelsError;
   }
 
   validateFormFields(s.form_fields ?? []).forEach((msg, i) => {

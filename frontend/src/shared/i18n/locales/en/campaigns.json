@@ -80,6 +80,7 @@
     "labelsRequired": "At least one label is required.",
     "emptyLabels_one": "{{count}} label has an empty name.",
     "emptyLabels_other": "{{count}} labels have an empty name.",
+    "duplicateLabels": "Label names must be unique.",
     "sourcesRequired": "Add at least one imagery source.",
     "sourceNameRequired": "Source {{index}}: Name is required.",
     "vizRequired": "Source \"{{source}}\": At least one visualization is required.",
@@ -714,8 +715,7 @@
     "labels": {
       "title": "Annotation labels",
       "description": "The class names annotators choose from when labeling. You can add new labels and rename existing ones; renaming requires confirmation since it affects how prior annotations display. Deleting labels is not supported (it would orphan existing annotations).",
-      "save": "Save labels",
-      "invalid": "Label names must be non-empty and unique."
+      "save": "Save labels"
     },
     "formFields": {
       "title": "Custom form fields",
