@@ -580,7 +580,7 @@
     "which": {
       "title": "Which imagery to use",
       "tooltip": "Narrows which images from this catalog the campaign draws on. Advanced options add sort order, a custom CQL query, and the choice of pulling one single scene instead of a mosaic.",
-      "description": "Pick the period to cover and how cloudy an image may be. Every image the campaign shows is searched for within these limits."
+      "description": "Pick the period to cover and how cloudy an image may be. The slices annotators browse are searched for within these limits. A custom cover slice has its own cloud limit."
     },
     "pull": {
       "title": "What to pull from the catalog",

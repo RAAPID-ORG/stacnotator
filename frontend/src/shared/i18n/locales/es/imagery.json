@@ -597,7 +597,7 @@
     "which": {
       "title": "Qué imágenes usar",
       "tooltip": "Limita qué imágenes de este catálogo usa la campaña. Las opciones avanzadas añaden el orden, una consulta CQL personalizada y la opción de usar una sola escena en lugar de un mosaico.",
-      "description": "Elige el periodo que se cubre y cuánta nubosidad puede tener una imagen. Todas las imágenes que muestra la campaña se buscan dentro de estos límites."
+      "description": "Elige el periodo que se cubre y cuánta nubosidad puede tener una imagen. Los cortes que exploran los anotadores se buscan dentro de estos límites. Un corte de portada personalizado tiene su propio límite de nubosidad."
     },
     "pull": {
       "title": "Qué obtener del catálogo",
