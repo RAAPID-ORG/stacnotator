@@ -105,7 +105,10 @@ function ShortcutLegend() {
       </summary>
       <ul className="mt-1.5 space-y-0.5 max-w-xs">
         {rows.map((row) => (
-          <li key={row.key} className="flex items-center justify-between gap-3 text-[11px]">
+          <li
+            key={`${row.group}:${row.key}:${row.help}`}
+            className="flex items-center justify-between gap-3 text-[11px]"
+          >
             <span className="text-neutral-600">{row.help}</span>
             <kbd className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-500">
               {row.key}
