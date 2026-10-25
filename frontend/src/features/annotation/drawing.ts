@@ -142,8 +142,15 @@ export async function commitEdit(): Promise<boolean> {
     const result = await updateAnnotation({
       path: { campaign_id: campaignState().campaign.id, annotation_id: edit.annotation.id },
       body: { geometry_wkt: geometryToWkt(edit.pending), imagery_slice_id: viewedSliceId() },
+      throwOnError: false,
     });
-    if (result.data) work.setEditAnnotation(result.data);
+    if (result.response.status === 404) {
+      work.recordDeletes([edit.annotation.id]);
+      alert(t('drawing.deletedWhileEditing'), 'error');
+      return false;
+    }
+    if (!result.data) throw result.error;
+    work.setEditAnnotation(result.data);
     work.recordWrites([
       {
         id: edit.annotation.id,
