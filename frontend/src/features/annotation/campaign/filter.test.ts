@@ -82,6 +82,26 @@ describe('applyTaskFilter - claims vs assignments', () => {
       1, 2,
     ]);
   });
+
+  it('shows answered unassigned tasks under Done and Skipped, whoever answered or holds them', () => {
+    const answered = (id: number, status: TaskStatus, by: string) =>
+      makeTask({
+        id,
+        task_status: status,
+        annotations: [makeTaskAnnotation({ created_by_user_id: by })],
+        claimed_by_user_id: by,
+        claimed_at: fresh(),
+      });
+    const tasks = [answered(1, 'done', OTHER), answered(2, 'skipped', USER), task(3, [])];
+    const poolFilter: TaskFilter = {
+      ...mineFilter,
+      assignedTo: [UNASSIGNED],
+      statuses: ['done', 'skipped'],
+    };
+    expect(applyTaskFilter(tasks, poolFilter, USER, NOW).visibleTasks.map((t) => t.id)).toEqual([
+      1, 2,
+    ]);
+  });
 });
 
 describe('applyTaskFilter - task sets', () => {
@@ -491,6 +511,10 @@ describe('usesClaimPool', () => {
 
   it('is not "everyone", which is a fixed list to step through', () => {
     expect(usesClaimPool({ ...mineFilter, assignedTo: [] })).toBe(false);
+  });
+
+  it('is not a look back through answered tasks, which is a fixed list too', () => {
+    expect(usesClaimPool({ ...pool, statuses: ['done', 'skipped'] })).toBe(false);
   });
 
   it('stays true with a task set, which the server filters on too', () => {

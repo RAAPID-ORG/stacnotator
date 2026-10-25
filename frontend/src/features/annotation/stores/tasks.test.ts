@@ -366,10 +366,36 @@ describe('the session trail', () => {
 
   it('stepping back past the trail start keeps forward leading through it', () => {
     useCampaignStore.setState({ campaign: CAMPAIGN });
+    useTasksStore.getState().initialize({
+      tasks: [TASK_A, TASK_B, TASK_C],
+      taskSets: [],
+      filter: FILTER,
+      now: 0,
+      catalog: CATALOG,
+      preferTaskId: TASK_B.id,
+    });
+    useTasksStore.getState().previous(CATALOG);
+    expect(current()).toBe(1);
+    useTasksStore.getState().next(CATALOG);
+    expect(current()).toBe(2);
+  });
+
+  it('does not wrap to the last task when stepping back from the first', () => {
+    useCampaignStore.setState({ campaign: CAMPAIGN });
     initialize([TASK_A, TASK_B, TASK_C]);
     useTasksStore.getState().previous(CATALOG);
-    expect(current()).toBe(3);
-    useTasksStore.getState().next(CATALOG);
     expect(current()).toBe(1);
+  });
+
+  it('does not walk back into tasks a changed filter excludes', () => {
+    useCampaignStore.setState({ campaign: CAMPAIGN });
+    initialize([TASK_A, TASK_B, { ...TASK_C, task_status: 'done' }]);
+    useTasksStore.getState().next(CATALOG);
+    useTasksStore.getState().setFilter({ ...FILTER, statuses: ['done'] }, 0, CATALOG);
+    expect(current()).toBe(3);
+
+    useTasksStore.getState().previous(CATALOG);
+    expect(current()).toBe(3);
+    expect(useTasksStore.getState().visibleTasks.map((t) => t.id)).toEqual([3]);
   });
 });

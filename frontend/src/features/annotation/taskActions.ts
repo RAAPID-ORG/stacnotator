@@ -24,7 +24,7 @@ import { campaignState, formFields, useCampaignStore, viewedSliceId } from './st
 import { currentTask, useTasksStore } from './stores/tasks';
 import { usePrefsStore } from './stores/prefs';
 import { forgetTaskActiveMs, readTaskActiveMs } from './taskTiming';
-import { useWorkStore } from './stores/work';
+import { drewFor, useWorkStore } from './stores/work';
 
 const t = i18n.getFixedT(null, ['annotation', 'common']);
 
@@ -118,6 +118,10 @@ export interface SubmitParams {
 export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome> {
   const campaignId = campaignState().campaign.id;
   const { task, currentUserId, labelId, comment } = params;
+  // Read before the first await: what the user is looking at can change while
+  // the validation round trip is out.
+  const imagerySliceId = viewedSliceId();
+  const activeMs = readTaskActiveMs(task.id);
 
   // Guarded here rather than only in the button's disabled state: the Enter
   // key calls this directly and would otherwise reach the backend's 422.
@@ -129,9 +133,9 @@ export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome
 
   const mine = task.annotations.find((a) => a.created_by_user_id === currentUserId);
 
-  // "Take my label off this task": nothing chosen, one already there, and no
-  // comment being added.
-  if (!params.isSkip && labelId === null && mine?.label_id != null && !comment) {
+  // "Take my label off this task": nothing chosen and one already there. The
+  // form carries the stored comment along, so a comment is no sign of a skip.
+  if (!params.isSkip && labelId === null && mine?.label_id != null) {
     try {
       const { data } = await deleteAnnotation({
         path: { campaign_id: campaignId, annotation_id: mine.id },
@@ -176,8 +180,8 @@ export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome
         form_values: Object.keys(params.formValues).length ? params.formValues : null,
         slice_comments: params.sliceComments,
         outcome: params.outcome ?? null,
-        imagery_slice_id: viewedSliceId(),
-        active_ms: readTaskActiveMs(task.id),
+        imagery_slice_id: imagerySliceId,
+        active_ms: activeMs,
       },
     });
     const result: TaskSubmitResponse | undefined = response.data;
@@ -259,7 +263,9 @@ async function run(options: {
   else if (outcome.kind === 'error') alert(outcome.message, 'error');
   else if (outcome.kind === 'submitted') {
     tasks.replaceTask(outcome.task, catalog);
-    await advance();
+    // Only off the task that was answered: anything else is where the user
+    // has since chosen to be.
+    if (currentTask()?.id === task.id) await advance();
   } else if (outcome.kind === 'removed') {
     tasks.replaceTask(outcome.task, catalog);
   }
@@ -294,12 +300,23 @@ export async function advance(): Promise<void> {
         after_annotation_number: current?.annotation_number,
       },
     });
-    if (data?.task) useTasksStore.getState().adoptTask(data.task, catalog);
-    else alert(t('taskActions.noneLeft'), 'success');
+    if (data?.task) {
+      useTasksStore.getState().adoptTask(data.task, catalog);
+      return;
+    }
+    alert(t('taskActions.noneLeft'), 'success');
+    // Re-filtering drops the tasks just finished, so an empty pool shows the
+    // all-done state now rather than on the next reload.
+    const { filter, setFilter } = useTasksStore.getState();
+    setFilter(filter, Date.now(), catalog);
   } catch (error) {
     handleError(error, t('taskActions.nextFailed'));
   }
 }
+
+/** Next, from the button and the key. Held to one at a time like a submit, so
+ *  quick presses cannot race each other's claims and skip tasks unseen. */
+export const goToNextTask = () => guarded(advance);
 
 const mismatchConfirm = () => ({
   title: t('taskActions.mismatch.title'),
@@ -309,8 +326,8 @@ const mismatchConfirm = () => ({
   isDangerous: true,
 });
 
-/** Runs `body` only while no submit is in flight - the same guard the buttons
- *  enforce through `isSubmitting`. */
+/** Runs `body` only while no submit or step is in flight - the same guard the
+ *  buttons enforce through `isSubmitting`. */
 async function guarded(body: () => Promise<void>): Promise<void> {
   const tasks = useTasksStore.getState();
   if (tasks.isSubmitting) return;
@@ -386,9 +403,15 @@ export async function skipCurrent(): Promise<void> {
  *  map (the server checks there is at least one), `none_found` when there was
  *  nothing to draw. */
 export async function finishDrawTask(outcome: 'drawn' | 'none_found'): Promise<void> {
-  const { draft } = useWorkStore.getState();
+  const { draft, drawnShapes } = useWorkStore.getState();
   if ((draft.phase === 'draft' || draft.phase === 'committing') && draft.savedId === null) {
     alert(t('taskActions.finishDraftFirst'), 'error');
+    return;
+  }
+  const task = currentTask();
+  const { currentUserId } = useCampaignStore.getState();
+  if (outcome === 'drawn' && task && !drewFor(task, currentUserId, drawnShapes)) {
+    alert(t('taskActions.drawFirst'), 'error');
     return;
   }
   await guarded(async () => {

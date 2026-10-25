@@ -35,8 +35,8 @@ import { useImageryStore } from './stores/imagery';
 import { currentTask, useTasksStore } from './stores/tasks';
 import { useWorkStore, type Tool } from './stores/work';
 import {
-  advance,
   finishDrawTask,
+  goToNextTask,
   skipCurrent,
   submitAnnotation,
   submitAuthoritative,
@@ -119,7 +119,9 @@ function commitDigits(labels: LabelBase[]): void {
   const position = parseInt(digitBuffer, 10);
   clearDigitBuffer();
   const label = labels[position - 1];
-  if (!label) return;
+  // The label grid is disabled while a save is out; a pick made then would be
+  // dropped when the save moves on to the next task.
+  if (!label || useTasksStore.getState().isSubmitting) return;
   const work = useWorkStore.getState();
   work.setSelectedLabelId(work.selectedLabelId === label.id ? null : label.id);
   reveal(document.querySelector<HTMLElement>(`[data-task-labels] [data-label-id="${label.id}"]`));
@@ -419,15 +421,19 @@ function adjustConfidence(delta: number): void {
   revealConfidence();
 }
 
+/** Stepping waits for a save in flight, which moves on by itself once it
+ *  lands - the same rule that disables the Prev and Next buttons. */
 function taskStepBindings(): Binding[] {
   const { catalog } = campaignState();
+  const idle = () => !useTasksStore.getState().isSubmitting;
   return [
     {
       key: 'w',
       help: t('keymap.previousTask'),
+      when: idle,
       run: () => useTasksStore.getState().previous(catalog),
     },
-    { key: 's', help: t('keymap.nextTask'), run: () => void advance() },
+    { key: 's', help: t('keymap.nextTask'), when: idle, run: () => void goToNextTask() },
   ];
 }
 

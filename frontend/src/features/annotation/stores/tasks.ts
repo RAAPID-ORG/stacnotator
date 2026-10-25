@@ -1,5 +1,10 @@
 import { create } from 'zustand';
-import { listTaskChanges, type TaskOut, type TaskSetOut } from '~/api/client';
+import {
+  listTaskChanges,
+  type AnnotationFromTaskOut,
+  type TaskOut,
+  type TaskSetOut,
+} from '~/api/client';
 import { geometryCentroid, squareAround, wktToGeometry } from '../campaign/annotation';
 import type { ImageryCatalog } from '../campaign/imagery';
 import {
@@ -55,12 +60,16 @@ export interface TasksState {
   focus: MapFocus | null;
   /** Database clock the next task poll asks for changes since. */
   syncCursor: string | null;
-  /** Ids of the tasks opened this session, oldest first, and where in that
-   *  trail the current task sits. Back and forward walk it like a browser's
-   *  history, so a task the filter has since dropped (one just finished) is
-   *  still one step back. */
+  /** Ids of the tasks opened under the current filter, oldest first, and
+   *  where in that trail the current task sits. Back and forward walk it like
+   *  a browser's history, so a task the filter has since dropped (one just
+   *  finished) is still one step back. Changing the filter starts a new one:
+   *  the old trail leads into tasks the user has filtered away. */
   history: number[];
   historyPos: number;
+  /** A task the poll found answered by someone else while it was the
+   *  current one, so the panel can say so. */
+  answeredElsewhereId: number | null;
 
   initialize: (options: {
     tasks: TaskOut[];
@@ -106,6 +115,7 @@ const initialState = {
   syncCursor: null as string | null,
   history: [] as number[],
   historyPos: 0,
+  answeredElsewhereId: null as number | null,
 };
 
 const currentOf = (state: TasksState) => state.visibleTasks[state.currentIndex] ?? null;
@@ -268,7 +278,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     const { allTasks } = get();
     const currentUserId = useCampaignStore.getState().currentUserId;
     const { visibleTasks, suggestedIndex } = applyTaskFilter(allTasks, filter, currentUserId, now);
-    set({ filter, visibleTasks, currentIndex: suggestedIndex });
+    set({ filter, visibleTasks, currentIndex: suggestedIndex, history: [], historyPos: 0 });
     publishSelection(catalog);
   },
 
@@ -335,7 +345,13 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       const data = result.data;
       // The campaign can change under the request; its tasks are not this one's.
       if (!data || useCampaignStore.getState().campaign?.id !== campaign.id) return;
+      const current = currentOf(get());
+      const fresh = data.tasks.find((task) => task.id === current?.id);
+      const { currentUserId } = useCampaignStore.getState();
+      const isNew = (a: AnnotationFromTaskOut) =>
+        a.created_by_user_id !== currentUserId && !current?.annotations.some((b) => b.id === a.id);
       set({ syncCursor: data.server_time });
+      if (fresh?.annotations.some(isNew)) set({ answeredElsewhereId: fresh.id });
       if (data.tasks.length > 0) get().mergeTasks(data.tasks, catalog);
     } catch {
       // A missed poll is picked up by the next one.

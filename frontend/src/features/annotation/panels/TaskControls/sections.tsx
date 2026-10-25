@@ -7,11 +7,11 @@ import { FormFields } from '../../components/FormFields';
 import { useCampaign, useCampaignStore, useCatalog } from '../../stores/campaign';
 import type { TaskOut } from '~/api/client';
 import { useTasksStore } from '../../stores/tasks';
-import { useWorkStore } from '../../stores/work';
+import { drewFor, useWorkStore } from '../../stores/work';
 import {
-  advance,
   DEFAULT_CONFIDENCE,
   finishDrawTask,
+  goToNextTask,
   skipCurrent,
   submitAnnotation,
   submitAuthoritative,
@@ -140,7 +140,7 @@ export function ConfidenceSection() {
  *  reach however many fields a campaign asks for. The point navigation wraps
  *  onto a line of its own when the panel is too narrow for one row. */
 export function ActionBar({ task }: { task: TaskOut }) {
-  const { t } = useTranslation(['panels', 'common']);
+  const { t } = useTranslation(['panels', 'common', 'annotation']);
   const campaign = useCampaign();
   const catalog = useCatalog();
   const currentUserId = useCampaignStore((s) => s.currentUserId);
@@ -149,6 +149,7 @@ export function ActionBar({ task }: { task: TaskOut }) {
   const latest = useTasksStore((s) => s.latest);
   const stepsBack = useTasksStore((s) => Math.max(0, s.history.length - 1 - s.historyPos));
   const goToAnnotationNumber = useTasksStore((s) => s.goToAnnotationNumber);
+  const answeredElsewhere = useTasksStore((s) => s.answeredElsewhereId === task.id);
   const selectedLabelId = useWorkStore((s) => s.selectedLabelId);
   const showAlert = useAppLayoutStore((s) => s.showAlert);
   // Kept across tasks: a reviewer settling a batch of tasks settles them all.
@@ -166,9 +167,11 @@ export function ActionBar({ task }: { task: TaskOut }) {
   // Skipping is labelling with no label, so it is gated the same way. Keying
   // it on assignment would put it out of reach on the whole unassigned pool.
   const isSkipDisabled = isBusy || !mayLabel;
-  const drewHere =
-    useWorkStore((s) => s.drawnTaskIds.includes(task.id)) ||
-    (task.drawn_by_user_ids ?? []).some((id) => id === currentUserId);
+  const drewHere = drewFor(
+    task,
+    currentUserId,
+    useWorkStore((s) => s.drawnShapes)
+  );
   const submitLabel = isBusy
     ? t('task.submitting')
     : drawTask
@@ -189,6 +192,14 @@ export function ActionBar({ task }: { task: TaskOut }) {
           className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1"
         >
           {t('task.notAllowed')}
+        </p>
+      )}
+      {answeredElsewhere && (
+        <p
+          data-testid="answered-elsewhere-notice"
+          className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1"
+        >
+          {t('task.answeredElsewhere')}
         </p>
       )}
       {mayLabel && taskHasAssignments && !countsTowardCompletion && (
@@ -242,7 +253,7 @@ export function ActionBar({ task }: { task: TaskOut }) {
           )}
           <button
             type="button"
-            disabled={drawTask ? isSkipDisabled : isSubmitDisabled}
+            disabled={drawTask ? isSkipDisabled || !drewHere : isSubmitDisabled}
             onClick={() =>
               void (drawTask
                 ? finishDrawTask('drawn')
@@ -252,7 +263,9 @@ export function ActionBar({ task }: { task: TaskOut }) {
             }
             title={
               drawTask
-                ? t('task.doneTitle')
+                ? drewHere
+                  ? t('task.doneTitle')
+                  : t('annotation:taskActions.drawFirst')
                 : asAuthoritative
                   ? isAssignedToTask
                     ? t('task.authoritativeAssignedTitle')
@@ -290,7 +303,7 @@ export function ActionBar({ task }: { task: TaskOut }) {
           <button
             type="button"
             disabled={isBusy}
-            onClick={() => void advance()}
+            onClick={() => void goToNextTask()}
             aria-label={t('task.nextPoint')}
             title={t('task.nextPoint')}
             className={navButtonClass}

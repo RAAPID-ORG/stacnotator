@@ -715,7 +715,8 @@
       "description": "You can come back to it later.",
       "confirm": "Skip"
     },
-    "finishDraftFirst": "Save or discard the shape you are drawing first."
+    "finishDraftFirst": "Save or discard the shape you are drawing first.",
+    "drawFirst": "Draw a shape for this task first, or press Nothing here."
   },
   "drawing": {
     "labelFailed": "Failed to label features: {{message}}",

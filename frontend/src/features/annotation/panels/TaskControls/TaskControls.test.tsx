@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import * as api from '~/api/client';
 import type { TaskOut, CampaignOutFull } from '~/api/client';
 import { buildImageryCatalog } from '../../campaign/imagery';
@@ -19,7 +19,7 @@ import { useTasksStore } from '../../stores/tasks';
 
 vi.mock('~/api/client', async () => {
   const actual = await vi.importActual<typeof import('~/api/client')>('~/api/client');
-  return { ...actual, claimTask: vi.fn(), annotateTask: vi.fn() };
+  return { ...actual, claimTask: vi.fn(), annotateTask: vi.fn(), listTaskChanges: vi.fn() };
 });
 
 const FILTER = {
@@ -150,6 +150,31 @@ describe('TaskControls claim conflict', () => {
   });
 });
 
+describe('TaskControls live sync', () => {
+  it('says so when the poll finds the current task answered by someone else', async () => {
+    vi.mocked(api.claimTask).mockResolvedValue(
+      apiSuccess(makeClaimTaskResponse({ task_id: OPEN_TASK.id, claimed: true }))
+    );
+    const answered: TaskOut = {
+      ...OPEN_TASK,
+      task_status: 'done',
+      annotations: [makeTaskAnnotation({ id: 30, created_by_user_id: 'someone-else' })],
+    };
+    vi.mocked(api.listTaskChanges).mockResolvedValue(
+      apiSuccess({ server_time: '2024-01-01T00:00:05Z', tasks: [answered] })
+    );
+    seed(OPEN_POLICY, [OPEN_TASK]);
+    render(<TaskControls />);
+    expect(screen.queryByTestId('answered-elsewhere-notice')).toBeNull();
+
+    await act(() => useTasksStore.getState().syncRemoteTasks());
+
+    expect(screen.getByTestId('answered-elsewhere-notice').textContent).toBe(
+      'Someone else just answered this task.'
+    );
+  });
+});
+
 // A draw task is answered by the shapes drawn around it, so the panel swaps
 // the label form for the drawing tools and Done records that answer.
 describe('TaskControls draw task', () => {
@@ -164,7 +189,9 @@ describe('TaskControls draw task', () => {
         assignment_status: 'done',
       })
     );
-    seed(makeCampaign({ settings: { ...OPEN_POLICY.settings, task_output: 'draw' } }), [OPEN_TASK]);
+    seed(makeCampaign({ settings: { ...OPEN_POLICY.settings, task_output: 'draw' } }), [
+      { ...OPEN_TASK, drawn_by_user_ids: ['u1'] },
+    ]);
 
     render(<TaskControls />);
     expect(screen.queryByRole('button', { name: /submit/i })).toBeNull();
@@ -186,6 +213,22 @@ describe('TaskControls draw task', () => {
 
     const nothingHere = await screen.findByRole('button', { name: 'Nothing here' });
     expect((nothingHere as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('offers Done only while this user has a shape on the task', async () => {
+    seed(makeCampaign({ settings: { ...OPEN_POLICY.settings, task_output: 'draw' } }), [OPEN_TASK]);
+    render(<TaskControls />);
+    const done = await screen.findByRole('button', { name: 'Done' });
+    const nothingHere = screen.getByRole('button', { name: 'Nothing here' });
+    expect(done).toHaveProperty('disabled', true);
+
+    act(() => useWorkStore.getState().noteDrawn({ output_of_task_id: OPEN_TASK.id }, [21]));
+    expect(done).toHaveProperty('disabled', false);
+    expect(nothingHere).toHaveProperty('disabled', true);
+
+    act(() => useWorkStore.getState().recordDeletes([21]));
+    expect(done).toHaveProperty('disabled', true);
+    expect(nothingHere).toHaveProperty('disabled', false);
   });
 });
 

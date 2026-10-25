@@ -258,6 +258,7 @@
     "doneTitle": "Terminar esta tarea con las formas dibujadas (Shift+Enter)",
     "nothingHere": "Nada aquí",
     "drewHereTitle": "Dibujaste formas para esta tarea - pulsa Listo",
+    "answeredElsewhere": "Otra persona acaba de responder esta tarea.",
     "authoritativeToggle": "Enviar como autoritativa",
     "authoritativeToggleTitle": "Enviar como autoritativa: tu etiqueta prevalece sobre los demás anotadores y completa la tarea.",
     "authoritativeShort": "Aut.",

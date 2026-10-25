@@ -263,6 +263,17 @@ export function AnnotationPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaignId, currentUserId]);
 
+  // The task and its set stay in the address, read back by the load above, so
+  // a reload or a return through the browser's history lands where the user
+  // was. Replaced rather than pushed: every task is not a history entry.
+  useEffect(() => {
+    if (load !== 'ready') return;
+    const place = new URLSearchParams();
+    if (workMode === 'tasks' && timedTaskId !== null) place.set('task', String(timedTaskId));
+    if (taskFilter.taskSetId !== null) place.set('taskSet', String(taskFilter.taskSetId));
+    if (place.toString() !== searchParams.toString()) setSearchParams(place, { replace: true });
+  }, [load, workMode, timedTaskId, taskFilter.taskSetId, searchParams, setSearchParams]);
+
   // ------------------------------------------------------------------
   // Hotkeys
   // ------------------------------------------------------------------
