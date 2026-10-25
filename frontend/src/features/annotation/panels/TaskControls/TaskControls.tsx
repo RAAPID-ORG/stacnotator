@@ -55,6 +55,10 @@ export function TaskControls() {
   const setSelectedLabelId = useWorkStore((s) => s.setSelectedLabelId);
 
   const labels = campaign.settings.labels;
+  // Validation compares a label with its neighbours' embeddings, so it is only
+  // offered once the campaign has computed them.
+  const embeddingsActive =
+    campaign.settings.embedding_year != null && campaign.embedding_status === 'ready';
   const fields = campaign.settings.form_fields;
   const labelGroupActive = isLabelGroupActive(activeFieldIndex, fields.length);
 
@@ -107,22 +111,24 @@ export function TaskControls() {
             >
               <div className="flex items-center justify-between gap-2">
                 <span className={sectionHeaderClass(labelGroupActive)}>{t('task.label')}</span>
-                <label
-                  className="flex items-center gap-1.5 cursor-pointer select-none"
-                  title={t('task.validateTitle')}
-                >
-                  <span className="relative">
-                    <input
-                      type="checkbox"
-                      checked={knnValidationEnabled}
-                      onChange={(e) => setKnnValidationEnabled(e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <span className="block w-6 h-3 bg-neutral-300 rounded-full peer-checked:bg-brand-600 transition-colors" />
-                    <span className="absolute top-0.5 left-0.5 w-2 h-2 bg-white rounded-full shadow-sm peer-checked:translate-x-3 transition-transform" />
-                  </span>
-                  <span className="text-[10px] text-neutral-600">{t('task.validate')}</span>
-                </label>
+                {embeddingsActive && (
+                  <label
+                    className="flex items-center gap-1.5 cursor-pointer select-none"
+                    title={t('task.validateTitle')}
+                  >
+                    <span className="relative">
+                      <input
+                        type="checkbox"
+                        checked={knnValidationEnabled}
+                        onChange={(e) => setKnnValidationEnabled(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <span className="block w-6 h-3 bg-neutral-300 rounded-full peer-checked:bg-brand-600 transition-colors" />
+                      <span className="absolute top-0.5 left-0.5 w-2 h-2 bg-white rounded-full shadow-sm peer-checked:translate-x-3 transition-transform" />
+                    </span>
+                    <span className="text-[10px] text-neutral-600">{t('task.validate')}</span>
+                  </label>
+                )}
               </div>
               <LabelGrid
                 labels={labels}

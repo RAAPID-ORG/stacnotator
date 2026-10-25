@@ -188,3 +188,33 @@ describe('TaskControls draw task', () => {
     expect((nothingHere as HTMLButtonElement).disabled).toBe(true);
   });
 });
+
+describe('TaskControls validate toggle', () => {
+  const withEmbeddings = (embedding_year: number | null, embedding_status: string) =>
+    makeCampaign({
+      embedding_status,
+      settings: makeSettings({
+        embedding_year,
+        labels: [{ id: 5, name: 'water', geometry_type: 'polygon' }],
+      }),
+    });
+
+  it('is offered once the campaign has its embeddings', async () => {
+    seed(withEmbeddings(2023, 'ready'), [NOT_ALLOWED_TASK]);
+    render(<TaskControls />);
+    expect(await screen.findByText('Validate')).toBeTruthy();
+  });
+
+  it('is hidden without embeddings or while they are computed', async () => {
+    for (const [year, status] of [
+      [null, 'ready'],
+      [2023, 'registering'],
+    ] as const) {
+      seed(withEmbeddings(year, status), [NOT_ALLOWED_TASK]);
+      const { unmount } = render(<TaskControls />);
+      expect(await screen.findByText('Water')).toBeTruthy();
+      expect(screen.queryByText('Validate')).toBeNull();
+      unmount();
+    }
+  });
+});
