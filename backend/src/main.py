@@ -188,6 +188,8 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             cls._inflight += 1
         try:
             response = await call_next(request)
+        except Exception as exc:
+            response = handle_uncaught_exception(request, exc)
         finally:
             if is_tile:
                 cls._tile_inflight -= 1
@@ -320,16 +322,16 @@ def handle_tile_capacity(request: Request, exc: TileCapacityError):
     )
 
 
-@app.exception_handler(Exception)
 def handle_uncaught_exception(request: Request, exc: Exception):
     """Catch-all for anything not raised as HTTPException. Logs the full
     traceback server-side with the request_id; returns a sanitized response
     with no exception details. Wire an observability sink (Sentry/Datadog)
-    where indicated below."""
+    where indicated below.
+
+    Called from RequestContextMiddleware rather than registered as the app's
+    Exception handler: Starlette runs that one in ServerErrorMiddleware, outside
+    CORS, so the browser would see a CORS failure instead of this response."""
     request_id = getattr(request.state, "request_id", None)
-    # exc_info=exc, not logger.exception(): this handler is sync, so Starlette
-    # dispatches it via run_in_threadpool, where thread-local sys.exc_info() is
-    # empty and the traceback would be logged as "NoneType: None".
     logger.error(
         "Unhandled exception | request_id=%s path=%s method=%s",
         request_id,

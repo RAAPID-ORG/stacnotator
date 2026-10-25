@@ -8,7 +8,7 @@ from src.annotation import spatial
 from src.auth.dependencies import require_authenticated_user
 from src.campaigns.dependencies import require_campaign_access
 from src.database import get_db
-from src.main import app
+from src.main import app, settings
 
 CAMPAIGN_ID = 66
 
@@ -48,6 +48,20 @@ def test_unhandled_exception_logs_traceback(client, caplog):
 
     assert record.exc_info is not None, "traceback dropped - cause is unrecoverable from logs"
     assert "underlying cause we need to see" in record.exc_text
+
+
+def test_unhandled_exception_reaches_the_browser_through_cors(client):
+    """Without CORS headers the browser hides the 500 behind a network error, and
+    the user never sees the request_id to quote."""
+    origin = settings.CORS_ORIGINS[0]
+    response = client.get(
+        f"/api/campaigns/{CAMPAIGN_ID}/annotations/tiles/15/9474/12553.pbf",
+        headers={"Origin": origin},
+    )
+
+    assert response.status_code == 500
+    assert response.headers["access-control-allow-origin"] == origin
+    assert response.json()["request_id"] == response.headers["x-request-id"]
 
 
 def test_security_headers_are_stamped_on_every_response(client):
