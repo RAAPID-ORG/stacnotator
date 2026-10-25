@@ -15,6 +15,7 @@ import {
   getCampaignQueryKey,
   getCampaignSummaryQueryKey,
   getAnnotationFacetsOptions,
+  getCampaignSettingsLocksOptions,
   getCampaignStatisticsOptions,
   listAnnotationsForCampaignOptions,
   listTaskSetsOptions,
@@ -48,6 +49,7 @@ export const isRegistering = (campaign: MaybeRegistering) =>
 
 const NO_TASKS: TaskOut[] = [];
 const NO_TASK_SETS: TaskSetOut[] = [];
+const NO_IDS: number[] = [];
 const NO_ANNOTATIONS: AnnotationListItemOut[] = [];
 
 /**
@@ -130,6 +132,21 @@ export const useCampaignStatistics = (campaignId: number, taskSetId?: number) =>
     meta: { errorMessage: t('errors.loadStatistics'), showUser: false },
   });
   return { statistics: data, loading: isPending, error };
+};
+
+/** What stored annotations no longer let the settings change. Nothing is locked
+ *  while this loads or fails; the server still refuses and says why. */
+export const useCampaignSettingsLocks = (campaignId: number) => {
+  const { t } = useTranslation('campaigns');
+  const { data } = useQuery({
+    ...getCampaignSettingsLocksOptions({ path: { campaign_id: campaignId } }),
+    ...SHARED_WORK,
+    meta: { errorMessage: t('errors.loadSettingsLocks'), showUser: false },
+  });
+  return {
+    taskOutputLocked: data?.task_output_locked ?? false,
+    answeredFieldIds: data?.answered_form_field_ids ?? NO_IDS,
+  };
 };
 
 /** After a write to the campaign: both reads of it, so the sidebar and the summary

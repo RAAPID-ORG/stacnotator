@@ -76,3 +76,28 @@ export function diffFormFields(original: FormField[], draft: FormField[]): FormF
     deleted: original.filter((f) => !draftIds.has(f.id)),
   };
 }
+
+const optionIdsOf = (field: FormField): number[] =>
+  'options' in field ? field.options.map((option) => option.id) : [];
+
+const numberTypeOf = (field: FormField) => (field.type === 'number' ? field.number_type : null);
+
+/** Fields the server will refuse to save: ones with stored answers whose type,
+ *  number type or options change, since those answers would become unreadable. */
+export function refusedReshapes(
+  original: FormField[],
+  draft: FormField[],
+  answeredIds: number[]
+): FormField[] {
+  const byId = new Map(original.map((f) => [f.id, f]));
+  return draft.filter((field) => {
+    const before = byId.get(field.id);
+    if (!before || !answeredIds.includes(field.id)) return false;
+    const keptOptions = new Set(optionIdsOf(field));
+    return (
+      before.type !== field.type ||
+      numberTypeOf(before) !== numberTypeOf(field) ||
+      optionIdsOf(before).some((id) => !keptOptions.has(id))
+    );
+  });
+}

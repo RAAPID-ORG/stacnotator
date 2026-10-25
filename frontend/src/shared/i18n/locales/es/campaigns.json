@@ -13,6 +13,7 @@
     "loadTasks": "No se pudieron cargar las tareas",
     "loadTaskSets": "No se pudieron cargar los conjuntos de tareas",
     "loadStatistics": "No se pudieron cargar las estadísticas",
+    "loadSettingsLocks": "No se pudo cargar qué ajustes están bloqueados",
     "loadAnnotations": "No se pudieron cargar las anotaciones",
     "loadAnnotationCounts": "No se pudieron cargar los recuentos de anotaciones",
     "loadProjects": "No se pudieron cargar los proyectos",
@@ -739,12 +740,14 @@
       "description": "Permite que las anotaciones creadas en esta campaña se publiquen como datos abiertos de investigación, sin el nombre de ningún anotador. Desactivado de forma predeterminada. Desactivarlo detiene las publicaciones futuras; lo que ya se haya publicado no se puede retirar. Consulta los Términos del servicio.",
       "label": "Publicable como datos de investigación"
     },
+    "answeredFields": "No se puede cambiar el tipo ni las opciones de {{fields}}: ya hay anotaciones con respuesta. Añade un campo nuevo en su lugar.",
     "taskOutput": {
       "title": "Resultado de las tareas",
       "description": "Qué completa una tarea: elegir una etiqueta para el propio punto o polígono de la tarea, o dibujar formas a su alrededor. Queda fijo una vez anotada la primera tarea.",
       "label": "Las tareas se completan",
       "classify": "Etiquetando la ubicación de la tarea",
-      "draw": "Dibujando formas a su alrededor"
+      "draw": "Dibujando formas a su alrededor",
+      "locked": "Ya hay tareas anotadas, así que esto ya no se puede cambiar."
     },
     "saveSettings": "Guardar configuración",
     "extent": {

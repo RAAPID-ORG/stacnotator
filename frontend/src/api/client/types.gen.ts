@@ -1511,6 +1511,22 @@ export type CampaignSettingsCreate = {
 };
 
 /**
+ * CampaignSettingsLocksOut
+ *
+ * What stored annotations no longer let the settings change.
+ */
+export type CampaignSettingsLocksOut = {
+    /**
+     * Task Output Locked
+     */
+    task_output_locked: boolean;
+    /**
+     * Answered Form Field Ids
+     */
+    answered_form_field_ids: Array<number>;
+};
+
+/**
  * CampaignSettingsOut
  */
 export type CampaignSettingsOut = {
@@ -7482,6 +7498,36 @@ export type GetCampaignSummaryResponses = {
 };
 
 export type GetCampaignSummaryResponse = GetCampaignSummaryResponses[keyof GetCampaignSummaryResponses];
+
+export type GetCampaignSettingsLocksData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/settings-locks';
+};
+
+export type GetCampaignSettingsLocksErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCampaignSettingsLocksError = GetCampaignSettingsLocksErrors[keyof GetCampaignSettingsLocksErrors];
+
+export type GetCampaignSettingsLocksResponses = {
+    /**
+     * Successful Response
+     */
+    200: CampaignSettingsLocksOut;
+};
+
+export type GetCampaignSettingsLocksResponse = GetCampaignSettingsLocksResponses[keyof GetCampaignSettingsLocksResponses];
 
 export type DuplicateCampaignData = {
     body: CampaignDuplicateRequest;

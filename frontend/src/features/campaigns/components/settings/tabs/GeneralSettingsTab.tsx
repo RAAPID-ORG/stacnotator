@@ -5,7 +5,10 @@ import { Link } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import type { CampaignOut, LabelBase, LabellingPolicy, ProjectUserOut } from '~/api/client';
 import { updateCampaignMutation } from '~/api/queries';
-import { useRefreshCampaign } from '~/features/campaigns/hooks/campaignQueries';
+import {
+  useCampaignSettingsLocks,
+  useRefreshCampaign,
+} from '~/features/campaigns/hooks/campaignQueries';
 import { projectPath } from '~/app/routes';
 import { BoundingBoxEditor } from '~/features/layers/BoundingBoxEditor';
 import { FormFieldsEditor } from '~/features/campaigns/components/FormFieldsEditor';
@@ -13,6 +16,7 @@ import { labelNamesError } from '~/features/campaigns/utils/campaignValidation';
 import { LabelsEditor } from '~/features/campaigns/components/LabelsEditor';
 import {
   diffFormFields,
+  refusedReshapes,
   validateFormFields,
   type FormField,
 } from '~/features/campaigns/utils/formFields';
@@ -43,6 +47,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
   const showAlert = useLayoutStore((s) => s.showAlert);
   const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
   const refreshCampaign = useRefreshCampaign(campaign.id);
+  const { taskOutputLocked, answeredFieldIds } = useCampaignSettingsLocks(campaign.id);
 
   // Every editor below saves one slice of the campaign and then re-reads it,
   // which is also what keeps the page header and the sidebar honest.
@@ -132,6 +137,14 @@ export const GeneralSettingsTab: React.FC<Props> = ({
 
   const handleSaveFormFields = async () => {
     if (!formFieldsChanged || formFieldErrors.length > 0) return;
+    const refused = refusedReshapes(savedFormFields, formFieldsDraft, answeredFieldIds);
+    if (refused.length > 0) {
+      showAlert(
+        t('generalTab.answeredFields', { fields: refused.map((f) => `"${f.title}"`).join(', ') }),
+        'error'
+      );
+      return;
+    }
     const { edited: editedFormFields, deleted: deletedFormFields } = formFieldsDiff;
     // Deletion is the destructive case, so it owns the dialog when both apply.
     if (deletedFormFields.length > 0) {
@@ -361,12 +374,15 @@ export const GeneralSettingsTab: React.FC<Props> = ({
                 body: { task_output: e.target.value === 'draw' ? 'draw' : 'classify' },
               })
             }
-            disabled={saveTaskOutput.isPending}
+            disabled={saveTaskOutput.isPending || taskOutputLocked}
           >
             <option value="classify">{t('generalTab.taskOutput.classify')}</option>
             <option value="draw">{t('generalTab.taskOutput.draw')}</option>
           </Select>
         </Field>
+        {taskOutputLocked && (
+          <p className="text-xs text-neutral-500">{t('generalTab.taskOutput.locked')}</p>
+        )}
       </section>
 
       <section className={sectionCls}>

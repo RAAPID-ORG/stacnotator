@@ -13,6 +13,7 @@
     "loadTasks": "Failed to load tasks",
     "loadTaskSets": "Failed to load task sets",
     "loadStatistics": "Failed to load statistics",
+    "loadSettingsLocks": "Failed to load which settings are locked",
     "loadAnnotations": "Failed to load annotations",
     "loadAnnotationCounts": "Failed to load annotation counts",
     "loadProjects": "Failed to load projects",
@@ -698,12 +699,14 @@
       "description": "Allow the annotations created in this campaign to be published as open research data, without any annotator's name. Off by default. Turning it off stops future releases - anything already published cannot be recalled. See the Terms of Service.",
       "label": "Publishable as research data"
     },
+    "answeredFields": "Cannot change the type or options of {{fields}}: annotations already answered it. Add a new field instead.",
     "taskOutput": {
       "title": "Task output",
       "description": "What finishes a task: picking a label for the task's own point or polygon, or drawing shapes around it. Fixed once the first task has been annotated.",
       "label": "Tasks are finished by",
       "classify": "Labelling the task location",
-      "draw": "Drawing shapes around it"
+      "draw": "Drawing shapes around it",
+      "locked": "Tasks have been annotated, so this can no longer change."
     },
     "saveSettings": "Save settings",
     "extent": {
