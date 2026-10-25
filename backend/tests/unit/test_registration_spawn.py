@@ -4,6 +4,7 @@ wiring into the background-run protocol is covered in test_background_runs.py.""
 
 from unittest.mock import MagicMock
 
+import httpx
 import pytest
 
 from src.config import TilerCfg
@@ -173,3 +174,27 @@ def test_a_search_edited_while_its_registration_was_out_is_not_kept(monkeypatch)
 
     # The edit changed the regular slices' query; the cover keeps its own and its result.
     assert {m.slice_id for (m,), _ in db.merge.call_args_list} == {11}
+
+
+@pytest.mark.parametrize(("status", "attempts"), [(400, 1), (503, 3)])
+def test_a_refused_search_is_not_retried(monkeypatch, status, attempts):
+    source = _source()
+    monkeypatch.setattr(registration, "_owner_sources", lambda db, owner: [source])
+    monkeypatch.setattr(registration.providers, "resolve_tiler", lambda name: None)
+    monkeypatch.setattr(registration.time, "sleep", lambda seconds: None)
+    calls: list[int] = []
+
+    def post(url, *, json, timeout):
+        calls.append(json["limit"])
+        request = httpx.Request("POST", url)
+        return httpx.Response(status, json={"detail": "Invalid filter"}, request=request)
+
+    monkeypatch.setattr(registration.httpx, "post", post)
+
+    db = MagicMock()
+    db.scalars.return_value = [11, 12]
+    errors = registration.register_missing(db, LayerOwner(campaign_id=1), [10, 20, 11, 21])
+
+    # Two slices, each on MPC and the hosted tiler, all through the one post here.
+    assert len(calls) == 4 * attempts
+    assert {e["error"] for e in errors} == {f"HTTP {status}: Invalid filter"}

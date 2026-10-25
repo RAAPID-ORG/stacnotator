@@ -212,18 +212,27 @@ def register_missing(db: Session, owner: LayerOwner, bbox: list[float]) -> list[
                     return _register_mpc(order, bbox)
                 return _register_hosted(order, bbox, owner.tile_scope, tiler)
             except Exception as e:
-                if attempt < MAX_RETRIES:
+                refused = (
+                    isinstance(e, httpx.HTTPStatusError)
+                    and e.response.status_code < 500
+                    and e.response.status_code != 429
+                )
+                if attempt < MAX_RETRIES and not refused:
                     time.sleep(1 * (attempt + 1))
                     continue
                 logger.warning(
-                    "Registering %s slice %s on %s failed after %d retries",
+                    "Registering %s slice %s on %s failed after %d attempts: %s",
                     order.collection_name,
                     order.slice_name,
                     order.provider,
-                    MAX_RETRIES,
-                    exc_info=True,
+                    attempt + 1,
+                    # The tiler's own reason; a 4xx is the search being refused,
+                    # which no retry changes.
+                    e.response.text[:500] if isinstance(e, httpx.HTTPStatusError) else e,
+                    exc_info=not isinstance(e, httpx.HTTPStatusError),
                 )
                 error(order, _sanitize_stac_error(e))
+                return None
         return None
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
