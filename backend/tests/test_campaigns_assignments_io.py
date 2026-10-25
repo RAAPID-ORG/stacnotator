@@ -250,8 +250,8 @@ class TestImportApply:
 
         result = import_task_assignments(db, 1, contents)
 
-        # Existing assignments for the task are cleared first.
-        assert db.execute.call_count == 1
+        # Existing assignments for the task are cleared, and the task stamped for the poll.
+        assert db.execute.call_count == 2
         added = [c.args[0] for c in db.add.call_args_list]
         assignments = [a for a in added if isinstance(a, TaskAssignment)]
         assert {(a.user_id, a.is_review) for a in assignments} == {
@@ -274,7 +274,7 @@ class TestImportApply:
         result = import_task_assignments(db, 1, contents)
 
         # Task still gets its assignments deleted, but nothing is added.
-        assert db.execute.call_count == 1
+        assert db.execute.call_count == 2
         added = [c.args[0] for c in db.add.call_args_list]
         assert [a for a in added if isinstance(a, TaskAssignment)] == []
         assert result == {

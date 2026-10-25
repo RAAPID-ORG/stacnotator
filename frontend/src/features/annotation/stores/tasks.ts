@@ -85,7 +85,10 @@ export interface TasksState {
   /** Swap in newer copies of tasks without re-filtering, so work others
    *  finished counts toward progress without pulling the current task away. */
   mergeTasks: (updated: TaskOut[], catalog: ImageryCatalog) => void;
-  /** Pick up tasks other annotators have worked since the last poll. */
+  /** Forget tasks deleted elsewhere. A deleted current task hands its place to
+   *  the next one in the list. */
+  removeTasks: (taskIds: number[], catalog: ImageryCatalog) => void;
+  /** Pick up tasks others have worked, reassigned or deleted since the last poll. */
   syncRemoteTasks: () => Promise<void>;
   adoptTask: (claimed: TaskOut, catalog: ImageryCatalog) => void;
   setSubmitting: (isSubmitting: boolean) => void;
@@ -325,6 +328,22 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     publishSelection(catalog);
   },
 
+  removeTasks: (taskIds, catalog) => {
+    const gone = new Set(taskIds);
+    set((s) => {
+      const current = currentOf(s);
+      const visibleTasks = s.visibleTasks.filter((task) => !gone.has(task.id));
+      const kept = current ? visibleTasks.indexOf(current) : -1;
+      return {
+        allTasks: s.allTasks.filter((task) => !gone.has(task.id)),
+        visibleTasks,
+        currentIndex:
+          kept >= 0 ? kept : Math.min(s.currentIndex, Math.max(visibleTasks.length - 1, 0)),
+      };
+    });
+    publishSelection(catalog);
+  },
+
   syncRemoteTasks: async () => {
     try {
       const { campaign, catalog } = campaignState();
@@ -337,6 +356,9 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       if (!data || useCampaignStore.getState().campaign?.id !== campaign.id) return;
       set({ syncCursor: data.server_time });
       if (data.tasks.length > 0) get().mergeTasks(data.tasks, catalog);
+      const known = new Set(get().allTasks.map((task) => task.id));
+      const deleted = (data.deleted ?? []).filter((id) => known.has(id));
+      if (deleted.length > 0) get().removeTasks(deleted, catalog);
     } catch {
       // A missed poll is picked up by the next one.
     }

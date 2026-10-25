@@ -1633,9 +1633,9 @@ export const listTaskChangesQueryKey = (options: Options<ListTaskChangesData>) =
 /**
  * List Task Changes
  *
- * Tasks annotated since ``since``, so one annotator's progress reflects
- * everyone's without reloading the whole task list. Without ``since`` it only
- * hands back the cursor, like the annotation changes poll.
+ * Tasks changed or deleted since ``since``, so one annotator's list reflects
+ * everyone's work and the admins' edits without reloading it. Without ``since``
+ * it only hands back the cursor, like the annotation changes poll.
  */
 export const listTaskChangesOptions = (options: Options<ListTaskChangesData>) => queryOptions<ListTaskChangesResponse, ListTaskChangesError, ListTaskChangesResponse, ReturnType<typeof listTaskChangesQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {

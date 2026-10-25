@@ -4402,8 +4402,9 @@ export type TaskAssignmentOut = {
 /**
  * TaskChangesOut
  *
- * Tasks somebody annotated since a cursor, re-read whole, plus the cursor
- * for the next poll. Same clock as :class:`AnnotationChangesOut`.
+ * Tasks that changed since a cursor, re-read whole, the ids of those
+ * deleted, and the cursor for the next poll. Same clock as
+ * :class:`AnnotationChangesOut`.
  */
 export type TaskChangesOut = {
     /**
@@ -4414,6 +4415,10 @@ export type TaskChangesOut = {
      * Tasks
      */
     tasks: Array<TaskOut>;
+    /**
+     * Deleted
+     */
+    deleted?: Array<number>;
 };
 
 /**

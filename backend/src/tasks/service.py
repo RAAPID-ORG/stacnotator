@@ -3,13 +3,17 @@ from datetime import datetime
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import func, select, union
 from sqlalchemy.orm import Session, defer, joinedload, selectinload
 
 from src.annotation import spatial
 from src.annotation.constants import CHANGES_OVERLAP
 from src.annotation.models import Annotation
-from src.annotation.sync import bump_campaign_annotations_version, record_annotation_deletions
+from src.annotation.sync import (
+    bump_campaign_annotations_version,
+    record_annotation_deletions,
+    record_task_deletions,
+)
 from src.campaigns.models import Campaign
 from src.campaigns.policy import (
     PolicyContext,
@@ -37,21 +41,16 @@ def get_user_assignment_status(task: Task, user_id: UUID) -> str:
 
 
 def get_changed_task_ids(db: Session, campaign_id: int, since: datetime) -> list[int]:
-    """Tasks whose annotations were written since ``since``, for the task poll.
-
-    A task's status is derived from its annotations, so a write to one of them
-    is what changes it.
-    """
-    rows = db.scalars(
-        select(Annotation.task_id)
-        .where(
-            Annotation.campaign_id == campaign_id,
-            Annotation.task_id.is_not(None),
-            Annotation.updated_at >= since - CHANGES_OVERLAP,
-        )
-        .distinct()
-    ).all()
-    return [task_id for task_id in rows if task_id is not None]
+    """Tasks that changed since ``since``, for the task poll: an answer written,
+    or anything ``touch_tasks`` stamps on the task itself."""
+    after = since - CHANGES_OVERLAP
+    answered = select(Annotation.task_id).where(
+        Annotation.campaign_id == campaign_id,
+        Annotation.task_id.is_not(None),
+        Annotation.updated_at >= after,
+    )
+    touched = select(Task.id).where(Task.campaign_id == campaign_id, Task.changed_at >= after)
+    return list(db.scalars(union(answered, touched)))
 
 
 def require_task_access(
@@ -335,6 +334,7 @@ def delete_tasks(
     if task_rows or drop:
         record_annotation_deletions(db, campaign_id, [row.id for row in drop])
         bump_campaign_annotations_version(db, campaign_id)
+    record_task_deletions(db, campaign_id, task_ids)
     for doomed in (*drop, *tasks):
         db.delete(doomed)
 
