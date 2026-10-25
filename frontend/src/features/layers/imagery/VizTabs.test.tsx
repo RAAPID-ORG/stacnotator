@@ -58,3 +58,38 @@ describe('VizTabs visualization identity', () => {
     expect(screen.queryByLabelText('Band formula')).toBeNull();
   });
 });
+
+describe('VizTabs editable tabs', () => {
+  it('only offers rename and remove on the tabs marked editable', async () => {
+    const viz = (name: string): NamedVizParams => ({
+      name,
+      vizParams: { assets: ['data'], assetAsBand: false, rescale: '' },
+    });
+    const Harness = () => {
+      const [active, setActive] = useState(0);
+      return (
+        <VizTabs
+          visualizations={[viz('Saved'), viz('Added')]}
+          activeIndex={active}
+          onActiveIndexChange={setActive}
+          collectionId="c"
+          availableAssets={{}}
+          showCompositing={false}
+          onParamsChange={() => {}}
+          onNameChange={() => {}}
+          onAdd={() => {}}
+          onRemove={() => {}}
+          isEditable={(i) => i === 1}
+        />
+      );
+    };
+    render(<Harness />);
+
+    expect(screen.queryByLabelText('Remove Saved')).toBeNull();
+    expect(screen.getByLabelText('Remove Added')).toBeTruthy();
+    expect(screen.queryByPlaceholderText('e.g. True Color')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Added' }));
+    expect(screen.getByPlaceholderText('e.g. True Color')).toBeTruthy();
+    expect(screen.getByTitle('Add visualization')).toBeTruthy();
+  });
+});

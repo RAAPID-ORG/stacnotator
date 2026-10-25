@@ -677,8 +677,16 @@ export const CatalogBrowser = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, mode, selectedCatalog?.url, selectedCollection?.id]);
 
+  // Editing a saved series may add visualizations; the ones it already has are
+  // the source's, renamed and removed in the source editor.
+  const savedVizCount = initialGeneration?.visualizations.length ?? 0;
+  const isNewViz = (index: number) => index >= savedVizCount;
+
   const addVisualization = () => {
-    const newViz = { name: `Viz ${visualizations.length + 1}`, vizParams: emptyVizParams() };
+    const taken = new Set(visualizations.map((v) => v.name));
+    let n = visualizations.length + 1;
+    while (taken.has(`Viz ${n}`)) n++;
+    const newViz = { name: `Viz ${n}`, vizParams: emptyVizParams() };
     setVisualizations((prev) => [...prev, newViz]);
     setActiveVizIndex(visualizations.length);
     // Sync cover visualizations
@@ -972,7 +980,7 @@ export const CatalogBrowser = ({
     mode === 'mosaic' ? startDate && endDate && startDate <= endDate && hasVizConfig : hasVizConfig;
 
   const stepTitle = initialGeneration
-    ? t('sourceEditor.editSeries', { name: initialGeneration.collectionTitle })
+    ? t('sourceEditor.editSeriesNamed', { name: initialGeneration.collectionTitle })
     : step === 'catalog'
       ? t('catalog.selectTitle')
       : step === 'collection'
@@ -1687,9 +1695,10 @@ export const CatalogBrowser = ({
                           showCompositing={mode === 'mosaic' && showAdvanced}
                           compositingMethods={availableCompositing}
                           onParamsChange={(_, params) => updateVizParams(params)}
-                          onNameChange={initialGeneration ? undefined : updateVizName}
-                          onAdd={initialGeneration ? undefined : addVisualization}
-                          onRemove={initialGeneration ? undefined : removeVisualization}
+                          onNameChange={updateVizName}
+                          onAdd={addVisualization}
+                          onRemove={removeVisualization}
+                          isEditable={isNewViz}
                         />
                         <AdvancedToggle
                           expanded={showAdvanced}

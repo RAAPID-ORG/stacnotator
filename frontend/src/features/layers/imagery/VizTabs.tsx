@@ -22,6 +22,8 @@ interface VizTabsProps {
   onAdd?: () => void;
   /** When provided (and more than one viz), per-tab trash buttons remove a visualization. */
   onRemove?: (index: number) => void;
+  /** Tabs that may be renamed and removed; all of them when omitted. */
+  isEditable?: (index: number) => boolean;
 }
 
 export const VizTabs = ({
@@ -36,6 +38,7 @@ export const VizTabs = ({
   onNameChange,
   onAdd,
   onRemove,
+  isEditable = () => true,
 }: VizTabsProps) => {
   const { t } = useTranslation('imagery');
   if (visualizations.length === 0) return null;
@@ -60,7 +63,7 @@ export const VizTabs = ({
             >
               {viz.name || t('vizTabs.fallbackName', { n: i + 1 })}
             </button>
-            {onRemove && visualizations.length > 1 && (
+            {onRemove && visualizations.length > 1 && isEditable(i) && (
               <button
                 type="button"
                 onClick={() => onRemove(i)}
@@ -87,7 +90,7 @@ export const VizTabs = ({
       </div>
 
       <div className="p-3 space-y-3 bg-white">
-        {onNameChange && (
+        {onNameChange && isEditable(active) && (
           <div className="space-y-1">
             <label className="text-xs text-neutral-700">{t('vizTabs.name')}</label>
             <Input

@@ -1,8 +1,20 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import type { CatalogBrowserResult } from './CatalogBrowser';
 import type { ImageryController } from './controller';
 import { SourceEditor } from './SourceEditor';
-import type { ImageryGenerationConfig, ImagerySource } from './types';
+import type { CollectionItem, ImageryGenerationConfig, ImagerySource } from './types';
+
+// The generator itself is covered by its own tests; here it hands back a
+// regenerated series with one visualization more than the source has.
+vi.mock('./CatalogBrowser', () => ({
+  CatalogBrowser: ({ onAdd }: { onAdd: (result: CatalogBrowserResult) => void }) => (
+    <button type="button" onClick={() => onAdd(regenerated)}>
+      regenerate
+    </button>
+  ),
+}));
 
 const config = (title: string): ImageryGenerationConfig => ({
   catalogUrl: 'https://example.test/stac',
@@ -74,6 +86,22 @@ const source: ImagerySource = {
   ],
 };
 
+const ndvi = { name: 'NDVI', vizParams: { assets: ['nir'], assetAsBand: false, rescale: '' } };
+const sentinelWindow = source.collections[0] as CollectionItem & {
+  data: { type: 'stac_browser' };
+};
+const regenerated: CatalogBrowserResult = {
+  collections: [
+    {
+      ...sentinelWindow,
+      data: {
+        ...sentinelWindow.data,
+        visualizations: [...sentinelWindow.data.visualizations, ndvi],
+      },
+    },
+  ],
+};
+
 const controller = {
   state: { sources: [source], basemaps: [] },
   campaignBbox: null,
@@ -98,7 +126,25 @@ describe('SourceEditor generation series', () => {
   it('offers every saved series independently', () => {
     render(<SourceEditor source={source} controller={controller} onClose={() => {}} />);
 
-    expect(screen.getByText('Edit Sentinel series')).toBeTruthy();
-    expect(screen.getByText('Edit Landsat series')).toBeTruthy();
+    expect(screen.getByText('Edit all Sentinel')).toBeTruthy();
+    expect(screen.getByText('Edit all Landsat')).toBeTruthy();
+  });
+});
+
+describe('SourceEditor series regeneration', () => {
+  it('adds a visualization created in the generator to the source', async () => {
+    render(<SourceEditor source={source} controller={controller} onClose={() => {}} />);
+
+    await userEvent.click(screen.getByText('Edit all Sentinel'));
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    await userEvent.click(screen.getByRole('button', { name: 'regenerate' }));
+
+    const patch = controller.updateSource.mock.calls.at(-1)![1];
+    expect(patch.visualizations).toEqual([{ name: 'RGB' }, { name: 'NDVI' }]);
+    const [sentinel] = patch.collections!;
+    expect(
+      sentinel.data.type === 'stac_browser' &&
+        sentinel.data.visualizations.map((v: { name: string }) => v.name)
+    ).toEqual(['RGB', 'NDVI']);
   });
 });

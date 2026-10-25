@@ -393,7 +393,10 @@
     "removeViz": "Eliminar visualización",
     "collections": "Colecciones",
     "collectionsTooltip": "Una colección es una ventana de tiempo de imágenes. Cada colección contiene cortes entre los que los anotadores pueden cambiar.",
-    "editSeries": "Editar serie {{name}}",
+    "editSeries": "Editar todas las colecciones",
+    "editSeriesNamed": "Editar todo {{name}}",
+    "editSeriesTitle": "Cambiar la búsqueda, las fechas y las visualizaciones de cada colección de {{name}}",
+    "collectionsHint": "Haz clic en una colección para cambiar solo esa.",
     "deleteCollectionTitle": "Eliminar colección \"{{name}}\"",
     "deleteCollectionAria": "Eliminar colección {{name}}"
   },

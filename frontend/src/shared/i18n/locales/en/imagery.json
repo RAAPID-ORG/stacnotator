@@ -378,7 +378,10 @@
     "removeViz": "Remove visualization",
     "collections": "Collections",
     "collectionsTooltip": "A collection is a time window of imagery. Each collection contains slices annotators can switch between.",
-    "editSeries": "Edit {{name}} series",
+    "editSeries": "Edit all collections",
+    "editSeriesNamed": "Edit all {{name}}",
+    "editSeriesTitle": "Change the search, dates and visualizations of every {{name}} collection",
+    "collectionsHint": "Click a collection to change only that one.",
     "deleteCollectionTitle": "Delete collection \"{{name}}\"",
     "deleteCollectionAria": "Delete collection {{name}}"
   },

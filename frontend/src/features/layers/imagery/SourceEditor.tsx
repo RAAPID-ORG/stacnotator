@@ -10,6 +10,7 @@ import {
   IconSettings,
   IconClock,
   IconPlus,
+  IconSliders,
 } from '~/shared/ui/Icons';
 import type { CollectionItem, ImagerySource, NamedVizParams } from './types';
 import { emptyManualCollection, emptyVizParams, swap } from './types';
@@ -54,6 +55,11 @@ const collectionDisplayName = (c: CollectionItem) => {
  * exposes the same named tabs. Params for a matching name are carried over;
  * names the source has but the collection lacks become empty tabs ready to fill;
  * extra names from the catalog that the source doesn't have are dropped. */
+/** The header actions that change every collection at once: a quiet chip, so
+ *  it reads as a control without competing with the collection tiles. */
+const allCollectionsAction =
+  'inline-flex items-center gap-1 rounded-md border border-brand-200 bg-brand-50 px-2 py-1 text-xs font-medium text-brand-700 transition-colors hover:border-brand-300 hover:bg-brand-100 cursor-pointer';
+
 function alignCollectionToVizNames(c: CollectionItem, vizNames: string[]): CollectionItem {
   if (c.data.type !== 'stac_browser' || vizNames.length === 0) return c;
   const data = c.data;
@@ -197,8 +203,17 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
   ) => {
     const generated = result.collections;
     if (generated.length === 0) return;
+    // Visualizations added in the generator join the source's list.
+    const addedVizNames = [
+      ...new Set(
+        generated.flatMap((c) =>
+          c.data.type === 'stac_browser' ? c.data.visualizations.map((v) => v.name) : []
+        )
+      ),
+    ].filter((name) => name && !vizNames.includes(name));
+    const seriesVizNames = [...vizNames, ...addedVizNames];
     const replacements = retainMatchingIds(
-      generated.map((collection) => alignCollectionToVizNames(collection, vizNames)),
+      generated.map((collection) => alignCollectionToVizNames(collection, seriesVizNames)),
       series.collections
     );
     const replacedIds = new Set(series.collections.map((c) => c.id));
@@ -223,6 +238,9 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
     }
 
     await updateSource({
+      ...(addedVizNames.length > 0 && {
+        visualizations: [...source.visualizations, ...addedVizNames.map((name) => ({ name }))],
+      }),
       collections,
       generationSeries: preserveOtherCollections
         ? source.generationSeries.map((candidate) =>
@@ -594,33 +612,41 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
         </div>
 
         <div className="space-y-2">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <h4 className="text-xs font-medium text-neutral-700 flex items-center gap-1">
               {t('sourceEditor.collections')}
               <Tooltip text={t('sourceEditor.collectionsTooltip')} />
             </h4>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
               {generationSeries.map((series) => (
                 <button
                   key={series.id}
                   type="button"
                   onClick={() => openGenerationEditor(series)}
-                  className="text-xs font-medium text-brand-700 hover:text-brand-800 transition-colors cursor-pointer"
+                  title={t('sourceEditor.editSeriesTitle', { name: series.config.collectionTitle })}
+                  className={allCollectionsAction}
                 >
-                  {t('sourceEditor.editSeries', { name: series.config.collectionTitle })}
+                  <IconSliders className="w-3 h-3" />
+                  {generationSeries.length > 1
+                    ? t('sourceEditor.editSeriesNamed', { name: series.config.collectionTitle })
+                    : t('sourceEditor.editSeries')}
                 </button>
               ))}
               {hasStac && generationSeries.length === 0 && (
                 <button
                   type="button"
                   onClick={() => setBulkFocus({ kind: 'search' })}
-                  className="text-xs text-brand-700 hover:text-brand-800 transition-colors cursor-pointer"
+                  className={allCollectionsAction}
                 >
+                  <IconSliders className="w-3 h-3" />
                   {t('bulk.searchTitle')}
                 </button>
               )}
             </div>
           </div>
+          {(generationSeries.length > 0 || hasStac) && source.collections.length > 1 && (
+            <p className="text-[11px] text-neutral-500">{t('sourceEditor.collectionsHint')}</p>
+          )}
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
