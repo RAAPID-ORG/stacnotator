@@ -274,7 +274,7 @@ describe('attachInteractions', () => {
     expect(abort).toHaveBeenCalledTimes(1);
   });
 
-  it('seeds the edit feature into the sketch source and reports modify/translate end in 4326', () => {
+  it('seeds the edit feature into the sketch source and reports modify/translate end in 4326, but not a translate that never moved', () => {
     const map = new OLMap({ interactions: [] });
     const sketchLayer = makeSketchLayer();
     const onGeometryChange = vi.fn();
@@ -306,6 +306,10 @@ describe('attachInteractions', () => {
     (seeded[0].getGeometry() as Point).setCoordinates(fromLonLat([1, 2]));
     translate.dispatchEvent(
       new TranslateEvent('translateend', new Collection([seeded[0]]), [0, 0], [0, 0], {} as never)
+    );
+    expect(onGeometryChange).toHaveBeenCalledTimes(1);
+    translate.dispatchEvent(
+      new TranslateEvent('translateend', new Collection([seeded[0]]), [1, 0], [0, 0], {} as never)
     );
     expect(onGeometryChange).toHaveBeenCalledTimes(2);
     geometry = onGeometryChange.mock.calls[1][0] as GeoJSON.Point;
