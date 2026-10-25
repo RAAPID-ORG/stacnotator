@@ -133,9 +133,9 @@ export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome
 
   const mine = task.annotations.find((a) => a.created_by_user_id === currentUserId);
 
-  // "Take my label off this task": nothing chosen, one already there, and no
-  // comment being added.
-  if (!params.isSkip && labelId === null && mine?.label_id != null && !comment) {
+  // "Take my label off this task": nothing chosen and one already there. The
+  // form carries the stored comment along, so a comment is no sign of a skip.
+  if (!params.isSkip && labelId === null && mine?.label_id != null) {
     try {
       const { data } = await deleteAnnotation({
         path: { campaign_id: campaignId, annotation_id: mine.id },

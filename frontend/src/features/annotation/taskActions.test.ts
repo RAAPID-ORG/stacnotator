@@ -183,6 +183,24 @@ describe('submitCurrent', () => {
     expect(api.annotateTask).not.toHaveBeenCalled();
   });
 
+  it('removing a label that carries a comment still deletes it rather than skipping', async () => {
+    const taskWithAnnotation: TaskOut = {
+      ...TASK,
+      annotations: [annotation({ id: 7, comment: 'cloudy' })],
+    };
+    vi.mocked(api.deleteAnnotation).mockResolvedValue(deleted());
+
+    const outcome = await submitCurrent({
+      ...BASE_PARAMS,
+      task: taskWithAnnotation,
+      labelId: null,
+      comment: 'cloudy',
+    });
+
+    expect(outcome.kind).toBe('removed');
+    expect(api.annotateTask).not.toHaveBeenCalled();
+  });
+
   it('skipping a task you already labelled records the skip instead of deleting it', async () => {
     const taskWithAnnotation: TaskOut = {
       ...TASK,
