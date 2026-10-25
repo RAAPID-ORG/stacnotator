@@ -78,7 +78,7 @@ function Icon({ path }: { path: string }) {
 
 /** Chips sit as many to a row as fit, each row filling the width, so a
  *  narrow panel shows one full-width chip per row rather than ragged ones. */
-const chipRowClass = 'grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-1.5';
+const chipRowClass = 'grid grid-cols-[repeat(auto-fill,minmax(min(8.5rem,100%),1fr))] gap-1.5';
 
 const chipClass = (active: boolean) =>
   `flex min-w-0 items-center justify-center gap-1.5 px-2 py-1.5 rounded text-[11px] font-medium transition-colors cursor-pointer ${
