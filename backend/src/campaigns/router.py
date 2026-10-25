@@ -13,6 +13,7 @@ from src.campaigns.schemas import (
     CampaignDuplicateRequest,
     CampaignOut,
     CampaignOutFull,
+    CampaignSettingsLocksOut,
     CampaignsListResponse,
     CampaignStatistics,
     CampaignSummaryOut,
@@ -103,6 +104,18 @@ def get_campaign_summary(
     # holding it through serialization is pure cost. See database.release.
     release(db)
     return out
+
+
+@router.get("/{campaign_id}/settings-locks", response_model=CampaignSettingsLocksOut)
+def get_campaign_settings_locks(
+    campaign_id: int,
+    campaign: Campaign = Depends(require_campaign_admin),
+    db: Session = Depends(get_db),
+):
+    return CampaignSettingsLocksOut(
+        task_output_locked=service.task_output_is_locked(db, campaign),
+        answered_form_field_ids=service.answered_form_field_ids(db, campaign),
+    )
 
 
 @router.post(

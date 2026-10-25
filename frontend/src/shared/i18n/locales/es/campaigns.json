@@ -13,6 +13,7 @@
     "loadTasks": "No se pudieron cargar las tareas",
     "loadTaskSets": "No se pudieron cargar los conjuntos de tareas",
     "loadStatistics": "No se pudieron cargar las estadísticas",
+    "loadSettingsLocks": "No se pudo cargar qué ajustes están bloqueados",
     "loadAnnotations": "No se pudieron cargar las anotaciones",
     "loadAnnotationCounts": "No se pudieron cargar los recuentos de anotaciones",
     "loadProjects": "No se pudieron cargar los proyectos",
@@ -82,6 +83,7 @@
     "emptyLabels_one": "{{count}} etiqueta tiene el nombre vacío.",
     "emptyLabels_many": "{{count}} etiquetas tienen el nombre vacío.",
     "emptyLabels_other": "{{count}} etiquetas tienen el nombre vacío.",
+    "duplicateLabels": "Los nombres de las etiquetas deben ser únicos.",
     "sourcesRequired": "Añade al menos una fuente de imágenes.",
     "sourceNameRequired": "Fuente {{index}}: el nombre es obligatorio.",
     "vizRequired": "Fuente \"{{source}}\": se requiere al menos una visualización.",
@@ -93,6 +95,14 @@
     "missingVizUrls_one": "Fuente \"{{source}}\", colección \"{{collection}}\": a {{count}} corte le faltan URL de visualización.",
     "missingVizUrls_many": "Fuente \"{{source}}\", colección \"{{collection}}\": a {{count}} cortes les faltan URL de visualización.",
     "missingVizUrls_other": "Fuente \"{{source}}\", colección \"{{collection}}\": a {{count}} cortes les faltan URL de visualización.",
+    "basemapUrl": "Mapa base \"{{basemap}}\": la URL debe empezar por http:// o https://.",
+    "sliceUnnamed_one": "Fuente \"{{source}}\", colección \"{{collection}}\": {{count}} corte no tiene nombre.",
+    "sliceUnnamed_many": "Fuente \"{{source}}\", colección \"{{collection}}\": {{count}} cortes no tienen nombre.",
+    "sliceUnnamed_other": "Fuente \"{{source}}\", colección \"{{collection}}\": {{count}} cortes no tienen nombre.",
+    "sliceDates_one": "Fuente \"{{source}}\", colección \"{{collection}}\": {{count}} corte tiene una fecha que falta o no es válida, o termina antes de empezar.",
+    "sliceDates_many": "Fuente \"{{source}}\", colección \"{{collection}}\": {{count}} cortes tienen una fecha que falta o no es válida, o terminan antes de empezar.",
+    "sliceDates_other": "Fuente \"{{source}}\", colección \"{{collection}}\": {{count}} cortes tienen una fecha que falta o no es válida, o terminan antes de empezar.",
+    "vizNoBands": "Fuente \"{{source}}\", colección \"{{collection}}\": la visualización \"{{viz}}\" no tiene bandas seleccionadas.",
     "timeseries": {
       "name": "Serie temporal {{index}}: el nombre es obligatorio.",
       "start": "Serie temporal {{index}}: la fecha de inicio es obligatoria.",
@@ -271,6 +281,7 @@
   "vectorLayers": {
     "loadFailed": "No se pudieron cargar las capas vectoriales",
     "addFailed": "No se pudo añadir la capa vectorial",
+    "urlInvalid": "La URL debe empezar por http:// o https://",
     "deleteFailed": "No se pudo eliminar la capa vectorial",
     "title": "Capas vectoriales (PMTiles)",
     "description": "Actívalas o desactívalas al anotar, pasa el cursor para resaltar y etiqueta entidades haciendo clic con la herramienta Etiquetar vector.",
@@ -729,12 +740,14 @@
       "description": "Permite que las anotaciones creadas en esta campaña se publiquen como datos abiertos de investigación, sin el nombre de ningún anotador. Desactivado de forma predeterminada. Desactivarlo detiene las publicaciones futuras; lo que ya se haya publicado no se puede retirar. Consulta los Términos del servicio.",
       "label": "Publicable como datos de investigación"
     },
+    "answeredFields": "No se puede cambiar el tipo ni las opciones de {{fields}}: ya hay anotaciones con respuesta. Añade un campo nuevo en su lugar.",
     "taskOutput": {
       "title": "Resultado de las tareas",
       "description": "Qué completa una tarea: elegir una etiqueta para el propio punto o polígono de la tarea, o dibujar formas a su alrededor. Queda fijo una vez anotada la primera tarea.",
       "label": "Las tareas se completan",
       "classify": "Etiquetando la ubicación de la tarea",
-      "draw": "Dibujando formas a su alrededor"
+      "draw": "Dibujando formas a su alrededor",
+      "locked": "Ya hay tareas anotadas, así que esto ya no se puede cambiar."
     },
     "saveSettings": "Guardar configuración",
     "extent": {
@@ -746,8 +759,7 @@
     "labels": {
       "title": "Etiquetas de anotación",
       "description": "Los nombres de clase entre los que eligen los anotadores al etiquetar. Puedes añadir etiquetas nuevas y renombrar las existentes; renombrar requiere confirmación porque cambia cómo se muestran las anotaciones anteriores. No se pueden eliminar etiquetas (dejaría huérfanas las anotaciones existentes).",
-      "save": "Guardar etiquetas",
-      "invalid": "Los nombres de las etiquetas no pueden estar vacíos y deben ser únicos."
+      "save": "Guardar etiquetas"
     },
     "formFields": {
       "title": "Campos de formulario personalizados",

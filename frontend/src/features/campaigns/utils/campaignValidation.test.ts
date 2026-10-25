@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { CampaignCreate, PlanetScenesGenerationConfig } from '~/api/client';
 import {
   emptySource,
+  emptyVizParams,
   type ImageryGenerationSeries,
   type ImageryStepState,
 } from '~/features/layers/imagery/types';
@@ -19,6 +20,28 @@ const form = (bbox: Partial<Record<string, number>>): CampaignCreate =>
       ...bbox,
     },
   }) as unknown as CampaignCreate;
+
+describe('label names', () => {
+  const withLabels = (...names: string[]) =>
+    ({
+      name: 'c',
+      settings: {
+        labels: names.map((name) => ({ name, geometry_type: 'polygon' })),
+        bbox_west: 0,
+        bbox_south: 0,
+        bbox_east: 1,
+        bbox_north: 1,
+      },
+    }) as unknown as CampaignCreate;
+
+  it('rejects duplicates regardless of case and spacing', () => {
+    expect(validateSettingsStep(withLabels('Crop', ' crop ')).errors.labels).toMatch(/unique/);
+  });
+
+  it('accepts distinct names', () => {
+    expect(validateSettingsStep(withLabels('Crop', 'Forest')).isValid).toBe(true);
+  });
+});
 
 describe('the campaign area', () => {
   it('accepts an ordinary box', () => {
@@ -73,7 +96,7 @@ const sourceWithoutUrls = (generationSeries: ImageryGenerationSeries[]): Imagery
         {
           id: 'col',
           name: 'Feb 2025',
-          slices: [{ id: 'sl', name: '', startDate: '2025-02-01', endDate: '2025-02-03' }],
+          slices: [{ id: 'sl', name: 'Feb', startDate: '2025-02-01', endDate: '2025-02-03' }],
           coverSliceIndex: 0,
           hasDedicatedCover: false,
           generationSeriesId: 'series',
@@ -82,6 +105,59 @@ const sourceWithoutUrls = (generationSeries: ImageryGenerationSeries[]): Imagery
       ],
     },
   ],
+});
+
+const stacSource = (assets: string[]): ImageryStepState => ({
+  basemaps: [],
+  sources: [
+    {
+      ...emptySource(),
+      name: 'S2',
+      visualizations: [{ name: 'Viz 3' }],
+      collections: [
+        {
+          id: 'col',
+          name: '2024',
+          slices: [{ id: 'sl', name: 'w1', startDate: '2024-01-01', endDate: '2024-01-07' }],
+          coverSliceIndex: 0,
+          hasDedicatedCover: false,
+          data: {
+            type: 'stac_browser',
+            catalogUrl: 'https://stac.example',
+            stacCollectionId: 'c',
+            isMpc: false,
+            visualizations: [{ name: 'Viz 3', vizParams: { ...emptyVizParams(), assets } }],
+            vizUrls: [],
+          },
+        },
+      ],
+    },
+  ],
+});
+
+describe('imagery that cannot be saved', () => {
+  it('names the visualization that has no bands', () => {
+    const { errors } = validateImageryStep(stacSource([]));
+    expect(errors.source_0_col_0_viz_0_bands).toContain('"Viz 3"');
+    expect(validateImageryStep(stacSource(['B04'])).isValid).toBe(true);
+  });
+
+  it('rejects slices without a name or with dates out of order', () => {
+    const state = stacSource(['B04']);
+    state.sources[0].collections[0].slices = [
+      { id: 'a', name: ' ', startDate: '2024-01-01', endDate: '2024-01-07' },
+      { id: 'b', name: 'b', startDate: '2024-02-01', endDate: '2024-01-07' },
+    ];
+    const { errors } = validateImageryStep(state);
+    expect(errors.source_0_col_0_slice_names).toBeDefined();
+    expect(errors.source_0_col_0_slice_dates).toBeDefined();
+  });
+
+  it('rejects a basemap whose URL is not http(s)', () => {
+    const state = stacSource(['B04']);
+    state.basemaps = [{ id: 'b', name: 'Mine', url: 'not a url at all' }];
+    expect(validateImageryStep(state).errors.basemap_0_url).toContain('Mine');
+  });
 });
 
 describe('imagery slice URLs', () => {

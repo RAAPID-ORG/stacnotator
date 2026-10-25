@@ -14,6 +14,7 @@ import {
 } from '~/shared/ui/Icons';
 import type { CollectionItem, ImagerySource, NamedVizParams } from './types';
 import { emptyManualCollection, emptyVizParams, swap } from './types';
+import { isRealId } from './draftSync';
 import { rewriteVisualization } from './visualizations';
 import { IconButton, Input, Button } from '~/shared/ui/forms';
 import { Tooltip } from '~/shared/ui/Tooltip';
@@ -161,6 +162,22 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
     }
     await controller.removeSource(source.id);
     onClose();
+  };
+
+  const handleRemoveCollection = async (collection: CollectionItem) => {
+    if (controller.mode === 'persisted' && isRealId(collection.id)) {
+      const ok = await useLayoutStore.getState().showConfirmDialog({
+        title: t('sourceEditor.confirmDeleteCollectionTitle', {
+          name: collectionDisplayName(collection),
+        }),
+        description: t('sourceEditor.confirmDeleteCollectionDescription'),
+        confirmText: t('common:actions.delete'),
+        isDangerous: true,
+      });
+      if (!ok) return false;
+    }
+    await controller.removeCollection(source.id, collection.id);
+    return true;
   };
 
   const addManualCollection = () => {
@@ -422,8 +439,9 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
             controller.updateCollection(source.id, editingCollection.id, updates)
           }
           onRemove={() => {
-            void controller.removeCollection(source.id, editingCollection.id);
-            closeCollection();
+            void handleRemoveCollection(editingCollection).then((removed) => {
+              if (removed) closeCollection();
+            });
           }}
           inModal
         />
@@ -684,7 +702,7 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    void controller.removeCollection(source.id, c.id);
+                    void handleRemoveCollection(c);
                   }}
                   title={t('sourceEditor.deleteCollectionTitle', {
                     name: collectionDisplayName(c),

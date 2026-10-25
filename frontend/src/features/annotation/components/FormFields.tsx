@@ -169,39 +169,25 @@ function NumberField({
   const raw = values[String(field.id)];
   const numericValue = typeof raw === 'number' ? raw : undefined;
   const step = field.step ?? (field.number_type === 'int' ? 1 : undefined);
+  const { t } = useTranslation('annotation');
 
-  const clamp = (value: number) => {
-    let result = field.number_type === 'int' ? Math.round(value) : value;
-    if (field.min != null) result = Math.max(field.min, result);
-    if (field.max != null) result = Math.min(field.max, result);
-    return result;
+  const rangeError = (): string | null => {
+    if (numericValue === undefined) return null;
+    if (field.number_type === 'int' && !Number.isInteger(numericValue)) {
+      return t('formFields.wholeNumber');
+    }
+    if (field.min != null && numericValue < field.min) {
+      return t('formFields.atLeast', { value: field.min });
+    }
+    if (field.max != null && numericValue > field.max) {
+      return t('formFields.atMost', { value: field.max });
+    }
+    return null;
   };
 
-  // Clamping happens on blur, not per keystroke: clamping while typing garbles
-  // entry whenever min has 2+ digits (typing "2015" with min 1990 would clamp
-  // the intermediate "2" to 1990). Round for int fields immediately since that
-  // never conflicts with a digit prefix.
   const handleChange = (rawValue: string) => {
-    if (rawValue === '') {
-      onChange(setFieldValue(values, field.id, null));
-      return;
-    }
-    const parsed = Number(rawValue);
-    if (Number.isNaN(parsed)) {
-      onChange(setFieldValue(values, field.id, null));
-      return;
-    }
-    onChange(
-      setFieldValue(values, field.id, field.number_type === 'int' ? Math.round(parsed) : parsed)
-    );
-  };
-
-  const handleBlur = () => {
-    if (numericValue === undefined) return;
-    const clamped = clamp(numericValue);
-    if (clamped !== numericValue) {
-      onChange(setFieldValue(values, field.id, clamped));
-    }
+    const parsed = rawValue === '' ? NaN : Number(rawValue);
+    onChange(setFieldValue(values, field.id, Number.isNaN(parsed) ? null : parsed));
   };
 
   if (field.slider && field.min != null && field.max != null) {
@@ -225,18 +211,22 @@ function NumberField({
     );
   }
 
+  const error = rangeError();
   return (
-    <input
-      type="number"
-      value={numericValue ?? ''}
-      min={field.min ?? undefined}
-      max={field.max ?? undefined}
-      step={step}
-      onChange={(e) => handleChange(e.target.value)}
-      onBlur={handleBlur}
-      disabled={disabled}
-      className={textInputClass}
-    />
+    <div>
+      <input
+        type="number"
+        value={numericValue ?? ''}
+        min={field.min ?? undefined}
+        max={field.max ?? undefined}
+        step={step}
+        onChange={(e) => handleChange(e.target.value)}
+        disabled={disabled}
+        aria-invalid={error !== null}
+        className={textInputClass}
+      />
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+    </div>
   );
 }
 

@@ -23,6 +23,7 @@ import { capitalizeFirst } from '~/shared/utils/utility';
 import { FadeIn } from '~/shared/ui/motion';
 
 import {
+  type BasemapOut,
   type ImagerySourceOut,
   type ProjectUserOut,
   type TimeseriesCreate,
@@ -46,6 +47,7 @@ const isSettingsTab = (tab: string | null): tab is SettingsTab =>
   (SETTINGS_TABS as readonly string[]).includes(tab ?? '');
 
 const NO_IMAGERY: ImagerySourceOut[] = [];
+const NO_BASEMAPS: BasemapOut[] = [];
 const NO_TIMESERIES: TimeseriesOut[] = [];
 const NO_USERS: ProjectUserOut[] = [];
 
@@ -99,7 +101,7 @@ export const CampaignSettingsPage = () => {
     campaignId: campaignId,
     projectId,
     imagery,
-    basemaps: campaign?.basemaps ?? [],
+    basemaps: campaign?.basemaps ?? NO_BASEMAPS,
     campaignBbox,
     refetch: refreshCampaign,
   });

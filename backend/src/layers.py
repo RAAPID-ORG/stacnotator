@@ -8,7 +8,10 @@ registers (imagery sources and custom maps) also name themselves with a
 """
 
 from dataclasses import dataclass
+from typing import Annotated
+from urllib.parse import urlparse
 
+from pydantic import AfterValidator
 from sqlalchemy import CheckConstraint, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -57,3 +60,14 @@ def one_owner_check(table: str) -> CheckConstraint:
     return CheckConstraint(
         "(campaign_id IS NULL) <> (visualizer_id IS NULL)", name=f"{table}_one_owner_check"
     )
+
+
+def _http_url(value: str) -> str:
+    parsed = urlparse(value.strip())
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise ValueError("Must be an http(s) URL")
+    return value
+
+
+# A tile template keeps its {z}/{x}/{y} placeholders, so this checks the shape only.
+HttpUrl = Annotated[str, AfterValidator(_http_url)]

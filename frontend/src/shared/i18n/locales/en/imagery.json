@@ -247,7 +247,8 @@
     "saveFailed": "Failed to save imagery changes",
     "saveBeforeReregister": "Save your changes before re-registering this source.",
     "cannotReregister": "Cannot re-register",
-    "reregisterFailed": "Failed to re-register source"
+    "reregisterFailed": "Failed to re-register source",
+    "reregisterStarted": "Re-registering the imagery. The registered slice count updates as it finishes."
   },
   "tiler": {
     "methods": {
@@ -336,7 +337,9 @@
     "working": "Working…",
     "reregister": "Re-register imagery",
     "confirmDeleteTitle": "Delete imagery source \"{{name}}\"?",
-    "confirmDeleteDescription": "This cannot be undone.",
+    "confirmDeleteDescription": "Nothing is deleted until you save changes.",
+    "confirmDeleteCollectionTitle": "Delete collection \"{{name}}\"?",
+    "confirmDeleteCollectionDescription": "Nothing is deleted until you save. On save, annotations made on this collection's slices stay but lose their link to the imagery they were drawn on.",
     "outsideSeries": {
       "title": "Collections outside this generated series",
       "continue": "Continue",
@@ -578,7 +581,7 @@
     "which": {
       "title": "Which imagery to use",
       "tooltip": "Narrows which images from this catalog the campaign draws on. Advanced options add sort order, a custom CQL query, and the choice of pulling one single scene instead of a mosaic.",
-      "description": "Pick the period to cover and how cloudy an image may be. Every image the campaign shows is searched for within these limits."
+      "description": "Pick the period to cover and how cloudy an image may be. The slices annotators browse are searched for within these limits. A custom cover slice has its own cloud limit."
     },
     "pull": {
       "title": "What to pull from the catalog",

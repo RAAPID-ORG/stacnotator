@@ -13,6 +13,7 @@
     "loadTasks": "Failed to load tasks",
     "loadTaskSets": "Failed to load task sets",
     "loadStatistics": "Failed to load statistics",
+    "loadSettingsLocks": "Failed to load which settings are locked",
     "loadAnnotations": "Failed to load annotations",
     "loadAnnotationCounts": "Failed to load annotation counts",
     "loadProjects": "Failed to load projects",
@@ -80,6 +81,7 @@
     "labelsRequired": "At least one label is required.",
     "emptyLabels_one": "{{count}} label has an empty name.",
     "emptyLabels_other": "{{count}} labels have an empty name.",
+    "duplicateLabels": "Label names must be unique.",
     "sourcesRequired": "Add at least one imagery source.",
     "sourceNameRequired": "Source {{index}}: Name is required.",
     "vizRequired": "Source \"{{source}}\": At least one visualization is required.",
@@ -89,6 +91,12 @@
     "noSlices": "Source \"{{source}}\", Collection \"{{collection}}\": Has no time slices.",
     "missingVizUrls_one": "Source \"{{source}}\", Collection \"{{collection}}\": {{count}} slice has missing visualization URLs.",
     "missingVizUrls_other": "Source \"{{source}}\", Collection \"{{collection}}\": {{count}} slices have missing visualization URLs.",
+    "basemapUrl": "Basemap \"{{basemap}}\": URL must start with http:// or https://.",
+    "sliceUnnamed_one": "Source \"{{source}}\", Collection \"{{collection}}\": {{count}} slice has no name.",
+    "sliceUnnamed_other": "Source \"{{source}}\", Collection \"{{collection}}\": {{count}} slices have no name.",
+    "sliceDates_one": "Source \"{{source}}\", Collection \"{{collection}}\": {{count}} slice has a missing or invalid date, or ends before it starts.",
+    "sliceDates_other": "Source \"{{source}}\", Collection \"{{collection}}\": {{count}} slices have a missing or invalid date, or end before they start.",
+    "vizNoBands": "Source \"{{source}}\", Collection \"{{collection}}\": Visualization \"{{viz}}\" has no bands selected.",
     "timeseries": {
       "name": "Timeseries {{index}}: Name is required.",
       "start": "Timeseries {{index}}: Start date is required.",
@@ -257,6 +265,7 @@
   "vectorLayers": {
     "loadFailed": "Failed to load vector layers",
     "addFailed": "Failed to add vector layer",
+    "urlInvalid": "The URL must start with http:// or https://",
     "deleteFailed": "Failed to delete vector layer",
     "title": "Vector layers (PMTiles)",
     "description": "Toggle them on or off while annotating, hover to highlight, and label features by clicking with the Label vector tool.",
@@ -690,12 +699,14 @@
       "description": "Allow the annotations created in this campaign to be published as open research data, without any annotator's name. Off by default. Turning it off stops future releases - anything already published cannot be recalled. See the Terms of Service.",
       "label": "Publishable as research data"
     },
+    "answeredFields": "Cannot change the type or options of {{fields}}: annotations already answered it. Add a new field instead.",
     "taskOutput": {
       "title": "Task output",
       "description": "What finishes a task: picking a label for the task's own point or polygon, or drawing shapes around it. Fixed once the first task has been annotated.",
       "label": "Tasks are finished by",
       "classify": "Labelling the task location",
-      "draw": "Drawing shapes around it"
+      "draw": "Drawing shapes around it",
+      "locked": "Tasks have been annotated, so this can no longer change."
     },
     "saveSettings": "Save settings",
     "extent": {
@@ -707,8 +718,7 @@
     "labels": {
       "title": "Annotation labels",
       "description": "The class names annotators choose from when labeling. You can add new labels and rename existing ones; renaming requires confirmation since it affects how prior annotations display. Deleting labels is not supported (it would orphan existing annotations).",
-      "save": "Save labels",
-      "invalid": "Label names must be non-empty and unique."
+      "save": "Save labels"
     },
     "formFields": {
       "title": "Custom form fields",

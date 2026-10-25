@@ -1,9 +1,22 @@
 import type { CampaignCreate } from '~/api/client';
 import i18n from '~/shared/i18n';
-import { isPlanetSceneConfig, type ImageryStepState } from '~/features/layers/imagery/types';
+import {
+  emptyVizParams,
+  isPlanetSceneConfig,
+  type ImageryStepState,
+  type NamedVizParams,
+} from '~/features/layers/imagery/types';
 import { validateFormFields } from './formFields';
 
 const t = i18n.getFixedT(null, 'campaigns');
+
+const isHttpUrl = (value: string): boolean => /^https?:\/\/\S+$/i.test(value.trim());
+
+const isDate = (value: string): boolean =>
+  /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value));
+
+const isOrderedDateRange = (start: string, end: string): boolean =>
+  isDate(start) && isDate(end) && start <= end;
 
 export type FieldErrors = Record<string, string>;
 
@@ -20,6 +33,17 @@ function validateCampaignStep(form: CampaignCreate): StepValidationResult {
   }
 
   return { errors, isValid: Object.keys(errors).length === 0 };
+}
+
+/** The one rule for label names, the wizard's and the settings' alike. */
+export function labelNamesError(labels: { name: string }[]): string | null {
+  const names = labels.map((label) => label.name.trim());
+  const empty = names.filter((name) => !name).length;
+  if (empty > 0) return t('validation.emptyLabels', { count: empty });
+  if (new Set(names.map((name) => name.toLowerCase())).size !== names.length) {
+    return t('validation.duplicateLabels');
+  }
+  return null;
 }
 
 export function validateSettingsStep(form: CampaignCreate): StepValidationResult {
@@ -57,10 +81,8 @@ export function validateSettingsStep(form: CampaignCreate): StepValidationResult
   if (!s.labels || s.labels.length === 0) {
     errors.labels = t('validation.labelsRequired');
   } else {
-    const emptyLabels = s.labels.filter((l) => !l.name.trim());
-    if (emptyLabels.length > 0) {
-      errors.labels = t('validation.emptyLabels', { count: emptyLabels.length });
-    }
+    const labelsError = labelNamesError(s.labels);
+    if (labelsError) errors.labels = labelsError;
   }
 
   validateFormFields(s.form_fields ?? []).forEach((msg, i) => {
@@ -71,13 +93,23 @@ export function validateSettingsStep(form: CampaignCreate): StepValidationResult
 }
 
 export function validateImageryStep(imageryState: ImageryStepState): StepValidationResult {
+  if (imageryState.sources.length === 0) {
+    return { errors: { sources: t('validation.sourcesRequired') }, isValid: false };
+  }
+  return validateImagery(imageryState);
+}
+
+/** What an imagery save may not carry, whether it is the wizard's or the settings'. */
+export function validateImagery(imageryState: ImageryStepState): StepValidationResult {
   const errors: FieldErrors = {};
 
-  // Must have at least one source
-  if (imageryState.sources.length === 0) {
-    errors.sources = t('validation.sourcesRequired');
-    return { errors, isValid: false };
-  }
+  imageryState.basemaps.forEach((basemap, bi) => {
+    if (!isHttpUrl(basemap.url)) {
+      errors[`basemap_${bi}_url`] = t('validation.basemapUrl', {
+        basemap: basemap.name || bi + 1,
+      });
+    }
+  });
 
   // Validate each source
   imageryState.sources.forEach((source, si) => {
@@ -122,6 +154,46 @@ export function validateImageryStep(imageryState: ImageryStepState): StepValidat
           errors[`${cp}_slices`] = t('validation.noSlices', {
             source: sourceLabel,
             collection: col.name || ci + 1,
+          });
+        }
+
+        const noName = col.slices.filter((sl) => !sl.name.trim());
+        if (noName.length > 0) {
+          errors[`${cp}_slice_names`] = t('validation.sliceUnnamed', {
+            source: sourceLabel,
+            collection: col.name || ci + 1,
+            count: noName.length,
+          });
+        }
+
+        const badDates = col.slices.filter((sl) => !isOrderedDateRange(sl.startDate, sl.endDate));
+        if (badDates.length > 0) {
+          errors[`${cp}_slice_dates`] = t('validation.sliceDates', {
+            source: sourceLabel,
+            collection: col.name || ci + 1,
+            count: badDates.length,
+          });
+        }
+
+        if (col.data.type === 'stac_browser') {
+          const data = col.data;
+          const configured = (params: NamedVizParams[] | undefined, name: string) =>
+            params?.find((viz) => viz.name === name)?.vizParams;
+          source.visualizations.forEach((viz, vi) => {
+            const regular = configured(data.visualizations, viz.name);
+            const cover = col.hasDedicatedCover
+              ? configured(data.coverVisualizations, viz.name)
+              : undefined;
+            const bandless = [regular ?? emptyVizParams(), ...(cover ? [cover] : [])].some(
+              (params) => !params.assets.length && !params.expression
+            );
+            if (viz.name.trim() && bandless) {
+              errors[`${cp}_viz_${vi}_bands`] = t('validation.vizNoBands', {
+                source: sourceLabel,
+                collection: col.name || ci + 1,
+                viz: viz.name,
+              });
+            }
           });
         }
 

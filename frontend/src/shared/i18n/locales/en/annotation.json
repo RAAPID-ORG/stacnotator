@@ -631,6 +631,7 @@
     "deleteFailed": "Failed to delete view",
     "reorderFailed": "Failed to reorder views",
     "sourcesFailed": "Failed to update view sources",
+    "lastSource": "A view needs at least one imagery source",
     "add": "Add view",
     "name": "View name",
     "untitled": "Untitled view",
@@ -672,7 +673,10 @@
   },
   "formFields": {
     "from": "From",
-    "to": "To"
+    "to": "To",
+    "wholeNumber": "Enter a whole number",
+    "atLeast": "Must be at least {{value}}",
+    "atMost": "Must be at most {{value}}"
   },
   "headerSelect": {
     "collapse": "Collapse",

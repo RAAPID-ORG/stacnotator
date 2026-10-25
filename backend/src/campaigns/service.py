@@ -262,14 +262,21 @@ def update_campaign(db: Session, campaign: Campaign, changes: CampaignUpdate) ->
     return get_campaign_full(db, campaign.id)
 
 
+def task_output_is_locked(db: Session, campaign: Campaign) -> bool:
+    worked = (Annotation.task_id.isnot(None)) | (Annotation.output_of_task_id.isnot(None))
+    return bool(db.scalar(select(exists().where(Annotation.campaign_id == campaign.id, worked))))
+
+
+def answered_form_field_ids(db: Session, campaign: Campaign) -> list[int]:
+    answered = _answered_form_field_keys(db, campaign.id)
+    return [field.id for field in campaign_form_fields(campaign) if str(field.id) in answered]
+
+
 def _check_task_output_change(db: Session, campaign: Campaign, task_output: str) -> None:
     """Labelling tasks and drawing around them are locked in once any task has
     been worked, or a draw task has shapes drawn for it: the outcomes stored so far
     would change meaning, and the shapes would answer nothing."""
-    worked = (Annotation.task_id.isnot(None)) | (Annotation.output_of_task_id.isnot(None))
-    if campaign.task_output != task_output and db.scalar(
-        select(exists().where(Annotation.campaign_id == campaign.id, worked))
-    ):
+    if campaign.task_output != task_output and task_output_is_locked(db, campaign):
         raise HTTPException(
             status_code=409,
             detail="The task output cannot change once tasks have been annotated",

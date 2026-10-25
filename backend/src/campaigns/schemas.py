@@ -262,6 +262,13 @@ class CampaignOut(CampaignSummaryOut):
     time_series: list[TimeseriesOut]
 
 
+class CampaignSettingsLocksOut(BaseModel):
+    """What stored annotations no longer let the settings change."""
+
+    task_output_locked: bool
+    answered_form_field_ids: list[int]
+
+
 class CampaignCreate(BaseModel):
     name: str
     project_id: int

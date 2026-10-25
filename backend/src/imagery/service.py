@@ -582,6 +582,8 @@ def update_view(
     if payload.name is not None:
         view.name = payload.name
     if payload.source_ids is not None:
+        if not payload.source_ids:
+            raise HTTPException(status_code=400, detail="A view needs at least one source")
         view.source_ids = _validated_source_ids(campaign, payload.source_ids)
     db.commit()
     db.refresh(view)

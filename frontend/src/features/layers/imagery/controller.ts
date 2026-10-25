@@ -12,6 +12,7 @@ import type {
 } from '~/api/client';
 import i18n from '~/shared/i18n';
 import { useLayoutStore } from '~/shared/stores/layout.store';
+import { validateImagery } from '~/features/campaigns/utils/campaignValidation';
 import { handleError } from '~/shared/utils/errorHandler';
 import { basemapToBackend, isRealId, sourceToBackend } from './draftSync';
 import { isPlanetSceneConfig } from './types';
@@ -460,6 +461,11 @@ export function usePersistedController({
 
   const save = useCallback(async () => {
     if (pending) return;
+    const { errors, isValid } = validateImagery(stateRef.current);
+    if (!isValid) {
+      useLayoutStore.getState().showAlert(Object.values(errors).join(' '), 'error');
+      return;
+    }
     // A source created here joins none of the campaign's views, so it stays off
     // the annotation canvas until someone puts it in one - and nothing else in
     // this editor mentions views at all. Only worth saying for a source that is
@@ -574,6 +580,7 @@ export function usePersistedController({
             path: { campaign_id: campaignId, source_id: Number(sourceId) },
           });
           refetch?.();
+          useLayoutStore.getState().showAlert(t('controller.reregisterStarted'), 'success');
         } catch (e) {
           handleError(e, t('controller.reregisterFailed'));
         } finally {

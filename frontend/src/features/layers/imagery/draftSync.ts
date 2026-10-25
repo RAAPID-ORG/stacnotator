@@ -96,7 +96,7 @@ function collectionToBackend(
     generation_series_key: col.generationSeriesId ?? null,
     slices: col.slices.map((sl) => ({
       id: toIdField(sl.id),
-      name: sl.name || undefined,
+      name: sl.name,
       start_date: sl.startDate,
       end_date: sl.endDate,
       templates:

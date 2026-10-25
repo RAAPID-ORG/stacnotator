@@ -4,6 +4,8 @@ for the generators."""
 import io
 import json
 import logging
+import re
+from collections import Counter
 
 import numpy as np
 import pandas as pd
@@ -26,6 +28,25 @@ MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB
 REQUIRED_COLUMNS = {"id", "lat", "lon"}
 
 
+def validated_task_numbers(ids: list[str]) -> list[int]:
+    """The task numbers an import's ids stand for: non-empty, whole numbers, unique."""
+    stripped = [str(raw).strip() for raw in ids]
+    if any(not i for i in stripped):
+        raise HTTPException(status_code=400, detail="All IDs must be non-empty")
+    duplicates = [i for i, count in Counter(stripped).items() if count > 1]
+    if duplicates:
+        raise HTTPException(
+            status_code=400, detail=f"Duplicate IDs found in file: {duplicates[:5]}"
+        )
+    non_numeric = [i for i in stripped if not re.fullmatch(r"-?\d+", i)]
+    if non_numeric:
+        raise HTTPException(
+            status_code=400,
+            detail=f"IDs must be integers. Invalid values: {non_numeric[:5]}",
+        )
+    return [int(i) for i in stripped]
+
+
 def insert_tasks(
     db: Session,
     campaign: Campaign,
@@ -40,7 +61,18 @@ def insert_tasks(
     Task numbers are `numbers` when given (an imported file's own ids), else
     contiguous after the campaign's current highest. Geometries are WGS84 WKT.
     """
-    if numbers is None:
+    if numbers is not None:
+        taken = db.scalars(
+            select(Task.annotation_number).where(
+                Task.campaign_id == campaign.id, Task.annotation_number.in_(numbers)
+            )
+        ).all()
+        if taken:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Task IDs already used in this campaign: {sorted(taken)[:5]}",
+            )
+    else:
         highest = db.scalar(
             select(func.coalesce(func.max(Task.annotation_number), 0)).where(
                 Task.campaign_id == campaign.id
@@ -131,24 +163,7 @@ def create_tasks_from_csv(
             detail=f"Missing id/lat/lon in rows: {bad_rows}",
         )
 
-    df["id"] = df["id"].str.strip()
-
-    if (df["id"] == "").any():
-        raise HTTPException(status_code=400, detail="All IDs must be non-empty")
-
-    if df["id"].duplicated().any():
-        duplicates = df.loc[df["id"].duplicated(), "id"].head(5).tolist()
-        raise HTTPException(
-            status_code=400,
-            detail=f"Duplicate IDs found in CSV: {duplicates}",
-        )
-
-    non_numeric = df.loc[~df["id"].str.fullmatch(r"-?\d+"), "id"].head(5).tolist()
-    if non_numeric:
-        raise HTTPException(
-            status_code=400,
-            detail=f"IDs must be integers. Invalid values: {non_numeric}",
-        )
+    numbers = validated_task_numbers(df["id"].tolist())
 
     if not np.isfinite(df["lat"]).all() or not np.isfinite(df["lon"]).all():
         raise HTTPException(
@@ -174,7 +189,7 @@ def create_tasks_from_csv(
         task_set_id,
         [f"POINT({lon} {lat})" for lon, lat in zip(df["lon"], df["lat"], strict=True)],
         list(df["raw_source_data"]),
-        numbers=[int(i) for i in df["id"]],
+        numbers=numbers,
     )
 
 
@@ -246,7 +261,10 @@ def parse_geojson_features(contents: bytes, max_size: int) -> list[tuple[BaseGeo
         except Exception as exc:
             raise GeoJSONParseError(f"Feature {idx}: invalid geometry – {exc}") from exc
 
-        parsed.append((geom, feat.get("properties") or {}))
+        properties = dict(feat.get("properties") or {})
+        if "id" not in properties and feat.get("id") is not None:
+            properties["id"] = feat["id"]
+        parsed.append((geom, properties))
 
     return parsed
 
@@ -269,4 +287,11 @@ def create_tasks_from_geojson(
     geometry_wkts = [geom.wkt for geom, _ in features]
     raw_data = [properties for _, properties in features]
 
-    return insert_tasks(db, campaign, task_set_id, geometry_wkts, raw_data)
+    given = [properties.get("id") for properties in raw_data]
+    numbers = None
+    if any(i is not None for i in given):
+        if any(i is None for i in given):
+            raise HTTPException(status_code=400, detail="Every feature needs an id, or none")
+        numbers = validated_task_numbers([str(i) for i in given])
+
+    return insert_tasks(db, campaign, task_set_id, geometry_wkts, raw_data, numbers=numbers)
