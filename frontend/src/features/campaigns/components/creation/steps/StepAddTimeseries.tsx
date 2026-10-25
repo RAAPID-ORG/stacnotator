@@ -298,7 +298,8 @@ export const StepAddTimeseries = ({
                   <div key={index === -1 ? items.length : index} className="py-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <h5 className="text-xs font-medium text-neutral-500">
-                        {t('timeseriesStep.series', { number: saved.length + seriesIndex + 1 })}
+                        {i.name.trim() ||
+                          t('timeseriesStep.series', { number: saved.length + seriesIndex + 1 })}
                       </h5>
                       <button
                         type="button"

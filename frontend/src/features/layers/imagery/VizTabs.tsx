@@ -83,6 +83,7 @@ export const VizTabs = ({
             onClick={onAdd}
             className="text-xs text-neutral-400 hover:text-brand-700 transition-colors cursor-pointer px-2 py-1.5 flex items-center gap-0.5"
             title={t('vizTabs.add')}
+            aria-label={t('vizTabs.add')}
           >
             <IconPlus className="w-3 h-3" />
           </button>
@@ -108,6 +109,10 @@ export const VizTabs = ({
           availableAssets={availableAssets}
           vizParams={visualizations[active]?.vizParams || emptyVizParams()}
           onChange={(params) => onParamsChange(active, params)}
+          name={visualizations[active]?.name}
+          onNameChange={
+            onNameChange && isEditable(active) ? (n) => onNameChange(active, n) : undefined
+          }
           showCompositing={showCompositing}
           compositingMethods={compositingMethods}
         />

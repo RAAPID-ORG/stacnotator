@@ -49,7 +49,7 @@ describe('CatalogBrowser, private catalogs', () => {
     catalogCollections.items = [];
   });
 
-  it('keeps the generated NDVI cover synchronized when an existing false-color tab is edited', async () => {
+  it('names the tab after the picked preset and keeps the generated NDVI cover synchronized', async () => {
     catalogCollections.items = [
       {
         id: 'sentinel-2-l2a',
@@ -77,9 +77,7 @@ describe('CatalogBrowser, private catalogs', () => {
     const tabs = await screen.findAllByRole('button', { name: 'False Color (Vegetation)' });
     await userEvent.click(tabs[0]);
     await userEvent.click(screen.getByRole('button', { name: 'NDVI' }));
-    const name = screen.getByDisplayValue('False Color (Vegetation)');
-    await userEvent.clear(name);
-    await userEvent.type(name, 'NDVI');
+    expect(screen.getByDisplayValue('NDVI')).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: /^Generate/ }));
     expect(onAdd).toHaveBeenCalledOnce();
     const result = onAdd.mock.calls[0][0];

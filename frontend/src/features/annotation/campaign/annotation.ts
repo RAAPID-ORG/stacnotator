@@ -10,6 +10,7 @@ import type {
   PolicyAudience,
   SliceComment,
 } from '~/api/client';
+import { labelColor } from '~/features/campaigns/utils/labelColors';
 import { isAudienceMember, type PolicyContext } from '~/features/campaigns/utils/labellingPolicy';
 
 const t = i18n.getFixedT(null, 'annotation');
@@ -29,26 +30,13 @@ export interface ExtendedLabel extends LabelBase {
   color: string;
 }
 
-const LABEL_COLORS = [
-  '#10b981',
-  '#f59e0b',
-  '#3b82f6',
-  '#8b5cf6',
-  '#ef4444',
-  '#ec4899',
-  '#06b6d4',
-  '#a3883a',
-  '#6366f1',
-  '#14b8a6',
-];
-
 export function extendedLabels(
   campaign: Pick<CampaignOutFull, 'settings'> | null | undefined
 ): ExtendedLabel[] {
   return (campaign?.settings.labels ?? []).map((label, index) => ({
     ...label,
     geometry_type: label.geometry_type,
-    color: LABEL_COLORS[index % LABEL_COLORS.length],
+    color: labelColor(index),
   }));
 }
 

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { editableGenerationSeries, generateStacCollections, retainMatchingIds } from './generation';
+import {
+  editableGenerationSeries,
+  generateStacCollections,
+  periods,
+  retainMatchingIds,
+} from './generation';
 import type {
   CollectionItem,
   ImageryGenerationConfig,
@@ -135,5 +140,25 @@ describe('generateStacCollections', () => {
     const [cloudy] = generateStacCollections({ ...quarter, hasCloudCover: true }, 's');
     expect(clear.data).toMatchObject({ maxCloudCover: undefined });
     expect(cloudy.data).toMatchObject({ maxCloudCover: 90 });
+  });
+});
+
+describe('periods', () => {
+  const utc = (iso: string) => new Date(`${iso}T00:00:00Z`);
+  const days = (cut: Array<[Date, Date]>) =>
+    cut.map(([a, b]) => (b.getTime() - a.getTime()) / 86_400_000);
+
+  it('folds a one-day tail into the last weekly slice', () => {
+    expect(days(periods(utc('2024-02-01'), utc('2024-03-01'), 1, 'weeks'))).toEqual([7, 7, 7, 8]);
+  });
+
+  it('keeps a tail of three days or more as its own slice', () => {
+    expect(days(periods(utc('2025-01-01'), utc('2025-02-01'), 1, 'weeks'))).toEqual([
+      7, 7, 7, 7, 3,
+    ]);
+  });
+
+  it('keeps a lone short period when there is nothing to fold into', () => {
+    expect(days(periods(utc('2025-01-01'), utc('2025-01-03'), 1, 'weeks'))).toEqual([2]);
   });
 });

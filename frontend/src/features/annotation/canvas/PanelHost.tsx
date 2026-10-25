@@ -17,6 +17,8 @@ interface PanelHostOwnProps {
 // Resizable) with `ref`, `className`, `style`, drag/resize event handlers,
 // and resize-handle elements as `children` - so this must forward all of
 // that onto a real DOM node rather than being a plain, closed component.
+export const panelName = (panel: PanelDef) => panel.title ?? panel.placeholder?.name ?? panel.id;
+
 export type PanelHostProps = PanelHostOwnProps &
   Omit<HTMLAttributes<HTMLDivElement>, keyof PanelHostOwnProps>;
 
@@ -33,7 +35,7 @@ export const PanelHost = forwardRef<HTMLDivElement, PanelHostProps>(function Pan
   const showHeader = !panel.headerless || (editing && placeholder === undefined);
   const canHide = panel.hidable === true && onHidePanel != null;
   const { t } = useTranslation('annotation');
-  const hideLabel = t('panelHost.hideLabel', { name: panel.title ?? panel.id });
+  const hideLabel = t('panelHost.hideLabel', { name: panelName(panel) });
 
   return (
     // data-panel-id is the panel's stable handle for anything that has to find

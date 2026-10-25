@@ -5,7 +5,7 @@
     "cycleFieldsBack": "Cycle form fields backward",
     "unfocusField": "Unfocus the active field",
     "focusField": "Focus the active field",
-    "deleteSelection": "Delete the selected annotation(s)",
+    "deleteSelection": "Delete the selected annotations",
     "saveEdit": "Save the edited shape",
     "cancelEdit": "Cancel the edit",
     "tools": {
@@ -720,8 +720,8 @@
   },
   "drawing": {
     "labelFailed": "Failed to label features: {{message}}",
-    "labeled_one": "Labeled {{count}} feature(s)",
-    "labeled_other": "Labeled {{count}} feature(s)",
+    "labeled_one": "Labeled {{count}} feature",
+    "labeled_other": "Labeled {{count}} features",
     "updated": "Annotation updated successfully",
     "geometryFailed": "Could not save the geometry",
     "deletedWhileEditing": "This annotation was deleted by someone else",

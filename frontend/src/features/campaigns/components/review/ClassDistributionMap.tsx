@@ -11,7 +11,7 @@ import {
   useHiddenKeys,
   type AreaBounds,
 } from './densityMap';
-import { generateLabelColors } from './labelColors';
+import { labelColor } from '../../utils/labelColors';
 
 /**
  * Where each class sits across the whole campaign.
@@ -49,7 +49,6 @@ export const ClassDistributionMap: React.FC<ClassDistributionMapProps> = ({
 }) => {
   const { t } = useTranslation('review');
   const { camera, view } = useDensityMap(bbox);
-  const labelColors = useMemo(() => generateLabelColors(labels), [labels]);
   const { hidden, toggle } = useHiddenKeys<number>();
   const { data: cells = [] } = useQuery({
     ...getAnnotationDensityByLabelOptions({
@@ -62,8 +61,10 @@ export const ClassDistributionMap: React.FC<ClassDistributionMapProps> = ({
   });
 
   const keyOf = (labelId: number | null) => labelId ?? NO_LABEL_KEY;
-  const colorOf = (labelId: number | null) =>
-    labelId === null ? NO_LABEL_COLOR : (labelColors[labelId] ?? NO_LABEL_COLOR);
+  const colorOf = (labelId: number | null) => {
+    const index = labels.findIndex((l) => l.id === labelId);
+    return index === -1 ? NO_LABEL_COLOR : labelColor(index);
+  };
   const nameOf = (labelId: number | null) =>
     labelId === null
       ? t('noLabel')
@@ -83,10 +84,10 @@ export const ClassDistributionMap: React.FC<ClassDistributionMapProps> = ({
   );
 
   const legend = [
-    ...labels.map((label) => ({
+    ...labels.map((label, index) => ({
       key: label.id,
       name: label.name,
-      color: labelColors[label.id],
+      color: labelColor(index),
       count: labelCounts.find((c) => c.label_id === label.id)?.count ?? 0,
     })),
     {

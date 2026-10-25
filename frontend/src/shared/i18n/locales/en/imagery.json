@@ -67,7 +67,7 @@
   },
   "setup": {
     "title": "Satellite Imagery",
-    "description": "Imagery is at the core of your campaign. Setup and configure imagery sources here. Each source source represents a remote sensing dataset (e.g. Sentinel-2, Landsat, NAIP) with collections covering specific time periods.",
+    "description": "Imagery is at the core of your campaign. Setup and configure imagery sources here. Each source represents a remote sensing dataset (e.g. Sentinel-2, Landsat, NAIP) with collections covering specific time periods.",
     "overlays": {
       "title": "Overlays",
       "description": "Layers drawn on top of the imagery in the annotation view - raster maps (COG, e.g. model predictions) and vector layers (PMTiles).",

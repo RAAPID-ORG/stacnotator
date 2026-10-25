@@ -6,6 +6,7 @@ list; it stays a separate concept (campaigns.labels).
 """
 
 import re
+import unicodedata
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
@@ -71,8 +72,12 @@ FormField = Annotated[
 ]
 
 
+_DIACRITICS = re.compile("[\u0300-\u036f]")
+
+
 def form_field_slug(title: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "_", title.lower()).strip("_")
+    unaccented = _DIACRITICS.sub("", unicodedata.normalize("NFKD", title.lower()))
+    return re.sub(r"[\W_]+", "_", unaccented).strip("_") or "field"
 
 
 def validate_form_fields(fields: list[FormField]) -> None:
