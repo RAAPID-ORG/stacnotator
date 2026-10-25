@@ -19,7 +19,7 @@ import { useTasksStore } from '../../stores/tasks';
 
 vi.mock('~/api/client', async () => {
   const actual = await vi.importActual<typeof import('~/api/client')>('~/api/client');
-  return { ...actual, claimTask: vi.fn(), annotateTask: vi.fn() };
+  return { ...actual, claimTask: vi.fn(), annotateTask: vi.fn(), listTaskChanges: vi.fn() };
 });
 
 const FILTER = {
@@ -147,6 +147,31 @@ describe('TaskControls claim conflict', () => {
     await waitFor(() => expect(api.claimTask).toHaveBeenCalled());
     expect(alerts).toEqual([]);
     expect(useTasksStore.getState().currentIndex).toBe(0);
+  });
+});
+
+describe('TaskControls live sync', () => {
+  it('says so when the poll finds the current task answered by someone else', async () => {
+    vi.mocked(api.claimTask).mockResolvedValue(
+      apiSuccess(makeClaimTaskResponse({ task_id: OPEN_TASK.id, claimed: true }))
+    );
+    const answered: TaskOut = {
+      ...OPEN_TASK,
+      task_status: 'done',
+      annotations: [makeTaskAnnotation({ id: 30, created_by_user_id: 'someone-else' })],
+    };
+    vi.mocked(api.listTaskChanges).mockResolvedValue(
+      apiSuccess({ server_time: '2024-01-01T00:00:05Z', tasks: [answered] })
+    );
+    seed(OPEN_POLICY, [OPEN_TASK]);
+    render(<TaskControls />);
+    expect(screen.queryByTestId('answered-elsewhere-notice')).toBeNull();
+
+    await act(() => useTasksStore.getState().syncRemoteTasks());
+
+    expect(screen.getByTestId('answered-elsewhere-notice').textContent).toBe(
+      'Someone else just answered this task.'
+    );
   });
 });
 

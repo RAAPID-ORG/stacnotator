@@ -149,6 +149,7 @@ export function ActionBar({ task }: { task: TaskOut }) {
   const latest = useTasksStore((s) => s.latest);
   const stepsBack = useTasksStore((s) => Math.max(0, s.history.length - 1 - s.historyPos));
   const goToAnnotationNumber = useTasksStore((s) => s.goToAnnotationNumber);
+  const answeredElsewhere = useTasksStore((s) => s.answeredElsewhereId === task.id);
   const selectedLabelId = useWorkStore((s) => s.selectedLabelId);
   const showAlert = useAppLayoutStore((s) => s.showAlert);
   // Kept across tasks: a reviewer settling a batch of tasks settles them all.
@@ -191,6 +192,14 @@ export function ActionBar({ task }: { task: TaskOut }) {
           className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1"
         >
           {t('task.notAllowed')}
+        </p>
+      )}
+      {answeredElsewhere && (
+        <p
+          data-testid="answered-elsewhere-notice"
+          className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1"
+        >
+          {t('task.answeredElsewhere')}
         </p>
       )}
       {mayLabel && taskHasAssignments && !countsTowardCompletion && (

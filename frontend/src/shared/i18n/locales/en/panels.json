@@ -256,6 +256,7 @@
     "doneTitle": "Finish this task with the shapes you drew (Shift+Enter)",
     "nothingHere": "Nothing here",
     "drewHereTitle": "You drew shapes for this task - press Done",
+    "answeredElsewhere": "Someone else just answered this task.",
     "authoritativeToggle": "Submit as authoritative",
     "authoritativeToggleTitle": "Submit as authoritative: your label overrides other annotators and completes the task.",
     "authoritativeShort": "Auth.",
