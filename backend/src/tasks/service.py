@@ -330,6 +330,8 @@ def delete_tasks(
         for row in kept:
             row.task_id = None
             row.outcome = None
+            # Detaching is nobody's work; an author's last activity reads updated_at.
+            row.updated_at = Annotation.updated_at
         drop = [row for row in task_rows if row.outcome is not None]
     if task_rows or drop:
         record_annotation_deletions(db, campaign_id, [row.id for row in drop])
