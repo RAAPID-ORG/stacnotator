@@ -88,7 +88,7 @@ ORG_NAME = "Crop Monitoring Lab"
 # Earlier versions of this script seeded "Dev Org"; clearing removes it too.
 LEGACY_ORG_NAME = "Dev Org"
 SEED_ISSUER = "seed"
-ADMIN_NAME = "Alex Morgan"
+ADMIN_NAME = "rohansaw"
 
 # The team that answers tasks and labels points. Their accounts cannot sign in;
 # they exist so the work has authors.
