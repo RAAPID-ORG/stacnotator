@@ -4,6 +4,7 @@ import {
   COLLECTION_S2,
   MOCK_CAMPAIGN,
   MOCK_CAMPAIGN_MULTI_SOURCE,
+  SOURCE,
 } from './fixtures/mock-data';
 import type { CanvasLayoutCreate, CanvasLayoutItem, ImageryViewOut } from '../src/api/client';
 
@@ -142,8 +143,15 @@ test('desktop slice navigation follows campaign defaults and preserves a persona
 test('saving a new source shows an orange off-canvas warning before persisting', async ({
   annotationPage: page,
 }) => {
+  // Save validates every source, and the shared NDVI fixture leaves one of its
+  // visualizations without a URL, so keep only the collection that is complete.
+  const campaign = {
+    ...MOCK_CAMPAIGN,
+    viewer_is_admin: true,
+    imagery_sources: [{ ...SOURCE, collections: [COLLECTION_S2] }],
+  };
   await page.route(/\/api\/campaigns\/\d+(\/detailed)?(\?.*)?$/, (route) =>
-    route.fulfill({ json: { ...MOCK_CAMPAIGN, viewer_is_admin: true } })
+    route.fulfill({ json: campaign })
   );
   await page.route(/\/api\/campaigns\/\d+\/(custom-maps|vector-layers)(\?.*)?$/, (route) =>
     route.fulfill({ json: [] })
@@ -155,6 +163,10 @@ test('saving a new source shows an orange off-canvas warning before persisting',
   await page
     .getByPlaceholder('https://.../tiles/{z}/{x}/{y}', { exact: true })
     .fill('https://tiles.example.com/test/{z}/{x}/{y}.png');
+  const wizard = page.getByRole('dialog');
+  await wizard.getByPlaceholder('Slice 1', { exact: true }).fill('January');
+  await wizard.locator('input[type="date"]').nth(0).fill('2024-01-01');
+  await wizard.locator('input[type="date"]').nth(1).fill('2024-01-31');
   await page.getByRole('button', { name: 'Add source', exact: true }).click();
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await page.getByRole('button', { name: 'Save changes', exact: true }).click();

@@ -104,12 +104,12 @@ test.describe('Single navigation', () => {
     await assertFullSync(page, api, TASK_2.id, snap, 'after s');
   });
 
-  test('w from task 1: wraps to TASK_2 with correct imagery', async ({ annotationPage, api }) => {
+  test('w from task 1: stays on TASK_1 rather than wrapping', async ({ annotationPage, api }) => {
     const page = annotationPage;
     const snap = api.requests.length;
     await page.keyboard.press('w');
     await waitNavSettled(page);
-    await assertFullSync(page, api, TASK_2.id, snap, 'w wrap');
+    await assertFullSync(page, api, TASK_1.id, snap, 'w at first');
   });
 
   test('GoTo 2: crosshair + imagery at TASK_2', async ({ annotationPage, api }) => {
@@ -292,8 +292,10 @@ test.describe('Review mode', () => {
     await assertCrosshairAt(page, TASK_3.id, 'review + filter');
     expect(await readGoToValue(page)).toBe(TASK_3.annotation_number.toString());
 
+    // TASK_3 already carries our label 1, so pressing 1 would deselect it and
+    // remove the label; relabel to 2 so the submit is an annotate call.
     api.clear();
-    await selectAndSubmit(page, '1');
+    await selectAndSubmit(page, '2');
     expect(lastAnnotate(api.requests)!.pathParams.task_id).toBe(TASK_3.id.toString());
   });
 
@@ -497,8 +499,10 @@ test.describe('Chaos scenarios', () => {
     await assertCrosshairAt(page, TASK_3.id, 'review off');
     expect(await readGoToValue(page)).toBe(TASK_3.annotation_number.toString());
 
+    // TASK_3 already carries our label 1, so pressing 1 would deselect it and
+    // remove the label; relabel to 2 so the submit is an annotate call.
     api.clear();
-    await selectAndSubmit(page, '1');
+    await selectAndSubmit(page, '2');
     expect(lastAnnotate(api.requests)!.pathParams.task_id).toBe(TASK_3.id.toString());
   });
 });
