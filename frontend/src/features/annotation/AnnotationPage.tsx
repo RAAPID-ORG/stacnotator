@@ -590,7 +590,7 @@ export function AnnotationPage() {
     // out to another screen count too: they are React portals, so their events
     // still propagate up this tree even though they live in another document.
     <div
-      className="annotation-workspace flex min-h-0 flex-1 flex-col"
+      className="annotation-workspace motion-fade-in flex min-h-0 flex-1 flex-col"
       onPointerDownCapture={noteTaskActivity}
       onPointerMoveCapture={noteTaskActivity}
       onKeyDownCapture={noteTaskActivity}

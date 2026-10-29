@@ -899,8 +899,10 @@ input[type='range'] {
   }
 }
 
+/* Backwards, not both: a finished fade must not leave its opacity applied, which
+   would keep a stacking context around everything under it. */
 .motion-fade-in {
-  animation: motion-page-fade-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: motion-page-fade-in 220ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 .motion-dropdown-in {
   animation: motion-dropdown-in 140ms cubic-bezier(0.22, 1, 0.36, 1) both;
