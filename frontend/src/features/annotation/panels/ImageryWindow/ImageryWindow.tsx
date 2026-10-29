@@ -233,7 +233,7 @@ export function ImageryWindowBody({ collection }: ImageryWindowProps) {
         />
       )}
       <CenterCrosshair />
-      <ImageryLegend catalog={catalog} address={address} />
+      <ImageryLegend catalog={catalog} address={address} compact />
       {waitingForRegistration && <ImageryRegistrationNotice />}
       {!waitingForRegistration && showHint && (
         <StatusPill>{t('imageryWindow.zoomHint')}</StatusPill>

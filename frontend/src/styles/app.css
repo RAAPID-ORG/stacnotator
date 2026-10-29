@@ -571,6 +571,11 @@ input[type='range'] {
   max-width: calc(100% - 12px) !important;
 }
 
+/* A small window's legend strip takes the bottom edge; the scale line sits above it. */
+:has(> .imagery-legend-strip) .ol-scale-line {
+  bottom: 22px;
+}
+
 .ol-scale-line.ol-unselectable.ol-control .ol-scale-line-inner {
   border-color: rgb(255 255 255 / 0.9) !important;
   border-style: none solid solid solid !important;
