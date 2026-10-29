@@ -13,13 +13,14 @@ import Draw from 'ol/interaction/Draw';
 import Modify from 'ol/interaction/Modify';
 import Translate from 'ol/interaction/Translate';
 import DragBox from 'ol/interaction/DragBox';
+import Extent from 'ol/interaction/Extent';
 import Snap from 'ol/interaction/Snap';
 import { altKeyOnly, always, noModifierKeys, shiftKeyOnly } from 'ol/events/condition';
 import type MapBrowserEvent from 'ol/MapBrowserEvent';
 import type { Coordinate } from 'ol/coordinate';
 import { Circle as CircleStyle, Fill, Stroke, Style } from 'ol/style';
 import type { StyleFunction } from 'ol/style/Style';
-import { toLonLat } from 'ol/proj';
+import { toLonLat, transformExtent } from 'ol/proj';
 import GeoJSONFormat from 'ol/format/GeoJSON';
 import { LAYER_ID_PROP, featurePropsOf, layerFeatureId, toOlStyle } from './layers';
 import type {
@@ -158,6 +159,12 @@ function sameEdit(a: InteractionSpec['edit'], b: InteractionSpec['edit']): boole
   return sameGeoFeature(a.feature, b.feature) && sameStyle(a.style, b.style);
 }
 
+function sameBox(a: InteractionSpec['box'], b: InteractionSpec['box']): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return a.bbox.join() === b.bbox.join() && sameStyle(a.style, b.style);
+}
+
 function sameBoxSelect(a: InteractionSpec['boxSelect'], b: InteractionSpec['boxSelect']): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
@@ -183,6 +190,7 @@ export function configsEqual(
     sameDraw(a.draw, b.draw) &&
     sameEdit(a.edit, b.edit) &&
     sameBoxSelect(a.boxSelect, b.boxSelect) &&
+    sameBox(a.box, b.box) &&
     !!a.snap === !!b.snap
   );
 }
@@ -191,6 +199,7 @@ interface Callbacks {
   onDrawEnd?: (g: GeoJSON.Geometry) => void;
   onGeometryChange?: (g: GeoJSON.Geometry) => void;
   onBox?: (bbox: Bbox, hits: BoxHit[]) => void;
+  onBoxChange?: (bbox: Bbox) => void;
 }
 
 function callbacksOf(spec: InteractionSpec | undefined): Callbacks {
@@ -198,7 +207,25 @@ function callbacksOf(spec: InteractionSpec | undefined): Callbacks {
     onDrawEnd: spec?.draw?.onDrawEnd,
     onGeometryChange: spec?.edit?.onGeometryChange,
     onBox: spec?.boxSelect?.onBox,
+    onBoxChange: spec?.box?.onChange,
   };
+}
+
+/** Reports the box once a gesture ends rather than on every pointer move, so
+ *  the caller is not re-rendered, and the interaction rebuilt, mid-drag. */
+class BoxExtent extends Extent {
+  constructor(
+    options: ConstructorParameters<typeof Extent>[0],
+    private readonly onEnd: () => void
+  ) {
+    super(options);
+  }
+
+  override handleUpEvent(event: Parameters<Extent['handleUpEvent']>[0]): boolean {
+    const result = super.handleUpEvent(event);
+    this.onEnd();
+    return result;
+  }
 }
 
 interface Attached {
@@ -354,9 +381,18 @@ function setup(map: OLMap, spec: InteractionSpec, sketchLayer: SketchLayer): Att
     const modify = new Modify({ source });
     modify.on('modifyend', report);
     // Alt-drag translates the whole feature; plain drag is reserved for
-    // vertex editing via Modify above.
-    const translate = new Translate({ layers: [sketchLayer], condition: altKeyOnly });
-    translate.on('translateend', report);
+    // vertex editing via Modify above. On a vertex handle Alt belongs to
+    // Modify, whose Alt+click removes that vertex.
+    const onHandle = () => (modify.getOverlay().getSource()?.getFeatures().length ?? 0) > 0;
+    const translate = new Translate({
+      layers: [sketchLayer],
+      condition: (e) => altKeyOnly(e) && !onHandle(),
+    });
+    // A press that never moved is not a move: reporting it would save the
+    // geometry back with nothing but projection drift in it.
+    translate.on('translateend', (e) => {
+      if (e.coordinate.join() !== e.startCoordinate.join()) report();
+    });
 
     map.addInteraction(modify);
     map.addInteraction(translate);
@@ -374,6 +410,29 @@ function setup(map: OLMap, spec: InteractionSpec, sketchLayer: SketchLayer): Att
     });
     map.addInteraction(dragBox);
     interactions.push(dragBox);
+  }
+
+  if (spec.box) {
+    const style = toOlStyle(spec.box.style ?? DEFAULT_SKETCH_STYLE);
+    const extent: Extent = new BoxExtent(
+      {
+        extent: transformExtent(spec.box.bbox, 'EPSG:4326', 'EPSG:3857'),
+        drag: true,
+        createCondition: shiftKeyOnly,
+        boxStyle: style,
+        pointerStyle: style,
+      },
+      () => {
+        const drawn = extent.getExtent();
+        if (drawn) {
+          attached.callbacks.onBoxChange?.(
+            transformExtent(drawn, 'EPSG:3857', 'EPSG:4326') as Bbox
+          );
+        }
+      }
+    );
+    map.addInteraction(extent);
+    interactions.push(extent);
   }
 
   if (spec.snap && (spec.draw || spec.edit)) {

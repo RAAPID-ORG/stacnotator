@@ -33,10 +33,6 @@ class Campaign:
         return str(self._data["name"])
 
     @property
-    def mode(self) -> str:
-        return str(self._data["mode"])
-
-    @property
     def labels(self) -> dict[int, str]:
         settings = self._data.get("settings") or {}
         return {int(label["id"]): label["name"] for label in settings.get("labels") or []}
@@ -213,7 +209,7 @@ class Campaign:
         return result
 
     def __repr__(self) -> str:
-        return f"Campaign(id={self.id}, name={self.name!r}, mode={self.mode!r})"
+        return f"Campaign(id={self.id}, name={self.name!r})"
 
 
 # Colorblind-friendly qualitative palette (ColorBrewer Dark2) for small class counts.

@@ -8,7 +8,7 @@ import {
   makeCollection,
   makeSlice,
   makeSource,
-  makeTileUrl,
+  makeTile,
   makeView,
   makeViz,
 } from '~/features/annotation/testing/fixtures';
@@ -39,14 +39,14 @@ const CAMPAIGN: CampaignOutFull = makeCampaign({
             makeSlice({
               id: 1000,
               name: 'cover',
-              tile_urls: [
-                makeTileUrl({
-                  visualization_name: 'rgb',
-                  tile_url: 'https://t.test/rgb/{z}/{x}/{y}.png',
+              tiles: [
+                makeTile({
+                  visualization_id: 10,
+                  url: 'https://t.test/rgb/{z}/{x}/{y}.png',
                 }),
-                makeTileUrl({
-                  visualization_name: 'ndvi',
-                  tile_url: 'https://t.test/ndvi/{z}/{x}/{y}.png',
+                makeTile({
+                  visualization_id: 11,
+                  url: 'https://t.test/ndvi/{z}/{x}/{y}.png',
                 }),
               ],
             }),
@@ -59,20 +59,20 @@ const CAMPAIGN: CampaignOutFull = makeCampaign({
             makeSlice({
               id: 2000,
               name: 'cover',
-              tile_urls: [
-                makeTileUrl({
-                  visualization_name: 'rgb',
-                  tile_url: 'https://t.test/other/{z}/{x}/{y}.png',
+              tiles: [
+                makeTile({
+                  visualization_id: 10,
+                  url: 'https://t.test/other/{z}/{x}/{y}.png',
                 }),
               ],
             }),
             makeSlice({
               id: 2001,
               name: 'later',
-              tile_urls: [
-                makeTileUrl({
-                  visualization_name: 'rgb',
-                  tile_url: 'https://t.test/other-later/{z}/{x}/{y}.png',
+              tiles: [
+                makeTile({
+                  visualization_id: 10,
+                  url: 'https://t.test/other-later/{z}/{x}/{y}.png',
                 }),
               ],
             }),
@@ -226,10 +226,10 @@ describe('usePreloading upcoming centres', () => {
               slices: [
                 makeSlice({
                   id: 3000,
-                  tile_urls: [
-                    makeTileUrl({
-                      visualization_name: 'rgb',
-                      tile_url: 'https://t.test/second/{z}/{x}/{y}.png',
+                  tiles: [
+                    makeTile({
+                      visualization_id: 20,
+                      url: 'https://t.test/second/{z}/{x}/{y}.png',
                     }),
                   ],
                 }),

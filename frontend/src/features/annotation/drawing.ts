@@ -2,11 +2,10 @@ import { useCallback, useMemo } from 'react';
 import {
   batchCreateAnnotations,
   batchDeleteAnnotations,
-  createAnnotationOpenmode,
+  createAnnotation,
   deleteAnnotation,
   getAnnotationIdsInBbox,
-  updateAnnotationOpenmode,
-  type AnnotationCreate,
+  updateAnnotation,
 } from '~/api/client';
 import i18n from '~/shared/i18n';
 import { useLayoutStore as useGlobalLayoutStore } from '~/shared/stores/layout.store';
@@ -14,9 +13,9 @@ import { extractErrorMessage, handleError } from '~/shared/utils/errorHandler';
 import {
   featureDedupeKey,
   geometryToWkt,
+  newAnnotationBody,
   validateForm,
   type ExtendedLabel,
-  type FormValues,
   type GeometryType,
 } from './campaign/annotation';
 import { resolveLabelStyle, toDraftStyleSpec } from './campaign/labelStyle';
@@ -30,6 +29,7 @@ import {
   useCanModifyAnnotation,
   useDrawsShapes,
   useLabels,
+  viewedSliceId,
 } from './stores/campaign';
 import { useImageryStore } from './stores/imagery';
 import { usePrefsStore } from './stores/prefs';
@@ -59,25 +59,9 @@ type LabelOutcome =
 
 /** The task a new shape belongs to: in Tasks the draw task it answers, in
  *  Explore the task it was found near. */
-export function shapeTaskLink(): TaskLink {
+function shapeTaskLink(): TaskLink {
   if (campaignState().workMode === 'tasks') return { output_of_task_id: currentTask()?.id };
   return { origin_task_id: originTaskId() };
-}
-
-export function annotationBody(
-  geometry: GeoJSON.Geometry,
-  labelId: number,
-  formValues: FormValues
-): AnnotationCreate {
-  return {
-    label_id: labelId,
-    comment: null,
-    geometry_wkt: geometryToWkt(geometry),
-    confidence: null,
-    // An empty answer set is "no answers given", not "all answers cleared".
-    form_values: Object.keys(formValues).length ? formValues : null,
-    ...shapeTaskLink(),
-  };
 }
 
 /** One geometry per feature: MVT ids repeat across the tiles a shape crosses,
@@ -104,11 +88,15 @@ export async function labelGeometries(geometries: GeoJSON.Geometry[]): Promise<L
   if (!ok) return { kind: 'blocked', missing };
 
   const campaignId = campaignState().campaign.id;
-  const bodies = geometries.map((geometry) => annotationBody(geometry, labelId, work.formValues));
+  const link = shapeTaskLink();
+  const details = { formValues: work.formValues, imagerySliceId: viewedSliceId() };
+  const bodies = geometries.map((geometry) => newAnnotationBody(geometry, labelId, details, link));
   try {
     let count = 1;
+    let ids: number[] = [];
     if (bodies.length === 1) {
-      await createAnnotationOpenmode({ path: { campaign_id: campaignId }, body: bodies[0] });
+      const result = await createAnnotation({ path: { campaign_id: campaignId }, body: bodies[0] });
+      ids = result.data ? [result.data.id] : [];
     } else {
       // One request and one transaction for the set: labelling hundreds of
       // vector features must not be hundreds of round trips.
@@ -118,7 +106,7 @@ export async function labelGeometries(geometries: GeoJSON.Geometry[]): Promise<L
       });
       count = result.data?.created_count ?? bodies.length;
     }
-    work.noteDrawn(shapeTaskLink());
+    work.noteDrawn(link, ids);
     return { kind: 'saved', count };
   } catch (error) {
     return { kind: 'error', message: extractErrorMessage(error) };
@@ -142,10 +130,8 @@ function reportLabelOutcome(outcome: LabelOutcome): void {
 // Editing saved annotations
 // ---------------------------------------------------------------------------
 
-/** Save the dragged geometry. Label, comment and answers come from the open
- *  session so a detail edit saved a moment ago is not written back stale. The
- *  answers are only sent when there are some: `null` is a write value (clear
- *  them), and this is a geometry edit. */
+/** Save the dragged geometry, and nothing else: an update leaves out what it
+ *  does not change, so a detail edit saved a moment ago cannot be overwritten. */
 export async function commitEdit(): Promise<boolean> {
   const work = useWorkStore.getState();
   const edit = work.edit;
@@ -153,18 +139,18 @@ export async function commitEdit(): Promise<boolean> {
 
   work.setEditBusy(true);
   try {
-    const answers = edit.annotation.form_values ?? {};
-    const result = await updateAnnotationOpenmode({
+    const result = await updateAnnotation({
       path: { campaign_id: campaignState().campaign.id, annotation_id: edit.annotation.id },
-      body: {
-        label_id: edit.annotation.label_id,
-        comment: edit.annotation.comment ?? null,
-        geometry_wkt: geometryToWkt(edit.pending),
-        is_authoritative: null,
-        ...(Object.keys(answers).length ? { form_values: answers } : {}),
-      },
+      body: { geometry_wkt: geometryToWkt(edit.pending), imagery_slice_id: viewedSliceId() },
+      throwOnError: false,
     });
-    if (result.data) work.setEditAnnotation(result.data);
+    if (result.response?.status === 404) {
+      work.recordDeletes([edit.annotation.id]);
+      alert(t('drawing.deletedWhileEditing'), 'error');
+      return false;
+    }
+    if (!result.data) throw result.error;
+    work.setEditAnnotation(result.data);
     work.recordWrites([
       {
         id: edit.annotation.id,
@@ -416,7 +402,7 @@ export function useDrawingInteractions(): {
       if (!edit || !editable) return { boxSelect };
       return {
         edit: {
-          feature: { id: edit.annotation.id, geometry: edit.geometry },
+          feature: { id: edit.annotation.id, geometry: edit.pending ?? edit.geometry },
           style: editStyle,
           onGeometryChange: useWorkStore.getState().setPendingGeometry,
         },
@@ -434,7 +420,9 @@ export function useDrawingInteractions(): {
     }
     return undefined;
     // `edit.geometry` is the identity that matters: rebuilding the spec on a
-    // pending drag would tear the interaction down mid-gesture.
+    // pending drag would tear the interaction down mid-gesture. A rebuild for
+    // any other reason (a label change restyles it) starts from the pending
+    // geometry, so what the map shows is what the confirm button saves.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     drawsShapes,

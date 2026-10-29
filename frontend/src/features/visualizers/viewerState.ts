@@ -1,12 +1,11 @@
 import type { VisualizerImageryOut, VisualizerStepOut, VisualizerViewOut } from '~/api/client';
-import { applyRenderOverride, type RenderOverride } from '~/shared/imagery/tileColors';
-import { apiUrl } from '~/api/base';
+import type { RenderOverride } from '~/shared/imagery/tileColors';
+import { basemapLayer, customMapLayer, vectorLayer } from '~/shared/imagery/layerSpecs';
 import {
   BASEMAP_STYLE_URL,
-  basemapAttribution,
-  isProxiedTileUrl,
   needsKeyProxy,
   sliceProxyUrl,
+  tileAuth,
 } from '~/shared/imagery/tileUrls';
 import { DEFAULT_MAP_ZOOM } from '~/shared/map/Camera';
 import type { LayerSpec } from '~/shared/map/types';
@@ -20,6 +19,7 @@ import type { LayerSpec } from '~/shared/map/types';
  */
 export interface ViewerState {
   sourceId: string | null;
+  /** By name, which is what carries across sources. */
   visualization: string | null;
   stepIndex: number;
   /**
@@ -48,7 +48,7 @@ export function initialState(view: VisualizerViewOut): ViewerState {
   const source = view.imagery[0] ?? null;
   return {
     sourceId: source?.id ?? null,
-    visualization: source?.visualizations[0] ?? null,
+    visualization: source?.visualizations[0]?.name ?? null,
     // The newest imagery is what people want to see first.
     stepIndex: Math.max(0, (source?.steps.length ?? 1) - 1),
     anchor: midpointOf(source?.steps[(source?.steps.length ?? 1) - 1]),
@@ -87,9 +87,9 @@ export function selectSource(
   return {
     ...state,
     sourceId,
-    visualization: next.visualizations.includes(state.visualization ?? '')
+    visualization: next.visualizations.some((viz) => viz.name === state.visualization)
       ? state.visualization
-      : (next.visualizations[0] ?? null),
+      : (next.visualizations[0]?.name ?? null),
     stepIndex: nearestStepIndex(next.steps, state.anchor),
   };
 }
@@ -137,7 +137,7 @@ export function selectStep(
 
 /** The step covering an instant, or failing that the one whose middle is
  *  nearest to it. Falls back to the newest when there is nothing to compare. */
-export function nearestStepIndex(steps: VisualizerStepOut[], anchor: number): number {
+function nearestStepIndex(steps: VisualizerStepOut[], anchor: number): number {
   if (steps.length === 0) return 0;
   if (!Number.isFinite(anchor)) return steps.length - 1;
 
@@ -160,7 +160,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const start = (step: VisualizerStepOut) => Date.parse(`${step.start_date}T00:00:00Z`);
 const end = (step: VisualizerStepOut) => Date.parse(`${step.end_date}T00:00:00Z`);
 
-export const midpointOf = (step: VisualizerStepOut | undefined): number =>
+const midpointOf = (step: VisualizerStepOut | undefined): number =>
   step ? (start(step) + end(step)) / 2 : NaN;
 
 /**
@@ -171,9 +171,13 @@ export const midpointOf = (step: VisualizerStepOut | undefined): number =>
  * Falling back to whatever that step does have keeps the map showing imagery
  * instead of going blank on one date.
  */
-function tileFor(step: VisualizerStepOut, visualization: string | null) {
-  const preferred = visualization ? step.tiles[visualization] : undefined;
-  return preferred ?? Object.values(step.tiles)[0] ?? null;
+function tileFor(
+  source: VisualizerImageryOut,
+  step: VisualizerStepOut,
+  visualization: string | null
+) {
+  const id = source.visualizations.find((viz) => viz.name === visualization)?.id;
+  return step.tiles.find((tile) => tile.visualization_id === id) ?? step.tiles[0] ?? null;
 }
 
 export function composeLayers(view: VisualizerViewOut, state: ViewerState): LayerSpec[] {
@@ -181,18 +185,7 @@ export function composeLayers(view: VisualizerViewOut, state: ViewerState): Laye
 
   const basemap = view.basemaps.find((entry) => entry.id === state.basemapId);
   if (basemap) {
-    const url = needsKeyProxy(basemap.url)
-      ? apiUrl(`${basemap.tile_proxy_base}/${basemap.id}/tiles/{z}/{x}/{y}`)
-      : basemap.url;
-    layers.push({
-      kind: 'raster',
-      id: `basemap-${basemap.id}`,
-      url,
-      auth: isProxiedTileUrl(url) ? 'cookie' : 'none',
-      maxZoom: basemap.max_native_zoom ?? undefined,
-      zIndex: 0,
-      attribution: basemapAttribution(basemap.url),
-    });
+    layers.push({ ...basemapLayer(basemap, basemap.tile_proxy_base), zIndex: 0 });
   } else if (view.basemaps.length === 0) {
     // A visualizer that configures no backdrop still gets coastlines and place
     // names, so imagery is never floating on an empty canvas.
@@ -201,16 +194,16 @@ export function composeLayers(view: VisualizerViewOut, state: ViewerState): Laye
 
   const source = activeSource(view, state);
   const step = source?.steps[state.stepIndex];
-  const tile = step ? tileFor(step, state.visualization) : null;
+  const tile = source && step ? tileFor(source, step, state.visualization) : null;
   if (source && step && tile) {
     const url = needsKeyProxy(tile.url)
-      ? sliceProxyUrl(source.tile_proxy_base, step.slice_id, state.visualization ?? '')
+      ? sliceProxyUrl(source.tile_proxy_base, step.slice_id, tile.visualization_id)
       : tile.url;
     layers.push({
       kind: 'raster',
-      id: `slice-${step.slice_id}-${state.visualization ?? 'default'}`,
+      id: `slice-${step.slice_id}-${tile.visualization_id}`,
       url,
-      auth: tile.provider === 'mpc' ? 'none' : 'cookie',
+      auth: tileAuth(url, tile.tiler),
       maxZoom: source.max_native_zoom ?? undefined,
       zIndex: 1,
       preload: 1,
@@ -220,36 +213,17 @@ export function composeLayers(view: VisualizerViewOut, state: ViewerState): Laye
   for (const overlay of view.overlays) {
     const chosen = state.overlays[overlay.id];
     if (!chosen?.visible) continue;
-    if (overlay.kind === 'raster') {
-      if (!overlay.tile_url) continue;
+    const layer =
+      overlay.kind === 'raster'
+        ? customMapLayer(overlay, state.renderOverrides[overlay.id], chosen.opacity)
+        : vectorLayer(overlay, chosen.opacity);
+    if (layer) {
       layers.push({
-        kind: 'raster',
+        ...layer,
         id: `overlay-${overlay.id}`,
-        url: applyRenderOverride(
-          overlay.tile_url,
-          overlay.render_config,
-          state.renderOverrides[overlay.id]
-        ),
-        auth: 'cookie',
-        opacity: chosen.opacity,
-        maxZoom: overlay.max_native_zoom ?? undefined,
-        zIndex: OVERLAY_Z,
+        zIndex: overlay.kind === 'raster' ? OVERLAY_Z : VECTOR_Z,
       });
-      continue;
     }
-    layers.push({
-      kind: 'vector-tiles',
-      id: `overlay-${overlay.id}`,
-      url: overlay.pmtiles_url,
-      auth: 'none',
-      opacity: chosen.opacity,
-      sourceLayers: overlay.source_layer ? [overlay.source_layer] : undefined,
-      style: {
-        stroke: { color: overlay.color, width: 1.5 },
-        fill: { color: `${overlay.color}33` },
-      },
-      zIndex: VECTOR_Z,
-    });
   }
 
   return layers;
@@ -291,7 +265,9 @@ export function zoomedPastArea(
 export function needsTilerSession(view: VisualizerViewOut): boolean {
   const imagery = view.imagery.some((source) =>
     source.steps.some((step) =>
-      Object.values(step.tiles).some((tile) => tile.provider !== 'mpc' || source.has_api_key)
+      Object.values(step.tiles).some(
+        (tile) => tileAuth(tile.url, tile.tiler) === 'cookie' || source.has_api_key
+      )
     )
   );
   return (

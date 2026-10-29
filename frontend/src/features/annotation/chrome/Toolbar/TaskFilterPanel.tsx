@@ -1,12 +1,13 @@
 import { useTranslation } from 'react-i18next';
-import type { AnnotationTaskOut, TaskSetOut } from '~/api/client';
-import { extendedLabels, type TaskStatus } from '../../campaign/annotation';
+import type { TaskOut, TaskSetOut } from '~/api/client';
+import { extendedLabels } from '../../campaign/annotation';
+import { TASK_STATUSES, type TaskStatus } from '~/shared/utils/taskStatus';
 import { computeTaskProgress, UNASSIGNED, UNLABELLED, type TaskFilter } from '../../campaign/tasks';
 import { useCampaignStore } from '../../stores/campaign';
 import { IconFlag } from '~/shared/ui/Icons';
 
 export interface TaskFilterPanelProps {
-  tasks: AnnotationTaskOut[];
+  tasks: TaskOut[];
   taskSets: TaskSetOut[];
   taskFilter: TaskFilter;
   onTaskFilterChange: (patch: Partial<TaskFilter>) => void;
@@ -19,7 +20,6 @@ interface UserEntry {
   displayName: string;
 }
 
-const TASK_STATUSES: TaskStatus[] = ['pending', 'partial', 'done', 'skipped', 'conflicting'];
 const TASK_MODE_STATUSES = new Set<TaskStatus>(['pending', 'done', 'skipped']);
 
 const checkboxRow =
@@ -45,7 +45,7 @@ export function TaskFilterPanel({
 
   const userMap = new Map<string, UserEntry>();
   for (const task of tasks) {
-    for (const assignment of task.assignments || []) {
+    for (const assignment of task.assignments) {
       if (!userMap.has(assignment.user_id)) {
         userMap.set(assignment.user_id, {
           id: assignment.user_id,
@@ -55,7 +55,7 @@ export function TaskFilterPanel({
     }
   }
   const allUsers = [...userMap.values()];
-  const hasUnassignedTasks = tasks.some((task) => (task.assignments || []).length === 0);
+  const hasUnassignedTasks = tasks.some((task) => task.assignments.length === 0);
   const selectableIds = [...(hasUnassignedTasks ? [UNASSIGNED] : []), ...allUsers.map((u) => u.id)];
 
   const toggleAssignee = (id: string) => {

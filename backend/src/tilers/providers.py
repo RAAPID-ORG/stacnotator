@@ -10,7 +10,6 @@ Two providers:
                  can ingest come from config only.
 """
 
-from dataclasses import dataclass
 from urllib.parse import quote, urlencode
 
 import httpx
@@ -186,14 +185,6 @@ def _register_base(tiler: TilerCfg) -> str:
     return (tiler.internal_url or tiler.url).rstrip("/")
 
 
-@dataclass(frozen=True)
-class Ingested:
-    # The tiler's pgstac collection the items went into; a private catalog's differs from
-    # the catalog's own id, and searches have to name this one.
-    collection: str
-    count: int
-
-
 def ingest_on_tiler(
     tiler: TilerCfg,
     catalog_url: str,
@@ -203,7 +194,7 @@ def ingest_on_tiler(
     max_cloud: float | None = None,
     limit: int = 500,
     storage_access: dict | None = None,
-) -> Ingested:
+) -> str:
     """Trigger an AOI ingest on a hosted tiler (its decoupled `POST /ingest`).
 
     The tiler runs the STAC-API search and upserts into its own pgstac; the backend never
@@ -233,21 +224,21 @@ def ingest_on_tiler(
     )
     resp.raise_for_status()
     result = resp.json()
-    return Ingested(collection=result.get("collection", collection), count=result["ingested"])
+    # The tiler's pgstac collection the items went into: a private catalog's differs
+    # from the catalog's own id, and searches have to name this one.
+    return str(result.get("collection", collection))
 
 
 def register_cog_on_tiler(
     tiler: TilerCfg,
     cog_url: str,
-    tile_scope: str,
+    owner: str,
+    layer: str,
     internal_storage: bool = False,
     sealed_storage_access: dict | None = None,
 ) -> str:
-    """Register a single COG as an owner-scoped pgstac search on the hosted tiler.
-
-    The scope is stamped under the tiler's ``campaign_id`` key because that is the
-    name the tiler matches against the browser token; it never parses the value,
-    which is how a visualizer gets a scope of its own (see ``layers.LayerOwner``).
+    """Register a single COG as a pgstac search on the hosted tiler, stamped with the
+    owner scope and layer the tiler matches browser tokens against (``tokens.py``).
 
     ``internal_storage`` marks the search so the tiler reads its assets with the managed
     identity. Returns the tiler search id, used to build the tile-URL template.
@@ -255,7 +246,8 @@ def register_cog_on_tiler(
     assert_public_url(cog_url)
     body = {
         "cog_url": cog_url,
-        "campaign_id": tile_scope,
+        "owner": owner,
+        "layer": layer,
         "internal_storage": internal_storage,
     }
     if sealed_storage_access is not None:
@@ -300,22 +292,21 @@ ASSET_SIGNER_MANAGED_IDENTITY = "azure_managed_identity"
 def register_on_tiler(
     tiler: TilerCfg,
     search_body: dict,
-    tile_scope: str,
+    owner: str,
+    layer: str,
     internal_storage: bool = False,
     sealed_storage_access: dict | None = None,
 ) -> str:
     """Register a search (CQL2 body) on a hosted titiler-pgstac tiler.
 
-    ``search_body`` must already have bbox/datetime resolved. We stamp the campaign id into
-    the search metadata (the tiler enforces campaign access from it), plus an ``asset_signer``
+    ``search_body`` must already have bbox/datetime resolved. We stamp the owner scope and
+    layer into the search metadata (the tiler checks browser tokens against them), plus an
+    ``asset_signer``
     marker when the collection is internal storage, or the private catalog's sealed access
     (``storage_access.seal_for_tiler``) its assets are read with. Authenticates with a
     short-lived ``searches:write`` token. Returns the search id.
     """
-    # The tiler matches this string against the browser token's `campaigns`
-    # claim; it never parses it, which is what lets a visualizer own a scope of
-    # its own without the tiler knowing visualizers exist.
-    metadata: dict = {"campaign_id": tile_scope}
+    metadata: dict = {"owner": owner, "layer": layer}
     if internal_storage:
         metadata["asset_signer"] = ASSET_SIGNER_MANAGED_IDENTITY
     if sealed_storage_access is not None:

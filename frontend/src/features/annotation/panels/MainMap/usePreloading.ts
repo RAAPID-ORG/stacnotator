@@ -75,7 +75,7 @@ export function resolvePreloadTier(tier: PreloadTier): ResolvedPreloadTier {
   return tier === 'auto' ? autoPreloadTier() : tier;
 }
 
-export function preloadConcurrency(tier: PreloadTier): number {
+function preloadConcurrency(tier: PreloadTier): number {
   return PRELOAD_TIER_CONCURRENCY[resolvePreloadTier(tier)];
 }
 
@@ -191,7 +191,7 @@ export function visibleSliceJobs({
       urlTemplate: spec.url,
       extent: extentAround(around, zoom, viewportPx),
       zoom,
-      tileProvider: slice.tile_urls[0]?.tile_provider ?? null,
+      auth: spec.auth,
     });
   }
 
@@ -213,17 +213,14 @@ export function visibleAddresses(
   if (!viewSync) return addresses;
   for (const collectionId of visibleCollectionIds) {
     if (collectionId === active?.collectionId) continue;
-    const collection = catalog.collections.get(collectionId);
-    const sourceId = catalog.sourceOf.get(collectionId);
-    const source = sourceId == null ? undefined : catalog.sources.get(sourceId);
-    if (!collection || sourceId == null || !source) continue;
-    const base = {
-      sourceId,
+    // Resolved as the window resolves it, so what is warmed is what it will show.
+    const address = collectionAddress(
+      catalog,
       collectionId,
-      sliceIndex: windowSlices[collectionId]?.selected ?? collection.cover_slice_index ?? 0,
-      vizId: String(source.visualizations[0]?.id ?? ''),
-    };
-    addresses.push(addressAtSlice(catalog, base, base.sliceIndex));
+      active,
+      windowSlices[collectionId]?.selected
+    );
+    if (address) addresses.push(address);
   }
   return addresses;
 }

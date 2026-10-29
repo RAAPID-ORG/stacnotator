@@ -17,8 +17,6 @@ import ee
 
 from src.timeseries.indices import INDICES, BandRole, SpectralIndex
 
-SUPPORTED_TIMESERIES_PROVIDERS = ("EE",)
-
 
 @dataclass(frozen=True)
 class TimeseriesSource:
@@ -233,9 +231,8 @@ SOURCES_BY_KEY: dict[str, TimeseriesSource] = {source.key: source for source in 
 
 
 def source_for(key: str) -> TimeseriesSource | None:
-    """The source registered under `key`, or None. Matching is case- and
-    padding-insensitive so a stored value survives hand-editing."""
-    return SOURCES_BY_KEY.get(key.strip().upper())
+    """The source registered under `key`, or None."""
+    return SOURCES_BY_KEY.get(key)
 
 
 def offers(source: TimeseriesSource, index: SpectralIndex) -> bool:

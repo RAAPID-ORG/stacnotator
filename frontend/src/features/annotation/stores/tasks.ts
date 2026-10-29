@@ -1,5 +1,10 @@
 import { create } from 'zustand';
-import { getAnnotationTaskChanges, type AnnotationTaskOut, type TaskSetOut } from '~/api/client';
+import {
+  listTaskChanges,
+  type AnnotationFromTaskOut,
+  type TaskOut,
+  type TaskSetOut,
+} from '~/api/client';
 import { geometryCentroid, squareAround, wktToGeometry } from '../campaign/annotation';
 import type { ImageryCatalog } from '../campaign/imagery';
 import {
@@ -42,9 +47,9 @@ const EMPTY_FILTER: TaskFilter = {
 };
 
 export interface TasksState {
-  allTasks: AnnotationTaskOut[];
+  allTasks: TaskOut[];
   taskSets: TaskSetOut[];
-  visibleTasks: AnnotationTaskOut[];
+  visibleTasks: TaskOut[];
   currentIndex: number;
   filter: TaskFilter;
   loaded: boolean;
@@ -55,9 +60,19 @@ export interface TasksState {
   focus: MapFocus | null;
   /** Database clock the next task poll asks for changes since. */
   syncCursor: string | null;
+  /** Ids of the tasks opened under the current filter, oldest first, and
+   *  where in that trail the current task sits. Back and forward walk it like
+   *  a browser's history, so a task the filter has since dropped (one just
+   *  finished) is still one step back. Changing the filter starts a new one:
+   *  the old trail leads into tasks the user has filtered away. */
+  history: number[];
+  historyPos: number;
+  /** A task the poll found answered by someone else while it was the
+   *  current one, so the panel can say so. */
+  answeredElsewhereId: number | null;
 
   initialize: (options: {
-    tasks: AnnotationTaskOut[];
+    tasks: TaskOut[];
     taskSets: TaskSetOut[];
     filter: TaskFilter;
     catalog: ImageryCatalog;
@@ -66,24 +81,34 @@ export interface TasksState {
   }) => void;
   setFilter: (filter: TaskFilter, now: number, catalog: ImageryCatalog) => void;
   goToAnnotationNumber: (annotationNumber: number, catalog: ImageryCatalog) => boolean;
+  /** Forward along the trail, or to the next task in the list at its end. */
   next: (catalog: ImageryCatalog) => void;
+  /** Back along the trail, or to the previous task in the list at its start. */
   previous: (catalog: ImageryCatalog) => void;
-  replaceTask: (updated: AnnotationTaskOut, catalog: ImageryCatalog) => void;
+  /** Forward one step along the trail. False at its end, where the caller
+   *  decides what the next new task is. */
+  forward: (catalog: ImageryCatalog) => boolean;
+  /** Back to the newest task on the trail. */
+  latest: (catalog: ImageryCatalog) => void;
+  replaceTask: (updated: TaskOut, catalog: ImageryCatalog) => void;
   /** Swap in newer copies of tasks without re-filtering, so work others
    *  finished counts toward progress without pulling the current task away. */
-  mergeTasks: (updated: AnnotationTaskOut[], catalog: ImageryCatalog) => void;
-  /** Pick up tasks other annotators have worked since the last poll. */
+  mergeTasks: (updated: TaskOut[], catalog: ImageryCatalog) => void;
+  /** Forget tasks deleted elsewhere. A deleted current task hands its place to
+   *  the next one in the list. */
+  removeTasks: (taskIds: number[], catalog: ImageryCatalog) => void;
+  /** Pick up tasks others have worked, reassigned or deleted since the last poll. */
   syncRemoteTasks: () => Promise<void>;
-  adoptTask: (claimed: AnnotationTaskOut, catalog: ImageryCatalog) => void;
+  adoptTask: (claimed: TaskOut, catalog: ImageryCatalog) => void;
   setSubmitting: (isSubmitting: boolean) => void;
   setKnnValidationEnabled: (enabled: boolean) => void;
   reset: () => void;
 }
 
 const initialState = {
-  allTasks: [] as AnnotationTaskOut[],
+  allTasks: [] as TaskOut[],
   taskSets: [] as TaskSetOut[],
-  visibleTasks: [] as AnnotationTaskOut[],
+  visibleTasks: [] as TaskOut[],
   currentIndex: 0,
   filter: EMPTY_FILTER,
   loaded: false,
@@ -91,6 +116,9 @@ const initialState = {
   knnValidationEnabled: false,
   focus: null as MapFocus | null,
   syncCursor: null as string | null,
+  history: [] as number[],
+  historyPos: 0,
+  answeredElsewhereId: null as number | null,
 };
 
 const currentOf = (state: TasksState) => state.visibleTasks[state.currentIndex] ?? null;
@@ -129,9 +157,9 @@ function focusExtent(
   return { geometry: squareAround(center, sampleExtentMeters) };
 }
 
-function deriveFocus(state: TasksState, task: AnnotationTaskOut | null, catalog: ImageryCatalog) {
+function deriveFocus(state: TasksState, task: TaskOut | null, catalog: ImageryCatalog) {
   if (!task) return null;
-  const geometry = wktToGeometry(task.geometry.geometry);
+  const geometry = wktToGeometry(task.geometry_wkt);
   const sourceId = useImageryStore.getState().address?.sourceId ?? null;
   const hex = sourceId != null ? catalog.sources.get(sourceId)?.crosshair_hex6 : null;
   const settings = useCampaignStore.getState().campaign?.settings;
@@ -142,8 +170,47 @@ function deriveFocus(state: TasksState, task: AnnotationTaskOut | null, catalog:
     crosshairColor: hex ? `#${hex}` : null,
     upcoming: state.visibleTasks
       .slice(state.currentIndex + 1, state.currentIndex + 1 + PREFETCH_AHEAD)
-      .map((t) => geometryCentroid(wktToGeometry(t.geometry.geometry))),
+      .map((t) => geometryCentroid(wktToGeometry(t.geometry_wkt))),
   };
+}
+
+/** Put `taskId` in the visible list if the filter has dropped it since, at its
+ *  place in the campaign's order, and return the state that makes it current.
+ *  Null when the task no longer exists. */
+function showTask(state: TasksState, taskId: number): Partial<TasksState> | null {
+  const index = state.visibleTasks.findIndex((t) => t.id === taskId);
+  if (index >= 0) return { currentIndex: index };
+  const order = new Map(state.allTasks.map((t, i) => [t.id, i]));
+  const rank = order.get(taskId);
+  if (rank === undefined) return null;
+  const at = state.visibleTasks.findIndex((t) => (order.get(t.id) ?? -1) > rank);
+  const insertAt = at === -1 ? state.visibleTasks.length : at;
+  const visibleTasks = [...state.visibleTasks];
+  visibleTasks.splice(insertAt, 0, state.allTasks[rank]);
+  return { visibleTasks, currentIndex: insertAt };
+}
+
+/** Step `delta` along the trail, skipping tasks deleted since. False when
+ *  there is no such step. */
+function stepHistory(delta: 1 | -1, catalog: ImageryCatalog): boolean {
+  const state = useTasksStore.getState();
+  for (let pos = state.historyPos + delta; pos >= 0 && pos < state.history.length; pos += delta) {
+    const shown = showTask(state, state.history[pos]);
+    if (!shown) continue;
+    useTasksStore.setState({ ...shown, historyPos: pos });
+    publishSelection(catalog);
+    return true;
+  }
+  return false;
+}
+
+/** Note the current task on the trail. Opening a task other than by walking
+ *  the trail drops what lay ahead, as a browser does. */
+function recordVisit(state: TasksState): Partial<TasksState> | null {
+  const task = currentOf(state);
+  if (!task || state.history[state.historyPos] === task.id) return null;
+  const history = [...state.history.slice(0, state.historyPos + 1), task.id];
+  return { history, historyPos: history.length - 1 };
 }
 
 /**
@@ -173,6 +240,9 @@ function publishSelection(catalog: ImageryCatalog): void {
     imagery.setEmptyScope(scope);
   }
 
+  const visit = recordVisit(state);
+  if (visit) useTasksStore.setState(visit);
+
   const focus = deriveFocus(state, task, catalog);
   if (!sameFocus(focus, state.focus)) useTasksStore.setState({ focus });
 }
@@ -201,6 +271,8 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       filter: effective,
       loaded: true,
       syncCursor: null,
+      history: [],
+      historyPos: 0,
     });
     publishSelection(catalog);
   },
@@ -209,7 +281,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     const { allTasks } = get();
     const currentUserId = useCampaignStore.getState().currentUserId;
     const { visibleTasks, suggestedIndex } = applyTaskFilter(allTasks, filter, currentUserId, now);
-    set({ filter, visibleTasks, currentIndex: suggestedIndex });
+    set({ filter, visibleTasks, currentIndex: suggestedIndex, history: [], historyPos: 0 });
     publishSelection(catalog);
   },
 
@@ -222,20 +294,42 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   },
 
   next: (catalog) => {
+    if (get().forward(catalog)) return;
     set((s) => ({ currentIndex: nextIndex(s.visibleTasks, s.currentIndex) }));
     publishSelection(catalog);
   },
 
   previous: (catalog) => {
+    if (stepHistory(-1, catalog)) return;
+    // Before the trail's start: step the list, and the trail grows backwards
+    // so forward still leads back through what was already seen.
+    const before = currentOf(get());
     set((s) => ({ currentIndex: prevIndex(s.visibleTasks, s.currentIndex) }));
+    const task = currentOf(get());
+    if (task && task.id !== before?.id) {
+      set((s) => ({ history: [task.id, ...s.history.slice(s.historyPos)], historyPos: 0 }));
+    }
     publishSelection(catalog);
+  },
+
+  forward: (catalog) => stepHistory(1, catalog),
+
+  latest: (catalog) => {
+    const { history, historyPos } = get();
+    for (let pos = history.length - 1; pos > historyPos; pos--) {
+      const shown = showTask(get(), history[pos]);
+      if (!shown) continue;
+      set({ ...shown, historyPos: pos });
+      publishSelection(catalog);
+      return;
+    }
   },
 
   replaceTask: (updated, catalog) => get().mergeTasks([updated], catalog),
 
   mergeTasks: (updated, catalog) => {
     const byId = new Map(updated.map((task) => [task.id, task]));
-    const swap = (tasks: AnnotationTaskOut[]) => tasks.map((task) => byId.get(task.id) ?? task);
+    const swap = (tasks: TaskOut[]) => tasks.map((task) => byId.get(task.id) ?? task);
     set((s) => {
       const known = new Set(s.allTasks.map((task) => task.id));
       const added = updated.filter((task) => !known.has(task.id));
@@ -244,17 +338,39 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     publishSelection(catalog);
   },
 
+  removeTasks: (taskIds, catalog) => {
+    const gone = new Set(taskIds);
+    set((s) => {
+      const current = currentOf(s);
+      const visibleTasks = s.visibleTasks.filter((task) => !gone.has(task.id));
+      const kept = current ? visibleTasks.indexOf(current) : -1;
+      return {
+        allTasks: s.allTasks.filter((task) => !gone.has(task.id)),
+        visibleTasks,
+        currentIndex:
+          kept >= 0 ? kept : Math.min(s.currentIndex, Math.max(visibleTasks.length - 1, 0)),
+      };
+    });
+    publishSelection(catalog);
+  },
+
   syncRemoteTasks: async () => {
     try {
       const { campaign, catalog } = campaignState();
-      const result = await getAnnotationTaskChanges({
+      const result = await listTaskChanges({
         path: { campaign_id: campaign.id },
         query: { since: get().syncCursor },
       });
       const data = result.data;
       // The campaign can change under the request; its tasks are not this one's.
       if (!data || useCampaignStore.getState().campaign?.id !== campaign.id) return;
+      const current = currentOf(get());
+      const fresh = data.tasks.find((task) => task.id === current?.id);
+      const { currentUserId } = useCampaignStore.getState();
+      const isNew = (a: AnnotationFromTaskOut) =>
+        a.created_by_user_id !== currentUserId && !current?.annotations.some((b) => b.id === a.id);
       set({ syncCursor: data.server_time });
+      if (fresh?.annotations.some(isNew)) set({ answeredElsewhereId: fresh.id });
       if (data.tasks.length > 0) get().mergeTasks(data.tasks, catalog);
     } catch {
       // A missed poll is picked up by the next one.
@@ -287,9 +403,9 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   reset: () => set(initialState),
 }));
 
-export const currentTask = (): AnnotationTaskOut | null => currentOf(useTasksStore.getState());
+export const currentTask = (): TaskOut | null => currentOf(useTasksStore.getState());
 
 export const useMapFocus = (): MapFocus | null => useTasksStore((s) => s.focus);
 
-export const useCurrentTask = (): AnnotationTaskOut | null =>
+export const useCurrentTask = (): TaskOut | null =>
   useTasksStore((s) => s.visibleTasks[s.currentIndex] ?? null);

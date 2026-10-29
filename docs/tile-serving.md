@@ -11,7 +11,7 @@ MPC hosts its own TiTiler instance with free egress from their STAC catalog. Whe
 **Flow:**
 1. During campaign creation, a CQL2 search is registered with MPC's `/mosaic/register` endpoint per slice.
 2. MPC returns a `searchId` (hash) that encodes the search parameters.
-3. The `searchId` is baked into the tile URL together with visualization parameters (bands, rescale, colormap).
+3. The `searchId` is stored as the slice's MPC mosaic (`slice_mosaics`). The tile URL is built from it and the visualization's parameters (bands, rescale, colormap) whenever the slice is read, so editing those parameters needs no new registration.
 4. The frontend fetches tiles directly from MPC - no proxy, no extra latency.
 
 **Limitations:** MPC only supports `pixel_selection=first` (first-valid compositing). Advanced features (masking, median/mean compositing) are not available and will automatically route through the self-hosted tiler instead.
@@ -22,7 +22,7 @@ We host a [titiler-pgstac](https://github.com/RAAPID-ORG/stacnotator-tiler) serv
 
 **Flow:**
 1. During campaign creation, the backend triggers an ingest on the tiler per slice (`POST /ingest`): the tiler runs the STAC-API search for the campaign's bounding box and that slice's date range and upserts the matching items into its pgstac index. Preloaded tilers skip this step.
-2. The backend registers a search per slice (`POST /searches/register`, a CQL2 body with the slice's date range and the campaign's bounding box) and bakes the returned search id into the tile URL together with visualization parameters.
+2. The backend registers a search per slice (`POST /searches/register`, a CQL2 body with the slice's date range and the campaign's bounding box) and stores the returned search id as the slice's mosaic on that tiler; the tile URL is built from it and the visualization's parameters when the slice is read.
 3. For each tile request, titiler-pgstac resolves the search's items overlapping the requested map tile from pgstac, sorted by cloud cover ASC then date DESC, limited to `max_items` (user-configurable, 1-10).
 4. The tiler reads the COG data from remote storage, composites the mosaic, and returns the rendered tile.
 
@@ -62,19 +62,19 @@ and the tile host have separate budgets, and both widen on a 429.
 
 ### 4. Backend key proxy
 
-XYZ templates that contain an `{api_key}` placeholder (key-protected providers and basemaps) are never passed to the map. The frontend rewrites them to backend endpoints (`/api/{campaign_id}/imagery/slices|basemaps/.../tiles/{z}/{x}/{y}`, see `proxyTile.ts`); the backend decrypts the provider key server-side (`imagery/proxy_router.py`), fetches the upstream tile, and returns it with long-lived caching. Requests are authorized via the same `tiler_token` cookie the hosted tiler uses, so the key never reaches the client.
+XYZ templates that contain an `{api_key}` placeholder (key-protected providers and basemaps) are never passed to the map. The frontend rewrites them to backend endpoints (`/api/campaigns/{campaign_id}/imagery/slices|basemaps/.../tiles/{z}/{x}/{y}`, see `proxyTile.ts`); the backend decrypts the provider key server-side (`imagery/proxy_router.py`), fetches the upstream tile, and returns it with long-lived caching. Requests are authorized via the same `tiler_token` cookie the hosted tiler uses, so the key never reaches the client.
 
 **Where a key may be sent.** A key stored on the organization (`organization_api_keys`, shared across its campaigns) carries the provider host it belongs to - `tiles.planet.com` for Planet - and the proxy sends it there and nowhere else, subdomains included. That binding exists because two different people are involved: an organization admin stores the secret, while a *campaign* admin writes the tile URL it gets substituted into. Without it, writing a URL that points somewhere of your own would be enough to have the proxy deliver a key you were never given. The host is checked on httpx's own parse of the built URL, so the host that was approved is the host connected to. A key typed into a single layer carries no host - whoever typed it already knows it. A shared key with no host bound (rows created before this existed) serves nothing until an organization admin names one, in **Settings → Organizations → Provider API keys**.
 
 ## Per-Visualization Tile Provider Selection
 
-Within a single collection, each visualization of each slice picks its provider independently (`provider_by_viz` in `imagery/registration.py`); a slice can be registered on both MPC and a hosted tiler at once, emitting one `SliceTileUrl` per visualization. An example could look like this
+Within a single collection, each visualization of each slice picks its provider independently (`tiles.provider_for` in `imagery/tiles.py`); a slice can hold a mosaic on both MPC and a hosted tiler at once, and each visualization's tile URL is built from the mosaic of the provider it routes to. An example could look like this
 
 - **First-valid visualizations** on an MPC collection → served directly from MPC (fast).
 - **Median-composite visualization** of the same slice → routed through the self-hosted tiler (slower but supports compositing).
 - **Any visualization with pixel masking** (e.g. SCL mask for Sentinel-2) → routed through the self-hosted tiler.
 
-This is determined automatically during registration based on each visualization's parameters. The stored `tile_provider` (`"mpc"` or the tiler name) is also what the frontend uses to decide whether a tile request is credentialed (cookie) or anonymous.
+This is decided from each visualization's parameters, both when registering (which mosaics a slice needs) and when reading (which mosaic a tile URL uses). A slice's tile carries the provider as `tiler` (`"mpc"` or the tiler name), which is also what the frontend uses to decide whether a tile request is credentialed (cookie) or anonymous. A parameter edit that moves a visualization onto a provider the slice has no mosaic on (median compositing on an MPC collection, say) registers that one mosaic and nothing else.
 
 ## Vector Tiles
 
@@ -119,7 +119,7 @@ For commonly used STAC collections, sensible defaults are pre-filled when select
 | **Sentinel-1 GRD** | VV and VH backscatter with grayscale colormap, rescale `0,250` | MPC stores VV/VH as uint16 amplitude DNs. No cloud cover filtering (radar penetrates clouds). |
 | **NAIP** | True color RGB from the `image` asset (`asset_bidx image|1,2,3`) | Pre-rendered 4-band aerial imagery. |
 
-Further presets exist (Sentinel-2 L1C, Landsat C2 L1, Copernicus DEM, MODIS NDVI, Planet Ethiopia biweekly); see `frontend/src/features/campaigns/components/imagery/collectionPresets.ts` for the authoritative list. For collections without presets, the user configures bands and rendering manually via the band picker and visualization panel.
+Further presets exist (Sentinel-2 L1C, Landsat C2 L1, Copernicus DEM, MODIS NDVI, Planet Ethiopia biweekly); see `frontend/src/features/layers/imagery/collectionPresets.ts` for the authoritative list. For collections without presets, the user configures bands and rendering manually via the band picker and visualization panel.
 
 ## STAC Search & Mosaic Registration
 
@@ -130,13 +130,15 @@ The mosaic registration process (for both MPC and self-hosted) works as follows:
 3. For MPC: the query is POSTed to MPC's register endpoint, returning a `searchId`.
 4. For self-hosted: the query is registered on the tiler (`/searches/register`), returning a search id; the tiler resolves items from its own pgstac index at render time.
 
-Changing a campaign's ROI rebuilds all saved STAC collections through the same
-background registration workflow. The new bounding box, removal of old tile URLs,
-and `registering` status are committed together before provider calls start. The
-settings page polls until registration finishes and loads the new URLs; failures
-are reported in the campaign's registration errors. Manual tile-URL sources and
-basemaps are unchanged. Wait for an ongoing imagery registration before changing
-the ROI again.
+Registration registers whatever is missing: every mosaic a STAC slice's visualizations
+need and it does not have (`registration.missing_mosaics`). A save drops the mosaics it
+made stale - all of a collection's when its search changes, one slice's when its dates
+change - and changing a campaign's ROI drops them all; the run then registers them
+again. The new bounding box, the dropped mosaics and the `registering` status are
+committed together before provider calls start. The settings page polls until
+registration finishes; failures are reported in the campaign's registration errors.
+Manual tile-URL sources and basemaps are unchanged. Wait for an ongoing imagery
+registration before changing the ROI again.
 
 **Cloud cover filtering** uses `isNull OR <=` to handle collections without `eo:cloud_cover` (e.g. SAR data). Items without the property pass through instead of being excluded.
 
@@ -163,7 +165,7 @@ Cover slices for upcoming tasks are prefetched in the background to warm the bro
 
 #### How it works
 
-The preloader (`frontend/src/features/annotation/components/Map/tilePreloader.ts`) is an ad-hoc priority queue driven by a `setInterval` drain loop. For each prefetch job, it expands a URL template + extent + zoom into a list of concrete `{z}/{x}/{y}` tile URLs using OL's `createXYZ()` tile grid so that the coords match exactly what OL will later request, then loads each URL via a plain `<img>` element (capped at `MAX_CONCURRENT = 50` in flight). The `crossOrigin` attribute is chosen per URL to match the OL source: `use-credentials` for our tilers and the backend proxy (so the auth cookie is sent), `anonymous` otherwise. Preloads are marked `fetchPriority='low'` while active-layer tiles load with `'high'`.
+The preloader (`frontend/src/features/annotation/map/preloader.ts`) is an ad-hoc priority queue driven by a `setInterval` drain loop. For each prefetch job, it expands a URL template + extent + zoom into a list of concrete `{z}/{x}/{y}` tile URLs using OL's `createXYZ()` tile grid so that the coords match exactly what OL will later request, then loads each URL via a plain `<img>` element (capped at `MAX_CONCURRENT = 50` in flight). The `crossOrigin` attribute is chosen per URL to match the OL source: `use-credentials` for our tilers and the backend proxy (so the auth cookie is sent), `anonymous` otherwise. Preloads are marked `fetchPriority='low'` while active-layer tiles load with `'high'`.
 
 `<img>` is used instead of `fetch()` because OpenLayers also loads tiles through `<img>` elements. Both mechanisms share the same browser HTTP cache partition, so an `<img>`-preloaded response is later served to OL's tile img as a cache hit. I noticed in the past aht mixing `fetch()` and `<img>` in some browsers seemt to put them in different cache partitions and the warming effect is lost.
 
@@ -191,23 +193,16 @@ On `currentTaskIndex` change the preloader's queue is cleared and its internal U
 
 ### Tile Authentication in the Map
 
-No token ever appears in tile URLs. Tiles from our own tilers and the backend key proxy are credentialed via the `HttpOnly` `tiler_token` cookie: the OL source is created with `crossOrigin: 'use-credentials'` so the browser attaches it automatically, and the custom load function (`tileLoadImagery` in `utils/tileLoading.ts`) refreshes the cookie when it nears expiry and marks active-layer requests `fetchPriority='high'`. Whether a URL is "ours" is derived from the stored `tile_provider` (anything not `mpc`) or from it being a proxied backend URL; MPC tiles load anonymously.
+No token ever appears in tile URLs. Tiles from our own tilers and the backend key proxy are credentialed via the `HttpOnly` `tiler_token` cookie: the OL source is created with `crossOrigin: 'use-credentials'` so the browser attaches it automatically, and the custom load function (`foregroundTileLoader` in `shared/map/tileLoading.ts`) refreshes the cookie when it nears expiry and marks active-layer requests `fetchPriority='high'`. Whether a request carries the cookie is decided in one place, `tileAuth` in `shared/imagery/tileUrls.ts`: our proxy routes and any stored `tiler` other than `mpc` do; MPC and direct third-party URLs load anonymously.
 
-### Empty-tile / broken-source heuristic
+### Failed tiles
 
-Both `WindowMap` and the `TilePreloader` track per-source `tileloaderror` / `tileloadend` counts and fire an `onEmptyTiles` callback if `EMPTY_TILE_THRESHOLD` errors occur with zero successes. This is how a broken signed URL or a genuinely empty cover slice is detected and surfaced.
+OpenLayers keeps an errored tile terminal for the life of its source, which shows as a permanent blank square. `shared/map/tileLoading.ts` handles that in one place for every raster layer: `attachTileErrorRecovery` retries a failed tile twice (250 ms, then 1 s) while its layer is visible, and `retryErroredTiles` gives errored tiles a fresh budget when a retained date becomes visible again. Sources are pooled per URL (`acquireRasterSource` / `releaseSource`), so switching back to a date reuses its tiles instead of fetching them again.
 
-Because OL caches errored tiles permanently within a source, `WindowMap` also recreates its `XYZ` source (via `setSource(new XYZ(...))`) on task navigation. This resets the per-source error cache and lets a re-navigation recover from any stuck-error state even if the underlying URL is fine.
+### Empty dates
 
-### Known rough edges - refactor candidate
+A date with no imagery at the place being looked at is told apart from a failing one by probing, not by counting tile errors. `useEmptyHealing` (in `features/annotation/panels/ImageryWindow/`) probes the window's centre, records the dates that hold nothing there, and steps to the nearest date that does: forward first, then backward, then any remaining slice. A window only probes while its camera follows the main map (or is the active one), so a window panned somewhere else never marks a date empty for everyone.
 
-The custom tile loading stack has grown organically across several waves of fixes (flaky MPC responses, empty-slice detection, hatch rendering, auth tokens, background prefetching, error-retry workarounds) and is now messier than it should be. In particular:
+### Preloading
 
-- The empty-tile heuristic is duplicated in **two** places (`WindowMap.tsx` event listeners and `tilePreloader.ts` `groupStats`) with slightly different counter semantics.
-- `WindowMap` recreates its tile source on every task switch as a workaround for OL not retrying errored tiles - effectively a per-component "refresh" that is load-bearing but undocumented in the component's public API.
-- The preloader shares a cache partition with OL by convention (both using `<img crossOrigin="anonymous">`) and any future change that moves OL to `fetch()`-based tile loading will silently break prefetch warming.
-- Preloader pause/resume is driven by `LayerManager.onBusyChange` which assumes one dominant "active" layer; multi-layer views complicate the bookkeeping.
-- The recent "do not abort in-flight on task switch" fix (coalescence-poisoning gray tiles) is a subtle invariant that lives only in code comments - if someone re-introduces an `_abortInflight()` call into `clear()` or `pause()`, the bug silently returns.
-- There is no ERROR-state retry path on the **main** map source at all, so any tile that does end up errored (for any reason) stays gray until the user changes slice/collection/visualization.
-
-A future refactor should: try to use more OL native semantics and less custom workarounds and try to remove duplicate code. In general it is still hard to follow along from the codebase, as the prefetching and tile-loading handling is split over multiple components.
+`features/annotation/map/preloader.ts` warms the tiles the next tasks will show, using the same addresses the windows resolve (`collectionAddress`) and the same cookie decision as the layers (`tileAuth`). It pauses while any foreground map is loading (`setForegroundMapLoading`), so speculative requests never queue ahead of tiles someone is waiting on.

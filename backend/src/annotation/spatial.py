@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from src.annotation.constants import CHANGES_LIMIT, CHANGES_OVERLAP
 from src.annotation.tiles import MIN_TILE_ZOOM, build_mvt_query, task_filter_sql
-from src.campaigns.models import CampaignSettings
+from src.campaigns.models import Campaign
 
 
 def render_annotation_tile(
@@ -54,15 +54,14 @@ def get_annotation_ids_in_bbox(
 
     Backs box/multi-select against the tiled display: the geometry never leaves
     the server, only the ids needed to highlight and bulk-delete. The filter
-    keeps ``g.geometry`` bare so the GiST index is used.
+    keeps ``a.geometry`` bare so the GiST index is used.
     """
     sql = text(
         f"""
         SELECT a.id
         FROM data.annotations a
-        JOIN data.annotation_geometries g ON g.id = a.geometry_id
         WHERE a.campaign_id = :campaign_id
-          AND g.geometry && ST_MakeEnvelope(:minx, :miny, :maxx, :maxy, 4326)
+          AND a.geometry && ST_MakeEnvelope(:minx, :miny, :maxx, :maxy, 4326)
           {task_filter_sql(include_tasks)}
         """  # noqa: S608
     )
@@ -92,9 +91,8 @@ def get_campaign_annotations_extent(
         SELECT
             ST_XMin(ext), ST_YMin(ext), ST_XMax(ext), ST_YMax(ext)
         FROM (
-            SELECT ST_Extent(g.geometry) AS ext
+            SELECT ST_Extent(a.geometry) AS ext
             FROM data.annotations a
-            JOIN data.annotation_geometries g ON g.id = a.geometry_id
             WHERE a.campaign_id = :campaign_id
               {task_filter_sql(include_tasks)}
         ) AS e
@@ -164,14 +162,13 @@ def task_centroids(
         scope += " AND t.task_set_id = :task_set_id"
         params["task_set_id"] = task_set_id
     if bbox is not None:
-        scope += " AND g.geometry && ST_MakeEnvelope(:minx, :miny, :maxx, :maxy, 4326)"
+        scope += " AND t.geometry && ST_MakeEnvelope(:minx, :miny, :maxx, :maxy, 4326)"
         params |= dict(zip(("minx", "miny", "maxx", "maxy"), bbox, strict=True))
 
     sql = text(
         f"""
-        SELECT t.id, ST_X(ST_Centroid(g.geometry)), ST_Y(ST_Centroid(g.geometry))
-        FROM data.annotation_tasks t
-        JOIN data.annotation_geometries g ON g.id = t.geometry_id
+        SELECT t.id, ST_X(ST_Centroid(t.geometry)), ST_Y(ST_Centroid(t.geometry))
+        FROM data.tasks t
         WHERE t.campaign_id = :campaign_id{scope}
         """  # noqa: S608
     )
@@ -195,17 +192,12 @@ def _density_cell_size(
     """
     if get_campaign_annotations_extent(db, campaign_id, include_tasks=include_tasks) is None:
         return None
-    settings = db.execute(
+    area = db.execute(
         select(
-            CampaignSettings.bbox_west,
-            CampaignSettings.bbox_south,
-            CampaignSettings.bbox_east,
-            CampaignSettings.bbox_north,
-        ).where(CampaignSettings.campaign_id == campaign_id)
-    ).first()
-    if settings is None:
-        return 0.01
-    return density_grid((settings[0], settings[1], settings[2], settings[3]), target_cells)
+            Campaign.bbox_west, Campaign.bbox_south, Campaign.bbox_east, Campaign.bbox_north
+        ).where(Campaign.id == campaign_id)
+    ).one()
+    return density_grid(tuple(area), target_cells)
 
 
 def get_annotation_density(
@@ -233,9 +225,8 @@ def get_annotation_density(
         f"""
         SELECT avg(ST_X(c)) AS lon, avg(ST_Y(c)) AS lat, count(*) AS n
         FROM (
-            SELECT ST_Centroid(g.geometry) AS c
+            SELECT ST_Centroid(a.geometry) AS c
             FROM data.annotations a
-            JOIN data.annotation_geometries g ON g.id = a.geometry_id
             WHERE a.campaign_id = :campaign_id
               {task_filter_sql(include_tasks)}
         ) AS pts
@@ -265,9 +256,9 @@ def get_annotation_changes(
     """Annotations created or edited since ``since``, newest cursor first.
 
     Backs the poll that lets one annotator see another's work without either of
-    them refetching tiles. Deletions are deliberately not reported: there is no
-    tombstone to read, so a deletion by someone else shows up when the tiles are
-    next fetched. Returns the rows and whether more were waiting than the limit.
+    them refetching tiles; deletions come from the tombstones
+    (service.get_deleted_annotation_ids). Returns the rows and whether more were
+    waiting than the limit.
     """
     # A cursor without an offset would be compared in whatever timezone the
     # database session happens to run in, which is hours of annotations either
@@ -277,9 +268,8 @@ def get_annotation_changes(
         since = since.replace(tzinfo=UTC)
     sql = text(
         f"""
-        SELECT a.id, a.label_id, a.created_by_user_id, ST_AsText(g.geometry) AS geometry_wkt
+        SELECT a.id, a.label_id, a.created_by_user_id, ST_AsText(a.geometry) AS geometry_wkt
         FROM data.annotations a
-        JOIN data.annotation_geometries g ON g.id = a.geometry_id
         WHERE a.campaign_id = :campaign_id
           AND a.updated_at >= :since
           {task_filter_sql(include_tasks)}
@@ -333,7 +323,7 @@ def get_annotation_density_by_label(
     else:
         minx, miny, maxx, maxy = bbox
         grid = density_grid(None, target_cells, bbox)
-        window = "AND g.geometry && ST_MakeEnvelope(:minx, :miny, :maxx, :maxy, 4326)"
+        window = "AND a.geometry && ST_MakeEnvelope(:minx, :miny, :maxx, :maxy, 4326)"
         params |= {"minx": minx, "miny": miny, "maxx": maxx, "maxy": maxy}
     if grid is None:
         return []
@@ -343,9 +333,8 @@ def get_annotation_density_by_label(
         f"""
         SELECT avg(ST_X(c)) AS lon, avg(ST_Y(c)) AS lat, label_id, count(*) AS n
         FROM (
-            SELECT ST_Centroid(g.geometry) AS c, a.label_id AS label_id
+            SELECT ST_Centroid(a.geometry) AS c, a.label_id AS label_id
             FROM data.annotations a
-            JOIN data.annotation_geometries g ON g.id = a.geometry_id
             WHERE a.campaign_id = :campaign_id
               {task_filter_sql(include_tasks)}
               {window}

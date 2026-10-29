@@ -45,7 +45,7 @@ const labelShare = (annotator: AnnotatorInfo, label: string) =>
 const heatBackground = (intensity: number) =>
   intensity <= 0 ? undefined : `rgba(50, 98, 71, ${(0.08 + 0.77 * intensity).toFixed(3)})`;
 
-const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
+export const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
   const { t } = useTranslation('review');
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -337,5 +337,3 @@ const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
     </div>
   );
 };
-
-export default Statistics;

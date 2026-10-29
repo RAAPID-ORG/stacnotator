@@ -97,11 +97,6 @@ def is_known(name: str) -> bool:
     return any(t.name == name for t in all_tilers())
 
 
-def get(name: str | None) -> Tiler | None:
-    """Look up a tiler by name."""
-    return next((t for t in all_tilers() if t.name == name), None)
-
-
 def tiler_of_catalog(catalog_url: str) -> Tiler | None:
     """The hosted tiler whose own STAC API this URL points at, if any. Its items are
     already in that tiler's pgstac, so it needs no ingest to serve them. MPC is a public

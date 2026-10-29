@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TaskSetOut } from '~/api/client';
+import { Modal } from '~/shared/ui/Modal';
 import { Button } from '~/shared/ui/forms';
 
 interface Props {
@@ -53,14 +54,23 @@ export const MoveTasksDialog = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div
-        className="bg-white rounded-lg shadow-xl p-5 w-96 space-y-4"
-        data-testid="move-tasks-dialog"
-      >
-        <h3 className="text-md font-semibold text-neutral-900">
-          {t('moveTasks.title', { count: numTasks })}
-        </h3>
+    <Modal
+      title={t('moveTasks.title', { count: numTasks })}
+      onClose={onCancel}
+      maxWidth="max-w-sm"
+      testId="move-tasks-dialog"
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onClick={onCancel} disabled={moving}>
+            {t('common:actions.cancel')}
+          </Button>
+          <Button onClick={handleMove} disabled={!canMove || moving}>
+            {moving ? t('moveTasks.moving') : t('moveTasks.move')}
+          </Button>
+        </div>
+      }
+    >
+      <div className="p-5 space-y-4">
         <select
           value={targetId}
           onChange={(e) => {
@@ -95,15 +105,7 @@ export const MoveTasksDialog = ({
           className="w-full h-9 px-2 border border-neutral-300 rounded-md text-sm bg-white"
           data-testid="move-new-set-name"
         />
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={onCancel} disabled={moving}>
-            {t('common:actions.cancel')}
-          </Button>
-          <Button onClick={handleMove} disabled={!canMove || moving}>
-            {moving ? t('moveTasks.moving') : t('moveTasks.move')}
-          </Button>
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 };

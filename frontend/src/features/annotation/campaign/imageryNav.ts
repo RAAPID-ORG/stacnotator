@@ -63,15 +63,13 @@ const coverIndex = (collection: Pick<ImageryCollectionOut, 'cover_slice_index'>)
 /** Keep the preferred visualization when the target slice publishes it,
  *  otherwise fall back to the first one it does. */
 function compatibleVizId(
-  source: { visualizations: { id: number; name: string }[] },
-  slice: { tile_urls: { visualization_name: string }[] } | undefined,
+  source: { visualizations: { id: number }[] },
+  slice: { tiles: { visualization_id: number }[] } | undefined,
   preferredVizId: string
 ): string {
-  const publishes = (name: string) =>
-    slice?.tile_urls.some((tile) => tile.visualization_name === name) ?? false;
-  const preferred = source.visualizations.find((viz) => String(viz.id) === preferredVizId);
-  if (preferred && publishes(preferred.name)) return preferredVizId;
-  const fallback = source.visualizations.find((viz) => publishes(viz.name));
+  const publishes = (id: number) => slice?.tiles.some((tile) => tile.visualization_id === id);
+  if (publishes(Number(preferredVizId))) return preferredVizId;
+  const fallback = source.visualizations.find((viz) => publishes(viz.id));
   return String(fallback?.id ?? source.visualizations[0]?.id ?? '');
 }
 

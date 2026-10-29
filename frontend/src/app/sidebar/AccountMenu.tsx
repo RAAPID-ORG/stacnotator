@@ -70,7 +70,7 @@ export const AccountMenu = ({
   const activeOrgId = useOrgStore((s) => s.activeOrgId);
   const setActiveOrgId = useOrgStore((s) => s.setActiveOrgId);
 
-  const isPlatformAdmin = account?.is_admin ?? false;
+  const isPlatformAdmin = account?.is_platform_admin ?? false;
   const activeOrg = orgs.find((org) => org.id === activeOrgId);
   const canManage = activeOrg !== undefined && (isPlatformAdmin || (activeOrg.is_admin ?? false));
   const accessRequests = pendingAdminActions(orgs, false).accessRequests;

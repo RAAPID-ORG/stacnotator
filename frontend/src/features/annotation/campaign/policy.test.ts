@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import type { PolicyAudience } from '~/api/client';
 import type { PolicyContext } from '~/features/campaigns/utils/labellingPolicy';
+import { makeCampaign, makeTask, makeTaskAnnotation } from '../testing/fixtures';
 import { canModifyAnnotation } from './annotation';
+import { openingWorkMode } from './tasks';
 
 const USER = 'user-1';
 const OTHER = 'user-2';
@@ -46,5 +48,22 @@ describe('canModifyAnnotation', () => {
   // A campaign whose stored policy predates the axis reads as undefined here.
   it('falls back to nobody but the author when the campaign has no rule', () => {
     expect(canModifyAnnotation(theirs, ctx({ isAdmin: true }), undefined)).toBe(false);
+  });
+});
+
+describe('openingWorkMode', () => {
+  const policy = makeCampaign().settings.labelling_policy;
+  const member = ctx({ isMember: true });
+
+  it('opens on Tasks while a task the viewer may answer still waits on them', () => {
+    expect(openingWorkMode([makeTask()], policy, member)).toBe('tasks');
+  });
+
+  it('opens on Explore once every task is finished or answered by the viewer', () => {
+    const tasks = [
+      makeTask({ id: 1, task_status: 'done' }),
+      makeTask({ id: 2, annotations: [makeTaskAnnotation({ created_by_user_id: USER })] }),
+    ];
+    expect(openingWorkMode(tasks, policy, member)).toBe('explore');
   });
 });

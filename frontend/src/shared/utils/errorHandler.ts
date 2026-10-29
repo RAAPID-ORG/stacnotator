@@ -30,11 +30,13 @@ const extractRequestId = (err: unknown): string | null => {
  *   Firefox: "NetworkError when attempting to fetch resource."
  *   Safari:  "Load failed"
  */
-export const isNetworkError = (err: unknown): boolean => {
+const isNetworkError = (err: unknown): boolean => {
   if (!(err instanceof TypeError)) return false;
   const msg = err.message.toLowerCase();
   return msg.includes('fetch') || msg.includes('network') || msg.includes('load failed');
 };
+
+const PYDANTIC_VALUE_ERROR_PREFIX = /^Value error, /;
 
 const extractBaseMessage = (err: unknown, fallback: string): string => {
   if (isNetworkError(err)) {
@@ -52,7 +54,7 @@ const extractBaseMessage = (err: unknown, fallback: string): string => {
           typeof d === 'object' &&
           'msg' in d &&
           typeof (d as { msg: unknown }).msg === 'string'
-            ? (d as { msg: string }).msg
+            ? (d as { msg: string }).msg.replace(PYDANTIC_VALUE_ERROR_PREFIX, '')
             : null
         )
         .filter((m): m is string => m !== null);

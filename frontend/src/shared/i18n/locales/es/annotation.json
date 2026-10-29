@@ -25,6 +25,7 @@
     "setConfidence": "Establecer el nivel de confianza",
     "previousTask": "Tarea anterior",
     "nextTask": "Tarea siguiente",
+    "finishDrawTask": "Terminar la tarea de dibujo (Listo)",
     "decreaseConfidence": "Reducir la confianza",
     "increaseConfidence": "Aumentar la confianza",
     "focusComment": "Enfocar el comentario",
@@ -204,20 +205,6 @@
     "exit": "Salir del modo de revisión",
     "enter": "Entrar en el modo de revisión",
     "label": "Revisión"
-  },
-  "export": {
-    "title": "Exportar anotaciones",
-    "label": "Exportar",
-    "exporting": "Exportando…",
-    "failedAs": "No se pudieron exportar las anotaciones como {{format}}",
-    "done": "Anotaciones exportadas como {{format}}",
-    "failed": "No se pudieron exportar las anotaciones",
-    "merge": "Combinar si hay acuerdo",
-    "mergeDisabledTip": "Deshabilitado: esta campaña tiene tareas en conflicto. Resuélvelas en el modo de revisión antes de combinar por acuerdo.",
-    "mergeDisabled": "Deshabilitado: resuelve primero las tareas en conflicto.",
-    "mergeHint": "Agrupa en una sola fila las tareas con varios anotadores cuando todos coinciden.",
-    "geojsonHint": "FeatureCollection (.geojson)",
-    "csvHint": "Exportación tabular (.csv)"
   },
   "toolbar": {
     "viewTip": "Vista: {{name}}",
@@ -648,6 +635,7 @@
     "deleteFailed": "No se pudo eliminar la vista",
     "reorderFailed": "No se pudieron reordenar las vistas",
     "sourcesFailed": "No se pudieron actualizar las fuentes de la vista",
+    "lastSource": "Una vista necesita al menos una fuente de imágenes",
     "add": "Añadir vista",
     "name": "Nombre de la vista",
     "untitled": "Vista sin título",
@@ -690,7 +678,10 @@
   },
   "formFields": {
     "from": "Desde",
-    "to": "Hasta"
+    "to": "Hasta",
+    "wholeNumber": "Introduce un número entero",
+    "atLeast": "Debe ser al menos {{value}}",
+    "atMost": "Debe ser como máximo {{value}}"
   },
   "headerSelect": {
     "collapse": "Contraer",
@@ -703,7 +694,7 @@
     "minAuto": "Mín. (auto)",
     "maxAuto": "Máx. (auto)"
   },
-  "registrationNotice": "Registro de imágenes en curso. Las imágenes aparecerán automáticamente.",
+  "registrationNotice": "Preparando las imágenes",
   "missingRequired": "Faltan campos obligatorios: {{fields}}",
   "claims": {
     "you": "Reservada por ti",
@@ -712,6 +703,7 @@
   },
   "sliceFallback": "Corte {{number}}",
   "taskActions": {
+    "taskDeleted": "Un administrador eliminó esta tarea. Pasamos a la siguiente.",
     "submitFailed": "No se pudo enviar la tarea",
     "noTask": "No hay ninguna tarea actual que enviar",
     "noneLeft": "No quedan tareas sin asignar en las que trabajar.",
@@ -733,7 +725,8 @@
       "description": "Puedes volver a ella más tarde.",
       "confirm": "Omitir"
     },
-    "finishDraftFirst": "Guarda o descarta primero la forma que estás dibujando."
+    "finishDraftFirst": "Guarda o descarta primero la forma que estás dibujando.",
+    "drawFirst": "Dibuja primero una forma para esta tarea, o pulsa Nada aquí."
   },
   "drawing": {
     "labelFailed": "No se pudieron etiquetar las entidades: {{message}}",
@@ -742,6 +735,7 @@
     "labeled_other": "{{count}} entidades etiquetadas",
     "updated": "Anotación actualizada correctamente",
     "geometryFailed": "No se pudo guardar la geometría",
+    "deletedWhileEditing": "Otra persona eliminó esta anotación",
     "deleted_one": "Anotación eliminada",
     "deleted_many": "{{count}} anotaciones eliminadas",
     "deleted_other": "{{count}} anotaciones eliminadas",

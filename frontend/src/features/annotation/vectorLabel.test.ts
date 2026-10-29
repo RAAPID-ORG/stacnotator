@@ -4,13 +4,14 @@ vi.mock('~/api/client', async (importActual) => {
   const actual = await importActual<typeof import('~/api/client')>();
   return {
     ...actual,
-    createAnnotationOpenmode: vi.fn(),
+    createAnnotation: vi.fn(),
     batchCreateAnnotations: vi.fn(),
   };
 });
 
 import * as api from '~/api/client';
-import { annotationBody, dedupeHits, labelGeometries } from './drawing';
+import { dedupeHits, labelGeometries } from './drawing';
+import { newAnnotationBody } from './campaign/annotation';
 import type { FormField, FormValues } from './campaign/annotation';
 import type { BoxHit } from '~/shared/map/types';
 import { useWorkStore } from './stores/work';
@@ -47,24 +48,32 @@ function seed(fields: FormField[] = [], formValues: FormValues = {}) {
 }
 
 beforeEach(() => {
-  vi.mocked(api.createAnnotationOpenmode).mockReset();
+  vi.mocked(api.createAnnotation).mockReset();
   vi.mocked(api.batchCreateAnnotations).mockReset();
   seed();
 });
 
-describe('annotationBody', () => {
+describe('newAnnotationBody', () => {
   it('carries the geometry as WKT and omits an empty answer set', () => {
-    expect(annotationBody(POINT, 7, {})).toEqual({
+    const details = { formValues: {}, imagerySliceId: 12 };
+    expect(newAnnotationBody(POINT, 7, details, { origin_task_id: 4 })).toEqual({
       label_id: 7,
       comment: null,
       geometry_wkt: 'POINT (5 6)',
       confidence: null,
       form_values: null,
+      flagged_for_review: false,
+      flag_comment: null,
+      slice_comments: undefined,
+      imagery_slice_id: 12,
+      origin_task_id: 4,
     });
   });
 
   it('sends the answers when there are some', () => {
-    expect(annotationBody(POINT, 7, { '3': 30 }).form_values).toEqual({ '3': 30 });
+    expect(newAnnotationBody(POINT, 7, { formValues: { '3': 30 } }, {}).form_values).toEqual({
+      '3': 30,
+    });
   });
 });
 
@@ -85,12 +94,12 @@ describe('dedupeHits', () => {
 
 describe('labelGeometries', () => {
   it('creates one annotation from a single clicked feature', async () => {
-    vi.mocked(api.createAnnotationOpenmode).mockResolvedValue(apiSuccess(makeAnnotation()));
+    vi.mocked(api.createAnnotation).mockResolvedValue(apiSuccess(makeAnnotation()));
 
     expect(await labelGeometries([SQUARE])).toEqual({ kind: 'saved', count: 1 });
-    expect(api.createAnnotationOpenmode).toHaveBeenCalledWith({
+    expect(api.createAnnotation).toHaveBeenCalledWith({
       path: { campaign_id: 5 },
-      body: annotationBody(SQUARE, 7, {}),
+      body: newAnnotationBody(SQUARE, 7, { formValues: {} }, {}),
     });
   });
 
@@ -104,8 +113,8 @@ describe('labelGeometries', () => {
       path: { campaign_id: 5 },
       body: {
         annotations: [
-          annotationBody(SQUARE, 7, { '3': 30 }),
-          annotationBody(POINT, 7, { '3': 30 }),
+          newAnnotationBody(SQUARE, 7, { formValues: { '3': 30 } }, {}),
+          newAnnotationBody(POINT, 7, { formValues: { '3': 30 } }, {}),
         ],
       },
     });
@@ -115,7 +124,7 @@ describe('labelGeometries', () => {
     seed(REQUIRED_FIELDS);
 
     expect(await labelGeometries([SQUARE])).toEqual({ kind: 'blocked', missing: ['Crop'] });
-    expect(api.createAnnotationOpenmode).not.toHaveBeenCalled();
+    expect(api.createAnnotation).not.toHaveBeenCalled();
     expect(api.batchCreateAnnotations).not.toHaveBeenCalled();
   });
 
@@ -127,11 +136,11 @@ describe('labelGeometries', () => {
   it('does nothing when no label is armed', async () => {
     useWorkStore.setState({ selectedLabelId: null });
     expect(await labelGeometries([SQUARE])).toEqual({ kind: 'noop' });
-    expect(api.createAnnotationOpenmode).not.toHaveBeenCalled();
+    expect(api.createAnnotation).not.toHaveBeenCalled();
   });
 
   it('reports a failed save rather than throwing', async () => {
-    vi.mocked(api.createAnnotationOpenmode).mockRejectedValue(new Error('boom'));
+    vi.mocked(api.createAnnotation).mockRejectedValue(new Error('boom'));
     expect(await labelGeometries([SQUARE])).toMatchObject({ kind: 'error' });
   });
 });

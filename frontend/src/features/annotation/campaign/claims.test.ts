@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { AnnotationTaskOut } from '~/api/client';
+import type { TaskOut } from '~/api/client';
 import { CLAIM_TTL_MS, UNASSIGNED, claimedByLabel, getActiveClaim, isClaimable } from './tasks';
 
 const NOW = 1_700_000_000_000;
@@ -19,7 +19,7 @@ const task = (
     claimed_by_user_id: claim.by ?? null,
     claimed_at: claim.at ?? null,
     claimed_by_display_name: claim.name ?? null,
-  }) as unknown as AnnotationTaskOut;
+  }) as unknown as TaskOut;
 
 describe('UNASSIGNED sentinel', () => {
   it('is a stable, non-empty string distinct from any real user id', () => {

@@ -1,6 +1,6 @@
 /**
  * Tests that creating an annotation sends the correct request to the backend:
- * - Correct campaign_id and annotation_task_id in the URL path
+ * - Correct campaign_id and task_id in the URL path
  * - Correct label_id, comment, confidence in the request body
  * - Delete request goes to the correct annotation_id
  * - Skip (null label) sends the right payload
@@ -32,9 +32,9 @@ test.describe('Annotation Submission', () => {
 
     const req = lastAnnotateRequest(api.requests);
     expect(req).toBeDefined();
-    expect(req!.pathname).toBe('/api/campaigns/42/100/annotate');
+    expect(req!.pathname).toBe('/api/campaigns/42/tasks/100/annotate');
     expect(req!.pathParams.campaign_id).toBe('42');
-    expect(req!.pathParams.annotation_task_id).toBe('100');
+    expect(req!.pathParams.task_id).toBe('100');
     expect(req!.body.label_id).toBe(LABELS[0].id); // forest = 1
     expect(req!.body.confidence).toBeGreaterThanOrEqual(1);
   });

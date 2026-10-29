@@ -6,12 +6,16 @@ projects - active membership in the owning org. Org-public access carries
 member-level policy standing but no roles and no display membership.
 """
 
+from typing import get_args
+
 from src.projects.access import (
-    PROJECT_VISIBILITIES,
+    ProjectVisibility,
     has_project_access,
     is_policy_member,
     resolve_project_flags,
 )
+
+PROJECT_VISIBILITIES = get_args(ProjectVisibility)
 
 
 def _flags(**kw):
@@ -24,10 +28,6 @@ def _flags(**kw):
     )
     defaults.update(kw)
     return resolve_project_flags(**defaults)
-
-
-def test_visibility_constants():
-    assert PROJECT_VISIBILITIES == ("private", "organization", "public")
 
 
 def test_outsider_sees_nothing_private():
@@ -131,3 +131,13 @@ def test_policy_member_platform_public_alone_is_not_membership():
     assert not is_policy_member(
         visibility="public", is_active_org_member=True, is_member=False, is_platform_admin=False
     )
+
+
+def test_authoritative_reviewer_comes_from_the_membership_row_only():
+    assert _flags(is_member=True, member_is_authoritative_reviewer=True).is_authoritative_reviewer
+    assert not _flags(is_platform_admin=True).is_authoritative_reviewer
+
+
+def test_org_public_access_is_policy_membership_without_display_membership():
+    f = _flags(visibility="organization", is_active_org_member=True)
+    assert f.is_policy_member and not f.is_member and not f.is_admin

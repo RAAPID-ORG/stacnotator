@@ -1,11 +1,9 @@
 import { Fragment, useEffect, useState, useMemo, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { SkeletonRows } from '~/shared/ui/Skeleton';
-import { type AnnotationTaskOut, type CampaignSummaryOut, type TaskSetOut } from '~/api/client';
+import { type TaskOut, type CampaignSummaryOut, type TaskSetOut } from '~/api/client';
 import { answeredFields } from '~/shared/utils/formValues';
 import { FormAnswers } from './FormAnswers';
-import { useCampaignTasks, useCampaignTaskSets } from '~/features/campaigns/hooks/campaignQueries';
 import { campaignPath } from '~/app/routes';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
 import { useAccountStore } from '~/shared/stores/account.store';
@@ -16,8 +14,6 @@ import {
   outcomeLabel,
 } from '~/shared/utils/taskStatus';
 import { extractCentroidFromWKT, formatDuration } from '~/shared/utils/utility';
-import { TasksByLabelMap } from './TasksByLabelMap';
-import { ExportDropdown } from './ExportDropdown';
 import { Button } from '~/shared/ui/forms';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import { MoveTasksDialog } from '~/features/campaigns/components/settings/MoveTasksDialog';
@@ -31,7 +27,7 @@ import { listRowCls, tableHeadRowCls } from '~/shared/ui/listRow';
 /** Median active seconds recorded across a task's annotators, or null when
  *  nobody's time was measured. Median rather than sum so that a task annotated
  *  three times is comparable with one annotated once. */
-const taskActiveSeconds = (task: AnnotationTaskOut): number | null => {
+const taskActiveSeconds = (task: TaskOut): number | null => {
   const measured = (task.annotations ?? [])
     .map((a) => a.active_seconds)
     .filter((s): s is number => s != null)
@@ -64,13 +60,11 @@ const ROWS_PER_PAGE = 100;
 interface TaskModeReviewProps {
   campaign?: CampaignSummaryOut;
   campaignId: number;
-  /** External task list (e.g. the tasks page's scoped/reloadable set). Omit to have this component fetch and own its data, as on the annotations page. */
-  tasks?: AnnotationTaskOut[];
-  taskSets?: TaskSetOut[];
+  /** The tasks page's scoped list. */
+  tasks: TaskOut[];
+  taskSets: TaskSetOut[];
   /** Tasks page already provides set scoping via TaskScopeBar; hide this component's own set filter to avoid a redundant control. */
   hideSetFilter?: boolean;
-  /** Tasks page already renders its own header, map, and stats; render only the filterable list. */
-  embedded?: boolean;
   /** Heading content for the filters row (e.g. the tasks page's "Annotation tasks (N)" h2). Falls back to a local "Filters & search" label. */
   headerSlot?: ReactNode;
   /** Controls the host puts beside the filter button - adding tasks, moving assignments in and out. */
@@ -91,10 +85,9 @@ interface TaskModeReviewProps {
 export const TaskModeReview = ({
   campaign,
   campaignId,
-  tasks: tasksProp,
-  taskSets: taskSetsProp,
+  tasks,
+  taskSets,
   hideSetFilter = false,
-  embedded = false,
   headerSlot,
   headerActions,
   selectable = false,
@@ -114,7 +107,6 @@ export const TaskModeReview = ({
   // can be wrong outright on a hand-edited /projects/<id>/campaigns/... URL.
   const annotatePath = campaignPath(campaign?.project_id ?? routeProjectId, campaignId, 'annotate');
   const currentUser = useAccountStore((state) => state.account);
-  const isExternallyDriven = tasksProp !== undefined;
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
@@ -137,16 +129,6 @@ export const TaskModeReview = ({
   const [confirmBatchUnassign, setConfirmBatchUnassign] = useState(false);
   const [showMoveDialog, setShowMoveDialog] = useState(false);
 
-  // The tasks page hands its own scoped list down; on the annotations page this
-  // component is the one that asks.
-  const fetched = useCampaignTasks(campaignId, { enabled: !isExternallyDriven });
-  const { taskSets: fetchedTaskSets } = useCampaignTaskSets(campaignId, {
-    enabled: !isExternallyDriven,
-  });
-
-  const loading = fetched.loading;
-  const tasks = tasksProp ?? fetched.tasks;
-  const taskSets = taskSetsProp ?? fetchedTaskSets;
   // Sets a selection may be moved into. The area estimation sample is not one:
   // its tasks are a drawn sample and a task added by hand has no inclusion
   // probability, which is what the whole estimate rests on.
@@ -175,7 +157,7 @@ export const TaskModeReview = ({
       if (statusFilter !== 'all' && task.task_status !== statusFilter) return false;
       if (setFilter !== 'all' && task.task_set_id !== setFilter) return false;
       if (selectedUserIds.length > 0) {
-        const assignments = task.assignments || [];
+        const assignments = task.assignments;
         if (!assignments.some((a) => selectedUserIds.includes(a.user_id))) return false;
       }
       if (selectedLabelIds.length > 0) {
@@ -205,7 +187,7 @@ export const TaskModeReview = ({
     if (sortOption === 'default') return filtered;
     return [...filtered].sort((a, b) => {
       if (sortOption === 'confidence-asc' || sortOption === 'confidence-desc') {
-        const getMinConf = (t: AnnotationTaskOut) => {
+        const getMinConf = (t: TaskOut) => {
           if (!t.annotations?.length) return Infinity;
           const vals = t.annotations.map((x) => x.confidence).filter((c): c is number => c != null);
           return vals.length ? Math.min(...vals) : Infinity;
@@ -266,7 +248,7 @@ export const TaskModeReview = ({
   const uniqueUsers = useMemo(() => {
     const m = new Map<string, UserInfo>();
     tasks.forEach((t) => {
-      t.assignments?.forEach((a) => {
+      t.assignments.forEach((a) => {
         if (!m.has(a.user_id))
           m.set(a.user_id, {
             id: a.user_id,
@@ -290,29 +272,6 @@ export const TaskModeReview = ({
   }, [tasks]);
 
   const stats = useMemo(() => ({ total: tasks.length, ...countTasksByStatus(tasks) }), [tasks]);
-
-  // Campaign-wide totals for the distribution map's legend. The map fetches only the
-  // cells for its viewport, so the counts beside it have to come from the list.
-  const labelCounts = useMemo(
-    () =>
-      (campaign?.settings.labels ?? []).map((label) => ({
-        labelId: label.id as number | null,
-        count: tasks.filter((t) => (t.annotations || []).some((a) => a.label_id === label.id))
-          .length,
-      })),
-    [campaign, tasks]
-  );
-  const pendingCount = useMemo(
-    () =>
-      tasks.filter(
-        (t) => !(t.annotations || []).some((a) => a.label_id) && t.task_status !== 'skipped'
-      ).length,
-    [tasks]
-  );
-  const skippedCount = useMemo(
-    () => tasks.filter((t) => t.task_status === 'skipped').length,
-    [tasks]
-  );
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -394,903 +353,830 @@ export const TaskModeReview = ({
     }
   };
 
-  const capitalizeFirst = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-
   return (
-    <div className={embedded ? undefined : 'flex-1 overflow-auto'}>
-      <FadeIn className={embedded ? undefined : 'page'}>
-        {!embedded && campaign && (
-          <header className="page-header">
-            <div>
-              <h1 className="page-title">
-                {t('pageTitle', { name: capitalizeFirst(campaign.name) })}
-              </h1>
-              <p className="page-subtitle">{t('tasks.subtitle')}</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <ExportDropdown
-                campaignId={campaignId}
-                campaign={campaign}
-                disabled={tasks.length === 0}
-                hasConflicts={tasks.some((t) => t.task_status === 'conflicting')}
-              />
-              <Button onClick={() => navigate(annotatePath)}>{t('startAnnotating')}</Button>
-            </div>
-          </header>
-        )}
-
-        {/* Map - sits above the surface, no card wrapper */}
-        {!embedded && campaign && tasks.length > 0 && (
-          <div className="mb-6">
-            <TasksByLabelMap
-              campaignId={campaignId}
-              labelCounts={labelCounts}
-              pendingCount={pendingCount}
-              skippedCount={skippedCount}
-              totalTasks={tasks.length}
-              labels={campaign.settings.labels}
-              bbox={{
-                west: campaign.settings.bbox_west,
-                south: campaign.settings.bbox_south,
-                east: campaign.settings.bbox_east,
-                north: campaign.settings.bbox_north,
-              }}
-            />
-          </div>
-        )}
-
-        {/* Filters - embedded (tasks page) sits flat on the page; standalone keeps its own surface */}
-        {loading ? (
-          <SkeletonRows count={8} />
-        ) : (
-          <>
-            <div className={embedded ? undefined : 'surface surface-unclipped'}>
-              <div className={embedded ? 'space-y-3' : 'px-5 py-4 space-y-3'}>
-                <div className="flex items-center gap-2">
-                  {headerSlot ?? <h3 className="section-heading">{t('filtersAndSearch')}</h3>}
-                  <button
-                    onClick={() => setShowFilters((v) => !v)}
-                    className="relative h-8 w-8 inline-flex items-center justify-center rounded text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100"
-                    title={t('tasks.filterAndSort')}
-                    type="button"
-                  >
-                    <IconFunnel className="w-4 h-4" />
-                    {activeFilterCount > 0 && (
-                      <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[1.125rem] h-[1.125rem] px-1 text-[10px] font-semibold rounded-full bg-brand-600 text-white">
-                        {activeFilterCount}
-                      </span>
-                    )}
-                  </button>
-                  {headerActions && (
-                    <div className="ml-auto flex items-center gap-2">{headerActions}</div>
-                  )}
-                </div>
-
-                {/* Stats stay visible regardless of the filter panel's collapsed state. */}
-                <div className="flex items-center justify-between text-xs text-neutral-500">
-                  <span>
-                    {t('tasks.showingOf', { shown: filteredTasks.length, total: tasks.length })}
+    <FadeIn>
+      <>
+        <div>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              {headerSlot ?? <h3 className="section-heading">{t('filtersAndSearch')}</h3>}
+              <button
+                onClick={() => setShowFilters((v) => !v)}
+                className="relative h-8 w-8 inline-flex items-center justify-center rounded text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100"
+                title={t('tasks.filterAndSort')}
+                type="button"
+              >
+                <IconFunnel className="w-4 h-4" />
+                {activeFilterCount > 0 && (
+                  <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[1.125rem] h-[1.125rem] px-1 text-[10px] font-semibold rounded-full bg-brand-600 text-white">
+                    {activeFilterCount}
                   </span>
-                  <div className="flex items-center gap-4">
-                    <span>
-                      {t('tasks.counts.complete')}{' '}
-                      <strong className="text-neutral-800">{stats.done}</strong>
-                    </span>
-                    <span>
-                      {t('tasks.counts.partial')}{' '}
-                      <strong className="text-neutral-800">{stats.partial}</strong>
-                    </span>
-                    <span>
-                      {t('tasks.counts.conflicting')}{' '}
-                      <strong className="text-neutral-800">{stats.conflicting}</strong>
-                    </span>
-                    <span>
-                      {t('tasks.counts.pending')}{' '}
-                      <strong className="text-neutral-800">{stats.pending}</strong>
-                    </span>
-                    <span>
-                      {t('tasks.counts.skipped')}{' '}
-                      <strong className="text-neutral-800">{stats.skipped}</strong>
-                    </span>
-                  </div>
-                </div>
-
-                {showFilters && (
-                  <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 p-3 space-y-3">
-                    {/* Search */}
-                    <div>
-                      <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
-                        {t('tasks.search')}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          placeholder={t('tasks.searchPlaceholder')}
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          className="px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-600 w-64"
-                        />
-                        {searchQuery && (
-                          <button
-                            onClick={() => setSearchQuery('')}
-                            className="text-neutral-500 hover:text-neutral-700"
-                          >
-                            <svg
-                              className="w-4 h-4"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M6 18L18 6M6 6l12 12"
-                              />
-                            </svg>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Status Filter */}
-                    <div className="border-t border-neutral-200 pt-3">
-                      <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
-                        {t('tasks.status')}
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {(
-                          [
-                            'all',
-                            'pending',
-                            'partial',
-                            'conflicting',
-                            'done',
-                            'skipped',
-                          ] as StatusFilter[]
-                        ).map((status) => (
-                          <button
-                            key={status}
-                            onClick={() => setStatusFilter(status)}
-                            className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                              statusFilter === status
-                                ? 'bg-brand-600 text-white'
-                                : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-                            }`}
-                          >
-                            {t(`tasks.statusFilter.${status}`)}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Set Filter */}
-                    {!hideSetFilter && taskSets.length > 1 && (
-                      <div className="border-t border-neutral-200 pt-3">
-                        <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
-                          {t('tasks.set')}
-                        </div>
-                        <select
-                          data-testid="review-set-filter"
-                          value={setFilter}
-                          onChange={(e) =>
-                            setSetFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))
-                          }
-                          className="w-full px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-600 bg-white"
-                        >
-                          <option value="all">{t('tasks.allSets')}</option>
-                          {taskSets.map((set) => (
-                            <option key={set.id} value={set.id}>
-                              {set.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-
-                    {/* User Filter */}
-                    <div className="border-t border-neutral-200 pt-3">
-                      <UserFilterDropdown
-                        users={uniqueUsers}
-                        selectedUserIds={selectedUserIds}
-                        setSelectedUserIds={setSelectedUserIds}
-                        currentUserId={currentUser?.id}
-                      />
-                    </div>
-
-                    {/* Label Filter */}
-                    {labels.length > 0 && (
-                      <div className="border-t border-neutral-200 pt-3" data-testid="label-filter">
-                        <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
-                          {t('tasks.label')}
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                          <button
-                            onClick={() => setSelectedLabelIds([])}
-                            className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                              selectedLabelIds.length === 0
-                                ? 'bg-brand-600 text-white'
-                                : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-                            }`}
-                          >
-                            {t('all')}
-                          </button>
-                          {labels.map((label) => (
-                            <button
-                              key={label.id}
-                              onClick={() => toggleLabel(label.id)}
-                              aria-pressed={selectedLabelIds.includes(label.id)}
-                              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                                selectedLabelIds.includes(label.id)
-                                  ? 'bg-brand-600 text-white'
-                                  : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-                              }`}
-                            >
-                              {label.name}
-                            </button>
-                          ))}
-                          <button
-                            onClick={() => toggleLabel(NO_LABEL)}
-                            aria-pressed={selectedLabelIds.includes(NO_LABEL)}
-                            className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                              selectedLabelIds.includes(NO_LABEL)
-                                ? 'bg-brand-600 text-white'
-                                : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-                            }`}
-                            title={t('tasks.skippedTitle')}
-                          >
-                            {t('tasks.skipped')}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Confidence Filter */}
-                    <div className="border-t border-neutral-200 pt-3">
-                      <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
-                        {t('tasks.confidence')}
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        <button
-                          onClick={() => setSelectedConfidences([])}
-                          className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                            selectedConfidences.length === 0
-                              ? 'bg-brand-600 text-white'
-                              : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-                          }`}
-                        >
-                          {t('all')}
-                        </button>
-                        {[1, 2, 3, 4, 5].map((c) => (
-                          <button
-                            key={c}
-                            onClick={() =>
-                              setSelectedConfidences(
-                                selectedConfidences.includes(c)
-                                  ? selectedConfidences.filter((x) => x !== c)
-                                  : [...selectedConfidences, c]
-                              )
-                            }
-                            className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                              selectedConfidences.includes(c)
-                                ? 'bg-brand-600 text-white'
-                                : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-                            }`}
-                          >
-                            {c}
-                          </button>
-                        ))}
-                        <button
-                          onClick={() =>
-                            setSelectedConfidences(
-                              selectedConfidences.includes(0)
-                                ? selectedConfidences.filter((x) => x !== 0)
-                                : [...selectedConfidences, 0]
-                            )
-                          }
-                          className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                            selectedConfidences.includes(0)
-                              ? 'bg-brand-600 text-white'
-                              : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-                          }`}
-                          title={t('tasks.noRatingTitle')}
-                        >
-                          {t('noRating')}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Flagged Filter */}
-                    <div className="border-t border-neutral-200 pt-3">
-                      <button
-                        onClick={() => setFlaggedOnly((v) => !v)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors border w-full ${
-                          flaggedOnly
-                            ? 'bg-rose-100 text-rose-800 border-rose-300'
-                            : 'bg-neutral-100 text-neutral-700 border-transparent hover:bg-neutral-200'
-                        }`}
-                        title={t('tasks.flaggedOnlyTitle')}
-                      >
-                        <IconFlag className="w-3.5 h-3.5" />
-                        <span>{t('flaggedOnly')}</span>
-                      </button>
-                    </div>
-
-                    {/* Sort */}
-                    <div className="border-t border-neutral-200 pt-3">
-                      <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
-                        {t('tasks.sortBy')}
-                      </div>
-                      <select
-                        value={sortOption}
-                        onChange={(e) => {
-                          if (isSortOption(e.target.value)) setSortOption(e.target.value);
-                        }}
-                        className="w-full px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-600 bg-white"
-                      >
-                        <option value="default">{t('sort.default')}</option>
-                        <option value="confidence-asc">{t('sort.confidenceAsc')}</option>
-                        <option value="confidence-desc">{t('sort.confidenceDesc')}</option>
-                        <option value="id-asc">{t('sort.annotationNumberAsc')}</option>
-                        <option value="id-desc">{t('sort.annotationNumberDesc')}</option>
-                        <option value="time-desc">{t('sort.timeDesc')}</option>
-                        <option value="time-asc">{t('sort.timeAsc')}</option>
-                      </select>
-                    </div>
-                  </div>
                 )}
+              </button>
+              {headerActions && (
+                <div className="ml-auto flex items-center gap-2">{headerActions}</div>
+              )}
+            </div>
+
+            {/* Stats stay visible regardless of the filter panel's collapsed state. */}
+            <div className="flex items-center justify-between text-xs text-neutral-500">
+              <span>
+                {t('tasks.showingOf', { shown: filteredTasks.length, total: tasks.length })}
+              </span>
+              <div className="flex items-center gap-4">
+                <span>
+                  {t('tasks.counts.complete')}{' '}
+                  <strong className="text-neutral-800">{stats.done}</strong>
+                </span>
+                <span>
+                  {t('tasks.counts.partial')}{' '}
+                  <strong className="text-neutral-800">{stats.partial}</strong>
+                </span>
+                <span>
+                  {t('tasks.counts.conflicting')}{' '}
+                  <strong className="text-neutral-800">{stats.conflicting}</strong>
+                </span>
+                <span>
+                  {t('tasks.counts.pending')}{' '}
+                  <strong className="text-neutral-800">{stats.pending}</strong>
+                </span>
+                <span>
+                  {t('tasks.counts.skipped')}{' '}
+                  <strong className="text-neutral-800">{stats.skipped}</strong>
+                </span>
               </div>
             </div>
 
-            {/* Tasks Table */}
-            <div className="mt-6">
-              {selectable && (
-                <div className="sticky top-0 z-10 bg-white flex items-center justify-between py-3 mb-1">
-                  {/* Left: selection-scoped actions, constructive-to-destructive */}
-                  <div className="flex items-center gap-3">
-                    {selectedTasks.size > 0 && (
-                      <span className="text-xs text-neutral-500">
-                        {t('selectedCount', { count: selectedTasks.size })}
-                      </span>
-                    )}
-                    <div className="flex items-center gap-2">
-                      {onAssignSelected && (
-                        <Button
-                          variant="secondary"
-                          onClick={() => onAssignSelected(Array.from(selectedTasks))}
-                          disabled={selectedTasks.size === 0 || isDeleting || isBatchUnassigning}
-                        >
-                          {t('tasks.assignSelected')}
-                        </Button>
-                      )}
-                      {onMoveTasks && movableSets.length > 1 && (
-                        <Button
-                          variant="secondary"
-                          onClick={() => setShowMoveDialog(true)}
-                          disabled={selectedTasks.size === 0}
-                        >
-                          {t('tasks.moveToSet')}
-                        </Button>
-                      )}
-                      {onBatchUnassignTasks && (
-                        <Button
-                          variant="secondary"
-                          onClick={() => setConfirmBatchUnassign(true)}
-                          disabled={
-                            selectedTasks.size === 0 ||
-                            !selectedTasksHaveAssignments ||
-                            isDeleting ||
-                            isBatchUnassigning
-                          }
-                          title={
-                            selectedTasks.size === 0
-                              ? t('tasks.selectToUnassign')
-                              : !selectedTasksHaveAssignments
-                                ? t('tasks.noAssignments')
-                                : undefined
-                          }
-                        >
-                          {isBatchUnassigning
-                            ? t('tasks.unassigning')
-                            : t('tasks.unassignSelected')}
-                        </Button>
-                      )}
-                      {onDeleteTasks && (
-                        <Button
-                          variant="dangerQuiet"
-                          onClick={() => setConfirmDelete(true)}
-                          disabled={selectedTasks.size === 0 || isDeleting || isBatchUnassigning}
-                        >
-                          {t('deleteSelected')}
-                        </Button>
-                      )}
-                    </div>
+            {showFilters && (
+              <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 p-3 space-y-3">
+                {/* Search */}
+                <div>
+                  <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
+                    {t('tasks.search')}
                   </div>
-
-                  {/* Right: pool-wide actions */}
                   <div className="flex items-center gap-2">
-                    {onOpenBulkAssign && (
-                      <Button
-                        variant="secondary"
-                        onClick={onOpenBulkAssign}
-                        disabled={isDeleting || isBatchUnassigning}
+                    <input
+                      type="text"
+                      placeholder={t('tasks.searchPlaceholder')}
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-600 w-64"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="text-neutral-500 hover:text-neutral-700"
                       >
-                        {t('tasks.assignAll')}
-                      </Button>
-                    )}
-                    {onOpenReviewerAssign && (
-                      <Button
-                        variant="secondary"
-                        onClick={onOpenReviewerAssign}
-                        disabled={isDeleting || isBatchUnassigning}
-                      >
-                        {t('tasks.setUpReviews')}
-                      </Button>
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
                     )}
                   </div>
                 </div>
-              )}
 
-              {filteredTasks.length === 0 ? (
-                <div
-                  className={
-                    embedded
-                      ? 'text-center py-12'
-                      : 'text-center py-12 bg-white border border-neutral-200 rounded-xl shadow-sm'
-                  }
-                >
-                  <svg
-                    className="w-12 h-12 text-neutral-400 mx-auto mb-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                    />
-                  </svg>
-                  <p className="text-neutral-700 mb-2">{t('tasks.noMatchesTitle')}</p>
-                  <p className="text-neutral-500 text-sm">{t('noMatches')}</p>
+                {/* Status Filter */}
+                <div className="border-t border-neutral-200 pt-3">
+                  <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
+                    {t('tasks.status')}
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {(
+                      [
+                        'all',
+                        'pending',
+                        'partial',
+                        'conflicting',
+                        'done',
+                        'skipped',
+                      ] as StatusFilter[]
+                    ).map((status) => (
+                      <button
+                        key={status}
+                        onClick={() => setStatusFilter(status)}
+                        className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                          statusFilter === status
+                            ? 'bg-brand-600 text-white'
+                            : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                        }`}
+                      >
+                        {t(`tasks.statusFilter.${status}`)}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              ) : (
-                <div
-                  className={
-                    embedded
-                      ? 'overflow-x-auto'
-                      : 'overflow-x-auto border border-neutral-200 rounded-xl shadow-sm bg-white'
-                  }
-                >
-                  <table className="w-full text-sm border-collapse">
-                    <thead>
-                      <tr className={tableHeadRowCls}>
-                        {selectable && (
-                          <th className="px-4 py-3 text-left w-8">
-                            <input
-                              type="checkbox"
-                              checked={
-                                selectedTasks.size === filteredTasks.length &&
-                                filteredTasks.length > 0
-                              }
-                              onChange={handleSelectAll}
-                              className="w-4 h-4 text-brand-600 rounded focus:ring-brand-600"
-                            />
-                          </th>
-                        )}
-                        <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
-                          {t('tasks.columns.annotationNumber')}
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
-                          {t('tasks.columns.status')}
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
-                          {t('tasks.columns.coordinates')}
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
-                          {t('tasks.columns.annotations')}
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
-                          {t('tasks.columns.actions')}
-                        </th>
-                        {formFields.length > 0 && <th className="w-10 px-2 py-3" />}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pageTasks.map((task, index) => {
-                        const latLon = extractCentroidFromWKT(task.geometry.geometry);
-                        const taskStatus = task.task_status ?? 'pending';
-                        const assignments = task.assignments || [];
-                        const annotations = task.annotations || [];
-                        const isAssignedToMe =
-                          currentUser && assignments.some((a) => a.user_id === currentUser.id);
-                        const isSelected = selectable && selectedTasks.has(task.id);
-                        const answered = annotations.filter(
-                          (ann) => answeredFields(formFields, ann.form_values).length > 0
-                        );
-                        const expanded = expandedTaskId === task.id;
 
-                        return (
-                          <Fragment key={task.id}>
-                            <tr
-                              className={listRowCls(index, {
-                                tinted: Boolean(isAssignedToMe),
-                                selected: isSelected,
-                              })}
-                            >
-                              {selectable && (
-                                <td className="px-4 py-3">
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedTasks.has(task.id)}
-                                    onChange={() => handleToggleTask(task.id)}
-                                    className="w-4 h-4 text-brand-600 rounded focus:ring-brand-600"
-                                  />
-                                </td>
-                              )}
-                              <td className="px-4 py-3 text-neutral-900 font-medium">
-                                {task.annotation_number}
-                                {(task.nearby_annotation_count ?? 0) > 0 && (
-                                  <span
-                                    className="ml-1.5 px-1.5 py-0.5 text-xs font-normal rounded bg-red-50 text-red-700 tabular-nums"
-                                    title={t('tasks.nearbyTitle')}
-                                  >
-                                    {t('tasks.nearby', {
-                                      count: task.nearby_annotation_count ?? 0,
-                                    })}
-                                  </span>
-                                )}
-                              </td>
-                              <td className="px-4 py-3">
-                                <span
-                                  className={`inline-block px-2 py-1 rounded text-xs font-medium capitalize ${getTaskStatusColor(taskStatus)}`}
-                                >
-                                  {formatTaskStatus(taskStatus)}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-neutral-900 text-xs font-mono">
-                                {latLon
-                                  ? `${latLon.lat.toFixed(5)}, ${latLon.lon.toFixed(5)}`
-                                  : '-'}
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="flex flex-wrap gap-1">
-                                  {annotations.length > 0 ? (
-                                    annotations.map((ann) => {
-                                      const annotator = assignments.find(
-                                        (a) => a.user_id === ann.created_by_user_id
-                                      );
-                                      const isCurrentUser =
-                                        ann.created_by_user_id === currentUser?.id;
-                                      const displayName = isCurrentUser
-                                        ? currentUser.display_name ||
-                                          currentUser.email ||
-                                          t('youName')
-                                        : ann.created_by_user_display_name ||
-                                          ann.created_by_user_email ||
-                                          annotator?.user_display_name ||
-                                          annotator?.user_email ||
-                                          ann.created_by_user_id?.substring(0, 8) ||
-                                          t('unknownUser');
-
-                                      const isSkippedAnn = ann.outcome === 'skipped';
-                                      const label = ann.label_id
-                                        ? `#${ann.label_id}`
-                                        : (outcomeLabel(ann.outcome) ?? '-');
-                                      const confidence =
-                                        ann.confidence != null ? `${ann.confidence}/5` : '-';
-                                      const hasComment = ann.comment && ann.comment.trim() !== '';
-                                      const isExtra = ann.counts_toward_completion === false;
-
-                                      return (
-                                        <div
-                                          key={ann.id}
-                                          className={`text-xs px-2 py-1 rounded inline-flex items-center gap-1 ${ann.flagged_for_review ? 'bg-rose-50 text-rose-800 border border-rose-300' : isSkippedAnn ? 'bg-violet-100 text-violet-700' : 'bg-neutral-100 text-neutral-700'} ${isExtra ? 'opacity-60' : ''}`}
-                                        >
-                                          {ann.flagged_for_review && (
-                                            <span
-                                              className="text-rose-600"
-                                              title={ann.flag_comment || t('flaggedForReview')}
-                                            >
-                                              <IconFlag className="w-3.5 h-3.5" />
-                                            </span>
-                                          )}
-                                          <span
-                                            className="font-medium"
-                                            title={t('tasks.annotatorTitle')}
-                                          >
-                                            {displayName}
-                                          </span>
-                                          {isExtra && (
-                                            <>
-                                              <span className="text-neutral-400">|</span>
-                                              <span
-                                                className="px-1 py-0.5 rounded bg-neutral-200 text-neutral-500 text-[9px] font-semibold uppercase tracking-wide"
-                                                title={t('tasks.extraTitle')}
-                                              >
-                                                {t('tasks.extra')}
-                                              </span>
-                                            </>
-                                          )}
-                                          <span className="text-neutral-400">|</span>
-                                          <span title={t('tasks.labelIdTitle')}>{label}</span>
-                                          <span className="text-neutral-400">|</span>
-                                          <span
-                                            className={ann.confidence != null ? 'font-bold' : ''}
-                                            title={t('tasks.confidenceTitle')}
-                                          >
-                                            {confidence}
-                                          </span>
-                                          {ann.active_seconds != null && (
-                                            <>
-                                              <span className="text-neutral-400">|</span>
-                                              <span title={t('tasks.activeTimeTitle')}>
-                                                {formatDuration(ann.active_seconds)}
-                                              </span>
-                                            </>
-                                          )}
-                                          {hasComment && (
-                                            <>
-                                              <span className="text-neutral-400">|</span>
-                                              <Tooltip text={ann.comment ?? ''}>
-                                                <svg
-                                                  className="w-3.5 h-3.5"
-                                                  fill="none"
-                                                  viewBox="0 0 24 24"
-                                                  stroke="currentColor"
-                                                >
-                                                  <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth={2}
-                                                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                                                  />
-                                                </svg>
-                                              </Tooltip>
-                                            </>
-                                          )}
-                                        </div>
-                                      );
-                                    })
-                                  ) : (
-                                    <span className="text-xs text-neutral-400">-</span>
-                                  )}
-                                  {/* Placeholder labels for assigned users who haven't annotated yet */}
-                                  {assignments
-                                    .filter(
-                                      (a) =>
-                                        a.status === 'pending' &&
-                                        !annotations.some(
-                                          (ann) => ann.created_by_user_id === a.user_id
-                                        )
-                                    )
-                                    .map((a) => {
-                                      const isCurrentUser = a.user_id === currentUser?.id;
-                                      const displayName = isCurrentUser
-                                        ? currentUser.display_name ||
-                                          currentUser.email ||
-                                          t('youName')
-                                        : a.user_display_name ||
-                                          a.user_email ||
-                                          a.user_id.substring(0, 8);
-                                      return (
-                                        <div
-                                          key={`pending-${a.user_id}`}
-                                          className="text-xs px-2 py-1 rounded inline-flex items-center gap-1 border border-dashed border-neutral-300 text-neutral-400 bg-neutral-50"
-                                          title={t('tasks.awaitingTitle')}
-                                        >
-                                          <span className="font-medium">{displayName}</span>
-                                          <span className="text-neutral-300">|</span>
-                                          <span className="italic">{t('tasks.awaiting')}</span>
-                                        </div>
-                                      );
-                                    })}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3">
-                                <button
-                                  onClick={() => handleNavigateToTask(task.id)}
-                                  className="text-brand-700 hover:text-brand-900 text-sm font-medium transition-colors"
-                                >
-                                  {taskStatus === 'pending' || taskStatus === 'skipped'
-                                    ? t('tasks.annotate')
-                                    : t('view')}
-                                </button>
-                              </td>
-                              {formFields.length > 0 && (
-                                <td className="px-2 py-3">
-                                  <button
-                                    type="button"
-                                    onClick={() => setExpandedTaskId(expanded ? null : task.id)}
-                                    aria-expanded={expanded}
-                                    disabled={answered.length === 0}
-                                    title={
-                                      answered.length === 0
-                                        ? t('answers.none')
-                                        : expanded
-                                          ? t('answers.hide')
-                                          : t('answers.show')
-                                    }
-                                    aria-label={
-                                      expanded
-                                        ? t('answers.hideForTask', {
-                                            number: task.annotation_number,
-                                          })
-                                        : t('answers.showForTask', {
-                                            number: task.annotation_number,
-                                          })
-                                    }
-                                    data-testid={`toggle-answers-${task.id}`}
-                                    className="grid h-6 w-6 place-items-center rounded text-neutral-400 transition-colors hover:bg-neutral-200/60 hover:text-neutral-700 disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent"
-                                  >
-                                    {expanded ? (
-                                      <IconChevronDown className="h-4 w-4" />
-                                    ) : (
-                                      <IconChevronRight className="h-4 w-4" />
-                                    )}
-                                  </button>
-                                </td>
-                              )}
-                            </tr>
-                            {expanded && (
-                              <tr className="border-b border-neutral-100 bg-neutral-50/60">
-                                <td colSpan={selectable ? 7 : 6} className="px-4 py-3">
-                                  {/* A task can hold several people's answers, so
-                                    each set says whose it is. */}
-                                  <div className="flex flex-col gap-3">
-                                    {answered.map((ann) => (
-                                      <div key={ann.id} className="flex flex-col gap-1">
-                                        <span className="text-[11px] font-semibold text-neutral-600">
-                                          {ann.created_by_user_display_name ||
-                                            ann.created_by_user_email ||
-                                            t('unknownUser')}
-                                        </span>
-                                        <FormAnswers fields={formFields} values={ann.form_values} />
-                                      </div>
-                                    ))}
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                          </Fragment>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                  {pageCount > 1 && (
-                    <div className="flex items-center justify-between gap-3 py-4 text-sm text-neutral-500">
-                      <span>
-                        {t('tasks.pageRange', {
-                          from: (pageStart + 1).toLocaleString(),
-                          to: (pageStart + pageTasks.length).toLocaleString(),
-                          total: filteredTasks.length.toLocaleString(),
-                        })}
-                      </span>
-                      <div className="flex items-center gap-3">
-                        <Button
-                          variant="secondary"
-                          disabled={currentPage === 0}
-                          onClick={() => setPage(currentPage - 1)}
-                        >
-                          {t('previous')}
-                        </Button>
-                        <span className="tabular-nums">
-                          {t('pageOf', {
-                            page: currentPage + 1,
-                            pages: pageCount.toLocaleString(),
-                          })}
-                        </span>
-                        <Button
-                          variant="secondary"
-                          disabled={currentPage >= pageCount - 1}
-                          onClick={() => setPage(currentPage + 1)}
-                        >
-                          {t('common:actions.next')}
-                        </Button>
-                      </div>
+                {/* Set Filter */}
+                {!hideSetFilter && taskSets.length > 1 && (
+                  <div className="border-t border-neutral-200 pt-3">
+                    <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
+                      {t('tasks.set')}
                     </div>
+                    <select
+                      data-testid="review-set-filter"
+                      value={setFilter}
+                      onChange={(e) =>
+                        setSetFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))
+                      }
+                      className="w-full px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-600 bg-white"
+                    >
+                      <option value="all">{t('tasks.allSets')}</option>
+                      {taskSets.map((set) => (
+                        <option key={set.id} value={set.id}>
+                          {set.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* User Filter */}
+                <div className="border-t border-neutral-200 pt-3">
+                  <UserFilterDropdown
+                    users={uniqueUsers}
+                    selectedUserIds={selectedUserIds}
+                    setSelectedUserIds={setSelectedUserIds}
+                    currentUserId={currentUser?.id}
+                  />
+                </div>
+
+                {/* Label Filter */}
+                {labels.length > 0 && (
+                  <div className="border-t border-neutral-200 pt-3" data-testid="label-filter">
+                    <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
+                      {t('tasks.label')}
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      <button
+                        onClick={() => setSelectedLabelIds([])}
+                        className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                          selectedLabelIds.length === 0
+                            ? 'bg-brand-600 text-white'
+                            : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                        }`}
+                      >
+                        {t('all')}
+                      </button>
+                      {labels.map((label) => (
+                        <button
+                          key={label.id}
+                          onClick={() => toggleLabel(label.id)}
+                          aria-pressed={selectedLabelIds.includes(label.id)}
+                          className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                            selectedLabelIds.includes(label.id)
+                              ? 'bg-brand-600 text-white'
+                              : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                          }`}
+                        >
+                          {label.name}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => toggleLabel(NO_LABEL)}
+                        aria-pressed={selectedLabelIds.includes(NO_LABEL)}
+                        className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                          selectedLabelIds.includes(NO_LABEL)
+                            ? 'bg-brand-600 text-white'
+                            : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                        }`}
+                        title={t('tasks.skippedTitle')}
+                      >
+                        {t('tasks.skipped')}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Confidence Filter */}
+                <div className="border-t border-neutral-200 pt-3">
+                  <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
+                    {t('tasks.confidence')}
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    <button
+                      onClick={() => setSelectedConfidences([])}
+                      className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                        selectedConfidences.length === 0
+                          ? 'bg-brand-600 text-white'
+                          : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                      }`}
+                    >
+                      {t('all')}
+                    </button>
+                    {[1, 2, 3, 4, 5].map((c) => (
+                      <button
+                        key={c}
+                        onClick={() =>
+                          setSelectedConfidences(
+                            selectedConfidences.includes(c)
+                              ? selectedConfidences.filter((x) => x !== c)
+                              : [...selectedConfidences, c]
+                          )
+                        }
+                        className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                          selectedConfidences.includes(c)
+                            ? 'bg-brand-600 text-white'
+                            : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                        }`}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() =>
+                        setSelectedConfidences(
+                          selectedConfidences.includes(0)
+                            ? selectedConfidences.filter((x) => x !== 0)
+                            : [...selectedConfidences, 0]
+                        )
+                      }
+                      className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                        selectedConfidences.includes(0)
+                          ? 'bg-brand-600 text-white'
+                          : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                      }`}
+                      title={t('tasks.noRatingTitle')}
+                    >
+                      {t('noRating')}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Flagged Filter */}
+                <div className="border-t border-neutral-200 pt-3">
+                  <button
+                    onClick={() => setFlaggedOnly((v) => !v)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors border w-full ${
+                      flaggedOnly
+                        ? 'bg-rose-100 text-rose-800 border-rose-300'
+                        : 'bg-neutral-100 text-neutral-700 border-transparent hover:bg-neutral-200'
+                    }`}
+                    title={t('tasks.flaggedOnlyTitle')}
+                  >
+                    <IconFlag className="w-3.5 h-3.5" />
+                    <span>{t('flaggedOnly')}</span>
+                  </button>
+                </div>
+
+                {/* Sort */}
+                <div className="border-t border-neutral-200 pt-3">
+                  <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
+                    {t('tasks.sortBy')}
+                  </div>
+                  <select
+                    value={sortOption}
+                    onChange={(e) => {
+                      if (isSortOption(e.target.value)) setSortOption(e.target.value);
+                    }}
+                    className="w-full px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-600 bg-white"
+                  >
+                    <option value="default">{t('sort.default')}</option>
+                    <option value="confidence-asc">{t('sort.confidenceAsc')}</option>
+                    <option value="confidence-desc">{t('sort.confidenceDesc')}</option>
+                    <option value="id-asc">{t('sort.annotationNumberAsc')}</option>
+                    <option value="id-desc">{t('sort.annotationNumberDesc')}</option>
+                    <option value="time-desc">{t('sort.timeDesc')}</option>
+                    <option value="time-asc">{t('sort.timeAsc')}</option>
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Tasks Table */}
+        <div className="mt-6">
+          {selectable && (
+            <div className="sticky top-0 z-10 bg-white flex items-center justify-between py-3 mb-1">
+              {/* Left: selection-scoped actions, constructive-to-destructive */}
+              <div className="flex items-center gap-3">
+                {selectedTasks.size > 0 && (
+                  <span className="text-xs text-neutral-500">
+                    {t('selectedCount', { count: selectedTasks.size })}
+                  </span>
+                )}
+                <div className="flex items-center gap-2">
+                  {onAssignSelected && (
+                    <Button
+                      variant="secondary"
+                      onClick={() => onAssignSelected(Array.from(selectedTasks))}
+                      disabled={selectedTasks.size === 0 || isDeleting || isBatchUnassigning}
+                    >
+                      {t('tasks.assignSelected')}
+                    </Button>
+                  )}
+                  {onMoveTasks && movableSets.length > 1 && (
+                    <Button
+                      variant="secondary"
+                      onClick={() => setShowMoveDialog(true)}
+                      disabled={selectedTasks.size === 0}
+                    >
+                      {t('tasks.moveToSet')}
+                    </Button>
+                  )}
+                  {onBatchUnassignTasks && (
+                    <Button
+                      variant="secondary"
+                      onClick={() => setConfirmBatchUnassign(true)}
+                      disabled={
+                        selectedTasks.size === 0 ||
+                        !selectedTasksHaveAssignments ||
+                        isDeleting ||
+                        isBatchUnassigning
+                      }
+                      title={
+                        selectedTasks.size === 0
+                          ? t('tasks.selectToUnassign')
+                          : !selectedTasksHaveAssignments
+                            ? t('tasks.noAssignments')
+                            : undefined
+                      }
+                    >
+                      {isBatchUnassigning ? t('tasks.unassigning') : t('tasks.unassignSelected')}
+                    </Button>
+                  )}
+                  {onDeleteTasks && (
+                    <Button
+                      variant="dangerQuiet"
+                      onClick={() => setConfirmDelete(true)}
+                      disabled={selectedTasks.size === 0 || isDeleting || isBatchUnassigning}
+                    >
+                      {t('deleteSelected')}
+                    </Button>
                   )}
                 </div>
-              )}
+              </div>
 
-              {/* Footer Stats */}
-              {filteredTasks.length > 0 &&
-                (() => {
-                  const counts = countTasksByStatus(filteredTasks);
-                  return (
-                    <div className="mt-4 flex items-center gap-6 text-sm text-neutral-600">
-                      <span>
-                        {t('tasks.counts.filtered')}{' '}
-                        <strong className="text-neutral-900">{filteredTasks.length}</strong>
-                      </span>
-                      <span>
-                        {t('tasks.counts.complete')}{' '}
-                        <strong className="text-neutral-900">{counts.done}</strong>
-                      </span>
-                      <span>
-                        {t('tasks.counts.partial')}{' '}
-                        <strong className="text-neutral-900">{counts.partial}</strong>
-                      </span>
-                      <span>
-                        {t('tasks.counts.conflicting')}{' '}
-                        <strong className="text-neutral-900">{counts.conflicting}</strong>
-                      </span>
-                      <span>
-                        {t('tasks.counts.pending')}{' '}
-                        <strong className="text-neutral-900">{counts.pending}</strong>
-                      </span>
-                      <span>
-                        {t('tasks.counts.skipped')}{' '}
-                        <strong className="text-neutral-900">{counts.skipped}</strong>
-                      </span>
-                    </div>
-                  );
-                })()}
+              {/* Right: pool-wide actions */}
+              <div className="flex items-center gap-2">
+                {onOpenBulkAssign && (
+                  <Button
+                    variant="secondary"
+                    onClick={onOpenBulkAssign}
+                    disabled={isDeleting || isBatchUnassigning}
+                  >
+                    {t('tasks.assignAll')}
+                  </Button>
+                )}
+                {onOpenReviewerAssign && (
+                  <Button
+                    variant="secondary"
+                    onClick={onOpenReviewerAssign}
+                    disabled={isDeleting || isBatchUnassigning}
+                  >
+                    {t('tasks.setUpReviews')}
+                  </Button>
+                )}
+              </div>
             </div>
-          </>
-        )}
+          )}
 
-        {selectable && (
-          <>
-            <ConfirmDialog
-              isOpen={confirmDelete}
-              title={t('tasks.confirmDeleteTitle')}
-              description={
-                deleteAnnotations
-                  ? t('tasks.confirmDeleteWithAnnotations', { count: selectedTasks.size })
-                  : t('tasks.confirmDeleteKeepAnnotations', { count: selectedTasks.size })
-              }
-              confirmText={t('common:actions.delete')}
-              cancelText={t('common:actions.cancel')}
-              isDangerous
-              isLoading={isDeleting}
-              onConfirm={handleDeleteSelected}
-              onCancel={closeConfirmDelete}
-            >
-              {selectedAnnotationCount > 0 && (
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={deleteAnnotations}
-                    onChange={(e) => setDeleteAnnotations(e.target.checked)}
-                    className="w-4 h-4 rounded border-neutral-300 text-brand-700 focus:ring-brand-600 cursor-pointer"
-                    data-testid="delete-task-annotations"
-                  />
-                  <span className="text-xs text-neutral-600">
-                    {t('tasks.alsoDeleteAnnotations', { count: selectedAnnotationCount })}
+          {filteredTasks.length === 0 ? (
+            <div className="text-center py-12">
+              <svg
+                className="w-12 h-12 text-neutral-400 mx-auto mb-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                />
+              </svg>
+              <p className="text-neutral-700 mb-2">{t('tasks.noMatchesTitle')}</p>
+              <p className="text-neutral-500 text-sm">{t('noMatches')}</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className={tableHeadRowCls}>
+                    {selectable && (
+                      <th className="px-4 py-3 text-left w-8">
+                        <input
+                          type="checkbox"
+                          checked={
+                            selectedTasks.size === filteredTasks.length && filteredTasks.length > 0
+                          }
+                          onChange={handleSelectAll}
+                          className="w-4 h-4 text-brand-600 rounded focus:ring-brand-600"
+                        />
+                      </th>
+                    )}
+                    <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
+                      {t('tasks.columns.annotationNumber')}
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
+                      {t('tasks.columns.status')}
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
+                      {t('tasks.columns.coordinates')}
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
+                      {t('tasks.columns.annotations')}
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
+                      {t('tasks.columns.actions')}
+                    </th>
+                    {formFields.length > 0 && <th className="w-10 px-2 py-3" />}
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageTasks.map((task, index) => {
+                    const latLon = extractCentroidFromWKT(task.geometry_wkt);
+                    const taskStatus = task.task_status;
+                    const assignments = task.assignments;
+                    const annotations = task.annotations || [];
+                    const isAssignedToMe =
+                      currentUser && assignments.some((a) => a.user_id === currentUser.id);
+                    const isSelected = selectable && selectedTasks.has(task.id);
+                    const answered = annotations.filter(
+                      (ann) => answeredFields(formFields, ann.form_values).length > 0
+                    );
+                    const expanded = expandedTaskId === task.id;
+
+                    return (
+                      <Fragment key={task.id}>
+                        <tr
+                          className={listRowCls(index, {
+                            tinted: Boolean(isAssignedToMe),
+                            selected: isSelected,
+                          })}
+                        >
+                          {selectable && (
+                            <td className="px-4 py-3">
+                              <input
+                                type="checkbox"
+                                checked={selectedTasks.has(task.id)}
+                                onChange={() => handleToggleTask(task.id)}
+                                className="w-4 h-4 text-brand-600 rounded focus:ring-brand-600"
+                              />
+                            </td>
+                          )}
+                          <td className="px-4 py-3 text-neutral-900 font-medium">
+                            {task.annotation_number}
+                            {(task.nearby_annotation_count ?? 0) > 0 && (
+                              <span
+                                className="ml-1.5 px-1.5 py-0.5 text-xs font-normal rounded bg-red-50 text-red-700 tabular-nums"
+                                title={t('tasks.nearbyTitle')}
+                              >
+                                {t('tasks.nearby', {
+                                  count: task.nearby_annotation_count ?? 0,
+                                })}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={`inline-block px-2 py-1 rounded text-xs font-medium capitalize ${getTaskStatusColor(taskStatus)}`}
+                            >
+                              {formatTaskStatus(taskStatus)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-neutral-900 text-xs font-mono">
+                            {latLon ? `${latLon.lat.toFixed(5)}, ${latLon.lon.toFixed(5)}` : '-'}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap gap-1">
+                              {annotations.length > 0 ? (
+                                annotations.map((ann) => {
+                                  const annotator = assignments.find(
+                                    (a) => a.user_id === ann.created_by_user_id
+                                  );
+                                  const isCurrentUser = ann.created_by_user_id === currentUser?.id;
+                                  const displayName = isCurrentUser
+                                    ? currentUser.display_name || currentUser.email || t('youName')
+                                    : ann.created_by_user_display_name ||
+                                      ann.created_by_user_email ||
+                                      annotator?.user_display_name ||
+                                      annotator?.user_email ||
+                                      ann.created_by_user_id?.substring(0, 8) ||
+                                      t('unknownUser');
+
+                                  const isSkippedAnn = ann.outcome === 'skipped';
+                                  const label = ann.label_id
+                                    ? `#${ann.label_id}`
+                                    : (outcomeLabel(ann.outcome) ?? '-');
+                                  const confidence =
+                                    ann.confidence != null ? `${ann.confidence}/5` : '-';
+                                  const hasComment = ann.comment && ann.comment.trim() !== '';
+                                  const isExtra = ann.counts_toward_completion === false;
+
+                                  return (
+                                    <div
+                                      key={ann.id}
+                                      className={`text-xs px-2 py-1 rounded inline-flex items-center gap-1 ${ann.flagged_for_review ? 'bg-rose-50 text-rose-800 border border-rose-300' : isSkippedAnn ? 'bg-violet-100 text-violet-700' : 'bg-neutral-100 text-neutral-700'} ${isExtra ? 'opacity-60' : ''}`}
+                                    >
+                                      {ann.flagged_for_review && (
+                                        <span
+                                          className="text-rose-600"
+                                          title={ann.flag_comment || t('flaggedForReview')}
+                                        >
+                                          <IconFlag className="w-3.5 h-3.5" />
+                                        </span>
+                                      )}
+                                      <span
+                                        className="font-medium"
+                                        title={t('tasks.annotatorTitle')}
+                                      >
+                                        {displayName}
+                                      </span>
+                                      {isExtra && (
+                                        <>
+                                          <span className="text-neutral-400">|</span>
+                                          <span
+                                            className="px-1 py-0.5 rounded bg-neutral-200 text-neutral-500 text-[9px] font-semibold uppercase tracking-wide"
+                                            title={t('tasks.extraTitle')}
+                                          >
+                                            {t('tasks.extra')}
+                                          </span>
+                                        </>
+                                      )}
+                                      <span className="text-neutral-400">|</span>
+                                      <span title={t('tasks.labelIdTitle')}>{label}</span>
+                                      <span className="text-neutral-400">|</span>
+                                      <span
+                                        className={ann.confidence != null ? 'font-bold' : ''}
+                                        title={t('tasks.confidenceTitle')}
+                                      >
+                                        {confidence}
+                                      </span>
+                                      {ann.active_seconds != null && (
+                                        <>
+                                          <span className="text-neutral-400">|</span>
+                                          <span title={t('tasks.activeTimeTitle')}>
+                                            {formatDuration(ann.active_seconds)}
+                                          </span>
+                                        </>
+                                      )}
+                                      {hasComment && (
+                                        <>
+                                          <span className="text-neutral-400">|</span>
+                                          <Tooltip text={ann.comment ?? ''}>
+                                            <svg
+                                              className="w-3.5 h-3.5"
+                                              fill="none"
+                                              viewBox="0 0 24 24"
+                                              stroke="currentColor"
+                                            >
+                                              <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                                              />
+                                            </svg>
+                                          </Tooltip>
+                                        </>
+                                      )}
+                                    </div>
+                                  );
+                                })
+                              ) : (
+                                <span className="text-xs text-neutral-400">-</span>
+                              )}
+                              {/* Placeholder labels for assigned users who haven't annotated yet */}
+                              {assignments
+                                .filter(
+                                  (a) =>
+                                    a.status === 'pending' &&
+                                    !annotations.some((ann) => ann.created_by_user_id === a.user_id)
+                                )
+                                .map((a) => {
+                                  const isCurrentUser = a.user_id === currentUser?.id;
+                                  const displayName = isCurrentUser
+                                    ? currentUser.display_name || currentUser.email || t('youName')
+                                    : a.user_display_name ||
+                                      a.user_email ||
+                                      a.user_id.substring(0, 8);
+                                  return (
+                                    <div
+                                      key={`pending-${a.user_id}`}
+                                      className="text-xs px-2 py-1 rounded inline-flex items-center gap-1 border border-dashed border-neutral-300 text-neutral-400 bg-neutral-50"
+                                      title={t('tasks.awaitingTitle')}
+                                    >
+                                      <span className="font-medium">{displayName}</span>
+                                      <span className="text-neutral-300">|</span>
+                                      <span className="italic">{t('tasks.awaiting')}</span>
+                                    </div>
+                                  );
+                                })}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={() => handleNavigateToTask(task.id)}
+                              className="text-brand-700 hover:text-brand-900 text-sm font-medium transition-colors"
+                            >
+                              {taskStatus === 'pending' || taskStatus === 'skipped'
+                                ? t('tasks.annotate')
+                                : t('view')}
+                            </button>
+                          </td>
+                          {formFields.length > 0 && (
+                            <td className="px-2 py-3">
+                              <button
+                                type="button"
+                                onClick={() => setExpandedTaskId(expanded ? null : task.id)}
+                                aria-expanded={expanded}
+                                disabled={answered.length === 0}
+                                title={
+                                  answered.length === 0
+                                    ? t('answers.none')
+                                    : expanded
+                                      ? t('answers.hide')
+                                      : t('answers.show')
+                                }
+                                aria-label={
+                                  expanded
+                                    ? t('answers.hideForTask', {
+                                        number: task.annotation_number,
+                                      })
+                                    : t('answers.showForTask', {
+                                        number: task.annotation_number,
+                                      })
+                                }
+                                data-testid={`toggle-answers-${task.id}`}
+                                className="grid h-6 w-6 place-items-center rounded text-neutral-400 transition-colors hover:bg-neutral-200/60 hover:text-neutral-700 disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent"
+                              >
+                                {expanded ? (
+                                  <IconChevronDown className="h-4 w-4" />
+                                ) : (
+                                  <IconChevronRight className="h-4 w-4" />
+                                )}
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                        {expanded && (
+                          <tr className="border-b border-neutral-100 bg-neutral-50/60">
+                            <td colSpan={selectable ? 7 : 6} className="px-4 py-3">
+                              {/* A task can hold several people's answers, so
+                                    each set says whose it is. */}
+                              <div className="flex flex-col gap-3">
+                                {answered.map((ann) => (
+                                  <div key={ann.id} className="flex flex-col gap-1">
+                                    <span className="text-[11px] font-semibold text-neutral-600">
+                                      {ann.created_by_user_display_name ||
+                                        ann.created_by_user_email ||
+                                        t('unknownUser')}
+                                    </span>
+                                    <FormAnswers fields={formFields} values={ann.form_values} />
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {pageCount > 1 && (
+                <div className="flex items-center justify-between gap-3 py-4 text-sm text-neutral-500">
+                  <span>
+                    {t('tasks.pageRange', {
+                      from: (pageStart + 1).toLocaleString(),
+                      to: (pageStart + pageTasks.length).toLocaleString(),
+                      total: filteredTasks.length.toLocaleString(),
+                    })}
                   </span>
-                </label>
+                  <div className="flex items-center gap-3">
+                    <Button
+                      variant="secondary"
+                      disabled={currentPage === 0}
+                      onClick={() => setPage(currentPage - 1)}
+                    >
+                      {t('previous')}
+                    </Button>
+                    <span className="tabular-nums">
+                      {t('pageOf', {
+                        page: currentPage + 1,
+                        pages: pageCount.toLocaleString(),
+                      })}
+                    </span>
+                    <Button
+                      variant="secondary"
+                      disabled={currentPage >= pageCount - 1}
+                      onClick={() => setPage(currentPage + 1)}
+                    >
+                      {t('common:actions.next')}
+                    </Button>
+                  </div>
+                </div>
               )}
-            </ConfirmDialog>
+            </div>
+          )}
 
-            <ConfirmDialog
-              isOpen={confirmBatchUnassign}
-              title={t('tasks.confirmUnassignTitle')}
-              description={t('tasks.confirmUnassignDescription', { count: selectedTasks.size })}
-              confirmText={t('tasks.unassign')}
-              cancelText={t('common:actions.cancel')}
-              isDangerous
-              isLoading={isBatchUnassigning}
-              onConfirm={handleBatchUnassignSelected}
-              onCancel={() => setConfirmBatchUnassign(false)}
-            />
+          {/* Footer Stats */}
+          {filteredTasks.length > 0 &&
+            (() => {
+              const counts = countTasksByStatus(filteredTasks);
+              return (
+                <div className="mt-4 flex items-center gap-6 text-sm text-neutral-600">
+                  <span>
+                    {t('tasks.counts.filtered')}{' '}
+                    <strong className="text-neutral-900">{filteredTasks.length}</strong>
+                  </span>
+                  <span>
+                    {t('tasks.counts.complete')}{' '}
+                    <strong className="text-neutral-900">{counts.done}</strong>
+                  </span>
+                  <span>
+                    {t('tasks.counts.partial')}{' '}
+                    <strong className="text-neutral-900">{counts.partial}</strong>
+                  </span>
+                  <span>
+                    {t('tasks.counts.conflicting')}{' '}
+                    <strong className="text-neutral-900">{counts.conflicting}</strong>
+                  </span>
+                  <span>
+                    {t('tasks.counts.pending')}{' '}
+                    <strong className="text-neutral-900">{counts.pending}</strong>
+                  </span>
+                  <span>
+                    {t('tasks.counts.skipped')}{' '}
+                    <strong className="text-neutral-900">{counts.skipped}</strong>
+                  </span>
+                </div>
+              );
+            })()}
+        </div>
+      </>
 
-            <MoveTasksDialog
-              isOpen={showMoveDialog}
-              taskSets={movableSets}
-              numTasks={selectedTasks.size}
-              onMove={async (taskSetId) => {
-                if (onMoveTasks) await onMoveTasks(Array.from(selectedTasks), taskSetId);
-                setSelectedTasks(new Set());
-                setShowMoveDialog(false);
-              }}
-              onCreateSet={async (name) => (onCreateSet ? onCreateSet(name) : null)}
-              onCancel={() => setShowMoveDialog(false)}
-            />
-          </>
-        )}
-      </FadeIn>
-    </div>
+      {selectable && (
+        <>
+          <ConfirmDialog
+            isOpen={confirmDelete}
+            title={t('tasks.confirmDeleteTitle')}
+            description={
+              deleteAnnotations
+                ? t('tasks.confirmDeleteWithAnnotations', { count: selectedTasks.size })
+                : t('tasks.confirmDeleteKeepAnnotations', { count: selectedTasks.size })
+            }
+            confirmText={t('common:actions.delete')}
+            cancelText={t('common:actions.cancel')}
+            isDangerous
+            isLoading={isDeleting}
+            onConfirm={handleDeleteSelected}
+            onCancel={closeConfirmDelete}
+          >
+            {selectedAnnotationCount > 0 && (
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={deleteAnnotations}
+                  onChange={(e) => setDeleteAnnotations(e.target.checked)}
+                  className="w-4 h-4 rounded border-neutral-300 text-brand-700 focus:ring-brand-600 cursor-pointer"
+                  data-testid="delete-task-annotations"
+                />
+                <span className="text-xs text-neutral-600">
+                  {t('tasks.alsoDeleteAnnotations', { count: selectedAnnotationCount })}
+                </span>
+              </label>
+            )}
+          </ConfirmDialog>
+
+          <ConfirmDialog
+            isOpen={confirmBatchUnassign}
+            title={t('tasks.confirmUnassignTitle')}
+            description={t('tasks.confirmUnassignDescription', { count: selectedTasks.size })}
+            confirmText={t('tasks.unassign')}
+            cancelText={t('common:actions.cancel')}
+            isDangerous
+            isLoading={isBatchUnassigning}
+            onConfirm={handleBatchUnassignSelected}
+            onCancel={() => setConfirmBatchUnassign(false)}
+          />
+
+          <MoveTasksDialog
+            isOpen={showMoveDialog}
+            taskSets={movableSets}
+            numTasks={selectedTasks.size}
+            onMove={async (taskSetId) => {
+              if (onMoveTasks) await onMoveTasks(Array.from(selectedTasks), taskSetId);
+              setSelectedTasks(new Set());
+              setShowMoveDialog(false);
+            }}
+            onCreateSet={async (name) => (onCreateSet ? onCreateSet(name) : null)}
+            onCancel={() => setShowMoveDialog(false)}
+          />
+        </>
+      )}
+    </FadeIn>
   );
 };

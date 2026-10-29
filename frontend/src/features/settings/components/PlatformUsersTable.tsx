@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Spinner } from '~/shared/ui/Spinner';
 import { useTranslation } from 'react-i18next';
 import type { UserOutDetailed } from '~/api/client';
 import { Button } from '~/shared/ui/forms';
@@ -142,7 +143,7 @@ export const PlatformUsersTable = ({
               <tr>
                 <td colSpan={5} className="px-4 py-10">
                   <div className="flex flex-col items-center gap-2">
-                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-200 border-t-brand-600" />
+                    <Spinner size="sm" />
                     <span className="text-xs text-neutral-500">{t('usersTable.loading')}</span>
                   </div>
                 </td>
@@ -169,19 +170,19 @@ export const PlatformUsersTable = ({
                   <td className="px-4 py-3 text-sm text-neutral-600">{user.display_name || '-'}</td>
                   <td className="px-4 py-3">
                     <span
-                      data-user-role={user.is_admin ? 'admin' : 'user'}
+                      data-user-role={user.is_platform_admin ? 'admin' : 'user'}
                       className={`inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded-full border ${
-                        user.is_admin
+                        user.is_platform_admin
                           ? 'bg-accent-50 text-accent-800 border-accent-200'
                           : 'bg-neutral-50 text-neutral-700 border-neutral-200'
                       }`}
                     >
-                      {user.is_admin ? t('usersTable.admin') : t('usersTable.user')}
+                      {user.is_platform_admin ? t('usersTable.admin') : t('usersTable.user')}
                     </span>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1.5">
-                      {!user.is_admin ? (
+                      {!user.is_platform_admin ? (
                         <button
                           onClick={() => handleSingleAction(user.id, 'grant-admin')}
                           disabled={processingAction}

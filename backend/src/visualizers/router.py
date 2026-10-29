@@ -9,10 +9,9 @@ from src.auth.dependencies import optional_user, require_authenticated_user
 from src.auth.models import User
 from src.database import get_db
 from src.imagery import registration
-from src.organizations.service import is_active_org_member
-from src.projects.access import has_project_access
 from src.projects.dependencies import require_project_access, require_project_admin
-from src.projects.models import Project, ProjectUser
+from src.projects.models import Project
+from src.projects.viewer import project_flags
 from src.tilers.tokens import TILER_TOKEN_TTL, set_tiler_cookie
 from src.visualizers import service
 from src.visualizers.dependencies import require_visualizer_admin
@@ -75,18 +74,22 @@ visualizer_router = APIRouter(
 )
 
 
-@visualizer_router.get("", response_model=VisualizerConfigOut)
-def get_visualizer(
-    visualizer: Visualizer = Depends(require_visualizer_admin),
-    db: Session = Depends(get_db),
-):
-    # The editor polls this while imagery registers; recover here if the run's
-    # worker died, so nobody is left watching "registering" forever.
+def _recover_stale_registration(db: Session, visualizer: Visualizer) -> None:
+    """The map polls while its imagery registers; a run whose worker died is failed
+    here, so nobody is left watching "registering" forever."""
     if visualizer.registration_status == "registering" and background.fail_stale_status_runs(
         db, (registration.VISUALIZER_REGISTRATION_RUN,), row_id=visualizer.id
     ):
         db.commit()
         db.refresh(visualizer)
+
+
+@visualizer_router.get("", response_model=VisualizerConfigOut)
+def get_visualizer(
+    visualizer: Visualizer = Depends(require_visualizer_admin),
+    db: Session = Depends(get_db),
+):
+    _recover_stale_registration(db, visualizer)
     return service.config_out(visualizer)
 
 
@@ -166,22 +169,9 @@ def _require_viewer(
             raise HTTPException(status_code=404, detail="Visualizer not found")
         return Viewer(visualizer=visualizer, user=None, can_edit=False)
 
-    project = visualizer.project
-    membership = (
-        db.query(ProjectUser)
-        .filter(ProjectUser.project_id == project.id, ProjectUser.user_id == user.id)
-        .one_or_none()
-    )
-    can_edit = (membership is not None and membership.is_admin) or user.is_admin
-    if visualizer.is_public or can_edit:
-        return Viewer(visualizer=visualizer, user=user, can_edit=can_edit)
-    if has_project_access(
-        visibility=project.visibility,
-        is_active_org_member=is_active_org_member(db, user.id, project.organization_id),
-        is_member=membership is not None,
-        is_platform_admin=user.is_admin,
-    ):
-        return Viewer(visualizer=visualizer, user=user, can_edit=False)
+    flags = project_flags(db, user, visualizer.project)
+    if visualizer.is_public or flags.has_access:
+        return Viewer(visualizer=visualizer, user=user, can_edit=flags.is_admin)
     raise HTTPException(status_code=404, detail="Visualizer not found")
 
 
@@ -190,11 +180,14 @@ def get_shared_visualizer(
     viewer: Viewer = Depends(_require_viewer),
     db: Session = Depends(get_db),
 ):
+    _recover_stale_registration(db, viewer.visualizer)
+    renew_at = service.renew_imagery(db, viewer.visualizer)
     return service.build_view(
         db,
         viewer.visualizer,
         can_edit=viewer.can_edit,
         can_give_feedback=viewer.can_give_feedback,
+        imagery_renew_at=renew_at,
     )
 
 
@@ -216,18 +209,17 @@ def get_visualizer_tiler_token(
     response: Response,
     viewer: Viewer = Depends(_require_viewer),
 ):
-    """Tile access for exactly the campaigns this visualizer draws from.
+    """Tile access for exactly what this visualizer shows.
 
-    Scoping the token to the visualizer's own campaigns is what lets a visitor
-    with no account fetch its tiles without opening anything else. The scopes
-    alone would be the whole of those campaigns, so the token also names the
-    visualizer and the tile proxy serves it nothing else.
+    The token names the visualizer itself and the single campaign layers it
+    links, never those campaigns, which is what lets a visitor with no account
+    fetch its tiles without opening anything else.
     """
     set_tiler_cookie(
         response,
         sub=f"visualizer:{viewer.visualizer.id}",
-        campaigns=service.tile_scopes(viewer.visualizer),
-        visualizer_id=viewer.visualizer.id,
+        owners=[viewer.visualizer.layer_owner.tile_scope],
+        layers=service.linked_tile_layers(viewer.visualizer),
     )
     return TilerSessionOut(expires_in=TILER_TOKEN_TTL)
 

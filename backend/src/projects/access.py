@@ -18,18 +18,19 @@ ProjectVisibility = Literal["private", "organization", "public"]
 VISIBILITY_PRIVATE: ProjectVisibility = "private"
 VISIBILITY_ORGANIZATION: ProjectVisibility = "organization"
 VISIBILITY_PUBLIC: ProjectVisibility = "public"
-PROJECT_VISIBILITIES: tuple[ProjectVisibility, ...] = (
-    VISIBILITY_PRIVATE,
-    VISIBILITY_ORGANIZATION,
-    VISIBILITY_PUBLIC,
-)
 
 
 class ProjectFlags(NamedTuple):
     visible: bool
     has_access: bool
+    # Listed as a member: a membership row, or a platform admin.
     is_member: bool
+    # Member standing for labelling policies (see is_policy_member).
+    is_policy_member: bool
     is_admin: bool
+    # Read off the membership row alone: platform admins get no authoritative
+    # submit without it.
+    is_authoritative_reviewer: bool
 
 
 def has_project_access(
@@ -72,6 +73,7 @@ def resolve_project_flags(
     is_active_org_member: bool,
     is_member: bool,
     member_is_admin: bool,
+    member_is_authoritative_reviewer: bool = False,
     is_platform_admin: bool,
 ) -> ProjectFlags:
     """Visibility/permission matrix for one (project, viewer) pair. Org members
@@ -83,6 +85,16 @@ def resolve_project_flags(
         is_member=is_member,
         is_platform_admin=is_platform_admin,
     )
-    visible = has_access or is_active_org_member
-    is_admin = is_platform_admin or (is_member and member_is_admin)
-    return ProjectFlags(visible, has_access, is_member or is_platform_admin, is_admin)
+    return ProjectFlags(
+        visible=has_access or is_active_org_member,
+        has_access=has_access,
+        is_member=is_member or is_platform_admin,
+        is_policy_member=is_policy_member(
+            visibility=visibility,
+            is_active_org_member=is_active_org_member,
+            is_member=is_member,
+            is_platform_admin=is_platform_admin,
+        ),
+        is_admin=is_platform_admin or (is_member and member_is_admin),
+        is_authoritative_reviewer=is_member and member_is_authoritative_reviewer,
+    )

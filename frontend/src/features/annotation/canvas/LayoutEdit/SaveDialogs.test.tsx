@@ -11,6 +11,7 @@ const BASE: WorkspaceLayout = {
     timeseries: {},
   },
   windows: {},
+  hidden: [],
 };
 
 const MAIN_CHANGED: WorkspaceLayout = {

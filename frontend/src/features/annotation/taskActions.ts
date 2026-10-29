@@ -1,11 +1,11 @@
 import {
-  claimNextAnnotationTask,
-  completeAnnotationTask,
+  claimNextTask,
+  annotateTask,
   deleteAnnotation,
-  validateAnnotationSubmission,
-  type AnnotationTaskAssignmentOut,
-  type AnnotationTaskOut,
-  type AnnotationTaskSubmitResponse,
+  validateTaskLabel,
+  type TaskAssignmentOut,
+  type TaskOut,
+  type TaskSubmitResponse,
 } from '~/api/client';
 import i18n from '~/shared/i18n';
 import { useLayoutStore as useGlobalLayoutStore } from '~/shared/stores/layout.store';
@@ -17,15 +17,14 @@ import {
   validateForm,
   type FormValues,
   type SubmitReadiness,
-  type TaskStatus,
 } from './campaign/annotation';
 import { listNotes, type SliceComment } from './campaign/sliceComments';
 import { usesClaimPool } from './campaign/tasks';
-import { campaignState, formFields, useCampaignStore } from './stores/campaign';
+import { campaignState, formFields, useCampaignStore, viewedSliceId } from './stores/campaign';
 import { currentTask, useTasksStore } from './stores/tasks';
 import { usePrefsStore } from './stores/prefs';
 import { forgetTaskActiveMs, readTaskActiveMs } from './taskTiming';
-import { useWorkStore } from './stores/work';
+import { drewFor, useWorkStore } from './stores/work';
 
 const t = i18n.getFixedT(null, ['annotation', 'common']);
 
@@ -47,15 +46,15 @@ export interface TaskPolicy {
  * one that may be given at all. Fails open before anything is loaded; the
  * server stays the authority regardless.
  */
-export function taskLabellingPolicy(task: AnnotationTaskOut | null): TaskPolicy {
+export function taskLabellingPolicy(task: TaskOut | null): TaskPolicy {
   const { campaign, currentUserId } = useCampaignStore.getState();
-  const isAssignedToTask = task?.assignments?.some((a) => a.user_id === currentUserId) ?? false;
+  const isAssignedToTask = task?.assignments.some((a) => a.user_id === currentUserId) ?? false;
   const policy = campaign?.settings.labelling_policy;
   if (!campaign || !task || !policy) {
     return { mayLabel: true, countsTowardCompletion: true, isAssignedToTask };
   }
 
-  const assigned = (task.assignments?.length ?? 0) > 0;
+  const assigned = task.assignments.length > 0;
   const ctx: PolicyContext = {
     userId: currentUserId,
     isAdmin: campaign.viewer_is_admin ?? false,
@@ -80,34 +79,21 @@ export function taskLabellingPolicy(task: AnnotationTaskOut | null): TaskPolicy 
 type SubmitOutcome =
   | { kind: 'blocked'; missing: string[] }
   | { kind: 'needsConfirm' }
-  | { kind: 'submitted'; task: AnnotationTaskOut }
-  | { kind: 'removed'; task: AnnotationTaskOut }
+  | { kind: 'submitted'; task: TaskOut }
+  | { kind: 'removed'; task: TaskOut }
+  | { kind: 'gone' }
   | { kind: 'error'; message: string };
 
-const TASK_STATUSES = ['pending', 'partial', 'done', 'skipped', 'conflicting'] as const;
-const ASSIGNMENT_STATUSES = ['pending', 'done', 'skipped'] as const;
-
-/** The submit and delete responses type these as plain strings. */
-const toTaskStatus = (value: string | undefined): TaskStatus | undefined =>
-  TASK_STATUSES.find((status) => status === value);
-
-const toAssignmentStatus = (
-  value: string | undefined
-): AnnotationTaskAssignmentOut['status'] | undefined =>
-  ASSIGNMENT_STATUSES.find((status) => status === value);
-
 function withAssignmentStatus(
-  task: AnnotationTaskOut,
+  task: TaskOut,
   currentUserId: string,
-  status: string | undefined
-): AnnotationTaskAssignmentOut[] {
-  return (task.assignments || []).map((a) =>
-    a.user_id === currentUserId ? { ...a, status: toAssignmentStatus(status) ?? 'pending' } : a
-  );
+  status: TaskAssignmentOut['status']
+): TaskAssignmentOut[] {
+  return task.assignments.map((a) => (a.user_id === currentUserId ? { ...a, status } : a));
 }
 
 export interface SubmitParams {
-  task: AnnotationTaskOut;
+  task: TaskOut;
   currentUserId: string;
   labelId: number | null;
   comment: string;
@@ -133,6 +119,10 @@ export interface SubmitParams {
 export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome> {
   const campaignId = campaignState().campaign.id;
   const { task, currentUserId, labelId, comment } = params;
+  // Read before the first await: what the user is looking at can change while
+  // the validation round trip is out.
+  const imagerySliceId = viewedSliceId();
+  const activeMs = readTaskActiveMs(task.id);
 
   // Guarded here rather than only in the button's disabled state: the Enter
   // key calls this directly and would otherwise reach the backend's 422.
@@ -144,20 +134,21 @@ export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome
 
   const mine = task.annotations.find((a) => a.created_by_user_id === currentUserId);
 
-  // "Take my label off this task": nothing chosen, one already there, and no
-  // comment being added.
-  if (!params.isSkip && labelId === null && mine?.label_id != null && !comment) {
+  // "Take my label off this task": nothing chosen and one already there. The
+  // form carries the stored comment along, so a comment is no sign of a skip.
+  if (!params.isSkip && labelId === null && mine?.label_id != null) {
     try {
       const { data } = await deleteAnnotation({
         path: { campaign_id: campaignId, annotation_id: mine.id },
       });
+      if (!data) return { kind: 'error', message: t('taskActions.submitFailed') };
       return {
         kind: 'removed',
         task: {
           ...task,
           annotations: task.annotations.filter((a) => a.id !== mine.id),
-          assignments: withAssignmentStatus(task, currentUserId, data?.assignment_status),
-          task_status: toTaskStatus(data?.task_status) ?? 'pending',
+          assignments: withAssignmentStatus(task, currentUserId, data.assignment_status),
+          task_status: data.task_status,
         },
       };
     } catch (error) {
@@ -167,8 +158,8 @@ export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome
 
   if (params.knnValidationEnabled && labelId !== null && !params.confirmMismatch) {
     try {
-      const validation = await validateAnnotationSubmission({
-        path: { campaign_id: campaignId, annotation_task_id: task.id },
+      const validation = await validateTaskLabel({
+        path: { campaign_id: campaignId, task_id: task.id },
         query: { label_id: labelId },
       });
       if (validation.data?.status === 'mismatch') return { kind: 'needsConfirm' };
@@ -178,8 +169,8 @@ export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome
   }
 
   try {
-    const response = await completeAnnotationTask({
-      path: { campaign_id: campaignId, annotation_task_id: task.id },
+    const response = await annotateTask({
+      path: { campaign_id: campaignId, task_id: task.id },
       body: {
         label_id: labelId,
         comment: comment || null,
@@ -190,10 +181,14 @@ export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome
         form_values: Object.keys(params.formValues).length ? params.formValues : null,
         slice_comments: params.sliceComments,
         outcome: params.outcome ?? null,
-        active_ms: readTaskActiveMs(task.id),
+        imagery_slice_id: imagerySliceId,
+        active_ms: activeMs,
       },
+      throwOnError: false,
     });
-    const result: AnnotationTaskSubmitResponse | undefined = response.data;
+    if (response.response?.status === 404) return { kind: 'gone' };
+    if (response.error) return { kind: 'error', message: extractErrorMessage(response.error) };
+    const result: TaskSubmitResponse | undefined = response.data;
     if (!result) return { kind: 'error', message: t('taskActions.submitFailed') };
 
     // Only once the backend has it: a failed submit keeps the time for the retry.
@@ -207,7 +202,7 @@ export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome
           result.annotation,
         ],
         assignments: withAssignmentStatus(task, currentUserId, result.assignment_status),
-        task_status: toTaskStatus(result.task_status) ?? task.task_status,
+        task_status: result.task_status,
       },
     };
   } catch (error) {
@@ -224,7 +219,7 @@ const alert = (message: string, kind: 'error' | 'success') =>
 
 /** The Submit button's own enabled state, read off the live stores so the
  *  keyboard path can never diverge from it. */
-export function currentSubmitReadiness(): SubmitReadiness {
+function currentSubmitReadiness(): SubmitReadiness {
   const task = currentTask();
   const { currentUserId } = useCampaignStore.getState();
   const mine = task?.annotations.find((a) => a.created_by_user_id === currentUserId);
@@ -272,15 +267,21 @@ async function run(options: {
   else if (outcome.kind === 'error') alert(outcome.message, 'error');
   else if (outcome.kind === 'submitted') {
     tasks.replaceTask(outcome.task, catalog);
-    await advance();
+    // Only off the task that was answered: anything else is where the user
+    // has since chosen to be.
+    if (currentTask()?.id === task.id) await advance();
   } else if (outcome.kind === 'removed') {
     tasks.replaceTask(outcome.task, catalog);
+  } else if (outcome.kind === 'gone') {
+    tasks.removeTasks([task.id], catalog);
+    alert(t('taskActions.taskDeleted'), 'error');
   }
   return outcome;
 }
 
 /**
- * Move to the next task to work on.
+ * Move to the next task to work on. Behind the newest task of the session
+ * that is the next one already visited; past it, a new one.
  *
  * In the unassigned pool the server picks it: only it knows what is still
  * free, and it claims the task in the same transaction, so annotators working
@@ -291,6 +292,7 @@ async function run(options: {
 export async function advance(): Promise<void> {
   const { catalog } = campaignState();
   const tasks = useTasksStore.getState();
+  if (tasks.forward(catalog)) return;
   if (!usesClaimPool(tasks.filter)) {
     tasks.next(catalog);
     return;
@@ -298,19 +300,30 @@ export async function advance(): Promise<void> {
 
   const current = currentTask();
   try {
-    const { data } = await claimNextAnnotationTask({
+    const { data } = await claimNextTask({
       path: { campaign_id: campaignState().campaign.id },
       query: {
         task_set_id: tasks.filter.taskSetId,
         after_annotation_number: current?.annotation_number,
       },
     });
-    if (data?.task) useTasksStore.getState().adoptTask(data.task, catalog);
-    else alert(t('taskActions.noneLeft'), 'success');
+    if (data?.task) {
+      useTasksStore.getState().adoptTask(data.task, catalog);
+      return;
+    }
+    alert(t('taskActions.noneLeft'), 'success');
+    // Re-filtering drops the tasks just finished, so an empty pool shows the
+    // all-done state now rather than on the next reload.
+    const { filter, setFilter } = useTasksStore.getState();
+    setFilter(filter, Date.now(), catalog);
   } catch (error) {
     handleError(error, t('taskActions.nextFailed'));
   }
 }
+
+/** Next, from the button and the key. Held to one at a time like a submit, so
+ *  quick presses cannot race each other's claims and skip tasks unseen. */
+export const goToNextTask = () => guarded(advance);
 
 const mismatchConfirm = () => ({
   title: t('taskActions.mismatch.title'),
@@ -320,8 +333,8 @@ const mismatchConfirm = () => ({
   isDangerous: true,
 });
 
-/** Runs `body` only while no submit is in flight - the same guard the buttons
- *  enforce through `isSubmitting`. */
+/** Runs `body` only while no submit or step is in flight - the same guard the
+ *  buttons enforce through `isSubmitting`. */
 async function guarded(body: () => Promise<void>): Promise<void> {
   const tasks = useTasksStore.getState();
   if (tasks.isSubmitting) return;
@@ -397,9 +410,15 @@ export async function skipCurrent(): Promise<void> {
  *  map (the server checks there is at least one), `none_found` when there was
  *  nothing to draw. */
 export async function finishDrawTask(outcome: 'drawn' | 'none_found'): Promise<void> {
-  const { draft } = useWorkStore.getState();
+  const { draft, drawnShapes } = useWorkStore.getState();
   if ((draft.phase === 'draft' || draft.phase === 'committing') && draft.savedId === null) {
     alert(t('taskActions.finishDraftFirst'), 'error');
+    return;
+  }
+  const task = currentTask();
+  const { currentUserId } = useCampaignStore.getState();
+  if (outcome === 'drawn' && task && !drewFor(task, currentUserId, drawnShapes)) {
+    alert(t('taskActions.drawFirst'), 'error');
     return;
   }
   await guarded(async () => {

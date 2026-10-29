@@ -1,6 +1,6 @@
 import type { TaskStatus } from '~/shared/utils/taskStatus';
 
-export const SORT_OPTIONS = [
+const SORT_OPTIONS = [
   'default',
   'confidence-asc',
   'confidence-desc',

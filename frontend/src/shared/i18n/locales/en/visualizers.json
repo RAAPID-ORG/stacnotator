@@ -82,6 +82,7 @@
       "viewing": "Viewing"
     },
     "inLayer": " in {{layer}}",
+    "suggestedClass": "{{label}} ({{value}})",
     "delete": "Delete this feedback"
   },
   "restriction": {

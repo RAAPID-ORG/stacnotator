@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import type { AnnotationTaskOut } from '~/api/client';
+import type { TaskOut } from '~/api/client';
 import { buildImageryCatalog } from '../campaign/imagery';
 import { computeTaskProgress } from '../campaign/tasks';
 import {
@@ -38,18 +38,18 @@ const FILTER = {
   taskSetId: null,
 };
 
-function task(id: number, annotationNumber: number, lon: number, lat: number): AnnotationTaskOut {
+function task(id: number, annotationNumber: number, lon: number, lat: number): TaskOut {
   return makeTask({
     id,
     annotation_number: annotationNumber,
-    geometry: { id, geometry: `POINT (${lon} ${lat})` },
+    geometry_wkt: `POINT (${lon} ${lat})`,
   });
 }
 
 const TASK_A = task(1, 1, 0, 0);
 const TASK_B = task(2, 2, 10, 10);
 
-function initialize(tasks: AnnotationTaskOut[], catalog = CATALOG): void {
+function initialize(tasks: TaskOut[], catalog = CATALOG): void {
   useTasksStore.getState().initialize({
     tasks,
     taskSets: [],
@@ -268,7 +268,7 @@ describe('task session sample extent', () => {
       makeTask({
         id: 9,
         annotation_number: 9,
-        geometry: { id: 9, geometry: 'POLYGON ((0 0, 0 1, 1 1, 1 0, 0 0))' },
+        geometry_wkt: 'POLYGON ((0 0, 0 1, 1 1, 1 0, 0 0))',
       }),
     ]);
 
@@ -304,5 +304,109 @@ describe('task session remote progress', () => {
     expect(computeTaskProgress(state.allTasks, [])).toEqual({ total: 3, completed: 2 });
     expect(state.visibleTasks.map((t) => t.id)).toEqual([1, 2]);
     expect(state.visibleTasks[state.currentIndex].id).toBe(1);
+  });
+
+  it('removeTasks() drops a task deleted elsewhere and moves on from it when current', () => {
+    const TASK_C = task(3, 3, 20, 20);
+    initialize([TASK_A, TASK_B, TASK_C]);
+
+    useTasksStore.getState().removeTasks([1], CATALOG);
+
+    const state = useTasksStore.getState();
+    expect(state.allTasks.map((t) => t.id)).toEqual([2, 3]);
+    expect(state.visibleTasks[state.currentIndex].id).toBe(2);
+  });
+});
+
+describe('the session trail', () => {
+  const TASK_C = task(3, 3, 20, 20);
+  const current = () => {
+    const s = useTasksStore.getState();
+    return s.visibleTasks[s.currentIndex]?.id;
+  };
+  const done = (t: TaskOut): TaskOut => ({ ...t, task_status: 'done' });
+
+  afterEach(() => useTasksStore.getState().reset());
+
+  it('goes back to a task the filter dropped once it was finished', () => {
+    useCampaignStore.setState({ campaign: CAMPAIGN });
+    initialize([TASK_A, TASK_B, TASK_C]);
+    const store = useTasksStore.getState();
+    store.replaceTask(done(TASK_A), CATALOG);
+    // The pool hands out B and re-filters; A is done and drops out.
+    store.adoptTask(TASK_B, CATALOG);
+    expect(useTasksStore.getState().visibleTasks.map((t) => t.id)).toEqual([2, 3]);
+
+    useTasksStore.getState().previous(CATALOG);
+    expect(current()).toBe(1);
+    expect(useTasksStore.getState().visibleTasks[0].task_status).toBe('done');
+
+    useTasksStore.getState().next(CATALOG);
+    expect(current()).toBe(2);
+    // At the trail's end, next is the list's next task again.
+    useTasksStore.getState().next(CATALOG);
+    expect(current()).toBe(3);
+  });
+
+  it('walks several steps back and forward again', () => {
+    useCampaignStore.setState({ campaign: CAMPAIGN });
+    initialize([TASK_A, TASK_B, TASK_C]);
+    const { next, previous } = useTasksStore.getState();
+    next(CATALOG);
+    next(CATALOG);
+    previous(CATALOG);
+    previous(CATALOG);
+    expect(current()).toBe(1);
+    expect(useTasksStore.getState().historyPos).toBe(0);
+    expect(useTasksStore.getState().forward(CATALOG)).toBe(true);
+    expect(current()).toBe(2);
+
+    useTasksStore.getState().latest(CATALOG);
+    expect(current()).toBe(3);
+    expect(useTasksStore.getState().forward(CATALOG)).toBe(false);
+  });
+
+  it('opening another task while back drops what lay ahead', () => {
+    useCampaignStore.setState({ campaign: CAMPAIGN });
+    initialize([TASK_A, TASK_B, TASK_C]);
+    useTasksStore.getState().next(CATALOG);
+    useTasksStore.getState().previous(CATALOG);
+    useTasksStore.getState().goToAnnotationNumber(3, CATALOG);
+    expect(useTasksStore.getState().history).toEqual([1, 3]);
+  });
+
+  it('stepping back past the trail start keeps forward leading through it', () => {
+    useCampaignStore.setState({ campaign: CAMPAIGN });
+    useTasksStore.getState().initialize({
+      tasks: [TASK_A, TASK_B, TASK_C],
+      taskSets: [],
+      filter: FILTER,
+      now: 0,
+      catalog: CATALOG,
+      preferTaskId: TASK_B.id,
+    });
+    useTasksStore.getState().previous(CATALOG);
+    expect(current()).toBe(1);
+    useTasksStore.getState().next(CATALOG);
+    expect(current()).toBe(2);
+  });
+
+  it('does not wrap to the last task when stepping back from the first', () => {
+    useCampaignStore.setState({ campaign: CAMPAIGN });
+    initialize([TASK_A, TASK_B, TASK_C]);
+    useTasksStore.getState().previous(CATALOG);
+    expect(current()).toBe(1);
+  });
+
+  it('does not walk back into tasks a changed filter excludes', () => {
+    useCampaignStore.setState({ campaign: CAMPAIGN });
+    initialize([TASK_A, TASK_B, { ...TASK_C, task_status: 'done' }]);
+    useTasksStore.getState().next(CATALOG);
+    useTasksStore.getState().setFilter({ ...FILTER, statuses: ['done'] }, 0, CATALOG);
+    expect(current()).toBe(3);
+
+    useTasksStore.getState().previous(CATALOG);
+    expect(current()).toBe(3);
+    expect(useTasksStore.getState().visibleTasks.map((t) => t.id)).toEqual([3]);
   });
 });

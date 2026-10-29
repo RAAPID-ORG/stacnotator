@@ -8,14 +8,15 @@ import {
   type ExtendedLabel,
   type GeometryType,
 } from '../../campaign/annotation';
-import { resolveLabelStyle } from '../../campaign/labelStyle';
+import { labelSwatch } from '../../campaign/labelStyle';
 import { useImageryStore } from '../../stores/imagery';
 import { usePrefsStore } from '../../stores/prefs';
 import { useCampaign } from '../../stores/campaign';
 import { MAX_PROBES, useWorkStore, type Tool } from '../../stores/work';
 import { helpRows } from '../../hotkeys';
-import { activeGroupClass, FormFields } from '../../components/FormFields';
+import { activeGroupClass, FormFields, sectionHeaderClass } from '../../components/FormFields';
 import { LabelChips } from '../../components/LabelChips';
+import { CHIP_MIN_WIDTH } from '../../components/chipGrid';
 import { DraftCatalog } from './DraftCatalog';
 import { EditDetails } from './EditDetails';
 import { LabelStyleEditor } from './LabelStyleEditor';
@@ -76,8 +77,12 @@ function Icon({ path }: { path: string }) {
   );
 }
 
+/** Chips sit as many to a row as fit, each row filling the width, so a
+ *  narrow panel shows one full-width chip per row rather than ragged ones. */
+const chipRowClass = 'grid grid-cols-[repeat(auto-fill,minmax(min(8.5rem,100%),1fr))] gap-1.5';
+
 const chipClass = (active: boolean) =>
-  `flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-[11px] font-medium transition-colors cursor-pointer ${
+  `flex min-w-0 items-center justify-center gap-1.5 px-2 py-1 rounded text-[11px] font-medium transition-colors cursor-pointer ${
     active
       ? 'bg-brand-50 text-brand-700 border border-brand-600'
       : 'bg-neutral-50 text-neutral-600 border border-neutral-200 hover:bg-neutral-100 hover:border-neutral-300'
@@ -95,13 +100,16 @@ function ShortcutLegend() {
       data-testid="explore-shortcuts"
       className="group pt-2 border-t border-neutral-200 w-full"
     >
-      <summary className="flex items-center gap-1 cursor-pointer select-none list-none font-semibold text-neutral-700 text-[11px] [&::-webkit-details-marker]:hidden">
+      <summary className="flex items-center gap-1 cursor-pointer select-none list-none text-[11px] font-medium uppercase tracking-wider text-neutral-500 [&::-webkit-details-marker]:hidden">
         <IconChevronRight className="w-3 h-3 text-neutral-400 transition-transform group-open:rotate-90" />
         {t('explore.shortcuts')}
       </summary>
       <ul className="mt-1.5 space-y-0.5 max-w-xs">
         {rows.map((row) => (
-          <li key={row.key} className="flex items-center justify-between gap-3 text-[11px]">
+          <li
+            key={`${row.group}:${row.key}:${row.help}`}
+            className="flex items-center justify-between gap-3 text-[11px]"
+          >
             <span className="text-neutral-600">{row.help}</span>
             <kbd className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-500">
               {row.key}
@@ -126,11 +134,9 @@ function ProbeControls() {
 
   return (
     <div className="flex flex-col gap-1.5 w-full">
-      <span className="font-semibold text-neutral-700 text-xs tracking-wide">
-        {t('tools.timeseries')}
-      </span>
+      <span className={sectionHeaderClass()}>{t('tools.timeseries')}</span>
       <p className="text-[11px] text-neutral-500 leading-relaxed">{t('probes.help')}</p>
-      <div className="flex flex-row flex-wrap gap-1.5">
+      <div className={chipRowClass}>
         <button
           type="button"
           onClick={() => useWorkStore.getState().armAddProbe(!armed)}
@@ -177,12 +183,14 @@ export function ExploreControls() {
   const editing = useWorkStore((s) => s.edit !== null);
 
   const labels = extendedLabels(campaign);
-  const fields = campaign.settings.form_fields ?? [];
+  const fields = campaign.settings.form_fields;
   const labelGroupActive = isLabelGroupActive(activeFieldIndex, fields.length);
   const selectedLabel = labels.find((l) => l.id === selectedLabelId) ?? null;
   const draftLabel =
     draft.phase === 'idle' ? null : (labels.find((l) => l.id === draft.labelId) ?? null);
-  const draftOpen = draft.phase === 'draft' || draft.phase === 'committing';
+  // A shape with no questions to answer is saved as soon as it is drawn; the
+  // panel has nothing to show for that brief save.
+  const draftOpen = draft.phase === 'draft' || (draft.phase === 'committing' && fields.length > 0);
   const draftSaved = draftOpen && draft.savedId !== null;
 
   const availableTools = TOOLS.filter(
@@ -191,12 +199,7 @@ export function ExploreControls() {
       (def.id !== 'labelVector' || (campaign.vector_layers?.length ?? 0) > 0)
   );
 
-  /** The chip swatch shows the label as the map draws it: the user's resolved
-   *  fill inside their resolved border. */
-  const swatch = (label: ExtendedLabel) => {
-    const style = resolveLabelStyle(label.color, label.geometry_type, labelStyles[label.id]);
-    return { ...label, color: style.fillColor, borderColor: style.strokeColor };
-  };
+  const swatch = (label: ExtendedLabel) => labelSwatch(label, labelStyles[label.id]);
 
   // Enter and Escape resolve the draft too (explore-work/hotkeys.ts), so the
   // failure notice clears on the draft itself going away, not only on the
@@ -219,10 +222,8 @@ export function ExploreControls() {
     <div className="w-full h-full p-2 bg-white overflow-y-auto">
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-1.5">
-          <span className="font-semibold text-neutral-700 text-xs tracking-wide">
-            {t('explore.tools')}
-          </span>
-          <div className="flex flex-row flex-wrap gap-1.5">
+          <span className={sectionHeaderClass()}>{t('explore.tools')}</span>
+          <div className={chipRowClass}>
             {availableTools.map((def) => (
               <button
                 key={def.id}
@@ -281,11 +282,7 @@ export function ExploreControls() {
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span
-                    className={`font-semibold text-xs tracking-wide ${
-                      labelGroupActive ? 'text-brand-700' : 'text-neutral-700'
-                    }`}
-                  >
+                  <span className={sectionHeaderClass(labelGroupActive)}>
                     {t('explore.labels')}
                   </span>
                   {labels.length > 0 && (
@@ -311,6 +308,7 @@ export function ExploreControls() {
                 ) : (
                   <LabelChips
                     fill
+                    minWidth={CHIP_MIN_WIDTH}
                     labels={labels.map(swatch)}
                     selectedId={selectedLabelId}
                     onSelect={(label) => useWorkStore.getState().selectLabel(label.id)}
@@ -377,9 +375,7 @@ export function ExploreControls() {
 
         {tool === 'edit' && (
           <div className="flex flex-col gap-2 w-full">
-            <span className="font-semibold text-neutral-700 text-xs tracking-wide">
-              {t('explore.editTool')}
-            </span>
+            <span className={sectionHeaderClass()}>{t('explore.editTool')}</span>
             {/* Once a geometry is open the panel is about that geometry; the
                 how-to would push its fields out of view for no one's benefit. */}
             {!editing && (
@@ -393,9 +389,7 @@ export function ExploreControls() {
 
         {tool === 'pan' && (
           <div className="flex flex-col gap-1.5 w-full">
-            <span className="font-semibold text-neutral-700 text-xs tracking-wide">
-              {t('explore.navigation')}
-            </span>
+            <span className={sectionHeaderClass()}>{t('explore.navigation')}</span>
             <p className="text-[11px] text-neutral-600 leading-relaxed">{t('explore.panHelp')}</p>
             <p className="text-[11px] text-neutral-500 mt-0.5">{t('explore.panTip')}</p>
             <EditDetails />
@@ -403,7 +397,7 @@ export function ExploreControls() {
         )}
 
         <div className="pt-2 border-t border-neutral-200 w-full flex flex-col gap-1.5">
-          <span className="font-semibold text-neutral-700 text-[11px]">{t('explore.display')}</span>
+          <span className={sectionHeaderClass()}>{t('explore.display')}</span>
           <label className="flex items-center gap-2 text-[11px] text-neutral-600 cursor-pointer">
             <input
               type="checkbox"

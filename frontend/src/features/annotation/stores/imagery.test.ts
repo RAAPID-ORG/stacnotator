@@ -5,7 +5,7 @@ import {
   makeCollection,
   makeSlice,
   makeSource,
-  makeTileUrl,
+  makeTile,
   makeViz,
 } from '~/features/annotation/testing/fixtures';
 import { useImageryStore } from './imagery';
@@ -192,10 +192,7 @@ const sourceMV = makeSource({
         makeSlice({
           id: 2100,
           name: 's0',
-          tile_urls: [
-            makeTileUrl({ visualization_name: 'True Color' }),
-            makeTileUrl({ visualization_name: 'False Color' }),
-          ],
+          tiles: [makeTile({ visualization_id: 21 }), makeTile({ visualization_id: 22 })],
         }),
       ],
     }),
@@ -206,7 +203,7 @@ const sourceMV = makeSource({
         makeSlice({
           id: 2200,
           name: 's0',
-          tile_urls: [makeTileUrl({ visualization_name: 'True Color' })],
+          tiles: [makeTile({ visualization_id: 21 })],
         }),
       ],
     }),
@@ -217,10 +214,7 @@ const sourceMV = makeSource({
         makeSlice({
           id: 2300,
           name: 's0',
-          tile_urls: [
-            makeTileUrl({ visualization_name: 'True Color' }),
-            makeTileUrl({ visualization_name: 'False Color' }),
-          ],
+          tiles: [makeTile({ visualization_id: 21 }), makeTile({ visualization_id: 22 })],
         }),
       ],
     }),

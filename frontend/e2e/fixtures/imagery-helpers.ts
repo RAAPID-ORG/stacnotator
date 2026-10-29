@@ -105,7 +105,7 @@ export async function assertMinimapCenterAt(
 }
 
 // ---------------------------------------------------------------------------
-// Open mode helpers
+// Explore helpers
 // ---------------------------------------------------------------------------
 
 /** Read the live viewport centre the minimap card reports. The card header
@@ -149,7 +149,7 @@ export async function waitForMinimapCenter(
 const mainViewport = (page: Page) =>
   page.locator('[data-panel-role="main-map"] .ol-viewport').first();
 
-/** Click the centre of the main map - in open mode this is the viewport centre. */
+/** Click the centre of the main map - in Explore this is the viewport centre. */
 export async function clickMapCenter(page: Page): Promise<void> {
   await mainViewport(page).click();
 }
@@ -200,13 +200,14 @@ export function parseWkt(wkt: string): { type: string; lon: number; lat: number 
 
 export const waitForCreate = (page: Page) =>
   page.waitForResponse(
-    (r) => r.url().includes('/create-annotation') && r.request().method() === 'POST',
+    (r) =>
+      /\/annotations$/.test(new URL(r.url()).pathname) && r.request().method() === 'POST',
     { timeout: 8000 }
   );
 export const waitForUpdate = (page: Page) =>
   page.waitForResponse(
     (r) =>
-      /\/annotations\/\d+\/update$/.test(new URL(r.url()).pathname) &&
+      /\/annotations\/\d+$/.test(new URL(r.url()).pathname) &&
       r.request().method() === 'PUT',
     { timeout: 8000 }
   );
@@ -226,7 +227,7 @@ export const waitForBatchDelete = (page: Page) =>
 
 /**
  * Fit all annotations into the viewport (Space) and wait for the view to settle
- * near the given centre. The default open-mode view is zoomed in tight, so this
+ * near the given centre. The default Explore view is zoomed in tight, so this
  * is required before any whole-canvas box select is expected to reach them all.
  */
 export async function fitAllAnnotations(

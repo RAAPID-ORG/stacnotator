@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import (
@@ -7,12 +7,13 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    ValidationInfo,
     field_validator,
     model_validator,
 )
 
 from src.campaigns.form_fields import FormField, validate_form_fields
-from src.canvas.schemas import CanvasLayoutOut
+from src.canvas.schemas import CanvasLayoutOut, viewer_layouts
 from src.custom_layers.schemas import CustomMapOut, VectorLayerOut
 from src.imagery.schemas import (
     BasemapOut,
@@ -20,12 +21,14 @@ from src.imagery.schemas import (
     ImagerySourceOut,
     ImageryViewOut,
 )
-from src.timeseries.schemas import TimeSeriesCreate, TimeSeriesOut
-
+from src.projects.access import VISIBILITY_PUBLIC, ProjectFlags
+from src.timeseries.schemas import TimeseriesCreate, TimeseriesOut
 
 # ============================================================================
 # Campaign Related Schemas
 # ============================================================================
+
+
 def _check_form_fields(value: list[FormField]) -> list[FormField]:
     validate_form_fields(value)
     return value
@@ -34,7 +37,7 @@ def _check_form_fields(value: list[FormField]) -> list[FormField]:
 ValidatedFormFields = Annotated[list[FormField], AfterValidator(_check_form_fields)]
 
 
-# Mirrors the settings table's own CHECKs. Without them a map panned past the
+# Mirrors the campaign table's own CHECKs. Without them a map panned past the
 # antimeridian sends a longitude like -196 and the insert raises CheckViolation,
 # which reaches the user as a 500 instead of a message about the area they drew.
 Longitude = Annotated[float, Field(ge=-180, le=180)]
@@ -60,15 +63,7 @@ class LabelBase(BaseModel):
 
     id: int  # ID that is used for annotation
     name: str
-    geometry_type: Literal["point", "polygon", "line"] | None = None
-
-
-def label_id_to_name(labels: dict | None) -> dict[int, str]:
-    """Decode a campaign's labels JSONB ({"1": {"name": "Forest", ...}}) into
-    {label_id: display_name}."""
-    if not isinstance(labels, dict):
-        return {}
-    return {int(label_id): data["name"] for label_id, data in labels.items()}
+    geometry_type: Literal["point", "polygon", "line"] = "polygon"
 
 
 PolicyAudienceKind = Literal["admins", "authoritative", "assignees", "members", "anyone"]
@@ -87,6 +82,10 @@ _COMPLETE_ASSIGNED_ALLOWED_KINDS: frozenset[str] = frozenset(
 # Never "anyone": undoing other people's work is not something a campaign can
 # open to the public, however public its labelling is.
 _MODIFY_OTHERS_ALLOWED_KINDS: frozenset[str] = frozenset({"admins", "authoritative", "members"})
+
+
+class LabelOut(LabelBase):
+    geometry_type: Literal["point", "polygon", "line"]
 
 
 class PolicyAudience(BaseModel):
@@ -112,18 +111,15 @@ def _validate_axis_kinds(
 class LabellingPolicy(BaseModel):
     """Who may label what, and whose labels count toward task completion.
 
-    See docs/labelling-policy.md for the
-    full rationale behind the four axes.
+    See docs/labelling-policy.md for what each axis governs. An update replaces
+    the whole policy, so every axis is required.
     """
 
-    explore: PolicyAudience = Field(default_factory=PolicyAudience)
-    unassigned_tasks: PolicyAudience = Field(default_factory=PolicyAudience)
-    assigned_tasks: PolicyAudience = Field(default_factory=PolicyAudience)
-    complete_assigned: PolicyAudience = Field(default_factory=PolicyAudience)
-    # Defaults to campaign admins rather than to the empty audience: a policy
-    # stored before this axis existed has to keep meaning what it meant, which
-    # is "its author, or an admin".
-    modify_others: PolicyAudience = Field(default_factory=lambda: PolicyAudience(kinds=["admins"]))
+    explore: PolicyAudience
+    unassigned_tasks: PolicyAudience
+    assigned_tasks: PolicyAudience
+    complete_assigned: PolicyAudience
+    modify_others: PolicyAudience
 
     @field_validator("explore")
     @classmethod
@@ -177,61 +173,24 @@ def default_labelling_policy(is_public: bool = False) -> LabellingPolicy:
     )
 
 
-class UpdateLabellingPolicyRequest(LabellingPolicy):
-    """Request body for PATCH /campaigns/{id}/labelling-policy - same shape
-    as LabellingPolicy, plus the campaign-public check applied by the service.
-
-    The four labelling axes are required (no defaults), unlike the base
-    LabellingPolicy: a PATCH is a full replacement of the stored policy, so
-    silently omitting one would default it to "no one" rather than leaving it
-    as the caller likely intended. Callers must always send the complete
-    policy, which is what the settings UI does.
-
-    ``modify_others`` keeps its inherited default instead, because that
-    default is "campaign admins" rather than "no one": omitting it leaves the
-    axis where a campaign that never set it already was.
-    """
-
-    explore: PolicyAudience
-    unassigned_tasks: PolicyAudience
-    assigned_tasks: PolicyAudience
-    complete_assigned: PolicyAudience
-
-
 # What finishing a task means: a label for the task's own geometry, or shapes
 # drawn around it.
 TaskOutput = Literal["classify", "draw"]
 
 
 class CampaignSettingsOut(BaseModel):
-    labels: list[LabelBase]
+    labels: list[LabelOut]
     bbox_west: float
     bbox_south: float
     bbox_east: float
     bbox_north: float
-    embedding_year: int | None = None
-    guide_markdown: str | None = None
-    sample_extent_meters: float | None = None
+    embedding_year: int | None
+    guide_markdown: str | None
+    sample_extent_meters: float | None
     labelling_policy: LabellingPolicy
-    form_fields: list[FormField] = []
+    form_fields: list[FormField]
     research_sharing: bool
-    task_output: TaskOutput = "classify"
-
-    @field_validator("labels", mode="before")
-    @classmethod
-    def convert_labels(cls, v):
-        """Convert the labels JSONB dict from the DB into list[LabelBase]:
-        {"1": {"name": "Forest", "geometry_type": "polygon"}} -> [{id: 1, ...}]."""
-        if not isinstance(v, dict):
-            return v
-        return [
-            LabelBase(
-                id=int(k),
-                name=vv["name"],
-                geometry_type=vv.get("geometry_type"),
-            )
-            for k, vv in v.items()
-        ]
+    task_output: TaskOutput
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -252,16 +211,9 @@ class CampaignSettingsCreate(BaseModel):
         _check_bbox_order(self.bbox_west, self.bbox_east, self.bbox_south, self.bbox_north)
         return self
 
-    # Helper to convert labels to dict in DB
     def to_orm(self) -> dict:
-        labels_dict = {}
-        for label in self.labels:
-            label_data = {"name": label.name}
-            if label.geometry_type is not None:
-                label_data["geometry_type"] = label.geometry_type
-            labels_dict[str(label.id)] = label_data
         return {
-            "labels": labels_dict,
+            "labels": [label.model_dump() for label in self.labels],
             "bbox_west": self.bbox_west,
             "bbox_south": self.bbox_south,
             "bbox_east": self.bbox_east,
@@ -285,11 +237,11 @@ class CampaignSummaryOut(BaseModel):
     project_id: int
     name: str
     created_at: datetime
-    mode: Literal["tasks", "open"]
     is_public: bool = False
     registration_status: str = "ready"
     embedding_status: str = "ready"
     registration_errors: list[dict] | None = None
+    embedding_errors: list[dict] | None = None
     annotations_version: int = 0
 
     viewer_is_admin: bool = False
@@ -307,16 +259,22 @@ class CampaignOut(CampaignSummaryOut):
     basemaps: list[BasemapOut]
     custom_maps: list[CustomMapOut] = []
     vector_layers: list[VectorLayerOut] = []
-    time_series: list[TimeSeriesOut]
+    time_series: list[TimeseriesOut]
+
+
+class CampaignSettingsLocksOut(BaseModel):
+    """What stored annotations no longer let the settings change."""
+
+    task_output_locked: bool
+    answered_form_field_ids: list[int]
 
 
 class CampaignCreate(BaseModel):
     name: str
-    mode: Literal["tasks", "open"] = "tasks"  # for default mode. actual ACL in labelling_policy
     project_id: int
     settings: CampaignSettingsCreate
     imagery_editor_state: ImageryEditorStateCreate | None = None
-    timeseries_configs: list[TimeSeriesCreate] | None = None
+    timeseries_configs: list[TimeseriesCreate] | None = None
     labelling_policy: LabellingPolicy | None = None
 
 
@@ -325,51 +283,46 @@ class CampaignListItemOut(BaseModel):
     name: str
     created_at: datetime
     project_id: int
-    is_admin: bool = False
-    is_member: bool = False
-    is_public: bool = False
-    registration_status: str = "ready"
-    embedding_status: str = "ready"
+    is_admin: bool
+    is_member: bool
+    is_public: bool
+    registration_status: str
+    embedding_status: str
 
-    model_config = ConfigDict(from_attributes=True)
+    @classmethod
+    def for_viewer(cls, campaign: Any, project: Any, flags: ProjectFlags) -> "CampaignListItemOut":
+        return cls(
+            id=campaign.id,
+            name=campaign.name,
+            created_at=campaign.created_at,
+            project_id=project.id,
+            is_admin=flags.is_admin,
+            is_member=flags.is_policy_member,
+            is_public=project.visibility == VISIBILITY_PUBLIC,
+            registration_status=campaign.registration_status,
+            embedding_status=campaign.embedding_status,
+        )
 
 
 class CampaignOutFull(CampaignOut):
-    """Campaign with canvas layout information extracted."""
+    """A campaign with its main canvas layouts, validated with the viewer's
+    user_id in the context so their personal layouts come along."""
 
-    default_main_canvas_layout: Annotated[
-        CanvasLayoutOut | None, Field(json_schema_extra={"readOnly": True})
-    ]
-    personal_main_canvas_layout: Annotated[
-        CanvasLayoutOut | None, Field(json_schema_extra={"readOnly": True})
-    ]
+    default_main_canvas_layout: CanvasLayoutOut | None = None
+    personal_main_canvas_layout: CanvasLayoutOut | None = None
+    # When an open page should read its imagery again: its MPC tiles are about to expire.
+    imagery_renew_at: datetime | None = None
 
+    @model_validator(mode="wrap")
     @classmethod
-    def from_orm(cls, obj, user_id: UUID | None = None):
-        default_layout = None
-        personal_layout = None
-
-        if hasattr(obj, "canvas_layouts"):
-            for layout in obj.canvas_layouts:
-                if layout.view_id is None:
-                    if layout.is_default and layout.user_id is None:
-                        default_layout = CanvasLayoutOut.model_validate(layout)
-                    elif user_id and layout.user_id == user_id:
-                        personal_layout = CanvasLayoutOut.model_validate(layout)
-
-        views_list = []
-        if hasattr(obj, "imagery_views"):
-            for view in obj.imagery_views:
-                views_list.append(ImageryViewOut.from_orm(view, user_id=user_id))
-
-        return cls.model_validate(
-            {
-                **CampaignOut.model_validate(obj).model_dump(),
-                "imagery_views": views_list,
-                "default_main_canvas_layout": default_layout,
-                "personal_main_canvas_layout": personal_layout,
-            }
-        )
+    def _main_layouts(cls, data: Any, handler, info: ValidationInfo) -> "CampaignOutFull":
+        out: CampaignOutFull = handler(data)
+        if hasattr(data, "canvas_layouts"):
+            main = [layout for layout in data.canvas_layouts if layout.view_id is None]
+            out.default_main_canvas_layout, out.personal_main_canvas_layout = viewer_layouts(
+                main, info
+            )
+        return out
 
 
 # ============================================================================
@@ -381,8 +334,56 @@ class CampaignsListResponse(BaseModel):
     items: list[CampaignListItemOut]
 
 
-class UpdateCampaignNameRequest(BaseModel):
-    name: str
+class CampaignUpdate(BaseModel):
+    """A partial update: only the fields sent are changed, and sending null
+    clears the nullable ones. The area is sent whole or not at all."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    guide_markdown: str | None = None
+    sample_extent_meters: float | None = None
+    research_sharing: bool | None = None
+    task_output: TaskOutput | None = None
+    labels: list[LabelBase] | None = None
+    form_fields: ValidatedFormFields | None = None
+    embedding_year: int | None = None
+    labelling_policy: LabellingPolicy | None = None
+    bbox_west: Longitude | None = None
+    bbox_south: Latitude | None = None
+    bbox_east: Longitude | None = None
+    bbox_north: Latitude | None = None
+
+    @model_validator(mode="after")
+    def _required_fields_are_not_cleared(self) -> "CampaignUpdate":
+        for field in (
+            "name",
+            "research_sharing",
+            "task_output",
+            "labels",
+            "form_fields",
+            "labelling_policy",
+        ):
+            if field in self.model_fields_set and getattr(self, field) is None:
+                raise ValueError(f"{field} cannot be null")
+        sent = [
+            v is not None
+            for v in (self.bbox_west, self.bbox_south, self.bbox_east, self.bbox_north)
+        ]
+        if any(sent) and not all(sent):
+            raise ValueError("The area takes all four of bbox_west/south/east/north")
+        if (bbox := self.bbox) is not None:
+            _check_bbox_order(bbox[0], bbox[2], bbox[1], bbox[3])
+        return self
+
+    @property
+    def bbox(self) -> tuple[float, float, float, float] | None:
+        if (
+            self.bbox_west is None
+            or self.bbox_south is None
+            or self.bbox_east is None
+            or self.bbox_north is None
+        ):
+            return None
+        return (self.bbox_west, self.bbox_south, self.bbox_east, self.bbox_north)
 
 
 class CampaignDuplicateRequest(BaseModel):
@@ -403,143 +404,6 @@ class CampaignDuplicateRequest(BaseModel):
     include_assignments: bool = True
     include_user_layouts: bool = True
     target_project_id: int | None = None
-
-
-class UpdateCampaignGuideRequest(BaseModel):
-    guide_markdown: str | None = None
-
-
-class UpdateSampleExtentRequest(BaseModel):
-    sample_extent_meters: float | None = None
-
-
-class UpdateResearchSharingRequest(BaseModel):
-    research_sharing: bool
-
-
-class UpdateTaskOutputRequest(BaseModel):
-    task_output: TaskOutput
-
-
-class UpdateCampaignBBoxRequest(BaseModel):
-    bbox_west: Longitude
-    bbox_south: Latitude
-    bbox_east: Longitude
-    bbox_north: Latitude
-
-    @model_validator(mode="after")
-    def _check_bbox(self) -> "UpdateCampaignBBoxRequest":
-        _check_bbox_order(self.bbox_west, self.bbox_east, self.bbox_south, self.bbox_north)
-        return self
-
-
-class UpdateEmbeddingYearRequest(BaseModel):
-    """Set or change the year from which satellite embeddings are sourced."""
-
-    embedding_year: int | None = None
-
-
-class UpdateCampaignLabelsRequest(BaseModel):
-    """Replace the campaign's label set. Existing label IDs are preserved (so
-    annotations referencing them continue to resolve); new labels get appended."""
-
-    labels: list[LabelBase]
-
-
-class UpdateCampaignFormFieldsRequest(BaseModel):
-    """Replace the campaign's custom form fields. Existing field IDs must be
-    preserved (stored annotation answers key off them); new fields get new ids."""
-
-    form_fields: ValidatedFormFields
-
-
-class EmbeddingYearUpdateResponse(BaseModel):
-    """Response after updating the embedding year."""
-
-    embedding_year: int | None
-    embeddings_recomputed: bool
-
-
-class AssignTasksToUsersRequest(BaseModel):
-    """
-    Intent to assign annotation tasks to campaign members.
-
-    - "explicit": assign exactly the given task_assignments mapping.
-    - "even": split the pool of unassigned, unannotated tasks across user_ids.
-    - "fixed_per_user": give each user in user_task_counts that many tasks.
-    """
-
-    strategy: Literal["even", "fixed_per_user", "explicit"]
-    user_ids: list[UUID] = []
-    user_task_counts: dict[UUID, int] | None = None
-    task_assignments: dict[int, list[UUID]] | None = None
-
-    # Optional scope: restrict the distribution pool to one task set.
-    task_set_id: int | None = None
-
-
-class AssignTasksToUsersResult(BaseModel):
-    total_assigned: int
-
-
-class ImportTaskAssignmentsResult(BaseModel):
-    """Summary of a task-assignment CSV import."""
-
-    tasks_updated: int
-    assignees_created: int
-    reviewers_created: int
-
-
-class AssignReviewersRequest(BaseModel):
-    """
-    Request to assign reviewers to tasks based on different patterns.
-
-    Reviewers may only be assigned to tasks that already have a primary
-    (non-review) assignment. Each selected task is topped up to the requested
-    number of reviewers, so re-running does not stack additional reviewers on
-    tasks that already meet the target.
-    """
-
-    pattern: Literal["percentage", "manual", "fixed"]
-
-    # For 'percentage' pattern
-    percentage: float | None = None  # Percentage of already-assigned tasks to review (0-100)
-    num_reviewers: int | None = None  # Target reviewers per task (excluding the annotator)
-    reviewer_ids: list[UUID] | None = None  # Pool of reviewers to choose from
-
-    # For 'manual' pattern
-    manual_assignments: dict[int, list[UUID]] | None = None  # task_id -> list of reviewer user_ids
-
-    # For 'fixed' pattern
-    num_tasks: int | None = None  # Number of already-assigned tasks to review
-    fixed_num_reviewers: int | None = None  # Target reviewers per task (excluding the annotator)
-
-    # Optional scope: restrict the reviewable pool to one task set.
-    task_set_id: int | None = None
-
-
-class DeleteAnnotationTasksRequest(BaseModel):
-    """
-    Request to delete multiple annotation tasks.
-
-    The tasks' annotations are kept, detached from their task, unless
-    ``delete_annotations`` asks for them to go too.
-    """
-
-    task_ids: list[int]
-    delete_annotations: bool = False
-
-
-class UnassignTasksRequest(BaseModel):
-    """
-    Request to batch-unassign users from annotation tasks.
-
-    If `user_ids` is provided, only those users are unassigned from each task.
-    If omitted, all users are unassigned from each task.
-    """
-
-    task_ids: list[int]
-    user_ids: list[UUID] | None = None
 
 
 # ============================================================================
@@ -580,43 +444,3 @@ class CampaignStatistics(BaseModel):
     krippendorff_alpha: float | None  # Overall inter-annotator agreement (0-1)
     annotators: list[AnnotatorInfo]
     pairwise_agreements: list[PairwiseAgreement]
-
-
-class TaskSetOut(BaseModel):
-    id: int
-    name: str
-    created_at: datetime
-    num_tasks: int
-    num_labeled: int
-
-
-class TaskSetCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=255)
-
-    @field_validator("name")
-    @classmethod
-    def _strip_name(cls, v: str) -> str:
-        v = v.strip()
-        if not v:
-            raise ValueError("name must not be blank")
-        return v
-
-
-class TaskSetRename(BaseModel):
-    name: str = Field(min_length=1, max_length=255)
-
-    @field_validator("name")
-    @classmethod
-    def _strip_name(cls, v: str) -> str:
-        v = v.strip()
-        if not v:
-            raise ValueError("name must not be blank")
-        return v
-
-
-class MoveTasksToSetRequest(BaseModel):
-    task_ids: list[int]
-
-
-class MoveTasksToSetResult(BaseModel):
-    num_moved: int

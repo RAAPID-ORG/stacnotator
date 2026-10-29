@@ -1,15 +1,15 @@
-import type { AnnotationTaskOut } from '~/api/client';
+import type { TaskOut } from '~/api/client';
 import { claimedByLabel, getActiveClaim } from '../../campaign/tasks';
 import { useCurrentTask } from '../../stores/tasks';
 import { useCampaignStore } from '../../stores/campaign';
 
 export interface ClaimBadgeProps {
-  task: AnnotationTaskOut;
+  task: TaskOut;
   currentUserId: string | null | undefined;
   now: number;
 }
 
-export function ClaimBadge({ task, currentUserId, now }: ClaimBadgeProps) {
+function ClaimBadge({ task, currentUserId, now }: ClaimBadgeProps) {
   const label = claimedByLabel(task, currentUserId, now);
   if (!label) return null;
 

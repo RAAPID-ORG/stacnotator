@@ -13,38 +13,40 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
-from src.annotation.completion import (
-    attach_counts_toward_completion_flat,
-    attach_counts_toward_completion_tree,
-)
-from src.annotation.schemas import AnnotationCreate, AnnotationFromTaskCreate, AnnotationUpdate
+from src.annotation.schemas import AnnotationCreate, AnnotationUpdate, TaskAnswerCreate
 from src.annotation.service import (
     add_annotation_for_task,
     create_annotation,
-    create_annotations_bulk,
+    create_annotations,
     update_annotation,
 )
 from src.campaigns.schemas import LabellingPolicy, PolicyAudience
+from src.tasks.completion import (
+    attach_counts_toward_completion,
+    attach_to_tasks,
+)
+from tests.conftest import make_policy
+
+pytestmark = pytest.mark.usefixtures("membership_from_db_mock")
 
 
 def _campaign(policy: LabellingPolicy, *, campaign_id=1, is_public=False):
     campaign = MagicMock()
     campaign.id = campaign_id
     campaign.is_public = is_public
-    campaign.settings.labels = {"1": {"name": "Forest"}}
-    campaign.settings.labelling_policy = policy.model_dump(mode="json")
+    campaign.label_names = {1: "Forest"}
+    campaign.labelling_policy = policy.model_dump(mode="json")
     return campaign
 
 
 def _db(cu=None):
-    """A MagicMock db where the CampaignUser membership lookup
-    (`db.scalars(...).first()`) and auth.service.is_admin's platform-role
-    check (`db.execute(...).first()`) - two independent mock chains - both
-    default to "no", and the generic `scalar_one_or_none()` chain (used for
-    existing-annotation/assignment lookups) defaults to "not found"."""
+    """A MagicMock db where the project membership lookup (`db.scalars(...).first()`)
+    and the platform-admin check (`db.scalar(...)`) both default to "no", and the
+    generic `scalar_one_or_none()` chain (existing-annotation/assignment lookups)
+    defaults to "not found"."""
     db = MagicMock()
     db.execute.return_value.scalar_one_or_none.return_value = None
-    db.execute.return_value.first.return_value = None
+    db.scalar.return_value = False  # not a platform admin
     db.scalars.return_value.first.return_value = cu
     return db
 
@@ -57,7 +59,7 @@ class TestExploreAxisEnforcement:
     """create-annotation / batch-create / update (standalone) gate on `explore`."""
 
     def test_create_annotation_denied_for_non_member(self):
-        campaign = _campaign(LabellingPolicy(explore=PolicyAudience(kinds=["members"])))
+        campaign = _campaign(make_policy(explore=PolicyAudience(kinds=["members"])))
         db = _db(cu=None)
         payload = AnnotationCreate(
             label_id=1, comment=None, geometry_wkt="POINT(0 0)", confidence=None
@@ -70,7 +72,7 @@ class TestExploreAxisEnforcement:
         db.add.assert_not_called()
 
     def test_create_annotation_allowed_for_member(self):
-        campaign = _campaign(LabellingPolicy(explore=PolicyAudience(kinds=["members"])))
+        campaign = _campaign(make_policy(explore=PolicyAudience(kinds=["members"])))
         db = _db(cu=_MEMBER)
         payload = AnnotationCreate(
             label_id=1, comment=None, geometry_wkt="POINT(0 0)", confidence=None
@@ -78,10 +80,10 @@ class TestExploreAxisEnforcement:
 
         create_annotation(db, campaign, payload, uuid4())
 
-        db.add.assert_called()
+        db.add_all.assert_called()
 
     def test_create_annotation_denied_when_explore_is_no_one_even_for_admin(self):
-        campaign = _campaign(LabellingPolicy(explore=PolicyAudience(kinds=[])))
+        campaign = _campaign(make_policy(explore=PolicyAudience(kinds=[])))
         db = _db(cu=_ADMIN)
         payload = AnnotationCreate(
             label_id=1, comment=None, geometry_wkt="POINT(0 0)", confidence=None
@@ -92,35 +94,34 @@ class TestExploreAxisEnforcement:
 
         assert exc.value.status_code == 403
 
-    def test_create_annotations_bulk_denied_for_non_member(self):
-        campaign = _campaign(LabellingPolicy(explore=PolicyAudience(kinds=["members"])))
+    def test_create_annotations_denied_for_non_member(self):
+        campaign = _campaign(make_policy(explore=PolicyAudience(kinds=["members"])))
         db = _db(cu=None)
         payloads = [
             AnnotationCreate(label_id=1, comment=None, geometry_wkt="POINT(0 0)", confidence=None)
         ]
 
         with pytest.raises(HTTPException) as exc:
-            create_annotations_bulk(db, campaign, payloads, uuid4())
+            create_annotations(db, campaign, payloads, uuid4())
 
         assert exc.value.status_code == 403
         db.add_all.assert_not_called()
 
-    def test_create_annotations_bulk_empty_list_skips_policy_check(self):
-        campaign = _campaign(LabellingPolicy(explore=PolicyAudience(kinds=[])))
+    def test_create_annotations_empty_list_skips_policy_check(self):
+        campaign = _campaign(make_policy(explore=PolicyAudience(kinds=[])))
         db = _db(cu=None)
 
-        assert create_annotations_bulk(db, campaign, [], uuid4()) == 0
+        assert create_annotations(db, campaign, [], uuid4()) == []
 
     def test_update_annotation_denied_for_non_member(self):
-        campaign = _campaign(LabellingPolicy(explore=PolicyAudience(kinds=["members"])))
+        campaign = _campaign(make_policy(explore=PolicyAudience(kinds=["members"])))
         db = _db(cu=None)
         existing = MagicMock()
         existing.output_of_task_id = None
+        existing.task_id = None
         existing.created_by_user_id = uuid4()
         db.execute.return_value.scalar_one_or_none.return_value = existing
-        payload = AnnotationUpdate(
-            label_id=1, comment=None, geometry_wkt=None, is_authoritative=None
-        )
+        payload = AnnotationUpdate(label_id=1, comment=None, geometry_wkt=None)
 
         with pytest.raises(HTTPException) as exc:
             update_annotation(db, 5, payload, uuid4(), campaign=campaign)
@@ -128,17 +129,16 @@ class TestExploreAxisEnforcement:
         assert exc.value.status_code == 403
 
     def test_update_annotation_allowed_for_member(self):
-        campaign = _campaign(LabellingPolicy(explore=PolicyAudience(kinds=["members"])))
+        campaign = _campaign(make_policy(explore=PolicyAudience(kinds=["members"])))
         db = _db(cu=_MEMBER)
         user_id = uuid4()
         existing = MagicMock()
         existing.output_of_task_id = None
+        existing.task_id = None
         existing.created_by_user_id = user_id
         existing.form_values = None
         db.execute.return_value.scalar_one_or_none.return_value = existing
-        payload = AnnotationUpdate(
-            label_id=1, comment=None, geometry_wkt=None, is_authoritative=None
-        )
+        payload = AnnotationUpdate(label_id=1, comment=None, geometry_wkt=None)
 
         update_annotation(db, 5, payload, user_id, campaign=campaign)
 
@@ -150,12 +150,10 @@ class TestExploreAxisEnforcement:
         Simulate that here, and also assert the query sent to db.execute()
         actually carries a campaign_id filter (the regression this guards
         against: fetching by annotation_id alone, ignoring the URL campaign)."""
-        campaign = _campaign(LabellingPolicy(explore=PolicyAudience(kinds=["members"])))
+        campaign = _campaign(make_policy(explore=PolicyAudience(kinds=["members"])))
         db = _db(cu=_MEMBER)
         db.execute.return_value.scalar_one_or_none.return_value = None
-        payload = AnnotationUpdate(
-            label_id=1, comment=None, geometry_wkt=None, is_authoritative=None
-        )
+        payload = AnnotationUpdate(label_id=1, comment=None, geometry_wkt=None)
 
         with pytest.raises(HTTPException) as exc:
             update_annotation(db, 5, payload, uuid4(), campaign=campaign)
@@ -174,9 +172,7 @@ class TestExploreAxisEnforcement:
         lookup query is always campaign-scoped (see
         test_update_annotation_wrong_campaign_returns_404)."""
         db = _db(cu=None)
-        payload = AnnotationUpdate(
-            label_id=2, comment=None, geometry_wkt=None, is_authoritative=None
-        )
+        payload = AnnotationUpdate(label_id=2, comment=None, geometry_wkt=None)
 
         with pytest.raises(TypeError):
             update_annotation(db, 5, payload, uuid4())
@@ -188,13 +184,15 @@ class TestTaskAnnotateAxisEnforcement:
 
     @staticmethod
     def _task(assignments=None):
-        return SimpleNamespace(id=1, campaign_id=1, geometry_id=10, assignments=assignments or [])
+        return SimpleNamespace(
+            id=1, campaign_id=1, geometry="POINT(0 0)", assignments=assignments or []
+        )
 
     def test_unassigned_task_denied_when_axis_is_no_one(self):
-        campaign = _campaign(LabellingPolicy(unassigned_tasks=PolicyAudience(kinds=[])))
+        campaign = _campaign(make_policy(unassigned_tasks=PolicyAudience(kinds=[])))
         db = _db(cu=_MEMBER)
         db.get.return_value = campaign
-        payload = AnnotationFromTaskCreate(label_id=1, comment=None, confidence=None)
+        payload = TaskAnswerCreate(label_id=1, comment=None, confidence=None)
 
         with pytest.raises(HTTPException) as exc:
             add_annotation_for_task(db, self._task(assignments=[]), payload, uuid4())
@@ -204,17 +202,17 @@ class TestTaskAnnotateAxisEnforcement:
         db.add.assert_not_called()
 
     def test_unassigned_task_allowed_for_member(self):
-        campaign = _campaign(LabellingPolicy(unassigned_tasks=PolicyAudience(kinds=["members"])))
+        campaign = _campaign(make_policy(unassigned_tasks=PolicyAudience(kinds=["members"])))
         db = _db(cu=_MEMBER)
         db.get.return_value = campaign
-        payload = AnnotationFromTaskCreate(label_id=1, comment=None, confidence=None)
+        payload = TaskAnswerCreate(label_id=1, comment=None, confidence=None)
 
         add_annotation_for_task(db, self._task(assignments=[]), payload, uuid4())
 
         db.add.assert_called_once()
 
     def test_assigned_task_denied_when_assigned_tasks_axis_is_no_one(self):
-        policy = LabellingPolicy(
+        policy = make_policy(
             unassigned_tasks=PolicyAudience(kinds=["members"]),
             assigned_tasks=PolicyAudience(kinds=[]),
         )
@@ -223,7 +221,7 @@ class TestTaskAnnotateAxisEnforcement:
         db.get.return_value = campaign
         assignee_id = uuid4()
         task = self._task(assignments=[SimpleNamespace(user_id=assignee_id)])
-        payload = AnnotationFromTaskCreate(label_id=1, comment=None, confidence=None)
+        payload = TaskAnswerCreate(label_id=1, comment=None, confidence=None)
 
         with pytest.raises(HTTPException) as exc:
             add_annotation_for_task(db, task, payload, assignee_id)
@@ -233,25 +231,25 @@ class TestTaskAnnotateAxisEnforcement:
         db.add.assert_not_called()
 
     def test_assigned_task_allowed_for_assignee(self):
-        policy = LabellingPolicy(assigned_tasks=PolicyAudience(kinds=["assignees"]))
+        policy = make_policy(assigned_tasks=PolicyAudience(kinds=["assignees"]))
         campaign = _campaign(policy)
         db = _db(cu=None)  # not a campaign member row, just an assignee
         db.get.return_value = campaign
         assignee_id = uuid4()
         task = self._task(assignments=[SimpleNamespace(user_id=assignee_id)])
-        payload = AnnotationFromTaskCreate(label_id=1, comment=None, confidence=None)
+        payload = TaskAnswerCreate(label_id=1, comment=None, confidence=None)
 
         add_annotation_for_task(db, task, payload, assignee_id)
 
         db.add.assert_called_once()
 
     def test_assigned_task_denies_non_assignee_when_axis_is_assignees_only(self):
-        policy = LabellingPolicy(assigned_tasks=PolicyAudience(kinds=["assignees"]))
+        policy = make_policy(assigned_tasks=PolicyAudience(kinds=["assignees"]))
         campaign = _campaign(policy)
         db = _db(cu=None)
         db.get.return_value = campaign
         task = self._task(assignments=[SimpleNamespace(user_id=uuid4())])
-        payload = AnnotationFromTaskCreate(label_id=1, comment=None, confidence=None)
+        payload = TaskAnswerCreate(label_id=1, comment=None, confidence=None)
 
         with pytest.raises(HTTPException) as exc:
             add_annotation_for_task(db, task, payload, uuid4())
@@ -259,10 +257,10 @@ class TestTaskAnnotateAxisEnforcement:
         assert exc.value.status_code == 403
 
     def test_created_annotation_carries_counts_toward_completion(self):
-        campaign = _campaign(LabellingPolicy(unassigned_tasks=PolicyAudience(kinds=["members"])))
+        campaign = _campaign(make_policy(unassigned_tasks=PolicyAudience(kinds=["members"])))
         db = _db(cu=_MEMBER)
         db.get.return_value = campaign
-        payload = AnnotationFromTaskCreate(label_id=1, comment=None, confidence=None)
+        payload = TaskAnswerCreate(label_id=1, comment=None, confidence=None)
 
         result = add_annotation_for_task(db, self._task(assignments=[]), payload, uuid4())
 
@@ -272,7 +270,7 @@ class TestTaskAnnotateAxisEnforcement:
         """assigned_tasks (gating) and complete_assigned (counting) are
         different axes: a member may be allowed to add an extra label on an
         assigned task without their label counting toward completion."""
-        policy = LabellingPolicy(
+        policy = make_policy(
             assigned_tasks=PolicyAudience(kinds=["members"]),
             complete_assigned=PolicyAudience(kinds=["admins"]),
         )
@@ -280,7 +278,7 @@ class TestTaskAnnotateAxisEnforcement:
         db = _db(cu=_MEMBER)
         db.get.return_value = campaign
         task = self._task(assignments=[SimpleNamespace(user_id=uuid4())])
-        payload = AnnotationFromTaskCreate(label_id=1, comment=None, confidence=None)
+        payload = TaskAnswerCreate(label_id=1, comment=None, confidence=None)
 
         result = add_annotation_for_task(db, task, payload, uuid4())
 
@@ -293,7 +291,7 @@ class TestAttachCountsTowardCompletion:
 
     def test_task_tree_shape_computes_per_annotation_per_task(self):
         admin_id, member_id = uuid4(), uuid4()
-        policy = LabellingPolicy(
+        policy = make_policy(
             unassigned_tasks=PolicyAudience(kinds=["members"]),
             complete_assigned=PolicyAudience(kinds=["admins"]),
         )
@@ -319,8 +317,11 @@ class TestAttachCountsTowardCompletion:
             (member_id, False, False),
         ]
         db.scalars.return_value.all.return_value = []  # no extra platform admins
+        for task in (assigned_task, unassigned_task):
+            for ann in task.annotations:
+                ann.task_id, ann.task = task.id, task
 
-        attach_counts_toward_completion_tree(db, campaign, [assigned_task, unassigned_task])
+        attach_to_tasks(db, campaign, [assigned_task, unassigned_task])
 
         assert (
             assigned_task.annotations[0].counts_toward_completion is True
@@ -334,34 +335,30 @@ class TestAttachCountsTowardCompletion:
 
     def test_no_tasks_is_a_noop(self):
         db = MagicMock()
-        attach_counts_toward_completion_tree(db, _campaign(LabellingPolicy()), [])
+        attach_to_tasks(db, _campaign(make_policy()), [])
         db.execute.assert_not_called()
         db.scalars.assert_not_called()
 
-    def test_flat_shape_leaves_standalone_annotations_untouched(self):
-        campaign = _campaign(LabellingPolicy())
-        standalone = SimpleNamespace(
-            annotation_task_id=None, annotation_task=None, created_by_user_id=uuid4()
-        )
+    def test_leaves_standalone_annotations_untouched(self):
+        campaign = _campaign(make_policy())
+        standalone = SimpleNamespace(task_id=None, task=None, created_by_user_id=uuid4())
         db = MagicMock()
 
-        attach_counts_toward_completion_flat(db, campaign, [standalone])
+        attach_counts_toward_completion(db, campaign, [standalone])
 
         assert not hasattr(standalone, "counts_toward_completion")
         db.execute.assert_not_called()
         db.scalars.assert_not_called()
 
-    def test_flat_shape_computes_for_task_linked_annotation(self):
+    def test_computes_for_task_linked_annotation(self):
         member_id = uuid4()
-        campaign = _campaign(LabellingPolicy(unassigned_tasks=PolicyAudience(kinds=["members"])))
+        campaign = _campaign(make_policy(unassigned_tasks=PolicyAudience(kinds=["members"])))
         task = SimpleNamespace(assignments=[])
-        ann = SimpleNamespace(
-            annotation_task_id=7, annotation_task=task, created_by_user_id=member_id
-        )
+        ann = SimpleNamespace(task_id=7, task=task, created_by_user_id=member_id)
         db = MagicMock()
         db.execute.return_value.all.return_value = [(member_id, False, False)]
         db.scalars.return_value.all.return_value = []
 
-        attach_counts_toward_completion_flat(db, campaign, [ann])
+        attach_counts_toward_completion(db, campaign, [ann])
 
         assert ann.counts_toward_completion is True

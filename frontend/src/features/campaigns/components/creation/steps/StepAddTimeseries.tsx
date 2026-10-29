@@ -2,11 +2,10 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import {
-  type CampaignCreate,
   type SpectralIndexOut,
-  type TimeSeriesCreate,
-  type TimeSeriesOptionsOut,
-  type TimeSeriesOut,
+  type TimeseriesCreate,
+  type TimeseriesOptionsOut,
+  type TimeseriesOut,
 } from '~/api/client';
 import { getTimeseriesCreationOptionsOptions } from '~/api/queries';
 import { inputMonthToYYYYMM, yyyymmToInputMonth } from '~/shared/utils/utility';
@@ -14,13 +13,12 @@ import { Button, DateField, Input, Select } from '~/shared/ui/forms';
 import { IconWindow } from '~/shared/ui/Icons';
 import { DEFAULT_TIMESERIES_WINDOW_NAME } from '~/shared/utils/constants';
 
-const emptyTimeseries = (): TimeSeriesCreate => ({
+const emptyTimeseries = (): TimeseriesCreate => ({
   name: '',
   window_name: DEFAULT_TIMESERIES_WINDOW_NAME,
   start_ym: '',
   end_ym: '',
   data_source: '',
-  provider: '',
   ts_type: '',
 });
 
@@ -28,7 +26,7 @@ const emptyTimeseries = (): TimeSeriesCreate => ({
  *  source is picked, which is what keeps an index the source has no bands for
  *  from being offered at all. */
 function availableIndices(
-  options: TimeSeriesOptionsOut | null,
+  options: TimeseriesOptionsOut | null,
   sourceKey: string
 ): SpectralIndexOut[] {
   const source = options?.sources.find((s) => s.key === sourceKey);
@@ -37,19 +35,20 @@ function availableIndices(
 }
 
 export const StepAddTimeseries = ({
-  form,
-  setForm,
+  items,
+  onChange,
   knownWindowNames = [],
   existingTimeseries = [],
   onRemoveExisting,
   onRenameExistingPanel,
   saving = false,
 }: {
-  form: CampaignCreate;
-  setForm: (f: CampaignCreate) => void;
+  /** The series being added. */
+  items: TimeseriesCreate[];
+  onChange: (items: TimeseriesCreate[]) => void;
   /** Additional existing panels to show even when they have no series. */
   knownWindowNames?: string[];
-  existingTimeseries?: TimeSeriesOut[];
+  existingTimeseries?: TimeseriesOut[];
   onRemoveExisting?: (id: number) => void;
   onRenameExistingPanel?: (oldName: string, newName: string) => Promise<void>;
   saving?: boolean;
@@ -66,7 +65,6 @@ export const StepAddTimeseries = ({
   const [editingGroup, setEditingGroup] = useState<{ original: string; name: string } | null>(null);
   const [renameError, setRenameError] = useState('');
   const [renaming, setRenaming] = useState(false);
-  const items = form.timeseries_configs ?? [];
 
   const groupName = (name?: string | null) => name?.trim() || DEFAULT_TIMESERIES_WINDOW_NAME;
   const windowOptions = Array.from(
@@ -83,33 +81,21 @@ export const StepAddTimeseries = ({
     )
   );
 
-  const setItems = (next: TimeSeriesCreate[]) => {
-    setForm({
-      ...form,
-      timeseries_configs: next.length > 0 ? next : [],
-    });
-  };
+  const setItems = onChange;
 
-  const updateItem = (index: number, updates: Partial<TimeSeriesCreate>, windowName: string) => {
+  const updateItem = (index: number, updates: Partial<TimeseriesCreate>, windowName: string) => {
     if (index === -1) {
       setDraftGroups((groups) => groups.filter((name) => name !== windowName));
-      setItems([
-        ...items,
-        { ...emptyTimeseries(), provider: soleProvider, window_name: windowName, ...updates },
-      ]);
+      setItems([...items, { ...emptyTimeseries(), window_name: windowName, ...updates }]);
       return;
     }
     const next = [...items];
-    next[index] = { ...next[index], provider: next[index].provider || soleProvider, ...updates };
+    next[index] = { ...next[index], ...updates };
     setItems(next);
   };
 
-  // With a single provider there is nothing to choose, so a new series is given
-  // it outright; the provider select only appears once there are alternatives.
-  const soleProvider = tsOptions?.providers.length === 1 ? tsOptions.providers[0] : '';
-
   const addItem = (windowName: string, hasDraft: boolean) => {
-    const newItem = { ...emptyTimeseries(), provider: soleProvider, window_name: windowName };
+    const newItem = { ...emptyTimeseries(), window_name: windowName };
     setDraftGroups((groups) => groups.filter((name) => name !== windowName));
     setItems([...items, ...(hasDraft ? [newItem] : []), { ...newItem }]);
   };
@@ -204,7 +190,7 @@ export const StepAddTimeseries = ({
         const hasDraft = draftGroups.includes(windowName) && series.length === 0;
         if (hasDraft)
           series.push({
-            item: { ...emptyTimeseries(), window_name: windowName, provider: soleProvider },
+            item: { ...emptyTimeseries(), window_name: windowName },
             index: -1,
           });
         return (
@@ -301,7 +287,7 @@ export const StepAddTimeseries = ({
                 </div>
               ))}
               {series.map(({ item: i, index }, seriesIndex) => {
-                const updateSeries = (updates: Partial<TimeSeriesCreate>) =>
+                const updateSeries = (updates: Partial<TimeseriesCreate>) =>
                   updateItem(index, updates, windowName);
                 const source = tsOptions?.sources.find((s) => s.key === i.data_source);
                 const chosenIndex = availableIndices(tsOptions, i.data_source).find(
@@ -311,7 +297,8 @@ export const StepAddTimeseries = ({
                   <div key={index === -1 ? items.length : index} className="py-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <h5 className="text-xs font-medium text-neutral-500">
-                        {t('timeseriesStep.series', { number: saved.length + seriesIndex + 1 })}
+                        {i.name.trim() ||
+                          t('timeseriesStep.series', { number: saved.length + seriesIndex + 1 })}
                       </h5>
                       <button
                         type="button"
@@ -415,27 +402,6 @@ export const StepAddTimeseries = ({
                       <p className="text-xs text-neutral-600 font-mono break-words">
                         {chosenIndex.formula}
                       </p>
-                    )}
-
-                    {tsOptions && tsOptions.providers.length > 1 && (
-                      <div className="space-y-1">
-                        <label className="text-xs text-neutral-700">
-                          {t('timeseriesStep.provider')}
-                        </label>
-                        <Select
-                          size="sm"
-                          value={i.provider}
-                          aria-label={t('timeseriesStep.provider')}
-                          onChange={(e) => updateSeries({ provider: e.target.value })}
-                        >
-                          <option value="">{t('timeseriesStep.selectProvider')}</option>
-                          {tsOptions.providers.map((provider) => (
-                            <option key={provider} value={provider}>
-                              {provider}
-                            </option>
-                          ))}
-                        </Select>
-                      </div>
                     )}
                   </div>
                 );

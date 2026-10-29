@@ -30,7 +30,7 @@ import { StepReview } from '../components/creation/steps/StepReview';
 import { StepIndicator } from '~/shared/ui/StepIndicator';
 import { CollapsibleSection } from '~/shared/ui/CollapsibleSection';
 import { WIZARD_STEPS } from '../components/creation/steps';
-import type { ImageryStepState } from '../components/imagery/types';
+import type { ImageryStepState } from '~/features/layers/imagery/types';
 import { Button } from '~/shared/ui/forms';
 import { FadeIn } from '~/shared/ui/motion';
 import { capitalizeFirst } from '~/shared/utils/utility';
@@ -134,7 +134,12 @@ export const CreateCampaignPage = () => {
           />
         );
       case 'StepAddTimeseries':
-        return <StepAddTimeseries form={form} setForm={setForm} />;
+        return (
+          <StepAddTimeseries
+            items={form.timeseries_configs ?? []}
+            onChange={(timeseries_configs) => setForm({ ...form, timeseries_configs })}
+          />
+        );
       case 'StepReview':
         return (
           <div className="space-y-6">

@@ -49,11 +49,16 @@ export class TimeSeriesCache {
     }
   }
 
-  private async fetchFromAPI(timeseriesIds: number[], coordinate: LatLon): Promise<TimeSeriesData> {
+  private async fetchFromAPI(
+    campaignId: number,
+    timeseriesIds: number[],
+    coordinate: LatLon
+  ): Promise<TimeSeriesData> {
     const results = await Promise.all(
       timeseriesIds.map(async (tsId) => {
         const { data } = await getTimeseriesData({
-          path: { timeseries_id: tsId, latitude: coordinate.lat, longitude: coordinate.lon },
+          path: { campaign_id: campaignId, timeseries_id: tsId },
+          query: { latitude: coordinate.lat, longitude: coordinate.lon },
         });
         const rows: TimeSeriesRow[] = Array.isArray(data?.data)
           ? data.data.map((item) => ({
@@ -72,7 +77,11 @@ export class TimeSeriesCache {
     }, {});
   }
 
-  async get(timeseriesIds: number[], coordinate: LatLon | null): Promise<TimeSeriesData | null> {
+  async get(
+    campaignId: number,
+    timeseriesIds: number[],
+    coordinate: LatLon | null
+  ): Promise<TimeSeriesData | null> {
     if (!coordinate || timeseriesIds.length === 0) return null;
 
     const cacheKey = cacheKeyFor(timeseriesIds, coordinate);
@@ -85,7 +94,7 @@ export class TimeSeriesCache {
 
     const fetchPromise = (async () => {
       try {
-        const data = await this.fetchFromAPI(timeseriesIds, coordinate);
+        const data = await this.fetchFromAPI(campaignId, timeseriesIds, coordinate);
         this.cache.set(cacheKey, { data, timestamp: this.now() });
         this.evictOldest();
         return data;
@@ -101,7 +110,7 @@ export class TimeSeriesCache {
   /** Prefetch data for upcoming locations (fire-and-forget). A failed
    *  prefetch just means that point re-fetches on demand when the user
    *  actually reaches it, so failures are logged, not surfaced. */
-  prefetch(timeseriesIds: number[], coordinates: LatLon[]): void {
+  prefetch(campaignId: number, timeseriesIds: number[], coordinates: LatLon[]): void {
     for (const coordinate of coordinates) {
       if (!coordinate || timeseriesIds.length === 0) continue;
 
@@ -109,7 +118,7 @@ export class TimeSeriesCache {
       const cached = this.cache.get(cacheKey);
       if ((cached && this.isValid(cached)) || this.pendingRequests.has(cacheKey)) continue;
 
-      this.get(timeseriesIds, coordinate).catch((err) => {
+      this.get(campaignId, timeseriesIds, coordinate).catch((err) => {
         handleError(err, `Prefetch failed for ${cacheKey}`, { showUser: false });
       });
     }

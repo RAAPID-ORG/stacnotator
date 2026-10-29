@@ -66,7 +66,11 @@ export const AnimatedDialog = ({
     <div
       className={`${open ? 'motion-backdrop-in' : 'motion-backdrop-out'} ${backdropClassName ?? ''}`}
     >
-      <div className={`${open ? 'motion-panel-in' : 'motion-panel-out'} ${panelClassName ?? ''}`}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        className={`${open ? 'motion-panel-in' : 'motion-panel-out'} ${panelClassName ?? ''}`}
+      >
         {children}
       </div>
     </div>,

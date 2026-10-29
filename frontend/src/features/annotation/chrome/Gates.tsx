@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import type { CampaignOutFull } from '~/api/client';
+import { Delayed } from '~/shared/ui/Delayed';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 
 const shell = 'flex flex-1 items-center justify-center px-6';
@@ -11,11 +12,17 @@ const button =
 const secondaryButton =
   'rounded border border-neutral-200 px-3 py-1.5 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-50';
 
+/** Most opens finish before the spinner would be noticed, and flashing it reads
+ *  as one more step: it shows only for a slow load. */
 export function LoadingGate({ text }: { text?: string }) {
   const { t } = useTranslation('annotation');
   return (
     <div className="flex flex-1 items-center justify-center" data-testid="loading-gate">
-      <LoadingSpinner size="lg" text={text ?? t('gates.loading')} />
+      <Delayed delayMs={400}>
+        <div className="motion-fade-in">
+          <LoadingSpinner size="lg" text={text ?? t('gates.loading')} />
+        </div>
+      </Delayed>
     </div>
   );
 }

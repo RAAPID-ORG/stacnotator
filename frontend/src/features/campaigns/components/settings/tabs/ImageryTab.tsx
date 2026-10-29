@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import { ImagerySetup } from '~/features/campaigns/components/imagery/ImagerySetup';
-import type { ImageryController } from '~/features/campaigns/components/imagery/controller';
+import { ImagerySetup } from '~/features/layers/imagery/ImagerySetup';
+import type { ImageryController } from '~/features/layers/imagery/controller';
 
 interface Props {
   /** Persisted imagery controller, owned by the page so the header action can
@@ -8,7 +8,7 @@ interface Props {
   controller: ImageryController;
 }
 
-const ImageryTab = ({ controller }: Props) => {
+export const ImageryTab = ({ controller }: Props) => {
   const { t } = useTranslation(['campaigns', 'common']);
   const { isDirty, pending, save, discard } = controller;
 
@@ -52,5 +52,3 @@ const ImageryTab = ({ controller }: Props) => {
     </div>
   );
 };
-
-export default ImageryTab;

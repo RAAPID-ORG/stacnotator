@@ -35,7 +35,7 @@ export const TaskAssignmentsExportImport: React.FC<Props> = ({
         query: { task_set_id: taskSetId },
         parseAs: 'blob',
       });
-      if (!response.response.ok || !response.data) {
+      if (!response.response?.ok || !response.data) {
         throw new Error(t('assignmentsIO.exportFailed'));
       }
       const blob = response.data as Blob;
@@ -116,5 +116,3 @@ export const TaskAssignmentsExportImport: React.FC<Props> = ({
     </div>
   );
 };
-
-export default TaskAssignmentsExportImport;

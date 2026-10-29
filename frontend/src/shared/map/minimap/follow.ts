@@ -12,7 +12,7 @@ export const MINIMAP_PADDING_FACTOR = 1.5;
 
 /** Below this fraction of the minimap's own area, the viewport reads as "too
  *  small to be a useful overview" even though it's still contained. */
-export const MIN_VIEWPORT_AREA_RATIO = 0.02;
+const MIN_VIEWPORT_AREA_RATIO = 0.02;
 
 /** Where the overview sits when it is put back on the task - on arriving at
  *  one, and on Space. In between the viewer moves it wherever they like. */

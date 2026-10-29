@@ -67,7 +67,7 @@
   },
   "setup": {
     "title": "Satellite Imagery",
-    "description": "Imagery is at the core of your campaign. Setup and configure imagery sources here. Each source source represents a remote sensing dataset (e.g. Sentinel-2, Landsat, NAIP) with collections covering specific time periods.",
+    "description": "Imagery is at the core of your campaign. Setup and configure imagery sources here. Each source represents a remote sensing dataset (e.g. Sentinel-2, Landsat, NAIP) with collections covering specific time periods.",
     "overlays": {
       "title": "Overlays",
       "description": "Layers drawn on top of the imagery in the annotation view - raster maps (COG, e.g. model predictions) and vector layers (PMTiles).",
@@ -248,9 +248,7 @@
     "saveBeforeReregister": "Save your changes before re-registering this source.",
     "cannotReregister": "Cannot re-register",
     "reregisterFailed": "Failed to re-register source",
-    "saveBeforeRefresh": "Save your changes before refreshing this collection.",
-    "cannotRefresh": "Cannot refresh",
-    "refreshFailed": "Failed to refresh collection"
+    "reregisterStarted": "Re-registering the imagery. The registered slice count updates as it finishes."
   },
   "tiler": {
     "methods": {
@@ -314,7 +312,6 @@
     "customizeCover": "Customize cover separately",
     "stacConfig": "STAC Configuration",
     "singleItem": "Single Item",
-    "mosaic": "Mosaic",
     "catalogUrl": "Catalog URL",
     "stacCollectionId": "STAC Collection ID",
     "internalStorage": "Hosted in internal storage",
@@ -339,15 +336,18 @@
     "registered": "{{registered}} of {{total}} slices registered ({{percent}}%)",
     "working": "Working…",
     "reregister": "Re-register imagery",
-    "confirmDelete": "Delete imagery source \"{{name}}\"?\n\nThis cannot be undone.",
+    "confirmDeleteTitle": "Delete imagery source \"{{name}}\"?",
+    "confirmDeleteDescription": "Nothing is deleted until you save changes.",
+    "confirmDeleteCollectionTitle": "Delete collection \"{{name}}\"?",
+    "confirmDeleteCollectionDescription": "Nothing is deleted until you save. On save, annotations made on this collection's slices stay but lose their link to the imagery they were drawn on.",
     "outsideSeries": {
       "title": "Collections outside this generated series",
       "continue": "Continue",
-      "description_one": "{{count}} collection in this source is not part of the generated series you are editing. Choose what regeneration should do with it.",
-      "description_other": "{{count}} collections in this source are not part of the generated series you are editing. Choose what regeneration should do with them.",
+      "description_one": "{{count}} collection in this source is not part of the generated series you are editing. Choose what applying your changes should do with it.",
+      "description_other": "{{count}} collections in this source are not part of the generated series you are editing. Choose what applying your changes should do with them.",
       "keep_one": "Keep them",
       "keep_other": "Keep them",
-      "keepHelp": "Recommended. Replace only this generated series and leave the other collections in place.",
+      "keepHelp": "Recommended. Apply your changes only to this generated series and leave the other collections in place.",
       "remove_one": "Remove them",
       "remove_other": "Remove them",
       "removeHelp": "Replace every collection in this source with the newly generated series."
@@ -381,7 +381,10 @@
     "removeViz": "Remove visualization",
     "collections": "Collections",
     "collectionsTooltip": "A collection is a time window of imagery. Each collection contains slices annotators can switch between.",
-    "editSeries": "Edit {{name}} series",
+    "editSeries": "Edit all collections",
+    "editSeriesNamed": "Edit all {{name}}",
+    "editSeriesTitle": "Change the search, dates and visualizations of every {{name}} collection",
+    "collectionsHint": "Click a collection to change only that one.",
     "deleteCollectionTitle": "Delete collection \"{{name}}\"",
     "deleteCollectionAria": "Delete collection {{name}}"
   },
@@ -522,9 +525,8 @@
     "selectTitle": "Select STAC Catalog",
     "collectionsTitle": "Collections",
     "configureTitle": "Configure",
-    "regenerate_one": "Regenerate {{count}} Collection",
-    "regenerate_other": "Regenerate {{count}} Collections",
-    "addCollection": "Add Collection",
+    "apply_one": "Apply to {{count}} Collection",
+    "apply_other": "Apply to {{count}} Collections",
     "generate_one": "Generate {{count}} Collection",
     "generate_other": "Generate {{count}} Collections",
     "generateCollections": "Generate Collections",
@@ -579,7 +581,7 @@
     "which": {
       "title": "Which imagery to use",
       "tooltip": "Narrows which images from this catalog the campaign draws on. Advanced options add sort order, a custom CQL query, and the choice of pulling one single scene instead of a mosaic.",
-      "description": "Pick the period to cover and how cloudy an image may be. Every image the campaign shows is searched for within these limits."
+      "description": "Pick the period to cover and how cloudy an image may be. The slices annotators browse are searched for within these limits. A custom cover slice has its own cloud limit."
     },
     "pull": {
       "title": "What to pull from the catalog",
@@ -595,7 +597,6 @@
     "groups": {
       "title": "Mosaic groups and time periods",
       "tooltip": "Groups are imagery collections, not the source STAC collection. Each group contains mosaics for smaller time periods, called slices.",
-      "descriptionSingle": "The whole date range forms one group (imagery collection). Choose the time periods for detailed imagery within it; each period becomes a mosaic slice.",
       "description": "Organize mosaics into time-based groups (imagery collections), with detailed imagery periods (slices) inside each group. For example: monthly groups with weekly mosaics. These periods organize available scenes; they do not change how often the satellite captures new images.",
       "pattern": "Grouping pattern",
       "patternTooltip": "Choose group and detailed imagery periods, or select Custom to set your own intervals.",
@@ -606,7 +607,6 @@
       "sliceEvery": "Detailed imagery every",
       "sliceEveryTooltip": "Each period becomes a mosaic slice within its group (collection). For example, 1 week creates weekly detailed imagery.",
       "sliceUnit": "Detailed imagery time unit",
-      "summarySingle": "One group (imagery collection) covers the full date range, with a detailed mosaic (slice) every {{slice}}.",
       "summary": "Each group (imagery collection) spans {{window}}, with a detailed mosaic (slice) every {{slice}}."
     },
     "units": {

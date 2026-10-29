@@ -48,10 +48,7 @@
     "countHere": "{{n}} aquí",
     "show": "Mostrar {{name}}",
     "hide": "Ocultar {{name}}",
-    "loadFailed": "No se pudo cargar la distribución de anotaciones",
-    "pending": "Pendiente",
-    "skipped": "Omitida",
-    "taskHeading": "Distribución de anotaciones ({{total}} en total)"
+    "loadFailed": "No se pudo cargar la distribución de anotaciones"
   },
   "userFilter": {
     "label": "Filtrar por usuario:",
@@ -63,15 +60,17 @@
     "noUsers": "No se encontraron usuarios"
   },
   "export": {
-    "failedAs": "No se pudieron exportar las anotaciones como {{format}}",
-    "succeeded": "Anotaciones exportadas como {{format}}",
-    "failed": "No se pudieron exportar las anotaciones",
+    "title": "Exportar anotaciones",
+    "label": "Exportar",
     "exporting": "Exportando…",
-    "button": "Exportar",
-    "mergeDisabledTitle": "Desactivado: esta campaña tiene tareas en conflicto. Resuélvelas en el modo de revisión antes de fusionar por acuerdo.",
-    "mergeOnAgreement": "Fusionar por acuerdo",
-    "mergeDisabled": "Desactivado - resuelve primero las tareas en conflicto.",
-    "mergeHint": "Agrupa las tareas con varios anotadores en una sola fila cuando todos los anotadores coinciden.",
+    "failedAs": "No se pudieron exportar las anotaciones como {{format}}",
+    "done": "Anotaciones exportadas como {{format}}",
+    "failed": "No se pudieron exportar las anotaciones",
+    "merge": "Combinar si hay acuerdo",
+    "mergeDisabledTip": "Deshabilitado: esta campaña tiene tareas en conflicto. Resuélvelas en el modo de revisión antes de combinar por acuerdo.",
+    "mergeDisabled": "Deshabilitado: resuelve primero las tareas en conflicto.",
+    "mergeHint": "Agrupa en una sola fila las tareas con varios anotadores cuando todos coinciden.",
+    "geojsonHint": "FeatureCollection (.geojson)",
     "csvHint": "Exportación tabular (.csv)"
   },
   "statistics": {
@@ -161,7 +160,6 @@
     "confirmDeleteDescription_other": "Se eliminarán permanentemente {{count}} anotaciones. Esta acción no se puede deshacer."
   },
   "tasks": {
-    "subtitle": "Consulta y filtra todas las tareas de anotación de esta campaña.",
     "filterAndSort": "Filtrar y ordenar",
     "showingOf": "Mostrando {{shown}} de {{total}} tareas",
     "counts": {

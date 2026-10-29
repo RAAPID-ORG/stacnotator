@@ -3,7 +3,7 @@
 These cover the bbox parser, tile-coordinate validation, and the MVT SQL
 builder. The SQL builder test guards the index-friendly filter shape: the
 spatial predicate must run against the untransformed geometry column so the
-GiST index on annotation_geometries.geometry can be used.
+GiST index on annotations.geometry can be used.
 """
 
 import pytest
@@ -87,8 +87,8 @@ def test_build_mvt_query_uses_index_friendly_filter():
     defeat the GiST index)."""
     sql, _ = build_mvt_query(z=5, x=10, y=12, campaign_id=42)
     where = sql[sql.index("WHERE") :]
-    assert "g.geometry &&" in where
-    assert "ST_Transform(g.geometry" not in where
+    assert "a.geometry &&" in where
+    assert "ST_Transform(a.geometry" not in where
 
 
 def test_build_mvt_query_selects_wider_than_it_clips():
@@ -128,7 +128,7 @@ def test_build_mvt_query_validates_coordinates():
 
 def test_build_mvt_query_includes_task_annotations_by_default():
     sql, _ = build_mvt_query(z=1, x=0, y=0, campaign_id=1)
-    assert "annotation_task_id" not in sql
+    assert "task_id" not in sql
 
 
 def test_build_mvt_query_can_leave_out_task_annotations():

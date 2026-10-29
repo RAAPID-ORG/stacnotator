@@ -7,21 +7,12 @@ import type {
   ImagerySourceOut,
   VisualizerArea,
 } from '~/api/client';
-import {
-  mapSourceOutToFe,
-  useDraftController,
-} from '~/features/campaigns/components/imagery/controller';
-import {
-  basemapToBackend,
-  sourceToBackend,
-} from '~/features/campaigns/components/imagery/draftSync';
-import { BasemapList } from '~/features/campaigns/components/imagery/BasemapList';
-import { SourceEditor } from '~/features/campaigns/components/imagery/SourceEditor';
-import { SourcesTab } from '~/features/campaigns/components/imagery/SourcesTab';
-import {
-  DEFAULT_BASEMAPS,
-  type ImageryStepState,
-} from '~/features/campaigns/components/imagery/types';
+import { mapSourceOutToFe, useDraftController } from '~/features/layers/imagery/controller';
+import { basemapToBackend, sourceToBackend } from '~/features/layers/imagery/draftSync';
+import { BasemapList } from '~/features/layers/imagery/BasemapList';
+import { SourceEditor } from '~/features/layers/imagery/SourceEditor';
+import { SourcesTab } from '~/features/layers/imagery/SourcesTab';
+import { DEFAULT_BASEMAPS, type ImageryStepState } from '~/features/layers/imagery/types';
 
 /**
  * Imagery set up for this visualizer alone.

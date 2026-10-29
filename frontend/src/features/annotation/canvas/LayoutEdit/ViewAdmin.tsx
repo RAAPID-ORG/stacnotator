@@ -17,9 +17,7 @@ import {
   IconPlus,
   IconTrash,
 } from '~/shared/ui/Icons';
-import { collectionsInView } from '../../campaign/imagery';
 import { useCampaign, useCampaignStore } from '../../stores/campaign';
-import { useLayoutStore as useCanvasLayoutStore } from '../../stores/layout';
 
 const iconButton =
   'grid h-5 w-5 shrink-0 place-items-center rounded text-neutral-400 transition-colors ' +
@@ -32,7 +30,6 @@ export function ViewAdmin() {
   const selectedViewId = useCampaignStore((s) => s.view?.id ?? null);
   const showAlert = useLayoutStore((s) => s.showAlert);
   const catalog = useCampaignStore((s) => s.catalog);
-  const syncWindowsToView = useCanvasLayoutStore((s) => s.syncWindowsToView);
   const [editingViewId, setEditingViewId] = useState<number | null>(null);
   const [draftName, setDraftName] = useState('');
   const [pendingDelete, setPendingDelete] = useState<ImageryViewOut | null>(null);
@@ -120,22 +117,18 @@ export function ViewAdmin() {
         ...campaign,
         imagery_views: views.map((v) => (v.id === view.id ? updated : v)),
       });
-      // The server has already reconciled the stored layouts and handed back
-      // the result; without this the new windows never reach the live canvas
-      // and turn up in the hidden tray instead.
-      const membershipChanged =
-        view.source_ids.length !== updated.source_ids.length ||
-        view.source_ids.some((id) => !updated.source_ids.includes(id));
-      if (membershipChanged && catalog && updated.id === selectedViewId) {
-        syncWindowsToView(updated, new Set(collectionsInView(catalog, updated).map((c) => c.id)));
-      }
     }, t('views.sourcesFailed'));
 
-  const toggleSource = (view: ImageryViewOut, sourceId: number, include: boolean) =>
-    saveSources(
-      view,
-      include ? [...view.source_ids, sourceId] : view.source_ids.filter((id) => id !== sourceId)
-    );
+  const toggleSource = (view: ImageryViewOut, sourceId: number, include: boolean) => {
+    const sourceIds = include
+      ? [...view.source_ids, sourceId]
+      : view.source_ids.filter((id) => id !== sourceId);
+    if (sourceIds.length === 0) {
+      showAlert(t('views.lastSource'), 'error');
+      return;
+    }
+    return saveSources(view, sourceIds);
+  };
 
   const moveSource = (view: ImageryViewOut, sourceId: number, direction: -1 | 1) => {
     const index = view.source_ids.indexOf(sourceId);

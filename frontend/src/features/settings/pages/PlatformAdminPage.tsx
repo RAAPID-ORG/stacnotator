@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Spinner } from '~/shared/ui/Spinner';
 import { Navigate } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PlatformUsersTable } from '~/features/settings/components/PlatformUsersTable';
 import { PlatformOrganizationsTable } from '~/features/settings/components/PlatformOrganizationsTable';
-import { LoadingOverlay } from 'src/shared/ui/LoadingOverlay';
+import { LoadingOverlay } from '~/shared/ui/LoadingOverlay';
 import { Button } from '~/shared/ui/forms';
-import { useLayoutStore } from 'src/shared/stores/layout.store';
+import { useLayoutStore } from '~/shared/stores/layout.store';
 import { getOrganizationTilers, type UserOut, type UserOutDetailed } from '~/api/client';
 import {
   approveOrganizationMutation,
@@ -45,25 +46,7 @@ const RefreshButton = ({ onClick, busy }: { onClick: () => void; busy: boolean }
       variant="secondary"
       onClick={onClick}
       disabled={busy}
-      leading={
-        busy ? (
-          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
-            />
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-            />
-          </svg>
-        ) : undefined
-      }
+      leading={busy ? <Spinner size="xs" /> : undefined}
     >
       {t('refresh')}
     </Button>
@@ -77,7 +60,7 @@ export const PlatformAdminPage = () => {
 
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
   const showAlert = useLayoutStore((state) => state.showAlert);
-  const isPlatformAdmin = useAccountStore((s) => s.account?.is_admin ?? false);
+  const isPlatformAdmin = useAccountStore((s) => s.account?.is_platform_admin ?? false);
 
   // The same list the sidebar reads: for a platform admin it is every
   // organization on the platform, which is what this page administers. One cache
@@ -112,7 +95,7 @@ export const PlatformAdminPage = () => {
 
   const grant = useMutation({
     ...grantAdminMutation(),
-    meta: reportedByCaller(t('toasts.grantAdminFailed')),
+    meta: { errorMessage: t('toasts.grantAdminFailed') },
     onSuccess: (result) => {
       void refetchUsers();
       showAlert(t('toasts.adminGranted', { count: result.success.length }), 'success');
@@ -120,7 +103,7 @@ export const PlatformAdminPage = () => {
   });
   const revoke = useMutation({
     ...revokeAdminMutation(),
-    meta: reportedByCaller(t('toasts.revokeAdminFailed')),
+    meta: { errorMessage: t('toasts.revokeAdminFailed') },
     onSuccess: (result) => {
       void refetchUsers();
       showAlert(t('toasts.adminRevoked', { count: result.success.length }), 'success');

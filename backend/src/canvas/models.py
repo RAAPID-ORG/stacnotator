@@ -61,6 +61,9 @@ class CanvasLayout(Base):
         server_default="[]",
         nullable=False,
     )
+    # Keys of the windows this layout hides. A window it neither places nor hides is
+    # shown, and placed by the client where there is room.
+    hidden: Mapped[list] = mapped_column(JSONB, server_default="[]", nullable=False)
 
     campaign: Mapped["Campaign"] = relationship(
         back_populates="canvas_layouts",

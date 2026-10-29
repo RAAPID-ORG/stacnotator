@@ -19,6 +19,11 @@ export const reportedByCaller = (errorMessage: string): RequestMeta => ({
   showUser: false,
 });
 
+/** How often a page re-reads a record while a background run on it (imagery
+ *  registration, embeddings) is going; the poll stops itself once the run is
+ *  done. */
+export const RUN_POLL_MS = 5000;
+
 /** For lists other people change while you are looking at them - task progress,
  *  the review list, campaign statistics. Every mount re-reads, and coming back
  *  to the tab counts as asking whether it is still current.
@@ -47,7 +52,7 @@ const report = (error: unknown, meta: Record<string, unknown> | undefined) => {
  *  not restorm the API every time the window is touched. `staleTime` is what
  *  makes navigating back to a page instant while still re-asking once the data
  *  has had time to move. */
-export const createQueryClient = () =>
+const createQueryClient = () =>
   new QueryClient({
     queryCache: new QueryCache({ onError: (error, query) => report(error, query.meta) }),
     mutationCache: new MutationCache({

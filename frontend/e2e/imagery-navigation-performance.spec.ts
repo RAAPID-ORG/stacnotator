@@ -24,7 +24,7 @@ const collections = Array.from({ length: COLLECTION_COUNT }, (_, index) => {
           cover_slice_index: 0,
           has_dedicated_cover: true,
           display_order: index,
-          stac_config: null,
+          search: null,
           slices: [
             {
               id,
@@ -32,10 +32,10 @@ const collections = Array.from({ length: COLLECTION_COUNT }, (_, index) => {
               start_date: '2024-01-01',
               end_date: '2024-12-31',
               display_order: 0,
-              tile_urls: [
+              tiles: [
                 {
-                  visualization_name: 'True Color',
-                  tile_url: `https://tiles.example.com/mosaic/source-${index + 1}/tiles/WebMercatorQuad/{z}/{x}/{y}`,
+                  visualization_id: id,
+                  url: `https://tiles.example.com/mosaic/source-${index + 1}/tiles/WebMercatorQuad/{z}/{x}/{y}`,
                 },
               ],
             },
@@ -114,7 +114,7 @@ test('all visible imagery panels start loading a newly selected task together', 
   // The default pending filter only contains tasks 1 and 2. Make all five
   // visible, so task 5 is outside the three-task look-ahead cache and remains
   // a genuinely cold random jump.
-  await annotationPage.route('**/api/campaigns/*/annotation-tasks', async (route) => {
+  await annotationPage.route('**/api/campaigns/*/tasks', async (route) => {
     await route.fulfill({
       json: {
         ...MOCK_TASK_LIST,
@@ -126,7 +126,7 @@ test('all visible imagery panels start loading a newly selected task together', 
             status: 'pending',
           })),
           annotations: [],
-          geometry: index === 4 ? { ...task.geometry, geometry: 'POINT(100 0)' } : task.geometry,
+          geometry_wkt: index === 4 ? 'POINT(100 0)' : task.geometry_wkt,
         })),
       },
     });

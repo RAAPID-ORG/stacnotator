@@ -77,11 +77,7 @@
     "unexpected": "Se produjo un error inesperado. Intenta recargar la página.",
     "boundaryMessage": "Se produjo un error inesperado. Tus datos están a salvo.",
     "technicalDetails": "Detalles técnicos",
-    "boundaryPersists": "Si el problema persiste, contacta con soporte o intenta actualizar la página.",
-    "appTitle": "Error de la aplicación",
-    "appMessage": "Algo salió mal al cargar la aplicación.",
-    "details": "Detalles del error",
-    "appPersists": "Si el problema persiste, contacta con soporte o revisa la consola del navegador para más detalles."
+    "boundaryPersists": "Si el problema persiste, contacta con soporte o intenta actualizar la página."
   },
   "confirmDialog": {
     "dontAskAgain": "No volver a preguntar en esta sesión"
@@ -163,5 +159,14 @@
     "signOut": "Cerrar sesión",
     "agree": "Acepto",
     "acceptFailed": "No se pudo registrar tu aceptación. Inténtalo de nuevo."
+  },
+  "typeToDelete": {
+    "typeToConfirm": "Escribe <name>{{name}}</name> para confirmar:",
+    "placeholder": "Escribe aquí el nombre"
+  },
+  "help": {
+    "title": "Ayuda y guías",
+    "comingSoon": "Próximamente",
+    "workInProgress": "Las guías de STACNotator están en preparación y aparecerán aquí."
   }
 }

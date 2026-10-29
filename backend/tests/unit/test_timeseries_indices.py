@@ -7,7 +7,7 @@ values, with no Earth Engine anywhere.
 
 import pytest
 
-from src.timeseries.indices import INDICES, INDICES_BY_KEY, index_for, render_formula
+from src.timeseries.indices import INDICES, INDICES_BY_KEY, render_formula
 from src.timeseries.sources import (
     _LANDSAT_OFFSET,
     _LANDSAT_OLI_BANDS,
@@ -138,10 +138,6 @@ class TestRegistry:
         assert len(keys) == len(set(keys))
         assert all(key == key.strip().upper() for key in keys)
 
-    def test_lookup_ignores_case_and_padding(self):
-        assert index_for(" ndvi ") is INDICES_BY_KEY["NDVI"]
-        assert index_for("NOPE") is None
-
     @pytest.mark.parametrize("index", INDICES, ids=lambda i: i.key)
     def test_chart_domain_is_ordered_and_contains_its_reference_lines(self, index):
         low, high = index.domain
@@ -176,10 +172,6 @@ class TestAvailability:
         generation and missing on another would silently truncate it."""
         role_sets = {frozenset(bands) for _, bands in LANDSAT_MISSIONS}
         assert len(role_sets) == 1
-
-    def test_source_lookup_ignores_case_and_padding(self):
-        assert source_for(" modis ") is SOURCES_BY_KEY["MODIS"]
-        assert source_for("SENTINEL3") is None
 
 
 class _FakeImage:

@@ -5,6 +5,7 @@ import { PROJECT_ROUTE, useProject } from '~/app/projectRoute';
 import {
   ANNOTATION_ROUTE,
   campaignPath,
+  helpPath,
   platformAdminPath,
   projectPath,
   projectsPath,
@@ -24,7 +25,6 @@ import { HarvestMark, HARVEST_SITE } from '~/shared/ui/HarvestMark';
 import {
   IconBook,
   IconChart,
-  IconExternalLink,
   IconFolder,
   IconGear,
   IconHome,
@@ -33,7 +33,7 @@ import {
   IconPencil,
   IconRobot,
   IconShield,
-  IconTaskListFilled,
+  IconTaskList,
   IconUsers,
 } from '~/shared/ui/Icons';
 import { AccountMenu } from './AccountMenu';
@@ -45,8 +45,6 @@ export type AppSidebarProps = {
   setMobileOpen?: (open: boolean) => void;
 };
 
-const HELP_URL = 'https://github.com/RAAPID-ORG/stacnotator/blob/main/docs/features.md';
-
 const PROJECT_SECTION_ICON: Record<ProjectSection, ReactNode> = {
   campaigns: <IconFolder />,
   visualizers: <IconMap />,
@@ -57,7 +55,7 @@ const PROJECT_SECTION_ICON: Record<ProjectSection, ReactNode> = {
 const CAMPAIGN_SECTION_ICON = {
   overview: <IconOverview />,
   annotate: <IconPencil />,
-  tasks: <IconTaskListFilled />,
+  tasks: <IconTaskList />,
   annotations: <IconChart />,
   agents: <IconRobot />,
   settings: <IconGear />,
@@ -83,7 +81,6 @@ type NavItemProps = {
   active?: boolean;
   depth?: 0 | 1 | 2;
   emphasis?: boolean;
-  external?: boolean;
   trailing?: ReactNode;
   onNavigate?: () => void;
 };
@@ -98,7 +95,6 @@ const NavItem = ({
   active = false,
   depth = 0,
   emphasis = false,
-  external = false,
   trailing,
   onNavigate,
 }: NavItemProps) => {
@@ -125,11 +121,7 @@ const NavItem = ({
     </>
   );
 
-  return external ? (
-    <a href={to} target="_blank" rel="noreferrer" title={label} className={className}>
-      {content}
-    </a>
-  ) : (
+  return (
     <Link
       to={to}
       title={label}
@@ -163,7 +155,7 @@ export const AppSidebar = ({
 }: AppSidebarProps) => {
   const { t } = useTranslation();
   const { pathname, search } = useLocation();
-  const isPlatformAdmin = useAccountStore((s) => s.account?.is_admin ?? false);
+  const isPlatformAdmin = useAccountStore((s) => s.account?.is_platform_admin ?? false);
   const { orgs } = useOrganizations();
   const approvals = pendingAdminActions(orgs, isPlatformAdmin).organizationApprovals;
 
@@ -320,11 +312,10 @@ export const AppSidebar = ({
 
         <div className="flex flex-col gap-px px-2 pb-2">
           <NavItem
-            to={HELP_URL}
-            external
+            to={helpPath()}
             icon={<IconBook />}
             label={t('sidebar.helpGuides')}
-            trailing={<IconExternalLink className="w-3.5 h-3.5 text-neutral-300" />}
+            active={pathname === helpPath()}
             {...item}
           />
           {isPlatformAdmin && (

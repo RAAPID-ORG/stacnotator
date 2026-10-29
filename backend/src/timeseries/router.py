@@ -3,7 +3,6 @@ from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
 from src.auth.dependencies import require_authenticated_user
-from src.auth.models import User
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
 from src.database import get_db
@@ -14,9 +13,8 @@ from src.timeseries.schemas import (
     TimeseriesBulkCreateRequest,
     TimeseriesBulkCreateResponse,
     TimeseriesDataResponse,
-    TimeseriesListResponse,
-    TimeSeriesOptionsOut,
-    TimeseriesPanelRenameRequest,
+    TimeseriesOptionsOut,
+    TimeseriesWindowRenameRequest,
     timeseries_options,
     ym_range_to_dates,
 )
@@ -25,17 +23,6 @@ router = APIRouter(
     tags=["Time Series"],
     dependencies=[Depends(HTTPBearer()), Depends(require_authenticated_user)],
 )
-
-
-@router.get("/campaigns/{campaign_id}/timeseries", response_model=TimeseriesListResponse)
-def get_timeseries_for_campaign(
-    campaign_id: int,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_access),
-):
-    """Get all timeseries configurations for a campaign. NOT the actual data, just the metadata about the timeseries."""
-    timeseries = service.get_timeseries_for_campaign(campaign_id, db)
-    return TimeseriesListResponse(items=timeseries)
 
 
 @router.post("/campaigns/{campaign_id}/timeseries", response_model=TimeseriesBulkCreateResponse)
@@ -50,36 +37,40 @@ def create_timeseries_for_campaign(
     return TimeseriesBulkCreateResponse(new_items=new_items)
 
 
-@router.get("/timeseries/create-options", response_model=TimeSeriesOptionsOut)
+@router.get("/timeseries/create-options", response_model=TimeseriesOptionsOut)
 def get_timeseries_creation_options():
     """Get options for registering new timeseries for a campaign: the satellite
     sources, the spectral indices each one can compute, and what they are for."""
     return timeseries_options()
 
 
-@router.patch("/campaigns/{campaign_id}/timeseries/panel", status_code=204)
-def rename_timeseries_panel(
+@router.patch("/campaigns/{campaign_id}/timeseries/windows/{window_id}", status_code=204)
+def rename_timeseries_window(
     campaign_id: int,
-    request: TimeseriesPanelRenameRequest,
+    window_id: int,
+    request: TimeseriesWindowRenameRequest,
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
 ):
-    service.rename_timeseries_panel(campaign_id, request.old_name, request.new_name, db)
+    service.rename_timeseries_window(campaign_id, window_id, request.name, db)
 
 
 @router.get(
-    "/timeseries/{timeseries_id}/{latitude}/{longitude}/data", response_model=TimeseriesDataResponse
+    "/campaigns/{campaign_id}/timeseries/{timeseries_id}/data",
+    response_model=TimeseriesDataResponse,
 )
 def get_timeseries_data(
+    campaign_id: int,
     timeseries_id: int,
     latitude: float,
     longitude: float,
     db: Session = Depends(get_db),
-    user: User = Depends(require_authenticated_user),
+    campaign: Campaign = Depends(require_campaign_access),
 ):
-    """Fetch the actual timeseries data from an external provider based on the timeseries config."""
+    """A series' values at a point, fetched from its provider."""
     timeseries = service.get_timeseries_by_id(timeseries_id, db)
-    require_campaign_access(campaign_id=timeseries.campaign_id, db=db, user=user)
+    if timeseries.campaign_id != campaign_id:
+        raise HTTPException(status_code=404, detail="Timeseries not found")
 
     try:
         start, end = ym_range_to_dates(timeseries.start_ym, timeseries.end_ym)
@@ -133,5 +124,5 @@ def delete_timeseries(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
 ):
-    """Delete a timeseries. If it's the last one, removes it from all layouts."""
+    """Delete a timeseries, and its window when it was the window's last."""
     service.delete_timeseries(timeseries_id, campaign_id, db)

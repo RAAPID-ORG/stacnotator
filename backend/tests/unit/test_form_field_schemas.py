@@ -105,6 +105,11 @@ class TestSlugAndListValidation:
     def test_slug_normalizes(self):
         assert form_field_slug("Crop Type (2026)!") == "crop_type_2026"
 
+    def test_slug_keeps_non_latin_letters_and_drops_accents(self):
+        assert form_field_slug("状態") == "状態"
+        assert form_field_slug("Condición") == "condicion"
+        assert form_field_slug("%%") == "field"
+
     def test_duplicate_ids_rejected(self):
         fields = [
             FIELD_ADAPTER.validate_python(_category()),

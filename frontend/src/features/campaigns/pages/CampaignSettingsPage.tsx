@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Spinner } from '~/shared/ui/Spinner';
 import { Trans, useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -6,26 +7,27 @@ import { Button } from '~/shared/ui/forms';
 import { Skeleton, SkeletonForm } from '~/shared/ui/Skeleton';
 import { LoadingOverlay } from '~/shared/ui/LoadingOverlay';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
-import TabNavigator from '~/shared/ui/TabNavigator';
+import { TabNavigator } from '~/shared/ui/TabNavigator';
 import { DeleteCampaignDialog } from '~/features/campaigns/components/DeleteCampaignDialog';
-import GeneralSettingsTab from '~/features/campaigns/components/settings/tabs/GeneralSettingsTab';
-import ImageryTab from '~/features/campaigns/components/settings/tabs/ImageryTab';
-import { usePersistedController } from '~/features/campaigns/components/imagery/controller';
+import { GeneralSettingsTab } from '~/features/campaigns/components/settings/tabs/GeneralSettingsTab';
+import { ImageryTab } from '~/features/campaigns/components/settings/tabs/ImageryTab';
+import { usePersistedController } from '~/features/layers/imagery/controller';
 import { useUnsavedChangesGuard } from '~/shared/hooks/useUnsavedChangesGuard';
 import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
 import { campaignPath, projectPath } from '~/app/routes';
 import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
-import TimeseriesTab from '~/features/campaigns/components/settings/tabs/TimeseriesTab';
+import { TimeseriesTab } from '~/features/campaigns/components/settings/tabs/TimeseriesTab';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { FadeIn } from '~/shared/ui/motion';
 
 import {
+  type BasemapOut,
   type ImagerySourceOut,
   type ProjectUserOut,
-  type TimeSeriesCreate,
-  type TimeSeriesOut,
+  type TimeseriesCreate,
+  type TimeseriesOut,
 } from '~/api/client';
 import {
   createTimeseriesForCampaignMutation,
@@ -33,8 +35,8 @@ import {
   deleteTimeseriesMutation,
   getProjectUsersOptions,
   listProjectCampaignsQueryKey,
-  renameTimeseriesPanelMutation,
-  updateCampaignNameMutation,
+  renameTimeseriesWindowMutation,
+  updateCampaignMutation,
 } from '~/api/queries';
 import { useCampaign, useRefreshCampaign } from '../hooks/campaignQueries';
 
@@ -45,7 +47,8 @@ const isSettingsTab = (tab: string | null): tab is SettingsTab =>
   (SETTINGS_TABS as readonly string[]).includes(tab ?? '');
 
 const NO_IMAGERY: ImagerySourceOut[] = [];
-const NO_TIMESERIES: TimeSeriesOut[] = [];
+const NO_BASEMAPS: BasemapOut[] = [];
+const NO_TIMESERIES: TimeseriesOut[] = [];
 const NO_USERS: ProjectUserOut[] = [];
 
 export const CampaignSettingsPage = () => {
@@ -72,7 +75,7 @@ export const CampaignSettingsPage = () => {
   const timeseries = campaign?.time_series ?? NO_TIMESERIES;
 
   const [campaignName, setCampaignName] = useState('');
-  const [newTimeseries, setNewTimeseries] = useState<TimeSeriesCreate[]>([]);
+  const [newTimeseries, setNewTimeseries] = useState<TimeseriesCreate[]>([]);
 
   // Confirm dialog states
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -98,7 +101,7 @@ export const CampaignSettingsPage = () => {
     campaignId: campaignId,
     projectId,
     imagery,
-    basemaps: campaign?.basemaps ?? [],
+    basemaps: campaign?.basemaps ?? NO_BASEMAPS,
     campaignBbox,
     refetch: refreshCampaign,
   });
@@ -150,7 +153,7 @@ export const CampaignSettingsPage = () => {
   const projectUsers = projectUsersData?.users ?? NO_USERS;
 
   const renameCampaign = useMutation({
-    ...updateCampaignNameMutation(),
+    ...updateCampaignMutation(),
     meta: { errorMessage: t('settingsPage.errors.saveName') },
     onSuccess: () => {
       void refreshCampaign();
@@ -196,7 +199,7 @@ export const CampaignSettingsPage = () => {
   });
 
   const renamePanel = useMutation({
-    ...renameTimeseriesPanelMutation(),
+    ...renameTimeseriesWindowMutation(),
     meta: { errorMessage: t('settingsPage.errors.renamePanel') },
     onSuccess: async () => {
       await refreshCampaign();
@@ -204,10 +207,13 @@ export const CampaignSettingsPage = () => {
     },
   });
 
+  // The editor names windows; the API addresses the window row its series share.
   const handleRenamePanel = async (oldName: string, newName: string) => {
+    const window = campaign?.time_series.find((ts) => ts.window_name === oldName);
+    if (!window) return;
     await renamePanel.mutateAsync({
-      path: { campaign_id: campaignId },
-      body: { old_name: oldName, new_name: newName },
+      path: { campaign_id: campaignId, window_id: window.window_id },
+      body: { name: newName },
     });
   };
 
@@ -294,25 +300,7 @@ export const CampaignSettingsPage = () => {
           <div className="space-y-3 mb-4 empty:hidden">
             {campaign?.registration_status === 'registering' && (
               <div className="flex items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-                <svg
-                  className="animate-spin h-4 w-4 text-blue-600 shrink-0"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                  />
-                </svg>
+                <Spinner size="xs" className="shrink-0" />
                 <span>
                   <Trans
                     t={t}
@@ -324,25 +312,7 @@ export const CampaignSettingsPage = () => {
             )}
             {campaign?.embedding_status === 'registering' && (
               <div className="flex items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-                <svg
-                  className="animate-spin h-4 w-4 text-blue-600 shrink-0"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                  />
-                </svg>
+                <Spinner size="xs" className="shrink-0" />
                 <span>
                   <Trans
                     t={t}
@@ -407,19 +377,11 @@ export const CampaignSettingsPage = () => {
                     components={{ strong: <strong /> }}
                   />
                 </p>
-                {campaign.registration_errors?.some((e) =>
-                  (e as { error?: string }).error?.startsWith('Embeddings:')
-                ) && (
-                  <p className="text-[11px] mt-1 text-red-700">
-                    {
-                      (
-                        campaign.registration_errors.find((e) =>
-                          (e as { error?: string }).error?.startsWith('Embeddings:')
-                        ) as { error?: string }
-                      )?.error
-                    }
+                {campaign.embedding_errors?.map((err, i) => (
+                  <p key={i} className="text-[11px] mt-1 text-red-700">
+                    {(err as { error?: string }).error}
                   </p>
-                )}
+                ))}
               </div>
             )}
           </div>
@@ -468,10 +430,6 @@ export const CampaignSettingsPage = () => {
                       handleRenamePanel={handleRenamePanel}
                       setDeleteConfirm={setDeleteConfirm}
                       saving={saving}
-                      campaignName={campaignName}
-                      imagery={imagery}
-                      campaignMode={campaign.mode || 'tasks'}
-                      campaignSettings={campaign.settings || {}}
                     />
                   )}
                 </>

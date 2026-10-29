@@ -2,9 +2,10 @@ import { type ImageryCatalog } from '../campaign/imagery';
 import { type ImageryNavState } from '../campaign/imageryNav';
 import { apiUrl } from '~/api/base';
 import i18n from '~/shared/i18n';
-import { basemapAttribution, resolveBasemapUrl } from '~/shared/imagery/tileUrls';
+import { campaignBasemapProxyBase } from '~/shared/imagery/tileUrls';
+import { basemapLayer, customMapLayer, vectorLayer } from '~/shared/imagery/layerSpecs';
 import { sliceRaster } from '../campaign/tileUrls';
-import { applyRenderOverride, type LegendOverride } from '~/shared/imagery/tileColors';
+import type { RenderOverride } from '~/shared/imagery/tileColors';
 import {
   resolveLabelStyle,
   toDraftStyleSpec,
@@ -32,7 +33,7 @@ export const isAnnotationLayer = (layerId: LayerId | undefined): boolean =>
 export const EXTENT_LAYER_ID = 'task-extent';
 export const CROSSHAIR_LAYER_ID = 'crosshair';
 export const ORIGIN_TASK_LAYER_ID = 'origin-task';
-export const DRAFT_LAYER_ID = 'draft';
+const DRAFT_LAYER_ID = 'draft';
 export const PROBE_LAYER_ID = 'probe';
 
 /** One colour per probe, shared with the chart so a marker and its lines
@@ -41,7 +42,7 @@ const PROBE_COLORS = ['#f97316', '#0891b2', '#a855f7', '#16a34a', '#e11d48', '#c
 
 export const probeColor = (index: number): string => PROBE_COLORS[index % PROBE_COLORS.length];
 
-export const probeFeatureId = (index: number): string => `probe-${index}`;
+const probeFeatureId = (index: number): string => `probe-${index}`;
 
 /** Which probe a clicked marker is, or null when the id is not one. */
 export function probeIndexOf(featureId: string | number | undefined): number | null {
@@ -50,7 +51,7 @@ export function probeIndexOf(featureId: string | number | undefined): number | n
 }
 
 /** Exported because labelling a vector feature means recognising a click or a
- *  box hit on one of these. */
+ *  box hit on one of these; `vectorLayer` names them the same way. */
 export const vectorLayerId = (id: number): string => `vector-${id}`;
 
 const TILE_SKELETON_Z = -1;
@@ -128,7 +129,8 @@ export interface ComposeState extends ImageryNavState {
   target?: 'main' | 'window';
   /** Draw the tile-grid backdrop under everything. */
   tileSkeleton?: boolean;
-  legendOverrides?: Record<number, LegendOverride>;
+  /** Colour overrides per custom map id. */
+  customMapOverrides?: Record<number, RenderOverride>;
   annotations?: SavedAnnotations;
   focusExtent?: GeoFeature | null;
   crosshairPoint?: LonLat | null;
@@ -146,7 +148,7 @@ export interface ComposeState extends ImageryNavState {
  *  them again, through both the browser and OL caches. `include_tasks` is
  *  always spelled out so a filtered tile and an unfiltered one are different
  *  URLs - neither the HTTP cache nor a retained OL source can mix them. */
-export const annotationTilesUrl = (campaignId: number, version: number, includeTasks: boolean) =>
+const annotationTilesUrl = (campaignId: number, version: number, includeTasks: boolean) =>
   apiUrl(
     `/api/campaigns/${campaignId}/annotations/tiles/{z}/{x}/{y}.pbf` +
       `?v=${version}&include_tasks=${includeTasks}`
@@ -268,26 +270,13 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
   // at all, so the map is never a blank canvas.
   if ((state.showBasemap || !state.address) && !isWindow) {
     const basemap = selectedBasemap(catalog, state.selectedBasemapId);
-    if (basemap) {
-      layers.push({
-        kind: 'raster',
-        id: `basemap-${basemap.id}`,
-        url: resolveBasemapUrl(catalog.campaignId, basemap),
-        auth: 'none',
-        maxZoom: basemap.max_native_zoom ?? undefined,
-        attribution: basemapAttribution(basemap.url),
-      });
-    }
+    if (basemap) layers.push(basemapLayer(basemap, campaignBasemapProxyBase(catalog.campaignId)));
     // No address means the view has nothing to navigate: the basemap is the
     // whole map, with nothing to overlay it with yet.
     if (!state.address) return layers;
   } else if (state.address) {
     try {
-      const raster = sliceRaster(
-        catalog,
-        state.address,
-        state.legendOverrides?.[Number(state.address.vizId)]
-      );
+      const raster = sliceRaster(catalog, state.address);
       layers.push({ kind: 'raster', ...raster, cacheScope: taskScope });
     } catch {
       // A stale address costs the imagery layer, not the page.
@@ -296,18 +285,11 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
 
   if (!isWindow && state.overlay.id != null && state.overlay.visible) {
     const map = catalog.customMaps.get(state.overlay.id);
-    if (map?.tile_url && map.status === 'ready') {
-      layers.push({
-        kind: 'raster',
-        id: `custom-map-${map.id}`,
-        url: applyRenderOverride(map.tile_url, map.render_config, state.legendOverrides?.[map.id]),
-        auth: 'cookie',
-        opacity: state.overlayOpacity ?? 1,
-        maxZoom: map.max_native_zoom ?? undefined,
-        cacheScope: taskScope,
-        zIndex: OVERLAY_Z,
-      });
-    }
+    const layer =
+      map?.status === 'ready'
+        ? customMapLayer(map, state.customMapOverrides?.[map.id], state.overlayOpacity ?? 1)
+        : null;
+    if (layer) layers.push({ ...layer, cacheScope: taskScope, zIndex: OVERLAY_Z });
   }
 
   // Explore marks the task it was entered from with its own marker instead,
@@ -316,14 +298,11 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
     layers.push({
       kind: 'features',
       id: EXTENT_LAYER_ID,
+      decorative: true,
       features: [state.focusExtent],
-      style: {
-        stroke: {
-          color: state.crosshairColor ?? DEFAULT_CROSSHAIR_COLOR,
-          width: 2,
-          dash: [6, 4],
-        },
-      },
+      // Solid: dashes run around the ring with a four-fold twist, and a box
+      // zoomed down to the cross's size turned the two into a pinwheel.
+      style: { stroke: { color: state.crosshairColor ?? DEFAULT_CROSSHAIR_COLOR, width: 1.5 } },
       zIndex: EXTENT_Z,
     });
   }
@@ -332,16 +311,7 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
   // them; selection belongs to the map.
   if (!isWindow && state.vector.id != null && state.vector.visible) {
     const vector = catalog.vectorLayers.get(state.vector.id);
-    if (vector) {
-      layers.push({
-        kind: 'vector-tiles',
-        id: vectorLayerId(vector.id),
-        url: vector.pmtiles_url,
-        sourceLayers: vector.source_layer ? [vector.source_layer] : undefined,
-        style: { stroke: { color: vector.color, width: 1.5 }, fill: { color: vector.color } },
-        zIndex: VECTOR_Z,
-      });
-    }
+    if (vector) layers.push({ ...vectorLayer(vector), zIndex: VECTOR_Z });
   }
 
   // Saved annotations are what Explore and draw tasks work on. A classify task
@@ -447,6 +417,7 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
     layers.push({
       kind: 'features',
       id: ORIGIN_TASK_LAYER_ID,
+      decorative: true,
       features: [
         {
           id: ORIGIN_TASK_LAYER_ID,
@@ -473,6 +444,7 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
     layers.push({
       kind: 'features',
       id: CROSSHAIR_LAYER_ID,
+      decorative: true,
       features: [
         { id: CROSSHAIR_LAYER_ID, geometry: { type: 'Point', coordinates: state.crosshairPoint } },
       ],

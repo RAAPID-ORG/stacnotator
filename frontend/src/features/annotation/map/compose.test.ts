@@ -8,7 +8,7 @@ import {
   makeCustomMap,
   makeSlice,
   makeSource,
-  makeTileUrl,
+  makeTile,
   makeVectorLayer,
   makeView,
   makeViz,
@@ -73,10 +73,10 @@ const CAMPAIGN: CampaignOutFull = makeCampaign({
             makeSlice({
               id: 1000,
               name: 'jan',
-              tile_urls: [
-                makeTileUrl({
-                  visualization_name: 'rgb',
-                  tile_url: 'https://tiler.test/slices/1000/rgb/{z}/{x}/{y}.png',
+              tiles: [
+                makeTile({
+                  visualization_id: 11,
+                  url: 'https://tiler.test/slices/1000/rgb/{z}/{x}/{y}.png',
                 }),
               ],
             }),
@@ -158,7 +158,7 @@ describe('composeLayers - tasks mode', () => {
     );
     const extent = layers.find((l) => l.id === EXTENT_LAYER_ID);
     expect(extent?.kind === 'features' && extent.style).toEqual({
-      stroke: { color: '#00ffff', width: 2, dash: [6, 4] },
+      stroke: { color: '#00ffff', width: 1.5 },
     });
   });
 
@@ -305,19 +305,14 @@ describe('composeLayers - imagery selection', () => {
     expect(ids(layers)).toContain(ANNOTATION_LAYER_ID);
   });
 
-  it('stamps a legend override onto the raster url', () => {
-    const plain = composeLayers(ctxFor('explore'), stateWith());
-    const overridden = composeLayers(
+  it('never recolours imagery with a custom map override that shares its id', () => {
+    const layers = composeLayers(
       ctxFor('explore'),
-      stateWith({ legendOverrides: { 11: { colormap_name: 'magma', rescale: [0, 2] } } })
+      stateWith({ customMapOverrides: { 11: { colormap_name: 'magma', rescale: [0, 2] } } })
     );
 
-    const urlOf = (layers: LayerSpec[]) => {
-      const layer = layers.find((l) => l.id === 'slice-1000-11');
-      return layer && layer.kind === 'raster' ? layer.url : '';
-    };
-    expect(urlOf(plain)).not.toContain('magma');
-    expect(urlOf(overridden)).toContain('colormap_name=magma');
+    const slice = layers.find((l) => l.id === 'slice-1000-11');
+    expect(slice && slice.kind === 'raster' && slice.url).not.toContain('magma');
   });
 
   it('applies the overlay selection with its opacity', () => {

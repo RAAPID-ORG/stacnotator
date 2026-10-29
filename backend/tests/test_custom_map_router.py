@@ -9,6 +9,7 @@ from src.campaigns.dependencies import require_campaign_access, require_campaign
 from src.custom_layers import router as cm_router
 from src.custom_layers import service
 from src.database import get_db
+from src.layers import LayerOwner
 from src.main import app
 
 CAMPAIGN_ID = 7
@@ -24,7 +25,7 @@ def _map_obj(**kw):
         render_config=CONT,
         max_native_zoom=None,
         status="registering",
-        status_error=None,
+        status_errors=None,
         tile_url=None,
         mosaic_id=None,
         display_order=0,
@@ -43,6 +44,7 @@ def client():
 def _override_auth(allows_internal_storage: bool = False, allowed_tiler_names=("mpc", "azure")):
     campaign = SimpleNamespace(
         id=CAMPAIGN_ID,
+        layer_owner=LayerOwner(campaign_id=CAMPAIGN_ID),
         project=SimpleNamespace(
             organization=SimpleNamespace(
                 allows_internal_storage=allows_internal_storage,

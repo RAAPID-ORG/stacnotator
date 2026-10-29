@@ -7,10 +7,6 @@ export interface RenderOverride {
   entries?: CategoricalEntry[];
 }
 
-/** Same shape as RenderOverride, generalized to any visualization's legend
- *  (not just custom maps) - see usePrefsStore.legendOverrides. */
-export type LegendOverride = RenderOverride;
-
 const COLOR_PARAMS = ['rescale', 'colormap_name', 'colormap'];
 
 export function effectiveRenderConfig(
@@ -102,22 +98,4 @@ export function applyRenderOverride(
     });
   }
   return stampColorParams(tileUrl, { mode: 'categorical', entries: eff.entries ?? [] });
-}
-
-/** Generalized path (no server-baked base config to merge against): used by
- *  `sliceRaster` for regular imagery visualizations. Categorical entries
- *  win over a colormap_name/rescale pair when both are present. */
-export function stampLegendOverride(tileUrl: string, override: LegendOverride | undefined): string {
-  if (!override) return tileUrl;
-  if (override.entries && override.entries.length > 0) {
-    return stampColorParams(tileUrl, { mode: 'categorical', entries: override.entries });
-  }
-  if (override.colormap_name && override.rescale) {
-    return stampColorParams(tileUrl, {
-      mode: 'continuous',
-      colormap_name: override.colormap_name,
-      rescale: override.rescale,
-    });
-  }
-  return tileUrl;
 }

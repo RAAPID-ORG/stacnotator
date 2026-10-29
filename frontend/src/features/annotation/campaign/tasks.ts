@@ -1,11 +1,13 @@
 import i18n from '~/shared/i18n';
 import type {
   AnnotationFromTaskOut,
-  AnnotationTaskAssignmentOut,
-  AnnotationTaskOut,
+  LabellingPolicy,
+  TaskAssignmentOut,
+  TaskOut,
   TaskSetOut,
 } from '~/api/client';
-import type { TaskStatus } from './annotation';
+import { isAudienceMember, type PolicyContext } from '~/features/campaigns/utils/labellingPolicy';
+import { TASK_STATUSES, type TaskStatus } from '~/shared/utils/taskStatus';
 
 const t = i18n.getFixedT(null, 'annotation');
 
@@ -31,7 +33,7 @@ export interface Claim {
 
 /** Who is working on this task right now, if anyone. A claim is a lease and
  *  expires, which is why the caller passes the time. */
-export function getActiveClaim(task: AnnotationTaskOut, now: number): Claim | null {
+export function getActiveClaim(task: TaskOut, now: number): Claim | null {
   if (!task.claimed_by_user_id || !task.claimed_at) return null;
   const heldForMs = now - new Date(task.claimed_at).getTime();
   if (heldForMs > CLAIM_TTL_MS) return null;
@@ -43,14 +45,14 @@ export function getActiveClaim(task: AnnotationTaskOut, now: number): Claim | nu
 }
 
 /** Free work: nobody assigned to it, nobody has worked it, nobody holds it. */
-export function isClaimable(task: AnnotationTaskOut, now: number): boolean {
+export function isClaimable(task: TaskOut, now: number): boolean {
   if ((task.annotations || []).length > 0) return false;
-  if ((task.assignments || []).length > 0) return false;
+  if (task.assignments.length > 0) return false;
   return getActiveClaim(task, now) === null;
 }
 
 export function claimedByLabel(
-  task: AnnotationTaskOut,
+  task: TaskOut,
   currentUserId: string | null | undefined,
   now: number
 ): string | null {
@@ -75,20 +77,11 @@ export interface TaskFilter {
   taskSetId: number | null;
 }
 
-export const ALL_TASK_STATUSES: readonly TaskStatus[] = [
-  'pending',
-  'partial',
-  'done',
-  'skipped',
-  'conflicting',
-];
-
 const RESOLVED: TaskStatus[] = ['done', 'skipped', 'conflicting'];
 
-type ProgressInput = Pick<AnnotationTaskOut, 'task_status' | 'assignments'>;
+type ProgressInput = Pick<TaskOut, 'task_status' | 'assignments'>;
 
-const isResolved = (task: ProgressInput): boolean =>
-  RESOLVED.includes((task.task_status ?? 'pending') as TaskStatus);
+const isResolved = (task: ProgressInput): boolean => RESOLVED.includes(task.task_status);
 
 /**
  * Progress within `assignedTo`'s scope (everything when empty). Scoped to
@@ -108,7 +101,7 @@ export function computeTaskProgress(
   let total = 0;
   let completed = 0;
   for (const task of allTasks) {
-    const assignments = task.assignments || [];
+    const assignments = task.assignments;
     const scoped = assignments.filter((a) => assignedTo.includes(a.user_id));
     if (scoped.length > 0) {
       total += 1;
@@ -134,25 +127,26 @@ export const reviewFilterPatch = (): Partial<TaskFilter> => ({
 
 /** Held by this user via their own live claim, so a task they just claimed
  *  does not drop out of their unassigned pool on re-entry. */
-const isHeldBy = (task: AnnotationTaskOut, userId: string | null | undefined, now: number) =>
+const isHeldBy = (task: TaskOut, userId: string | null | undefined, now: number) =>
   userId != null && getActiveClaim(task, now)?.userId === userId;
 
 /** Whether "next" means "ask the server for a free task".
  *
- *  Only the unassigned pool works that way. A filter naming real users is a
- *  view over their assigned work, where nothing is being raced for; and no
- *  other filter dimension can coexist with a claimable task, so a pool with
- *  one of those set renders empty and never gets here. */
+ *  Only the unassigned pool's pending work works that way. A filter naming
+ *  real users is a view over their assigned work, and answered tasks are
+ *  history to look back through; in neither is anything being raced for. */
 export const usesClaimPool = (filter: TaskFilter): boolean =>
-  filter.assignedTo.length === 1 && filter.assignedTo[0] === UNASSIGNED;
+  filter.assignedTo.length === 1 &&
+  filter.assignedTo[0] === UNASSIGNED &&
+  filter.statuses.every((status) => status === 'pending');
 
 export interface FilteredTasks {
-  visibleTasks: AnnotationTaskOut[];
+  visibleTasks: TaskOut[];
   suggestedIndex: number;
 }
 
 export function applyTaskFilter(
-  allTasks: AnnotationTaskOut[],
+  allTasks: TaskOut[],
   filter: TaskFilter,
   currentUserId: string | null | undefined,
   now: number,
@@ -165,7 +159,7 @@ export function applyTaskFilter(
   const visibleTasks = allTasks.filter((task) => {
     if (filter.taskSetId !== null && task.task_set_id !== filter.taskSetId) return false;
 
-    const assignments = task.assignments || [];
+    const assignments = task.assignments;
     const annotations = task.annotations || [];
 
     if (filterByUser) {
@@ -174,12 +168,15 @@ export function applyTaskFilter(
         assignments.some(
           (a) => selectedUserIds.includes(a.user_id) && filter.statuses.includes(a.status)
         );
+      // Pending work is free or yours to take; answered work is history,
+      // and the status filter alone decides on it.
+      const answered = assignments.length === 0 && annotations.length > 0;
       const matchesUnassigned =
         wantUnassigned &&
-        (isClaimable(task, now) || isHeldBy(task, currentUserId, now)) &&
-        filter.statuses.includes(task.task_status ?? 'pending');
+        (answered || isClaimable(task, now) || isHeldBy(task, currentUserId, now)) &&
+        filter.statuses.includes(task.task_status);
       if (!matchesUser && !matchesUnassigned) return false;
-    } else if (!filter.statuses.includes(task.task_status ?? 'pending')) {
+    } else if (!filter.statuses.includes(task.task_status)) {
       return false;
     }
 
@@ -213,7 +210,7 @@ export function applyTaskFilter(
  * cannot blank the filter.
  */
 export function widenFilterForTask(
-  allTasks: AnnotationTaskOut[],
+  allTasks: TaskOut[],
   filter: TaskFilter,
   currentUserId: string | null | undefined,
   now: number,
@@ -225,7 +222,7 @@ export function widenFilterForTask(
     );
   if (shows(filter)) return filter;
 
-  const statuses = [...ALL_TASK_STATUSES];
+  const statuses = [...TASK_STATUSES];
   const candidates: TaskFilter[] = [
     { ...filter, statuses },
     { ...filter, statuses, assignedTo: [], taskSetId: null },
@@ -255,7 +252,7 @@ export function widenFilterForTask(
  * all-tasks-completed gate for that set.
  */
 export function seedFilter(
-  allTasks: AnnotationTaskOut[],
+  allTasks: TaskOut[],
   taskSets: TaskSetOut[],
   currentUserId: string | null | undefined,
   now: number,
@@ -292,7 +289,7 @@ export function seedFilter(
     if (!workLeft) return pending([], setId);
     filter = {
       assignedTo: [],
-      statuses: [...ALL_TASK_STATUSES],
+      statuses: [...TASK_STATUSES],
       selectedLabelIds: [],
       selectedConfidences: [],
       flaggedOnly: false,
@@ -311,14 +308,33 @@ export function seedFilter(
 // Navigation
 // ---------------------------------------------------------------------------
 
-export function nextIndex(visible: AnnotationTaskOut[], current: number): number {
+/** The mode the page opens in when no link asks for one: Tasks while a task
+ *  the viewer may answer is still waiting on them, Explore otherwise. */
+export function openingWorkMode(
+  tasks: TaskOut[],
+  policy: LabellingPolicy,
+  ctx: PolicyContext
+): 'tasks' | 'explore' {
+  const mayAnswer = tasks.some((task) => {
+    if (task.task_status === 'done' || task.task_status === 'skipped') return false;
+    if (task.annotations.some((a) => a.created_by_user_id === ctx.userId)) return false;
+    if (task.assignments.length === 0) return isAudienceMember(policy.unassigned_tasks, ctx);
+    const isAssigned = task.assignments.some((a) => a.user_id === ctx.userId);
+    return isAudienceMember(policy.assigned_tasks, { ...ctx, isAssigned });
+  });
+  return mayAnswer ? 'tasks' : 'explore';
+}
+
+export function nextIndex(visible: TaskOut[], current: number): number {
   if (visible.length === 0) return current;
   return current >= visible.length - 1 ? 0 : current + 1;
 }
 
-export function prevIndex(visible: AnnotationTaskOut[], current: number): number {
+/** Unlike next, back stops at the first task: wrapping would open the far
+ *  end of the list, which the user has not reached. */
+export function prevIndex(visible: TaskOut[], current: number): number {
   if (visible.length === 0) return current;
-  return current === 0 ? visible.length - 1 : current - 1;
+  return Math.max(0, current - 1);
 }
 
 // ---------------------------------------------------------------------------
@@ -333,17 +349,17 @@ export type ReviewRow =
       kind: 'annotation';
       userId: string;
       annotation: AnnotationFromTaskOut;
-      assignment: AnnotationTaskAssignmentOut | null;
+      assignment: TaskAssignmentOut | null;
       isConflict: boolean;
       isAuthoritative: boolean;
       isExtra: boolean;
       isSkipped: boolean;
     }
-  | { kind: 'pending'; userId: string; assignment: AnnotationTaskAssignmentOut };
+  | { kind: 'pending'; userId: string; assignment: TaskAssignmentOut };
 
 export function reviewRows(
   annotations: AnnotationFromTaskOut[],
-  assignments: AnnotationTaskAssignmentOut[],
+  assignments: TaskAssignmentOut[],
   taskStatus: TaskStatus | undefined
 ): ReviewRow[] {
   const annByUser = new Map(annotations.map((a) => [a.created_by_user_id, a]));
@@ -370,39 +386,4 @@ export function reviewRows(
       isSkipped: annotation.outcome === 'skipped',
     };
   });
-}
-
-// ---------------------------------------------------------------------------
-// Export
-// ---------------------------------------------------------------------------
-
-export type ExportFormat = 'csv' | 'geojson';
-
-export function exportRows(campaignId: number, mergeOnAgreement: boolean) {
-  return {
-    path: { campaign_id: campaignId },
-    ...(mergeOnAgreement ? { query: { merge_on_agreement: true } } : {}),
-    parseAs: 'blob' as const,
-  };
-}
-
-/** The server's Content-Disposition filename when it sends one, else a
- *  slugified fallback. */
-export function resolveExportFilename(
-  campaignName: string,
-  format: ExportFormat,
-  contentDisposition: string | null
-): string {
-  const ext = format === 'geojson' ? 'geojson' : 'csv';
-  const fallback = `${campaignName.replace(/\s+/g, '_')}_annotations.${ext}`;
-  const match = contentDisposition?.match(/filename="?(.+)"?/i);
-  return match ? match[1] : fallback;
-}
-
-export function parseExportErrorDetail(body: string): string | null {
-  try {
-    return (JSON.parse(body) as { detail?: string }).detail ?? null;
-  } catch {
-    return null;
-  }
 }

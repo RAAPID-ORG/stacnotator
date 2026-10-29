@@ -6,13 +6,14 @@ import {
   hideWindow,
   scaleWidthToScreen,
   showWindow,
-  syncViewWindows,
   fromGridLayout,
   packItem,
   placeTimeline,
   toGridLayout,
-  viewWindows,
+  viewLayout,
   EMPTY_LAYOUT,
+  GRID_COLS,
+  TIMELINE_HORIZONTAL_ROWS,
   type LayoutItem,
   type WorkspaceLayout,
 } from '../canvas/grid';
@@ -30,6 +31,9 @@ import {
 
 /** Initial OS-window size for a newly opened screen. */
 export const SCREEN_DEFAULT_BOUNDS: ScreenBounds = { width: 1280, height: 860, left: 80, top: 60 };
+/** A screen opened for the timeline alone: a strip as wide as the default
+ *  screen and as tall as the window bar plus a horizontal timeline. */
+const TIMELINE_SCREEN_BOUNDS: ScreenBounds = { ...SCREEN_DEFAULT_BOUNDS, height: 100 };
 /** Rough horizontal overhead of a screen window, used to estimate its canvas
  *  width before the window has reported one. */
 const SCREEN_CHROME_PX = 40;
@@ -74,12 +78,9 @@ interface LayoutState {
   ) => void;
   /** Swap in another view's windows, leaving the page chrome where it is. */
   loadViewLayout: (view: ImageryViewOut | null) => void;
-  /** Pick up a source-membership change on the view already loaded: drop the
-   *  windows that left, place the ones that arrived, keep the rest put. */
-  syncWindowsToView: (view: ImageryViewOut | null, eligible: ReadonlySet<number>) => void;
   showWindow: (collectionId: number) => void;
   hideWindow: (collectionId: number) => void;
-  hideAllWindows: () => void;
+  hideAllWindows: (collectionIds: readonly number[]) => void;
   setNewWindowSize: (size: { perRow: number; rows: number }) => void;
   startEditing: () => void;
   setForcedOpenControl: (name: string | null) => void;
@@ -195,21 +196,12 @@ export const useLayoutStore = create<LayoutState>((set, get) => {
 
     loadViewLayout: (view) =>
       set((s) => {
-        const windows = viewWindows(view);
+        const windows = viewLayout(view);
         return {
-          currentLayout: { main: s.currentLayout.main, windows },
-          savedLayout: { main: s.savedLayout.main, windows },
+          currentLayout: { main: s.currentLayout.main, ...windows },
+          savedLayout: { main: s.savedLayout.main, ...windows },
         };
       }),
-
-    // Membership is committed server-side the moment it is toggled, so it lands
-    // in the cancel baseline too - cancelling the layout edit reverts
-    // placements, never which windows the view has.
-    syncWindowsToView: (view, eligible) =>
-      set((s) => ({
-        currentLayout: syncViewWindows(s.currentLayout, view, eligible),
-        savedLayout: syncViewWindows(s.savedLayout, view, eligible),
-      })),
 
     showWindow: (collectionId) =>
       set((s) => ({
@@ -223,7 +215,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => {
     hideWindow: (collectionId) =>
       set((s) => ({ currentLayout: hideWindow(s.currentLayout, collectionId) })),
 
-    hideAllWindows: () => set((s) => ({ currentLayout: hideAllWindows(s.currentLayout) })),
+    hideAllWindows: (collectionIds) =>
+      set((s) => ({ currentLayout: hideAllWindows(s.currentLayout, collectionIds) })),
     setNewWindowSize: (newWindowSize) => set({ newWindowSize }),
     startEditing: () => set({ editing: true }),
     setForcedOpenControl: (forcedOpenControl) => set({ forcedOpenControl }),
@@ -250,17 +243,25 @@ export const useLayoutStore = create<LayoutState>((set, get) => {
         const opened = target === 'new' ? openScreen(current) : { state: current, id: target };
         // A new screen is seeded with the bounds it will actually open at, so
         // the width the panel is scaled against is the real one.
+        const timeline = panelId === 'timeline';
         const seeded =
           target === 'new'
-            ? rememberScreenBounds(opened.state, opened.id, SCREEN_DEFAULT_BOUNDS)
+            ? rememberScreenBounds(
+                opened.state,
+                opened.id,
+                timeline ? TIMELINE_SCREEN_BOUNDS : SCREEN_DEFAULT_BOUNDS
+              )
             : opened.state;
         const bounds = seeded.screens.find((s) => s.id === opened.id)?.bounds;
         const screenPx = (bounds?.width ?? SCREEN_DEFAULT_BOUNDS.width) - SCREEN_CHROME_PX;
         // Rows are a fixed height so h transfers as-is, but a grid column is
         // narrower in a screen window.
-        const size = item
-          ? { w: scaleWidthToScreen(item.w, canvasPx, screenPx), h: item.h }
-          : { w: 20, h: 12 };
+        // The timeline runs horizontally on a screen, across its full width.
+        const size = timeline
+          ? { w: GRID_COLS, h: TIMELINE_HORIZONTAL_ROWS }
+          : item
+            ? { w: scaleWidthToScreen(item.w, canvasPx, screenPx), h: item.h }
+            : { w: 20, h: 12 };
         return sendToScreen(seeded, panelId, opened.id, size);
       }),
 

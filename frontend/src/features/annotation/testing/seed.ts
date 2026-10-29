@@ -5,7 +5,7 @@ import { useImageryStore } from '../stores/imagery';
 import { useLayoutStore } from '../stores/layout';
 import { useTasksStore } from '../stores/tasks';
 import { useWorkStore } from '../stores/work';
-import type { AnnotationTaskOut, CampaignOutFull, TaskSetOut } from '~/api/client';
+import type { TaskOut, CampaignOutFull, TaskSetOut } from '~/api/client';
 import type { TaskFilter } from '../campaign/tasks';
 import type { ImageryCatalog } from '../campaign/imagery';
 
@@ -21,7 +21,7 @@ const DEFAULT_FILTER: TaskFilter = {
 export interface SeedOptions {
   mode?: WorkMode;
   currentUserId?: string | null;
-  tasks?: AnnotationTaskOut[];
+  tasks?: TaskOut[];
   taskSets?: TaskSetOut[];
   filter?: TaskFilter;
   now?: number;

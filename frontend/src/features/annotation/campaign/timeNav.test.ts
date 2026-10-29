@@ -5,7 +5,7 @@ import {
   makeCollection,
   makeSlice,
   makeSource,
-  makeTileUrl,
+  makeTile,
   makeViz,
 } from '../testing/fixtures';
 import { emptyKey } from './imageryNav';
@@ -148,8 +148,8 @@ describe('stepCollectionId', () => {
 // Stepping/jumping Jan -> Feb keeps False Color; Feb -> Mar falls back.
 // ---------------------------------------------------------------------------
 
-const trueColor = makeTileUrl({ visualization_name: 'True Color' });
-const falseColor = makeTileUrl({ visualization_name: 'False Color' });
+const trueColor = makeTile({ visualization_id: 900 });
+const falseColor = makeTile({ visualization_id: 901 });
 
 const mvSource = makeSource({
   id: 1,
@@ -168,14 +168,14 @@ const mvSource = makeSource({
           name: 'a',
           start_date: '2024-01-01',
           end_date: '2024-01-01',
-          tile_urls: [trueColor, falseColor],
+          tiles: [trueColor, falseColor],
         }),
         makeSlice({
           id: 101,
           name: 'b',
           start_date: '2024-01-05',
           end_date: '2024-01-05',
-          tile_urls: [trueColor, falseColor],
+          tiles: [trueColor, falseColor],
         }),
       ],
     }),
@@ -188,7 +188,7 @@ const mvSource = makeSource({
           name: 'c',
           start_date: '2024-02-01',
           end_date: '2024-02-01',
-          tile_urls: [trueColor, falseColor],
+          tiles: [trueColor, falseColor],
         }),
       ],
     }),
@@ -201,7 +201,7 @@ const mvSource = makeSource({
           name: 'd',
           start_date: '2024-03-01',
           end_date: '2024-03-01',
-          tile_urls: [trueColor],
+          tiles: [trueColor],
         }),
       ],
     }),
@@ -234,7 +234,7 @@ describe('visualization carried across navigation', () => {
           slices: [
             makeSlice({
               id: 300,
-              tile_urls: [makeTileUrl({ visualization_name: 'False Color' })],
+              tiles: [makeTile({ visualization_id: 31 })],
             }),
           ],
         }),
@@ -275,7 +275,12 @@ describe('visualization carried across navigation', () => {
         makeCollection({
           id: 300,
           name: 'C',
-          slices: [makeSlice({ id: 3000, tile_urls: [trueColor, falseColor] })],
+          slices: [
+            makeSlice({
+              id: 3000,
+              tiles: [makeTile({ visualization_id: 20 }), makeTile({ visualization_id: 21 })],
+            }),
+          ],
         }),
       ],
     });
@@ -318,7 +323,7 @@ describe('slices nothing can draw', () => {
     id: 20,
     slices: [
       makeSlice({ id: 200, name: 'found' }),
-      makeSlice({ id: 201, name: 'nothing here', tile_urls: [] }),
+      makeSlice({ id: 201, name: 'nothing here', tiles: [] }),
       makeSlice({ id: 202, name: 'also found' }),
     ],
   });

@@ -4,8 +4,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from src.annotation.schemas import AnnotationFromTaskCreate
-
 
 class AgentRegister(BaseModel):
     name: str = Field(min_length=1, max_length=20, pattern=r"^[a-zA-Z0-9][a-zA-Z0-9._-]*$")
@@ -17,10 +15,6 @@ class AgentRegister(BaseModel):
 
 class AgentUpdate(BaseModel):
     takes_over_work: bool
-
-
-class AgentAnnotate(AnnotationFromTaskCreate):
-    comment: str | None = Field(default=None, max_length=5000)
 
 
 class AgentOut(BaseModel):

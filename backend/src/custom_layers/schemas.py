@@ -4,6 +4,7 @@ from urllib.parse import parse_qs, urlparse
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from src.custom_layers.render import build_viz_params
+from src.layers import HttpUrl
 from src.storage_access import StorageAccessCreate, StorageAccessOut, check_url
 
 HEX_COLOR = r"^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
@@ -100,7 +101,7 @@ class CustomMapOut(BaseModel):
     render_config: RenderConfig
     max_native_zoom: int | None
     status: str
-    status_error: dict | None
+    status_errors: list[dict] | None
     tile_url: str | None
     mosaic_id: str | None
     display_order: int
@@ -111,14 +112,14 @@ class CustomMapOut(BaseModel):
 
 class VectorLayerCreate(BaseModel):
     name: str = Field(min_length=1)
-    pmtiles_url: str = Field(min_length=1)
+    pmtiles_url: HttpUrl
     source_layer: str | None = None
     color: str = Field(default=COLOR_BLUE, pattern=HEX_COLOR)
 
 
 class VectorLayerUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1)
-    pmtiles_url: str | None = Field(default=None, min_length=1)
+    pmtiles_url: HttpUrl | None = None
     source_layer: str | None = None
     color: str | None = Field(default=None, pattern=HEX_COLOR)
     display_order: int | None = None

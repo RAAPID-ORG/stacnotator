@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import * as api from '~/api/client';
-import type { AnnotationTaskOut, CampaignOutFull } from '~/api/client';
+import type { TaskOut, CampaignOutFull } from '~/api/client';
 import { buildImageryCatalog } from '../../campaign/imagery';
 import {
   apiSuccess,
   makeCampaign,
+  makeSettings,
   makeClaimTaskResponse,
   makeTask,
   makeTaskAnnotation,
@@ -18,7 +19,7 @@ import { useTasksStore } from '../../stores/tasks';
 
 vi.mock('~/api/client', async () => {
   const actual = await vi.importActual<typeof import('~/api/client')>('~/api/client');
-  return { ...actual, claimAnnotationTask: vi.fn(), completeAnnotationTask: vi.fn() };
+  return { ...actual, claimTask: vi.fn(), annotateTask: vi.fn(), listTaskChanges: vi.fn() };
 });
 
 const FILTER = {
@@ -31,7 +32,7 @@ const FILTER = {
 };
 
 /** Seeds the campaign store the way a load would, then the task session. */
-function seed(campaign: CampaignOutFull, tasks: AnnotationTaskOut[]): void {
+function seed(campaign: CampaignOutFull, tasks: TaskOut[]): void {
   const catalog = buildImageryCatalog(campaign);
   useCampaignStore.setState({
     campaign,
@@ -45,9 +46,9 @@ function seed(campaign: CampaignOutFull, tasks: AnnotationTaskOut[]): void {
 }
 
 // No assignments (unassigned_tasks gates it) and someone else's annotation
-// already on it, so useClaims' claimTask no-ops without hitting the network
+// already on it, so useClaims' requestClaim no-ops without hitting the network
 // stub (isClaimable is false once a task carries any annotation).
-const NOT_ALLOWED_TASK: AnnotationTaskOut = makeTask({
+const NOT_ALLOWED_TASK: TaskOut = makeTask({
   id: 1,
   annotation_number: 1,
   annotations: [makeTaskAnnotation({ id: 9, label_id: 5, created_by_user_id: 'someone-else' })],
@@ -68,20 +69,16 @@ afterEach(() => {
 describe('TaskControls labelling policy', () => {
   it('shows the not-allowed notice and disables Submit when unassigned_tasks denies the viewer', async () => {
     const campaign = makeCampaign({
-      settings: {
-        bbox_west: -10,
-        bbox_south: -20,
-        bbox_east: 10,
-        bbox_north: 20,
+      settings: makeSettings({
         labelling_policy: {
           explore: { kinds: ['anyone'] },
           assigned_tasks: { kinds: ['anyone'] },
           complete_assigned: { kinds: ['anyone'] },
+          modify_others: { kinds: ['admins'] },
           unassigned_tasks: { kinds: [] },
         },
-        labels: [{ id: 5, name: 'water' }],
-        research_sharing: false,
-      },
+        labels: [{ id: 5, name: 'water', geometry_type: 'polygon' }],
+      }),
     });
     seed(campaign, [NOT_ALLOWED_TASK]);
 
@@ -94,20 +91,16 @@ describe('TaskControls labelling policy', () => {
 
   it('allows labelling and hides the notice when the policy permits it', async () => {
     const campaign = makeCampaign({
-      settings: {
-        bbox_west: -10,
-        bbox_south: -20,
-        bbox_east: 10,
-        bbox_north: 20,
+      settings: makeSettings({
         labelling_policy: {
           explore: { kinds: ['anyone'] },
           assigned_tasks: { kinds: ['anyone'] },
           complete_assigned: { kinds: ['anyone'] },
+          modify_others: { kinds: ['admins'] },
           unassigned_tasks: { kinds: ['anyone'] },
         },
-        labels: [{ id: 5, name: 'water' }],
-        research_sharing: false,
-      },
+        labels: [{ id: 5, name: 'water', geometry_type: 'polygon' }],
+      }),
     });
     seed(campaign, [NOT_ALLOWED_TASK]);
 
@@ -118,30 +111,26 @@ describe('TaskControls labelling policy', () => {
   });
 });
 
-const OPEN_TASK: AnnotationTaskOut = makeTask({ id: 2, annotation_number: 2 });
+const OPEN_TASK: TaskOut = makeTask({ id: 2, annotation_number: 2 });
 
 const OPEN_POLICY = makeCampaign({
-  settings: {
-    bbox_west: -10,
-    bbox_south: -20,
-    bbox_east: 10,
-    bbox_north: 20,
+  settings: makeSettings({
     labelling_policy: {
       explore: { kinds: ['anyone'] },
       assigned_tasks: { kinds: ['anyone'] },
       complete_assigned: { kinds: ['anyone'] },
+      modify_others: { kinds: ['admins'] },
       unassigned_tasks: { kinds: ['anyone'] },
     },
-    research_sharing: false,
-    labels: [{ id: 5, name: 'water' }],
-  },
+    labels: [{ id: 5, name: 'water', geometry_type: 'polygon' }],
+  }),
 });
 
 // A claim is advisory. Somebody else holding the task is worth showing, but
 // it must not move the user off a task they are entitled to label.
 describe('TaskControls claim conflict', () => {
   it('stays on a task somebody else holds instead of skipping past it', async () => {
-    vi.mocked(api.claimAnnotationTask).mockResolvedValue(
+    vi.mocked(api.claimTask).mockResolvedValue(
       apiSuccess(
         makeClaimTaskResponse({
           task_id: OPEN_TASK.id,
@@ -155,9 +144,34 @@ describe('TaskControls claim conflict', () => {
 
     render(<TaskControls />);
 
-    await waitFor(() => expect(api.claimAnnotationTask).toHaveBeenCalled());
+    await waitFor(() => expect(api.claimTask).toHaveBeenCalled());
     expect(alerts).toEqual([]);
     expect(useTasksStore.getState().currentIndex).toBe(0);
+  });
+});
+
+describe('TaskControls live sync', () => {
+  it('says so when the poll finds the current task answered by someone else', async () => {
+    vi.mocked(api.claimTask).mockResolvedValue(
+      apiSuccess(makeClaimTaskResponse({ task_id: OPEN_TASK.id, claimed: true }))
+    );
+    const answered: TaskOut = {
+      ...OPEN_TASK,
+      task_status: 'done',
+      annotations: [makeTaskAnnotation({ id: 30, created_by_user_id: 'someone-else' })],
+    };
+    vi.mocked(api.listTaskChanges).mockResolvedValue(
+      apiSuccess({ server_time: '2024-01-01T00:00:05Z', tasks: [answered] })
+    );
+    seed(OPEN_POLICY, [OPEN_TASK]);
+    render(<TaskControls />);
+    expect(screen.queryByTestId('answered-elsewhere-notice')).toBeNull();
+
+    await act(() => useTasksStore.getState().syncRemoteTasks());
+
+    expect(screen.getByTestId('answered-elsewhere-notice').textContent).toBe(
+      'Someone else just answered this task.'
+    );
   });
 });
 
@@ -165,24 +179,26 @@ describe('TaskControls claim conflict', () => {
 // the label form for the drawing tools and Done records that answer.
 describe('TaskControls draw task', () => {
   it('finishes the task as drawn, with no label', async () => {
-    vi.mocked(api.claimAnnotationTask).mockResolvedValue(
+    vi.mocked(api.claimTask).mockResolvedValue(
       apiSuccess(makeClaimTaskResponse({ task_id: OPEN_TASK.id, claimed: true }))
     );
-    vi.mocked(api.completeAnnotationTask).mockResolvedValue(
+    vi.mocked(api.annotateTask).mockResolvedValue(
       apiSuccess({
         annotation: makeTaskAnnotation({ id: 11, label_id: null, outcome: 'drawn' }),
         task_status: 'done',
         assignment_status: 'done',
       })
     );
-    seed(makeCampaign({ settings: { ...OPEN_POLICY.settings, task_output: 'draw' } }), [OPEN_TASK]);
+    seed(makeCampaign({ settings: { ...OPEN_POLICY.settings, task_output: 'draw' } }), [
+      { ...OPEN_TASK, drawn_by_user_ids: ['u1'] },
+    ]);
 
     render(<TaskControls />);
     expect(screen.queryByRole('button', { name: /submit/i })).toBeNull();
     fireEvent.click(await screen.findByRole('button', { name: 'Done' }));
 
-    await waitFor(() => expect(api.completeAnnotationTask).toHaveBeenCalled());
-    expect(vi.mocked(api.completeAnnotationTask).mock.calls[0][0].body).toMatchObject({
+    await waitFor(() => expect(api.annotateTask).toHaveBeenCalled());
+    expect(vi.mocked(api.annotateTask).mock.calls[0][0].body).toMatchObject({
       label_id: null,
       outcome: 'drawn',
     });
@@ -197,5 +213,51 @@ describe('TaskControls draw task', () => {
 
     const nothingHere = await screen.findByRole('button', { name: 'Nothing here' });
     expect((nothingHere as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('offers Done only while this user has a shape on the task', async () => {
+    seed(makeCampaign({ settings: { ...OPEN_POLICY.settings, task_output: 'draw' } }), [OPEN_TASK]);
+    render(<TaskControls />);
+    const done = await screen.findByRole('button', { name: 'Done' });
+    const nothingHere = screen.getByRole('button', { name: 'Nothing here' });
+    expect(done).toHaveProperty('disabled', true);
+
+    act(() => useWorkStore.getState().noteDrawn({ output_of_task_id: OPEN_TASK.id }, [21]));
+    expect(done).toHaveProperty('disabled', false);
+    expect(nothingHere).toHaveProperty('disabled', true);
+
+    act(() => useWorkStore.getState().recordDeletes([21]));
+    expect(done).toHaveProperty('disabled', true);
+    expect(nothingHere).toHaveProperty('disabled', false);
+  });
+});
+
+describe('TaskControls validate toggle', () => {
+  const withEmbeddings = (embedding_year: number | null, embedding_status: string) =>
+    makeCampaign({
+      embedding_status,
+      settings: makeSettings({
+        embedding_year,
+        labels: [{ id: 5, name: 'water', geometry_type: 'polygon' }],
+      }),
+    });
+
+  it('is offered once the campaign has its embeddings', async () => {
+    seed(withEmbeddings(2023, 'ready'), [NOT_ALLOWED_TASK]);
+    render(<TaskControls />);
+    expect(await screen.findByText('Validate')).toBeTruthy();
+  });
+
+  it('is hidden without embeddings or while they are computed', async () => {
+    for (const [year, status] of [
+      [null, 'ready'],
+      [2023, 'registering'],
+    ] as const) {
+      seed(withEmbeddings(year, status), [NOT_ALLOWED_TASK]);
+      const { unmount } = render(<TaskControls />);
+      expect(await screen.findByText('Water')).toBeTruthy();
+      expect(screen.queryByText('Validate')).toBeNull();
+      unmount();
+    }
   });
 });

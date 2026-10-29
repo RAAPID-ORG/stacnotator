@@ -1,21 +1,19 @@
 import type { FallbackProps } from 'react-error-boundary';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
 import { Button } from './forms';
 
+/** What a crashed part of the app shows instead. Takes no router hooks, so the
+ *  same fallback serves the boundary around the whole app and the one inside
+ *  the layout; going home reloads, which is also what clears a broken state. */
 export const ErrorFallback = ({ error, resetErrorBoundary }: FallbackProps) => {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const message = error instanceof Error ? error.message : String(error);
   const stack = error instanceof Error ? error.stack : undefined;
 
-  const handleGoHome = () => {
-    navigate('/');
-    resetErrorBoundary();
-  };
+  const handleGoHome = () => window.location.assign('/');
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4">
+    <div className="min-h-screen w-full flex items-center justify-center p-4 bg-neutral-50">
       <div className="max-w-lg w-full bg-white border border-neutral-200 rounded-xl shadow-sm p-8 space-y-6">
         {/* Error icon */}
         <div className="flex justify-center">

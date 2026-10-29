@@ -2,12 +2,9 @@ from datetime import date
 
 import pytest
 
-from src.imagery import service as imagery_service
 from src.planet import client as planet_client
-from src.planet import scenes
-from src.planet.schemas import PlanetScenesGenerationConfigV1
-
-AOI = {"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]]}
+from src.planet import scene_search, scenes
+from src.planet.schemas import PlanetScenesGenerationConfig
 
 
 def feature(scene_id: str, acquired: str, **properties):
@@ -17,10 +14,9 @@ def feature(scene_id: str, acquired: str, **properties):
     }
 
 
-def config(**overrides) -> PlanetScenesGenerationConfigV1:
+def config(**overrides) -> PlanetScenesGenerationConfig:
     defaults = dict(
         kind="planet_scenes",
-        aoi=AOI,
         start_date="2024-01-01",
         end_date="2024-02-29",
         collection_period_interval=1,
@@ -29,7 +25,7 @@ def config(**overrides) -> PlanetScenesGenerationConfigV1:
         slice_period_unit="days",
         whole_window_cover=True,
     )
-    return PlanetScenesGenerationConfigV1(**{**defaults, **overrides})
+    return PlanetScenesGenerationConfig(**{**defaults, **overrides})
 
 
 class TestQuality:
@@ -178,7 +174,7 @@ class TestMintingOneSliceInView:
     def test_a_minted_layer_comes_back_against_its_slice(self, monkeypatch):
         monkeypatch.setattr(planet_client, "create_layer", lambda key, ids: "layer-1")
 
-        minted = imagery_service._mint_view_layer("KEY", 42, self.group())
+        minted = scene_search._mint_view_layer("KEY", 42, self.group())
 
         assert (minted.slice_id, minted.layer_id, minted.scene_count) == (42, "layer-1", 2)
 
@@ -188,7 +184,7 @@ class TestMintingOneSliceInView:
 
         monkeypatch.setattr(planet_client, "create_layer", boom)
 
-        assert imagery_service._mint_view_layer("KEY", 42, self.group()) == "Planet returned 429"
+        assert scene_search._mint_view_layer("KEY", 42, self.group()) == "Planet returned 429"
 
 
 class TestSearchingWhatIsOnScreen:
@@ -197,7 +193,7 @@ class TestSearchingWhatIsOnScreen:
 
     def series(self):
         return [
-            imagery_service.PlanetSceneSeries(
+            scene_search.PlanetSceneSeries(
                 config=config(),
                 slice_ids={
                     ("2024-01-01", "2024-01-31"): 1,
@@ -216,7 +212,7 @@ class TestSearchingWhatIsOnScreen:
 
         monkeypatch.setattr(planet_client, "search_config", search_config)
 
-        imagery_service.search_planet_scenes_in_view("KEY", self.series(), [10.0, 20.0, 11.0, 21.0])
+        scene_search.search_planet_scenes_in_view("KEY", self.series(), [10.0, 20.0, 11.0, 21.0])
 
         assert seen[0]["coordinates"][0][0] == [10.0, 20.0]
         assert seen[0]["coordinates"][0][2] == [11.0, 21.0]
@@ -229,7 +225,7 @@ class TestSearchingWhatIsOnScreen:
         )
         monkeypatch.setattr(planet_client, "create_layer", lambda _key, ids: "layer-1")
 
-        found = imagery_service.search_planet_scenes_in_view("KEY", self.series(), [0, 0, 1, 1])
+        found = scene_search.search_planet_scenes_in_view("KEY", self.series(), [0, 0, 1, 1])
 
         assert (42, 1) in [(s.slice_id, s.scene_count) for s in found.slices]
         assert 43 not in [s.slice_id for s in found.slices]
@@ -254,7 +250,7 @@ class TestSearchingWhatIsOnScreen:
 
         monkeypatch.setattr(planet_client, "create_layer", create_layer)
 
-        found = imagery_service.search_planet_scenes_in_view("KEY", self.series(), [0, 0, 1, 1])
+        found = scene_search.search_planet_scenes_in_view("KEY", self.series(), [0, 0, 1, 1])
 
         drawable = {s.slice_id: s.layer_id for s in found.slices}
         assert drawable == {1: "cover-layer", 42: None, 43: None}
@@ -266,7 +262,7 @@ class TestSearchingWhatIsOnScreen:
 
         monkeypatch.setattr(planet_client, "search_config", boom)
 
-        found = imagery_service.search_planet_scenes_in_view("KEY", self.series(), [0, 0, 1, 1])
+        found = scene_search.search_planet_scenes_in_view("KEY", self.series(), [0, 0, 1, 1])
 
         assert found.slices == []
         assert found.errors == ["Planet is rate limiting this API key"]
@@ -278,7 +274,7 @@ class TestMintingTheDatesBeingOpened:
 
     def series(self):
         return [
-            imagery_service.PlanetSceneSeries(
+            scene_search.PlanetSceneSeries(
                 config=config(),
                 slice_ids={
                     ("2024-01-01", "2024-01-31"): 1,
@@ -298,7 +294,7 @@ class TestMintingTheDatesBeingOpened:
         monkeypatch.setattr(planet_client, "search_range", search_range)
         monkeypatch.setattr(planet_client, "create_layer", lambda _key, ids: "layer-43")
 
-        found = imagery_service.mint_planet_scene_layers("KEY", self.series(), [0, 0, 1, 1], [43])
+        found = scene_search.mint_planet_scene_layers("KEY", self.series(), [0, 0, 1, 1], [43])
 
         assert seen == [(date(2024, 1, 6), date(2024, 1, 6))]
         assert [(s.slice_id, s.layer_id) for s in found.slices] == [(43, "layer-43")]
@@ -314,7 +310,7 @@ class TestMintingTheDatesBeingOpened:
         )
         monkeypatch.setattr(planet_client, "create_layer", lambda _key, ids: "layer")
 
-        found = imagery_service.mint_planet_scene_layers("KEY", self.series(), [0, 0, 1, 1], [42])
+        found = scene_search.mint_planet_scene_layers("KEY", self.series(), [0, 0, 1, 1], [42])
 
         assert [s.slice_id for s in found.slices] == [42]
 

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { ExportDropdown } from '~/features/campaigns/components/review/ExportDropdown';
+import { ExportMenu } from '~/features/campaigns/components/review/ExportMenu';
 import { Button } from '~/shared/ui/forms';
 import type { TaskScope } from '~/features/campaigns/components/settings/TaskScopeBar';
 import {
@@ -20,7 +20,7 @@ import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
 import { campaignPath } from '~/app/routes';
 import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
-import TasksTab from '~/features/campaigns/components/settings/tabs/TasksTab';
+import { TasksTab } from '~/features/campaigns/components/settings/tabs/TasksTab';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { FadeIn } from '~/shared/ui/motion';
@@ -30,13 +30,13 @@ import { type GenerateTasksResponse, type ProjectUserOut } from '~/api/client';
 import {
   assignReviewersMutation,
   assignTasksToUsersMutation,
-  batchUnassignTasksMutation,
+  unassignTasksMutation,
   createTaskSetMutation,
-  deleteAnnotationTasksMutation,
+  deleteTasksMutation,
   deleteTaskSetMutation,
   getProjectUsersOptions,
-  ingestAnnotationTasksFromCsvMutation,
-  ingestAnnotationTasksFromGeojsonMutation,
+  importTasksFromCsvMutation,
+  importTasksFromGeojsonMutation,
   moveTasksToSetMutation,
   renameTaskSetMutation,
 } from '~/api/queries';
@@ -61,7 +61,7 @@ export const CampaignTasksPage = () => {
 
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const [taskFile, setTaskFile] = useState<File | null>(new File([], ''));
+  const [taskFile, setTaskFile] = useState<File | null>(null);
   const [showAssignmentModal, setShowAssignmentModal] = useState(false);
   const [showReviewerModal, setShowReviewerModal] = useState(false);
   const [assignSelectedTaskIds, setAssignSelectedTaskIds] = useState<number[]>([]);
@@ -94,11 +94,11 @@ export const CampaignTasksPage = () => {
   const reloadTasksAndSets = useRefreshCampaignWork(campaignId);
 
   const uploadGeojson = useMutation({
-    ...ingestAnnotationTasksFromGeojsonMutation(),
+    ...importTasksFromGeojsonMutation(),
     meta: { errorMessage: t('tasksPage.errors.upload') },
   });
   const uploadCsv = useMutation({
-    ...ingestAnnotationTasksFromCsvMutation(),
+    ...importTasksFromCsvMutation(),
     meta: { errorMessage: t('tasksPage.errors.upload') },
   });
   const createSet = useMutation({
@@ -132,12 +132,12 @@ export const CampaignTasksPage = () => {
     onSuccess: reloadAnnotationTasks,
   });
   const unassignTasks = useMutation({
-    ...batchUnassignTasksMutation(),
+    ...unassignTasksMutation(),
     meta: reportedByCaller(t('tasksPage.errors.unassign')),
     onSuccess: reloadAnnotationTasks,
   });
   const deleteTasks = useMutation({
-    ...deleteAnnotationTasksMutation(),
+    ...deleteTasksMutation(),
     meta: reportedByCaller(t('tasksPage.errors.delete')),
     onSuccess: reloadTasksAndSets,
   });
@@ -149,17 +149,18 @@ export const CampaignTasksPage = () => {
     unassignTasks.isPending ||
     deleteTasks.isPending;
 
-  // Without a URL param the scope starts on the campaign's first (default) set;
-  // "All tasks" is an explicit choice carried as taskSet=all. The requested set is
-  // trusted until the sets load, so the scope does not flash to "All tasks" first.
+  // Without a URL param a campaign with a single set opens on it, so tasks can be
+  // added straight away; with several, on "All tasks", since any one of them may be
+  // empty. The requested set is trusted until the sets load, so the scope does not
+  // flash to "All tasks" first.
   const taskSetParam = searchParams.get('taskSet');
   const requestedSetId = taskSetParam !== null ? Number(taskSetParam) : null;
   const taskScope: TaskScope =
     requestedSetId !== null && (taskSetsLoading || taskSets.some((s) => s.id === requestedSetId))
       ? requestedSetId
-      : taskSetParam === 'all' || taskSets.length === 0
-        ? 'all'
-        : taskSets[0].id;
+      : taskSetParam === null && taskSets.length === 1
+        ? taskSets[0].id
+        : 'all';
 
   const handleSelectScope = (scope: TaskScope) => {
     setSearchParams(
@@ -172,6 +173,16 @@ export const CampaignTasksPage = () => {
   };
 
   const isAdmin = campaign?.viewer_is_admin ?? false;
+
+  // Started from the task list, annotating means working those tasks, in the
+  // set on screen; left to itself the page would open in Explore whenever none
+  // of them is the viewer's to answer.
+  const annotateTasksPath =
+    annotationTasks.length === 0
+      ? campaignPath(projectId, campaignId, 'annotate')
+      : `${campaignPath(projectId, campaignId, 'annotate')}?mode=tasks${
+          taskScope === 'all' ? '' : `&taskSet=${taskScope}`
+        }`;
 
   const scopedAnnotationTasks = useMemo(
     () =>
@@ -280,14 +291,14 @@ export const CampaignTasksPage = () => {
         ? {
             pattern: 'percentage' as const,
             percentage: pattern.percentage,
-            num_reviewers: pattern.reviewersPerTask,
+            reviewers_per_task: pattern.reviewersPerTask,
             reviewer_ids: pattern.reviewerIds,
             ...taskScopeBody,
           }
         : {
             pattern: 'fixed' as const,
             num_tasks: pattern.numTasks,
-            fixed_num_reviewers: pattern.reviewersPerTask,
+            reviewers_per_task: pattern.reviewersPerTask,
             reviewer_ids: pattern.reviewerIds,
             ...taskScopeBody,
           };
@@ -350,15 +361,14 @@ export const CampaignTasksPage = () => {
             </div>
             {campaign && (
               <div className="flex items-center gap-3">
-                <ExportDropdown
+                <ExportMenu
                   campaignId={campaignId}
-                  campaign={campaign}
+                  campaignName={campaign.name}
+                  showMergeToggle
                   disabled={annotationTasks.length === 0}
                   hasConflicts={annotationTasks.some((task) => task.task_status === 'conflicting')}
                 />
-                <Button onClick={() => navigate(campaignPath(projectId, campaignId, 'annotate'))}>
-                  {t('startAnnotating')}
-                </Button>
+                <Button onClick={() => navigate(annotateTasksPath)}>{t('startAnnotating')}</Button>
               </div>
             )}
           </header>
@@ -434,5 +444,3 @@ export const CampaignTasksPage = () => {
     </>
   );
 };
-
-export default CampaignTasksPage;

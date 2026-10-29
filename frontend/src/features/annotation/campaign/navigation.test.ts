@@ -1,12 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import type { AnnotationTaskOut } from '~/api/client';
+import type { TaskOut } from '~/api/client';
 import { nextIndex, prevIndex } from './tasks';
 
-const list = (n: number): AnnotationTaskOut[] =>
-  Array.from(
-    { length: n },
-    (_, i) => ({ id: i, annotation_number: i + 1 }) as unknown as AnnotationTaskOut
-  );
+const list = (n: number): TaskOut[] =>
+  Array.from({ length: n }, (_, i) => ({ id: i, annotation_number: i + 1 }) as unknown as TaskOut);
 
 describe('nextIndex', () => {
   it('advances by one', () => {
@@ -27,8 +24,8 @@ describe('prevIndex', () => {
     expect(prevIndex(list(3), 2)).toBe(1);
   });
 
-  it('wraps from 0 back to the last index', () => {
-    expect(prevIndex(list(3), 0)).toBe(2);
+  it('stops at the first index rather than wrapping', () => {
+    expect(prevIndex(list(3), 0)).toBe(0);
   });
 
   it('stays put when the visible list is empty', () => {

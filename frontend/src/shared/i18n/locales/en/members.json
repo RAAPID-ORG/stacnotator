@@ -1,0 +1,29 @@
+{
+  "byEmail": {
+    "description": "Paste one or more email addresses, separated by commas, spaces or newlines. Addresses without an account join as soon as they sign up. {{note}}",
+    "label": "Email addresses",
+    "placeholder": "ada@example.org, grace@example.org",
+    "submit": "Add by email",
+    "adding": "Adding…",
+    "malformed": "Not an email address: {{emails}}",
+    "added_one": "Added {{count}} member: {{list}}",
+    "added_other": "Added {{count}} members: {{list}}",
+    "invited": "Invited {{emails}}. {{note}}"
+  },
+  "invites": {
+    "signupNote": "They need to sign up at stacnotator.io with this email address; they will join automatically after signing up.",
+    "pendingHeading": "Pending signups <count>({{count}})</count>",
+    "pendingDescription": "These addresses join automatically once they sign up. Revoking removes the pre-authorization.",
+    "invitedOn": "invited {{date}}",
+    "revoke": "Revoke"
+  },
+  "table": {
+    "name": "Name",
+    "email": "Email",
+    "role": "Role",
+    "actions": "Actions",
+    "admin": "Admin",
+    "member": "Member",
+    "remove": "Remove"
+  }
+}

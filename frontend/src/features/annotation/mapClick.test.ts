@@ -25,7 +25,7 @@ beforeEach(() => {
   seedCampaign(makeCampaign({ id: 5 }));
   vi.mocked(getAnnotation).mockReset();
   vi.mocked(getAnnotation).mockResolvedValue(
-    apiSuccess(makeAnnotation({ id: 7, geometry: { id: 1, geometry: 'POINT (3 4)' } }))
+    apiSuccess(makeAnnotation({ id: 7, geometry_wkt: 'POINT (3 4)' }))
   );
   useWorkStore.setState({ tool: 'pan', selection: [], selectionAnchor: null, edit: null });
 });

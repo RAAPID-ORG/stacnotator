@@ -1,7 +1,6 @@
-import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { type AddUsersByEmailResult, type OrganizationUserOut } from '~/api/client';
+import { type OrganizationUserOut } from '~/api/client';
 import {
   addOrganizationUsersMutation,
   demoteOrganizationAdminMutation,
@@ -13,13 +12,11 @@ import {
   removeOrganizationMemberMutation,
   revokeOrganizationInviteMutation,
 } from '~/api/queries';
-import { useAccountStore } from '~/shared/stores/account.store';
+import { AddByEmail } from '~/features/members/AddByEmail';
+import { MembersTable, RowAction } from '~/features/members/MembersTable';
+import { inviteSignupNote, PendingInvites } from '~/features/members/PendingInvites';
 import { useLayoutStore } from '~/shared/stores/layout.store';
-import { Badge } from '~/shared/ui/Badge';
-import { Button, Field, Textarea } from '~/shared/ui/forms';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
-import { parseEmailList } from '~/shared/utils/utility';
-import { inviteSignupNote, PendingInvites } from './PendingInvites';
 
 export type OrganizationMembersProps = {
   organizationId: number;
@@ -27,22 +24,12 @@ export type OrganizationMembersProps = {
 
 const NO_MEMBERS: OrganizationUserOut[] = [];
 
-const rowActionClass =
-  'inline-flex items-center h-7 px-2.5 text-[11px] font-medium rounded-md transition-colors ' +
-  'disabled:opacity-40 disabled:cursor-not-allowed';
-
 export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps) => {
-  const { t } = useTranslation('organizations');
+  const { t } = useTranslation(['organizations', 'members']);
   const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
-  // Emails only reach platform admins; everyone else manages members by name.
-  const showEmails = useAccountStore((s) => s.account?.is_admin ?? false);
 
   const queryClient = useQueryClient();
   const path = { organization_id: organizationId };
-
-  const [emailsText, setEmailsText] = useState('');
-  const [addResult, setAddResult] = useState<AddUsersByEmailResult | null>(null);
-  const [malformed, setMalformed] = useState<string[]>([]);
 
   const membersQuery = useQuery({
     ...getOrganizationUsersOptions({ path }),
@@ -85,16 +72,12 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
   const add = useMutation({
     ...addOrganizationUsersMutation(),
     meta: { errorMessage: t('members.addFailed') },
-    onSuccess: (result) => {
-      setAddResult(result);
-      setEmailsText('');
+    onSuccess: () => {
       void refetchMembers();
       void refetchInvites();
     },
   });
 
-  const loading = membersQuery.isPending;
-  const adding = add.isPending;
   const busy = promote.isPending || demote.isPending || removeMemberMutation.isPending;
 
   const toggleAdmin = (member: OrganizationUserOut) => {
@@ -107,21 +90,11 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
     const confirmed = await showConfirmDialog({
       title: t('members.confirmRemoveTitle', { name: member.user.display_name }),
       description: t('members.confirmRemoveDescription'),
-      confirmText: t('members.remove'),
+      confirmText: t('members:table.remove'),
       isDangerous: true,
     });
     if (!confirmed) return;
     removeMemberMutation.mutate({ path: { ...path, user_id: member.user.id } });
-  };
-
-  const addMembers = () => {
-    const { emails, invalid } = parseEmailList(emailsText);
-    setMalformed(invalid);
-    if (emails.length === 0) {
-      setAddResult(null);
-      return;
-    }
-    add.mutate({ path, body: { emails } });
   };
 
   return (
@@ -129,54 +102,10 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
       <section className="surface-section">
         <h2 className="section-heading">{t('members.addHeading')}</h2>
         <p className="section-description">
-          {t('members.addDescription', { note: inviteSignupNote() })}
+          {t('members:byEmail.description', { note: inviteSignupNote() })}
         </p>
-        <div className="space-y-3 max-w-xl">
-          <Field label={t('members.emails')} htmlFor="org-member-emails">
-            <Textarea
-              id="org-member-emails"
-              data-testid="org-member-emails"
-              value={emailsText}
-              onChange={(e) => setEmailsText(e.target.value)}
-              placeholder={t('members.emailsPlaceholder')}
-              disabled={adding}
-            />
-          </Field>
-          <Button onClick={addMembers} disabled={adding || emailsText.trim() === ''}>
-            {adding ? t('members.adding') : t('members.add')}
-          </Button>
-
-          {malformed.length > 0 && (
-            <p className="text-xs text-red-600">
-              {t('members.malformed', { emails: malformed.join(', ') })}
-            </p>
-          )}
-          {addResult && addResult.added.length > 0 && (
-            <div className="text-xs text-green-700">
-              <p className="font-medium">{t('members.added')}</p>
-              <ul className="list-disc pl-4 mt-1 space-y-0.5">
-                {addResult.added.map((user) => (
-                  <li key={user.id}>
-                    {user.email ? `${user.display_name} (${user.email})` : user.display_name}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {addResult && addResult.invited_emails.length > 0 && (
-            <div
-              data-testid="add-result-invited"
-              className="text-xs px-3 py-2 rounded-lg bg-brand-50 border border-brand-200 text-brand-800"
-            >
-              <p className="font-medium">{t('members.invited')}</p>
-              <ul className="list-disc pl-4 mt-1 space-y-0.5">
-                {addResult.invited_emails.map((email) => (
-                  <li key={email}>{email}</li>
-                ))}
-              </ul>
-              <p className="mt-1">{inviteSignupNote()}</p>
-            </div>
-          )}
+        <div className="max-w-xl">
+          <AddByEmail onAdd={(emails) => add.mutateAsync({ path, body: { emails } })} />
         </div>
         <PendingInvites
           invites={invitesQuery.data?.items ?? []}
@@ -200,86 +129,25 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
             {extractErrorMessage(membersQuery.error, t('members.loadFailed'))}
           </p>
         )}
-
-        <div className="overflow-x-auto border border-neutral-200 rounded-xl bg-white">
-          <table className="w-full text-sm" data-testid="org-members-table">
-            <thead className="bg-neutral-50/50 border-b border-neutral-200">
-              <tr>
-                <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-                  {t('members.name')}
-                </th>
-                {showEmails && (
-                  <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-                    {t('members.email')}
-                  </th>
-                )}
-                <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-                  {t('members.role')}
-                </th>
-                <th className="px-4 py-3 text-right text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-                  {t('members.actions')}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-100">
-              {loading ? (
-                <tr>
-                  <td
-                    colSpan={showEmails ? 4 : 3}
-                    className="px-4 py-10 text-center text-sm text-neutral-500"
-                  >
-                    {t('members.loading')}
-                  </td>
-                </tr>
-              ) : members.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={showEmails ? 4 : 3}
-                    className="px-4 py-10 text-center text-sm text-neutral-500"
-                  >
-                    {t('members.empty')}
-                  </td>
-                </tr>
-              ) : (
-                members.map((member) => (
-                  <tr key={member.user.id} className="hover:bg-neutral-50/60 transition-colors">
-                    <td className="px-4 py-3 text-sm text-neutral-900">
-                      {member.user.display_name}
-                    </td>
-                    {showEmails && (
-                      <td className="px-4 py-3 text-sm text-neutral-600">{member.user.email}</td>
-                    )}
-                    <td className="px-4 py-3">
-                      <Badge tone={member.is_admin ? 'brand' : 'neutral'}>
-                        {member.is_admin ? t('members.admin') : t('members.member')}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-1.5 flex-wrap">
-                        <button
-                          type="button"
-                          onClick={() => toggleAdmin(member)}
-                          disabled={busy}
-                          className={`${rowActionClass} text-neutral-700 hover:bg-neutral-100`}
-                        >
-                          {member.is_admin ? t('members.demoteAdmin') : t('members.makeAdmin')}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeMember(member)}
-                          disabled={busy}
-                          className={`${rowActionClass} text-red-600 hover:bg-red-50`}
-                        >
-                          {t('members.remove')}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        {membersQuery.isPending ? (
+          <p className="py-10 text-center text-sm text-neutral-500">{t('members.loading')}</p>
+        ) : (
+          <MembersTable
+            members={members}
+            emptyText={t('members.empty')}
+            rowTestId="org-member-row"
+            actions={(member) => (
+              <>
+                <RowAction onClick={() => toggleAdmin(member)} disabled={busy}>
+                  {member.is_admin ? t('members.demoteAdmin') : t('members.makeAdmin')}
+                </RowAction>
+                <RowAction tone="danger" onClick={() => removeMember(member)} disabled={busy}>
+                  {t('members:table.remove')}
+                </RowAction>
+              </>
+            )}
+          />
+        )}
       </section>
     </div>
   );

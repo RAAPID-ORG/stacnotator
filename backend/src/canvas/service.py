@@ -1,28 +1,16 @@
-"""DB-bound canvas layout operations.
-
-The canvas module owns every read and write of ``CanvasLayout.layout_data``;
-domains contribute window keys (timeseries window names, imagery collection
-ids) and never touch layout dicts themselves.
+"""DB-bound canvas layout operations: creating the default layouts and saving the
+ones people arrange. Nothing else writes a layout - which windows exist follows from
+the campaign, so adding imagery or a time series never has to touch one.
 """
 
-from collections.abc import Callable
 from copy import deepcopy
 from uuid import UUID
 
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from sqlalchemy.orm.attributes import flag_modified
 
-from src.canvas.layout import (
-    DEFAULT_MAIN_CANVAS_LAYOUT,
-    VIEW_LAYOUT_START_Y,
-    VIEW_WINDOW_H,
-    VIEW_WINDOW_W,
-    layout_bottom,
-    packed_layout,
-    reconcile_layout,
-)
+from src.canvas.layout import DEFAULT_MAIN_CANVAS_LAYOUT
 from src.canvas.models import CanvasLayout
 from src.canvas.schemas import CanvasLayoutCreate
 from src.imagery.models import ImageryView
@@ -31,7 +19,6 @@ from src.imagery.models import ImageryView
 def new_default_main_layout(campaign_id: int) -> CanvasLayout:
     """The campaign's shared main layout, seeded with the page chrome."""
     return CanvasLayout(
-        # Copy the template so later window syncs never mutate the shared constant.
         layout_data=deepcopy(DEFAULT_MAIN_CANVAS_LAYOUT),
         user_id=None,
         campaign_id=campaign_id,
@@ -40,122 +27,12 @@ def new_default_main_layout(campaign_id: int) -> CanvasLayout:
     )
 
 
-def default_main_layout_data(db: Session, campaign_id: int) -> list[dict]:
-    """The campaign's shared main layout: page chrome plus timeseries windows.
-
-    These share the client's grid with a view's windows, so anything packing
-    view windows has to see them.
-    """
-    layout = _find_layout(db, campaign_id, view_id=None, user_id=None)
-    return layout.layout_data if layout else list(DEFAULT_MAIN_CANVAS_LAYOUT)
-
-
-def new_default_view_layout(
-    campaign_id: int,
-    view_id: int,
-    window_collection_ids: list[int],
-    main_layout_data: list[dict] | None = None,
-) -> CanvasLayout:
-    """A view's shared layout: its windows packed into the space the main
-    canvas leaves free.
-
-    The main layout holds the page chrome and the timeseries windows on the
-    same grid, so they are packed around rather than under: with timeseries
-    stacked down the right, the windows fill the rows beside them first.
-
-    Gaps are kept on later edits so user customizations survive collection
-    changes (see sync_view_layouts).
-    """
+def new_default_view_layout(campaign_id: int, view_id: int) -> CanvasLayout:
+    """A view's shared layout. It starts empty: every window of the view is shown and
+    the client places them until an admin saves where they go."""
     return CanvasLayout(
-        layout_data=packed_layout(
-            [str(cid) for cid in window_collection_ids],
-            item_width=VIEW_WINDOW_W,
-            item_height=VIEW_WINDOW_H,
-            min_y=VIEW_LAYOUT_START_Y,
-            obstacles=main_layout_data,
-        ),
-        user_id=None,
-        campaign_id=campaign_id,
-        view_id=view_id,
-        is_default=True,
+        layout_data=[], user_id=None, campaign_id=campaign_id, view_id=view_id, is_default=True
     )
-
-
-def sync_main_layouts(db: Session, campaign_id: int, sync: Callable[[list[dict]], bool]) -> None:
-    """Apply an in-place layout sync to every main layout of a campaign.
-
-    Main layouts have ``view_id = None`` - the campaign default and each user's
-    personal copy. ``sync`` returns whether it changed the list.
-    """
-    main_layouts = (
-        db.execute(
-            select(CanvasLayout).where(
-                CanvasLayout.campaign_id == campaign_id,
-                CanvasLayout.view_id.is_(None),
-            )
-        )
-        .scalars()
-        .all()
-    )
-    for layout in main_layouts:
-        if sync(layout.layout_data):
-            flag_modified(layout, "layout_data")
-
-
-def sync_view_layouts(
-    db: Session,
-    view_id: int,
-    campaign_id: int,
-    window_collection_ids: set[int],
-    added_collection_ids: list[int],
-) -> None:
-    """Reconcile every canvas_layout for a view against its current windows.
-
-    ``window_collection_ids`` is the full set of collections currently shown as
-    windows in the view. Any layout item for a collection outside that set is
-    dropped - this is what removes the slots of deleted collections (or ones
-    toggled off), so they no longer reserve grid space or push new windows below
-    a source that no longer exists.
-
-    Only ``added_collection_ids`` (freshly-added windows) are placed, not the
-    full window set, so a window a user has personally hidden - present in the
-    view but absent from their layout - stays hidden.
-    """
-    keep = {str(cid) for cid in window_collection_ids}
-
-    # The page chrome (main map / controls / minimap / timeseries) lives in the
-    # view_id=NULL "main" layout and shares the same grid as the windows on the
-    # client. New windows must clear it, so index each user's chrome bottom (with
-    # the campaign default as the fallback for users without a personal main).
-    main_layouts = (
-        db.execute(
-            select(CanvasLayout).where(
-                CanvasLayout.campaign_id == campaign_id,
-                CanvasLayout.view_id.is_(None),
-            )
-        )
-        .scalars()
-        .all()
-    )
-    chrome_bottom_by_user = {ml.user_id: layout_bottom(ml.layout_data) for ml in main_layouts}
-    default_chrome_bottom = chrome_bottom_by_user.get(None, VIEW_LAYOUT_START_Y)
-
-    layouts = (
-        db.execute(select(CanvasLayout).where(CanvasLayout.view_id == view_id)).scalars().all()
-    )
-    for layout in layouts:
-        chrome_bottom = chrome_bottom_by_user.get(layout.user_id, default_chrome_bottom)
-        changed = reconcile_layout(
-            layout.layout_data,
-            managed=lambda _: True,
-            keep=keep,
-            add=[str(cid) for cid in added_collection_ids],
-            item_width=VIEW_WINDOW_W,
-            item_height=VIEW_WINDOW_H,
-            min_y=chrome_bottom,
-        )
-        if changed:
-            flag_modified(layout, "layout_data")
 
 
 def _find_layout(
@@ -173,36 +50,41 @@ def _find_layout(
     return db.execute(query).scalar_one_or_none()
 
 
-def _set_items(layout: CanvasLayout, items: list[dict]) -> None:
+def _set_items(layout: CanvasLayout, items: list[dict], hidden: list[str]) -> None:
     layout.layout_data = items
-    flag_modified(layout, "layout_data")
+    layout.hidden = hidden
 
 
 def _update_default_layout(
-    db: Session, campaign_id: int, view_id: int | None, items: list[dict], not_found: str
+    db: Session,
+    campaign_id: int,
+    view_id: int | None,
+    items: list[dict],
+    hidden: list[str],
+    not_found: str,
 ) -> CanvasLayout:
     layout = _find_layout(db, campaign_id, view_id, user_id=None)
     if not layout:
         raise HTTPException(status_code=404, detail=not_found)
-    _set_items(layout, items)
+    _set_items(layout, items, hidden)
     return layout
 
 
 def _upsert_personal_layout(
-    db: Session, campaign_id: int, view_id: int | None, user_id: UUID, items: list[dict]
+    db: Session,
+    campaign_id: int,
+    view_id: int | None,
+    user_id: UUID,
+    items: list[dict],
+    hidden: list[str],
 ) -> CanvasLayout:
     layout = _find_layout(db, campaign_id, view_id, user_id)
-    if layout:
-        _set_items(layout, items)
-    else:
+    if layout is None:
         layout = CanvasLayout(
-            user_id=user_id,
-            campaign_id=campaign_id,
-            view_id=view_id,
-            layout_data=items,
-            is_default=False,
+            user_id=user_id, campaign_id=campaign_id, view_id=view_id, is_default=False
         )
         db.add(layout)
+    _set_items(layout, items, hidden)
     return layout
 
 
@@ -251,6 +133,7 @@ def save_canvas_layouts(
             campaign_id,
             None,
             main_items,
+            [],
             f"Default main canvas layout not found for campaign {campaign_id}",
         )
         if view_items is not None:
@@ -259,13 +142,16 @@ def save_canvas_layouts(
                 campaign_id,
                 view_id,
                 view_items,
+                layout_data.view_hidden,
                 f"Default canvas layout not found for view {view_id}",
             )
     else:
-        result["main_layout"] = _upsert_personal_layout(db, campaign_id, None, user_id, main_items)
+        result["main_layout"] = _upsert_personal_layout(
+            db, campaign_id, None, user_id, main_items, []
+        )
         if view_items is not None:
             result["view_layout"] = _upsert_personal_layout(
-                db, campaign_id, view_id, user_id, view_items
+                db, campaign_id, view_id, user_id, view_items, layout_data.view_hidden
             )
 
     db.commit()

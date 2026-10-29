@@ -1,0 +1,597 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  saveImagery as apiSaveImagery,
+  refreshSourceImagery as apiRefreshSource,
+} from '~/api/client';
+import type {
+  ImageryEditorStateCreate,
+  StacGenerationConfig,
+  ImagerySourceOut,
+  ImageryCollectionOut,
+  ImagerySliceOut,
+} from '~/api/client';
+import i18n from '~/shared/i18n';
+import { useLayoutStore } from '~/shared/stores/layout.store';
+import { validateImagery } from '~/features/campaigns/utils/campaignValidation';
+import { handleError } from '~/shared/utils/errorHandler';
+import { basemapToBackend, isRealId, sourceToBackend } from './draftSync';
+import { isPlanetSceneConfig } from './types';
+import { cloudCoverOf, readStoredQuery } from './stacQuery';
+import type {
+  Basemap,
+  CollectionItem,
+  ImagerySource,
+  ImageryStepState,
+  ManualCollectionData,
+  StacBrowserCollectionData,
+  VisualizationUrl,
+  VizParams,
+  GenerationRecipe,
+} from './types';
+
+const t = i18n.getFixedT(null, 'imagery');
+
+export type ControllerMode = 'draft' | 'persisted';
+
+export interface ImageryController {
+  readonly state: ImageryStepState;
+  readonly campaignBbox: number[] | null;
+  readonly mode: ControllerMode;
+  readonly pending: boolean;
+  /** Persisted-mode campaign id (undefined in draft/wizard mode, where entities aren't saved
+   *  yet). Used by the API-key controls, which act on persisted basemaps/sources only. */
+  readonly campaignId?: number;
+  /** Owning project. Scopes tiler discovery and STAC catalog listing, which are
+   *  organization-level capabilities rather than per-user ones. */
+  readonly projectId: number;
+  /** Whether a catalog in private storage may be added with its SAS token. Not in a
+   *  visualizer: whatever it shows is published. */
+  readonly allowsPrivateCatalogs: boolean;
+
+  /** Persisted mode only: true when local state differs from server truth. */
+  readonly isDirty: boolean;
+  /** Persisted mode: flush all queued edits to the server in one batch.
+   *  Draft mode: no-op (the parent form handles persistence on submit). */
+  save(): Promise<void>;
+  /** Persisted mode: throw away local edits and revert to server truth.
+   *  Draft mode: no-op. */
+  discard(): void;
+
+  addSource(source: ImagerySource): Promise<void>;
+  updateSource(id: string, patch: Partial<ImagerySource>): Promise<void>;
+  removeSource(id: string): Promise<void>;
+
+  addCollection(sourceId: string, collection: CollectionItem): Promise<void>;
+  updateCollection(
+    sourceId: string,
+    collectionId: string,
+    patch: Partial<CollectionItem>
+  ): Promise<void>;
+  removeCollection(sourceId: string, collectionId: string): Promise<void>;
+  /** Re-run every STAC search behind a source and re-ingest what comes back. */
+  refreshSource(sourceId: string): Promise<void>;
+
+  setBasemaps(basemaps: Basemap[]): Promise<void>;
+}
+
+function withoutCollection(source: ImagerySource, collectionId: string): Partial<ImagerySource> {
+  const collections = source.collections.filter((collection) => collection.id !== collectionId);
+  const referencedSeries = new Set(
+    collections.flatMap((collection) =>
+      collection.generationSeriesId ? [collection.generationSeriesId] : []
+    )
+  );
+  return {
+    collections,
+    generationSeries: source.generationSeries.filter((series) => referencedSeries.has(series.id)),
+  };
+}
+
+// viz_params serialization (VizParams -> API payload) lives in draftSync.ts as
+// `toVizParamsPayload` - the single writer used by the save path. This module only
+// owns the inverse (API -> VizParams) below.
+function vizParamsToFrontend(d: Record<string, unknown> | null | undefined): VizParams {
+  const p = d ?? {};
+  return {
+    assets: (p.assets as string[]) ?? [],
+    assetAsBand: (p.asset_as_band as boolean) ?? false,
+    bidx: (p.bidx as number[]) ?? undefined,
+    rescale: (p.rescale as string) ?? '',
+    colormapName: (p.colormap_name as string) ?? undefined,
+    colorFormula: (p.color_formula as string) ?? undefined,
+    expression: (p.expression as string) ?? undefined,
+    resampling: (p.resampling as string) ?? undefined,
+    compositing: (p.compositing as string) ?? undefined,
+    nodata: (p.nodata as number) ?? undefined,
+    extraParams: (p.extra_params as Record<string, string>) ?? undefined,
+    maskLayer: (p.mask_layer as string) ?? undefined,
+    maskValues: (p.mask_values as number[]) ?? undefined,
+    nirBand: (p.nir_band as string) ?? undefined,
+    redBand: (p.red_band as string) ?? undefined,
+    maxItems: (p.max_items as number) ?? undefined,
+  };
+}
+
+export interface SourceRegistrationProgress {
+  registered: number;
+  total: number;
+  percent: number;
+  complete: boolean;
+}
+
+/** How far a source's slices have got with the tiler, or null when the question
+ *  doesn't apply: an unsaved source has nothing registered by definition, a source
+ *  without slices has nothing to register, and a scene source is never registered at
+ *  all - its layers are minted per annotator, per viewport, and would show as 0%
+ *  forever. */
+export function sourceRegistration(
+  source: ImagerySource,
+  campaignId: number | undefined
+): SourceRegistrationProgress | null {
+  const total = source.sliceCount ?? 0;
+  if (campaignId == null || !isRealId(source.id) || total === 0) return null;
+  if (source.generationSeries.some((series) => isPlanetSceneConfig(series.config))) return null;
+  const registered = source.registeredSliceCount ?? 0;
+  return {
+    registered,
+    total,
+    percent: Math.round((registered / total) * 100),
+    complete: registered === total,
+  };
+}
+
+export interface DraftControllerOptions {
+  projectId: number;
+  state: ImageryStepState;
+  setState: (next: ImageryStepState) => void;
+  campaignBbox?: number[] | null;
+  allowsPrivateCatalogs?: boolean;
+}
+
+export function useDraftController({
+  projectId,
+  state,
+  setState,
+  campaignBbox = null,
+  allowsPrivateCatalogs = true,
+}: DraftControllerOptions): ImageryController {
+  // Read freshest state on writes - without this, queued setState calls
+  // would clobber each other via stale closures.
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  const update = useCallback(
+    (next: ImageryStepState) => {
+      stateRef.current = next;
+      setState(next);
+    },
+    [setState]
+  );
+
+  const patchSource = useCallback(
+    (id: string, patch: Partial<ImagerySource>) => {
+      const cur = stateRef.current;
+      update({
+        ...cur,
+        sources: cur.sources.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+      });
+    },
+    [update]
+  );
+
+  return useMemo<ImageryController>(
+    () => ({
+      state,
+      campaignBbox,
+      projectId,
+      allowsPrivateCatalogs,
+      mode: 'draft',
+      pending: false,
+      // Draft mode persists at form submit; controller-level save/dirty are
+      // not meaningful here.
+      isDirty: false,
+      save: async () => {},
+      discard: () => {},
+
+      addSource: async (source) => {
+        update({ ...stateRef.current, sources: [...stateRef.current.sources, source] });
+      },
+
+      updateSource: async (id, patch) => patchSource(id, patch),
+
+      removeSource: async (id) => {
+        const cur = stateRef.current;
+        update({ ...cur, sources: cur.sources.filter((s) => s.id !== id) });
+      },
+
+      addCollection: async (sourceId, collection) => {
+        const src = stateRef.current.sources.find((s) => s.id === sourceId);
+        if (src) patchSource(sourceId, { collections: [...src.collections, collection] });
+      },
+
+      updateCollection: async (sourceId, collectionId, patch) => {
+        const src = stateRef.current.sources.find((s) => s.id === sourceId);
+        if (!src) return;
+        patchSource(sourceId, {
+          collections: src.collections.map((c) => (c.id === collectionId ? { ...c, ...patch } : c)),
+        });
+      },
+
+      removeCollection: async (sourceId, collectionId) => {
+        const src = stateRef.current.sources.find((s) => s.id === sourceId);
+        if (!src) return;
+        patchSource(sourceId, withoutCollection(src, collectionId));
+      },
+
+      refreshSource: async () => {
+        // No-op in draft - nothing is registered yet.
+      },
+
+      setBasemaps: async (basemaps) => {
+        update({ ...stateRef.current, basemaps });
+      },
+    }),
+    [state, campaignBbox, projectId, allowsPrivateCatalogs, update, patchSource]
+  );
+}
+
+function isMpcCatalogUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return (
+      host === 'planetarycomputer.microsoft.com' ||
+      host.endsWith('.planetarycomputer.microsoft.com')
+    );
+  } catch {
+    return false;
+  }
+}
+
+function generationRecipeToFrontend(config: StacGenerationConfig): GenerationRecipe {
+  return {
+    collectionTitle: config.collection_title,
+    hasCloudCover: config.has_cloud_cover,
+    startDate: config.start_date,
+    endDate: config.end_date,
+    collectionPeriodInterval: config.collection_period_interval,
+    collectionPeriodUnit: config.collection_period_unit,
+    slicePeriodInterval: config.slice_period_interval,
+    slicePeriodUnit: config.slice_period_unit,
+    coverMode: config.cover_mode,
+    coverSliceNth: config.cover_slice_nth,
+  };
+}
+
+function mapCollectionOutToFe(
+  col: ImageryCollectionOut,
+  vizNames: Map<number, string>
+): CollectionItem {
+  const sc = col.search;
+  const urlsOf = (slice: ImagerySliceOut): VisualizationUrl[] =>
+    slice.tiles.flatMap((tile) => {
+      const vizName = vizNames.get(tile.visualization_id);
+      return vizName ? [{ vizName, url: tile.url }] : [];
+    });
+  const vizUrls = col.slices.flatMap(urlsOf);
+
+  let data: StacBrowserCollectionData | ManualCollectionData;
+  if (sc) {
+    // Cover params are stored only when the collection has a dedicated cover.
+    const byName = new Map(
+      (col.visualizations ?? []).map((v) => [vizNames.get(v.visualization_id), v])
+    );
+    const namesForViz = vizNames.size > 0 ? [...vizNames.values()] : ['Default'];
+    const hasDedicatedCover = col.has_dedicated_cover ?? false;
+    const stacId = sc.stac_collection_id;
+    const regular = readStoredQuery(stacId, sc.search_query, sc.max_cloud_cover ?? undefined);
+    // A cover query without a cloud filter on a collection that has cloud cover was
+    // saved at 100, which writes no filter.
+    const coverCloud =
+      cloudCoverOf(sc.cover_search_query) ??
+      (sc.cover_search_query && sc.max_cloud_cover != null ? 100 : undefined);
+    const cover = readStoredQuery(stacId, sc.cover_search_query, coverCloud);
+    data = {
+      type: 'stac_browser',
+      catalogUrl: sc.catalog_url,
+      stacCollectionId: stacId,
+      isMpc: isMpcCatalogUrl(sc.catalog_url),
+      tiler: sc.tiler ?? null,
+      maxCloudCover: sc.max_cloud_cover ?? undefined,
+      itemSort: regular.itemSort,
+      coverMaxCloudCover: coverCloud,
+      coverItemSort: cover.itemSort,
+      visualizations: namesForViz.map((name) => ({
+        name,
+        vizParams: vizParamsToFrontend(byName.get(name)?.params),
+      })),
+      coverVisualizations: hasDedicatedCover
+        ? namesForViz.map((name) => ({
+            name,
+            vizParams: vizParamsToFrontend(byName.get(name)?.cover_params),
+          }))
+        : undefined,
+      searchQuery: regular.custom,
+      coverSearchQuery: cover.custom,
+      internalStorage: sc.internal_storage ?? false,
+      storageAccess: sc.storage_access
+        ? { kind: sc.storage_access.kind, expiresAt: sc.storage_access.expires_at ?? null }
+        : null,
+      vizUrls,
+    };
+  } else {
+    data = { type: 'manual', vizUrls };
+  }
+
+  return {
+    id: String(col.id),
+    name: col.name,
+    generationSeriesId: col.generation_series_id != null ? String(col.generation_series_id) : null,
+    coverSliceIndex: col.cover_slice_index ?? 0,
+    hasDedicatedCover: col.has_dedicated_cover ?? false,
+    slices: col.slices.map((sl) => ({
+      id: String(sl.id),
+      name: sl.name,
+      startDate: sl.start_date,
+      endDate: sl.end_date,
+      vizUrls: urlsOf(sl),
+    })),
+    data,
+  };
+}
+
+export function mapSourceOutToFe(src: ImagerySourceOut): ImagerySource {
+  const vizNames = new Map(src.visualizations.map((v) => [v.id, v.name]));
+  return {
+    id: String(src.id),
+    name: src.name,
+    crosshairHex6: src.crosshair_hex6,
+    defaultZoom: src.default_zoom,
+    maxNativeZoom: src.max_native_zoom,
+    visualizations: src.visualizations.map((v) => ({ id: String(v.id), name: v.name })),
+    generationSeries: (src.generation_series ?? []).map((series) => ({
+      id: String(series.id),
+      config:
+        series.config.kind === 'planet_scenes'
+          ? series.config
+          : generationRecipeToFrontend(series.config),
+    })),
+    collections: src.collections.map((col) => mapCollectionOutToFe(col, vizNames)),
+    hasApiKey: src.has_api_key,
+    organizationApiKeyId: src.organization_api_key_id,
+    sliceCount: src.slice_count,
+    registeredSliceCount: src.registered_slice_count,
+    refreshable: src.refreshable,
+  };
+}
+
+/** Serialize the local editor state into the upsert payload. Existing
+ *  entities pass their real numeric IDs through; freshly-added entities omit
+ *  `id` (server treats as create). */
+function stateToEditorPayload(state: ImageryStepState): ImageryEditorStateCreate {
+  return {
+    sources: state.sources.map(sourceToBackend),
+    basemaps: state.basemaps.map(basemapToBackend),
+  };
+}
+
+export interface PersistedControllerOptions {
+  campaignId: number;
+  projectId: number;
+  imagery: ImagerySourceOut[];
+  basemaps?: {
+    id?: number;
+    name: string;
+    url: string;
+    max_native_zoom?: number | null;
+    has_api_key?: boolean;
+    organization_api_key_id?: number | null;
+  }[];
+  campaignBbox?: number[] | null;
+  /** Called after any mutation succeeds so the parent can refetch. */
+  refetch?: () => void;
+}
+
+export function usePersistedController({
+  campaignId,
+  projectId,
+  imagery,
+  basemaps,
+  campaignBbox = null,
+  refetch,
+}: PersistedControllerOptions): ImageryController {
+  const initialState = useMemo<ImageryStepState>(
+    () => ({
+      sources: imagery.map(mapSourceOutToFe),
+      basemaps: (basemaps ?? []).map((b, i) => ({
+        id: b.id !== undefined ? String(b.id) : `local-${i}`,
+        name: b.name,
+        url: b.url,
+        maxNativeZoom: b.max_native_zoom ?? undefined,
+        hasApiKey: b.has_api_key,
+        organizationApiKeyId: b.organization_api_key_id,
+      })),
+    }),
+    [imagery, basemaps]
+  );
+
+  const [state, setState] = useState<ImageryStepState>(initialState);
+  const [isDirty, setIsDirty] = useState(false);
+  const [pending, setPending] = useState(false);
+
+  // Refs read by save() so the diff sees the freshest values even if React has
+  // queued multiple setState calls. Without these, fast successive edits could
+  // produce a diff computed against a stale snapshot.
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const initialStateRef = useRef(initialState);
+  initialStateRef.current = initialState;
+
+  // Set by save() right before it triggers refetch(). The useEffect below uses
+  // it to know that the incoming props update is the post-save refresh - at
+  // that point we adopt server truth unconditionally and clear dirty/pending.
+  const awaitingPostSaveRefetch = useRef(false);
+
+  useEffect(() => {
+    if (awaitingPostSaveRefetch.current) {
+      awaitingPostSaveRefetch.current = false;
+      setState(initialState);
+      setIsDirty(false);
+      setPending(false);
+    } else if (!isDirty) {
+      // Routine prop refresh while user has no pending edits - adopt server
+      // truth. If the user is mid-edit (isDirty=true), preserve their work.
+      setState(initialState);
+    }
+    // intentionally not depending on isDirty: this effect should only fire on
+    // an actual props refresh, not whenever dirty flips. We read the current
+    // isDirty value at the time the effect runs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialState]);
+
+  const mutate = useCallback((updater: (s: ImageryStepState) => ImageryStepState) => {
+    setState((s) => updater(s));
+    setIsDirty(true);
+  }, []);
+
+  const discard = useCallback(() => {
+    setState(initialStateRef.current);
+    setIsDirty(false);
+  }, []);
+
+  const save = useCallback(async () => {
+    if (pending) return;
+    const { errors, isValid } = validateImagery(stateRef.current);
+    if (!isValid) {
+      useLayoutStore.getState().showAlert(Object.values(errors).join(' '), 'error');
+      return;
+    }
+    // A source created here joins none of the campaign's views, so it stays off
+    // the annotation canvas until someone puts it in one - and nothing else in
+    // this editor mentions views at all. Only worth saying for a source that is
+    // about to exist for the first time.
+    if (stateRef.current.sources.some((source) => !isRealId(source.id))) {
+      const ok = await useLayoutStore.getState().showConfirmDialog({
+        title: t('controller.offCanvas.title'),
+        isWarning: true,
+        description: t('controller.offCanvas.description'),
+        confirmText: t('controller.offCanvas.confirm'),
+      });
+      if (!ok) return;
+    }
+    setPending(true);
+    try {
+      await apiSaveImagery({
+        path: { campaign_id: campaignId },
+        body: stateToEditorPayload(stateRef.current),
+      });
+      awaitingPostSaveRefetch.current = true;
+      refetch?.();
+      setTimeout(() => {
+        if (awaitingPostSaveRefetch.current) {
+          awaitingPostSaveRefetch.current = false;
+          setIsDirty(false);
+          setPending(false);
+        }
+      }, 5000);
+    } catch (e) {
+      handleError(e, t('controller.saveFailed'));
+      refetch?.();
+      setPending(false);
+      throw e;
+    }
+  }, [pending, campaignId, refetch]);
+
+  return useMemo<ImageryController>(
+    () => ({
+      state,
+      campaignBbox,
+      projectId,
+      allowsPrivateCatalogs: true,
+      mode: 'persisted',
+      pending,
+      isDirty,
+      campaignId,
+      save,
+      discard,
+
+      addSource: async (source) => {
+        mutate((s) => ({ ...s, sources: [...s.sources, source] }));
+      },
+
+      updateSource: async (id, patch) => {
+        mutate((s) => ({
+          ...s,
+          sources: s.sources.map((src) => (src.id === id ? { ...src, ...patch } : src)),
+        }));
+      },
+
+      removeSource: async (id) => {
+        mutate((s) => ({ ...s, sources: s.sources.filter((src) => src.id !== id) }));
+      },
+
+      addCollection: async (sourceId, collection) => {
+        mutate((s) => ({
+          ...s,
+          sources: s.sources.map((src) =>
+            src.id === sourceId ? { ...src, collections: [...src.collections, collection] } : src
+          ),
+        }));
+      },
+
+      updateCollection: async (sourceId, collectionId, patch) => {
+        mutate((s) => ({
+          ...s,
+          sources: s.sources.map((src) =>
+            src.id !== sourceId
+              ? src
+              : {
+                  ...src,
+                  collections: src.collections.map((c) =>
+                    c.id === collectionId ? { ...c, ...patch } : c
+                  ),
+                }
+          ),
+        }));
+      },
+
+      removeCollection: async (sourceId, collectionId) => {
+        mutate((s) => ({
+          ...s,
+          sources: s.sources.map((src) =>
+            src.id === sourceId ? { ...src, ...withoutCollection(src, collectionId) } : src
+          ),
+        }));
+      },
+
+      refreshSource: async (sourceId) => {
+        // This re-runs the saved search server-side, so unsaved edits would be
+        // ignored and confuse the result.
+        if (isDirty) {
+          handleError(
+            new Error(t('controller.saveBeforeReregister')),
+            t('controller.cannotReregister')
+          );
+          return;
+        }
+        setPending(true);
+        try {
+          await apiRefreshSource({
+            path: { campaign_id: campaignId, source_id: Number(sourceId) },
+          });
+          refetch?.();
+          useLayoutStore.getState().showAlert(t('controller.reregisterStarted'), 'success');
+        } catch (e) {
+          handleError(e, t('controller.reregisterFailed'));
+        } finally {
+          setPending(false);
+        }
+      },
+
+      setBasemaps: async (basemaps) => {
+        mutate((s) => ({ ...s, basemaps }));
+      },
+    }),
+    [state, campaignBbox, projectId, pending, isDirty, save, discard, mutate, campaignId, refetch]
+  );
+}

@@ -5,7 +5,7 @@ import { ImageryRegistrationNotice } from './ImageryRegistrationNotice';
 it('centers registration feedback within its map without blocking interaction', () => {
   render(<ImageryRegistrationNotice />);
   const notice = screen.getByRole('status');
-  expect(notice.textContent).toContain('Imagery will appear automatically');
+  expect(notice.textContent).toContain('Preparing imagery');
   for (const className of [
     'absolute',
     'left-1/2',

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
-from src.auth.dependencies import require_admin, require_authenticated_user
+from src.auth.dependencies import require_authenticated_user, require_platform_admin
 from src.auth.models import User
 from src.auth.schemas import UserOut
 from src.database import get_db
@@ -110,7 +110,7 @@ def list_organization_access_requests(
     return AccessRequestsResponse(
         items=[
             AccessRequestOut(
-                user=UserOut.for_viewer(r.user, with_email=user.is_admin),
+                user=UserOut.for_viewer(r.user, with_email=user.is_platform_admin),
                 note=r.request_note,
                 requested_at=r.created_at,
             )
@@ -143,7 +143,7 @@ def reject_organization_access_request(
 def approve_organization(
     organization_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_platform_admin),
 ):
     return _to_out(service.approve_organization(db, organization_id), is_admin=True)
 
@@ -152,7 +152,7 @@ def approve_organization(
 def reject_organization(
     organization_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_platform_admin),
 ):
     return _to_out(service.reject_organization(db, organization_id), is_admin=True)
 
@@ -175,7 +175,7 @@ def update_internal_storage(
     organization_id: int,
     body: InternalStorageUpdateRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_platform_admin),
 ):
     updated = service.set_internal_storage(db, organization_id, body.allows_internal_storage)
     return _to_out(updated, is_admin=True)
@@ -191,7 +191,7 @@ def get_organization_users(
     org_users = service.get_org_users(db, organization_id)
     users = [
         OrganizationUserOut(
-            user=UserOut.for_viewer(ou.user, with_email=user.is_admin),
+            user=UserOut.for_viewer(ou.user, with_email=user.is_platform_admin),
             is_admin=ou.is_admin,
             status=ou.status,
         )
@@ -334,7 +334,7 @@ def set_organization_tilers(
     organization_id: int,
     body: SetOrganizationTilersRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_platform_admin),
 ):
     service.set_org_tilers(db, organization_id, body.tiler_names)
     return OrganizationTilersOut(tiler_names=service.get_org_tilers(db, organization_id))

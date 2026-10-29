@@ -6,11 +6,9 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     ForeignKey,
-    Identity,
     Index,
     Integer,
     String,
-    UniqueConstraint,
     func,
     text,
 )
@@ -19,15 +17,17 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.campaigns.schemas import default_labelling_policy
 from src.database import Base
+from src.layers import LayerOwner
 from src.projects.access import VISIBILITY_PUBLIC
 
 if TYPE_CHECKING:
-    from src.annotation.models import Annotation, AnnotationTask
+    from src.annotation.models import Annotation
     from src.canvas.models import CanvasLayout
     from src.custom_layers.models import CustomMap, VectorLayer
     from src.imagery.models import Basemap, ImagerySource, ImageryView
     from src.projects.models import Project
-    from src.timeseries.models import TimeSeries
+    from src.tasks.models import Task, TaskSet
+    from src.timeseries.models import Timeseries
 
 
 class Campaign(Base):
@@ -38,6 +38,13 @@ class Campaign(Base):
     __tablename__ = "campaigns"
     __table_args__ = (
         Index("idx_campaigns_project_id", "project_id"),
+        CheckConstraint("bbox_west BETWEEN -180 AND 180", name="campaigns_bbox_west_range"),
+        CheckConstraint("bbox_east BETWEEN -180 AND 180", name="campaigns_bbox_east_range"),
+        CheckConstraint("bbox_south BETWEEN -90 AND 90", name="campaigns_bbox_south_range"),
+        CheckConstraint("bbox_north BETWEEN -90 AND 90", name="campaigns_bbox_north_range"),
+        CheckConstraint("bbox_west < bbox_east", name="campaigns_bbox_lon_order"),
+        CheckConstraint("bbox_south < bbox_north", name="campaigns_bbox_lat_order"),
+        CheckConstraint("task_output IN ('classify', 'draw')", name="campaigns_task_output_values"),
         {"schema": "data"},
     )
 
@@ -51,12 +58,12 @@ class Campaign(Base):
         server_default=func.current_timestamp(),
         nullable=False,
     )
-    mode: Mapped[str] = mapped_column(String(20), nullable=False)  # tasks or open
-    # Imagery registration status: pending, registering, ready, failed
+    # Imagery registration status: registering, ready, failed, or pending - a run is
+    # owed and the next worker to boot starts it (see background.claim_pending_runs)
     registration_status: Mapped[str] = mapped_column(
         String(20), server_default="ready", nullable=False
     )
-    # Embedding registration status: pending, registering, ready, failed
+    # Embedding computation status: registering, ready, failed
     embedding_status: Mapped[str] = mapped_column(
         String(20), server_default="ready", nullable=False
     )
@@ -69,13 +76,14 @@ class Campaign(Base):
     embedding_heartbeat_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True
     )
-    # Errors from background registration (JSON array, null when no errors).
+    # Errors from the two background runs (JSON arrays, null when there are none).
     # none_as_null: without it SQLAlchemy stores a cleared value as the JSON
     # scalar 'null' rather than SQL NULL, and finish_status_run's jsonb `||`
     # then appends to it as if it were a one-element array, yielding [null].
     registration_errors: Mapped[list | None] = mapped_column(
         JSONB(none_as_null=True), nullable=True
     )
+    embedding_errors: Mapped[list | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
 
     # Monotonic counter bumped on every annotation create/update/delete. Used as
     # a cache-busting key in annotation vector-tile URLs so edits invalidate the
@@ -86,18 +94,47 @@ class Campaign(Base):
         ForeignKey("data.projects.id", ondelete="CASCADE"), nullable=False
     )
 
+    # --- What annotators work with: the area, the labels and the form ---
+    bbox_west: Mapped[float] = mapped_column(nullable=False)
+    bbox_south: Mapped[float] = mapped_column(nullable=False)
+    bbox_east: Mapped[float] = mapped_column(nullable=False)
+    bbox_north: Mapped[float] = mapped_column(nullable=False)
+    # [{"id": 1, "name": "Forest", "geometry_type": "polygon"}, ...]; ids are what
+    # annotations store, so a label keeps its id for life.
+    labels: Mapped[list] = mapped_column(JSONB, server_default="[]", nullable=False)
+    form_fields: Mapped[list] = mapped_column(JSONB, server_default="[]", nullable=False)
+    # Markdown guide shown to annotators.
+    guide_markdown: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Side length (in meters) of the square drawn around each point task.
+    # NULL draws no extent, only the crosshair.
+    sample_extent_meters: Mapped[float | None] = mapped_column(nullable=True)
+    # What finishing a task means: picking a label for the task's own geometry
+    # (classify), or drawing shapes around it (draw). Fixed once tasks are worked.
+    task_output: Mapped[str] = mapped_column(
+        String(20), server_default=text("'classify'"), nullable=False
+    )
+    # Year satellite embeddings are sourced from; NULL means no embeddings.
+    embedding_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # When on, annotations may be published as open research data, without any
+    # annotator's name. See "Sharing Your Annotations for Research" in the terms.
+    research_sharing: Mapped[bool] = mapped_column(
+        Boolean, server_default=text("false"), nullable=False
+    )
+    # Who may label what, and whose labels count toward task completion.
+    # See src/campaigns/schemas.py:LabellingPolicy and docs/labelling-policy.md.
+    labelling_policy: Mapped[dict] = mapped_column(
+        JSONB,
+        server_default=text(f"'{default_labelling_policy().model_dump_json()}'::jsonb"),
+        nullable=False,
+    )
+
     # Relationships
     project: Mapped["Project"] = relationship(back_populates="campaigns")
-    settings: Mapped["CampaignSettings"] = relationship(
-        back_populates="campaign",
-        uselist=False,
-        cascade="all, delete-orphan",
-    )
-    time_series: Mapped[list["TimeSeries"]] = relationship(
+    time_series: Mapped[list["Timeseries"]] = relationship(
         back_populates="campaign",
         cascade="all, delete-orphan",
     )
-    task_items: Mapped[list["AnnotationTask"]] = relationship(
+    tasks: Mapped[list["Task"]] = relationship(
         back_populates="campaign",
         cascade="all, delete-orphan",
     )
@@ -150,104 +187,21 @@ class Campaign(Base):
         audience stays tied to platform-public projects only."""
         return self.project.visibility == VISIBILITY_PUBLIC
 
+    @property
+    def layer_owner(self) -> LayerOwner:
+        return LayerOwner(campaign_id=self.id)
 
-class TaskSet(Base):
-    """
-    A named group of annotation tasks within a campaign. Every task belongs to
-    exactly one set; services enforce that a campaign keeps at least one set.
-    """
+    @property
+    def bbox(self) -> tuple[float, float, float, float]:
+        """(west, south, east, north)"""
+        return (self.bbox_west, self.bbox_south, self.bbox_east, self.bbox_north)
 
-    __tablename__ = "task_sets"
-    __table_args__ = (
-        UniqueConstraint("campaign_id", "name"),
-        Index("idx_task_sets_campaign_id", "campaign_id"),
-        {"schema": "data"},
-    )
+    @property
+    def label_names(self) -> dict[int, str]:
+        return {label["id"]: label["name"] for label in self.labels}
 
-    id: Mapped[int] = mapped_column(Integer, Identity(always=True), primary_key=True)
-    campaign_id: Mapped[int] = mapped_column(
-        ForeignKey("data.campaigns.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True),
-        server_default=func.current_timestamp(),
-        nullable=False,
-    )
-
-
-class CampaignSettings(Base):
-    """
-    Campaign configuration including labels that can be used for annotation and geographic bounding box.
-    """
-
-    __tablename__ = "settings"
-    __table_args__ = (
-        # Bounding box coordinate ranges
-        CheckConstraint("bbox_west BETWEEN -180 AND 180", name="settings_bbox_west_range"),
-        CheckConstraint("bbox_east BETWEEN -180 AND 180", name="settings_bbox_east_range"),
-        CheckConstraint("bbox_south BETWEEN -90 AND 90", name="settings_bbox_south_range"),
-        CheckConstraint("bbox_north BETWEEN -90 AND 90", name="settings_bbox_north_range"),
-        # Bounding box logical ordering
-        CheckConstraint("bbox_west < bbox_east", name="settings_bbox_lon_order"),
-        CheckConstraint("bbox_south < bbox_north", name="settings_bbox_lat_order"),
-        CheckConstraint("task_output IN ('classify', 'draw')", name="settings_task_output_values"),
-        {"schema": "data"},
-    )
-
-    # Primary key (also foreign key)
-    campaign_id: Mapped[int] = mapped_column(
-        ForeignKey("data.campaigns.id", ondelete="CASCADE"),
-        primary_key=True,
-    )
-
-    # Settings data
-    labels: Mapped[dict] = mapped_column(
-        JSONB,
-        server_default="{}",
-        nullable=False,
-    )
-    form_fields: Mapped[list] = mapped_column(JSONB, server_default="[]", nullable=False)
-    bbox_west: Mapped[float] = mapped_column(nullable=False)
-    bbox_south: Mapped[float] = mapped_column(nullable=False)
-    bbox_east: Mapped[float] = mapped_column(nullable=False)
-    bbox_north: Mapped[float] = mapped_column(nullable=False)
-
-    # Year from which to source satellite embeddings (e.g. 2024).
-    # NULL means embeddings are not configured / not used.
-    embedding_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
-
-    # Markdown guide document shown to annotators
-    guide_markdown: Mapped[str | None] = mapped_column(String, nullable=True)
-
-    # Side length (in meters) of the square extent around each task centroid.
-    # NULL means no extent is drawn (only crosshair shown for point tasks).
-    sample_extent_meters: Mapped[float | None] = mapped_column(nullable=True)
-
-    # What finishing a task means: picking a label for the task's own geometry
-    # (classify), or drawing shapes around it (draw). Fixed once tasks are worked.
-    task_output: Mapped[str] = mapped_column(
-        String(20), server_default=text("'classify'"), nullable=False
-    )
-
-    # When on, annotations created in this campaign may be published as open
-    # research data, without any annotator's name. Set by campaign admins; see
-    # "Sharing Your Annotations for Research" in the terms.
-    research_sharing: Mapped[bool] = mapped_column(
-        Boolean, server_default=text("false"), nullable=False
-    )
-
-    # Who may label what, and whose labels count toward task completion.
-    # Shape: {"explore": AUD, "unassigned_tasks": AUD, "assigned_tasks": AUD,
-    # "complete_assigned": AUD} where AUD = {"kinds": [...], "user_ids": [...]}.
-    # See src/campaigns/schemas.py:LabellingPolicy and
-    # docs/labelling-policy.md.
-    labelling_policy: Mapped[dict] = mapped_column(
-        JSONB,
-        server_default=text(f"'{default_labelling_policy().model_dump_json()}'::jsonb"),
-        nullable=False,
-    )
-
-    # Relationships
-    campaign: Mapped["Campaign"] = relationship(back_populates="settings")
+    @property
+    def settings(self) -> "Campaign":
+        """The campaign's configuration, which the API sends as one ``settings``
+        object; it lives on the campaign itself."""
+        return self

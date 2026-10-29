@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { createNewCanvasLayout, type CampaignOutFull, type ImageryViewOut } from '~/api/client';
+import { saveCanvasLayout, type CampaignOutFull, type ImageryViewOut } from '~/api/client';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import { Button } from '~/shared/ui/forms';
+import { BarButton } from '~/shared/ui/BarButton';
 import { IconLayoutGrid } from '~/shared/ui/Icons';
 import { useLayoutStore as useAppLayoutStore } from '~/shared/stores/layout.store';
 import { useIsMobile } from '~/shared/utils/useIsMobile';
@@ -46,18 +47,23 @@ export function LayoutEditControls({
       saveLayout();
       return;
     }
-    const mainLayoutData = toGridLayout({ main: currentLayout.main, windows: {} });
+    const mainLayoutData = toGridLayout({ main: currentLayout.main, windows: {}, hidden: [] });
     const viewLayoutData = Object.values(currentLayout.windows);
+    const viewHidden = currentLayout.hidden.map(String);
     // Do not rely on the save menu alone to uphold first-view setup: even if a
     // caller asks for a personal save, the initial layout must be shared.
     const saveAsDefault = mustSaveDefault || shouldBeDefault;
     try {
-      await createNewCanvasLayout({
+      await saveCanvasLayout({
         path: { campaign_id: campaign.id },
         body: {
           view_id: view.id,
           should_be_default: saveAsDefault,
-          layout: { main_layout_data: mainLayoutData, view_layout_data: viewLayoutData },
+          layout: {
+            main_layout_data: mainLayoutData,
+            view_layout_data: viewLayoutData,
+            view_hidden: viewHidden,
+          },
         },
       });
       saveLayout();
@@ -72,7 +78,12 @@ export function LayoutEditControls({
     setResetConfirmOpen(false);
     const mainItems = campaign.default_main_canvas_layout?.layout_data ?? [];
     const viewItems = view?.default_canvas_layout?.layout_data ?? [];
-    setLayout(fromGridLayout([...mainItems, ...viewItems], EMPTY_LAYOUT));
+    setLayout(
+      fromGridLayout([...mainItems, ...viewItems], {
+        ...EMPTY_LAYOUT,
+        hidden: (view?.default_canvas_layout?.hidden ?? []).map(Number),
+      })
+    );
     showAlert(t('layoutEdit.resetDone'), 'success');
   };
 
@@ -83,17 +94,14 @@ export function LayoutEditControls({
     // back to on mobile if editing were somehow entered anyway.
     if (isMobile) return null;
     return (
-      <button
-        type="button"
+      <BarButton
+        icon={IconLayoutGrid}
+        label={t('layoutEdit.edit')}
         onClick={startEditing}
         title={t('layoutEdit.editTip')}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-neutral-600 hover:bg-neutral-100 rounded transition-all"
         data-testid="edit-layout-trigger"
         data-tour="layout-controls"
-      >
-        <IconLayoutGrid className="w-3.5 h-3.5" />
-        {t('layoutEdit.edit')}
-      </button>
+      />
     );
   }
 

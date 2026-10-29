@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDismissOnOutside } from '~/shared/hooks/useDismissOnOutside';
 import { Dropdown } from '~/shared/ui/motion';
+import { BarButton } from '~/shared/ui/BarButton';
 import { IconKeyboard } from '~/shared/ui/Icons';
 import { helpRows } from '../../hotkeys';
 
@@ -22,15 +23,14 @@ export function HelpMenu() {
 
   return (
     <div ref={containerRef} className="relative" data-tour="keyboard-help">
-      <button
-        type="button"
+      <BarButton
+        icon={IconKeyboard}
+        active={open}
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center justify-center w-8 h-8 text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 rounded transition-colors"
         title={t('helpMenu.title')}
+        aria-label={t('helpMenu.title')}
         data-testid="help-menu-trigger"
-      >
-        <IconKeyboard className="w-5 h-5" />
-      </button>
+      />
       <Dropdown open={open} className="absolute top-full right-0 mt-1 z-20 origin-top-right">
         <div
           className="bg-white border border-neutral-200 rounded-lg shadow-lg min-w-[220px] max-h-[70vh] overflow-y-auto p-3"

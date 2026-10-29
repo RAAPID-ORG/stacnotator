@@ -7,15 +7,14 @@ import pandas as pd
 import pytest
 from fastapi import HTTPException
 
-from src.annotation.models import AnnotationTaskAssignment
-from src.campaigns.assignments import (
+from src.tasks.assignments import (
     USERS_CSV_COLUMNS,
-    _label_id_to_name,
     _split_emails,
     _unique_users,
     build_task_assignments_export,
     import_task_assignments,
 )
+from src.tasks.models import TaskAssignment
 
 
 def _mock_db():
@@ -73,18 +72,6 @@ class TestUniqueUsers:
         assert result == [ua, ub]
 
 
-class TestLabelIdToName:
-    def test_dict_labels(self):
-        campaign = MagicMock()
-        campaign.settings.labels = {"1": {"name": "Forest"}, "2": {"name": "Water"}}
-        assert _label_id_to_name(campaign) == {1: "Forest", 2: "Water"}
-
-    def test_no_settings(self):
-        campaign = MagicMock()
-        campaign.settings = None
-        assert _label_id_to_name(campaign) == {}
-
-
 # ---------------------------------------------------------------------------
 # Export
 # ---------------------------------------------------------------------------
@@ -120,7 +107,7 @@ class TestBuildExport:
     def test_two_frames_with_pairs_and_users(self):
         db = _mock_db()
         campaign = MagicMock(id=1)
-        campaign.settings.labels = {"1": {"name": "Forest"}, "2": {"name": "Water"}}
+        campaign.label_names = {1: "Forest", 2: "Water"}
 
         cu = MagicMock(is_admin=True, is_authoritative_reviewer=False)
         cu.user = MagicMock(email="alice@x.com", display_name="Alice")
@@ -263,10 +250,10 @@ class TestImportApply:
 
         result = import_task_assignments(db, 1, contents)
 
-        # Existing assignments for the task are cleared first.
-        assert db.execute.call_count == 1
+        # Existing assignments for the task are cleared, and the task stamped for the poll.
+        assert db.execute.call_count == 2
         added = [c.args[0] for c in db.add.call_args_list]
-        assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+        assignments = [a for a in added if isinstance(a, TaskAssignment)]
         assert {(a.user_id, a.is_review) for a in assignments} == {
             (alice.id, False),
             (bob.id, True),
@@ -287,9 +274,9 @@ class TestImportApply:
         result = import_task_assignments(db, 1, contents)
 
         # Task still gets its assignments deleted, but nothing is added.
-        assert db.execute.call_count == 1
+        assert db.execute.call_count == 2
         added = [c.args[0] for c in db.add.call_args_list]
-        assert [a for a in added if isinstance(a, AnnotationTaskAssignment)] == []
+        assert [a for a in added if isinstance(a, TaskAssignment)] == []
         assert result == {
             "tasks_updated": 1,
             "assignees_created": 0,

@@ -4,7 +4,7 @@
 
 Multi-tenancy: organization → project → campaign.
 
-- Organization signup requests are approved/rejected by a platform admin; org admins manage members and can pre-authorize emails via invites consumed at registration
+- Organization signup requests are approved/rejected by a platform admin; org admins manage members and can pre-authorize emails via invites that turn into memberships at registration
 - Any signed-in user can browse every approved organization and request access with an optional note; org admins see the requester's name and note and approve or reject. Approval turns the pending membership into an active one; rejection drops the request and they may ask again
 - Projects have `private`/`organization`/`public` visibility and project-scoped members with `admin` and `authoritative reviewer` roles
 - People are identified by display name everywhere members are listed or picked - the platform user directory, member tables and access requests. Email addresses reach platform admins only, so org and project admins run their membership by name; adding someone by a known address still works through the add-by-email box
@@ -18,9 +18,9 @@ Imagery registration runs per campaign but succeeds per source: each source repo
 - **Task Mode** - Predefined annotation locations (points/polygons). Tasks are assigned to annotators who visit each location and label it.
   - **Task output** (campaign setting, fixed once tasks are annotated): `classify` tasks are finished by picking a label for the task's own geometry; `draw` tasks by drawing shapes around it. In a draw campaign Task mode carries the drawing tools, every shape is saved against the current task (`output_of_task_id`), and the task is finished with **Done**, **Nothing here** or **Skip**.
   - Each annotator's task row stores its outcome (`labelled`, `skipped`, `drawn`, `none_found`), which is what task status compares across annotators.
-- **Open/Explore Mode** - Free-form annotation. Annotators navigate freely and create annotations anywhere within the campaign's bounding box.
+- **Explore Mode** - Free-form annotation. Annotators navigate freely and create annotations anywhere within the campaign's bounding box.
 
-Every campaign supports both; who may do what is governed by the labelling policy (four audience axes: explore, unassigned tasks, assigned tasks, counting toward completion). See [labelling-policy.md](labelling-policy.md). The campaign `mode` is the default work mode the UI opens in.
+Every campaign supports both; who may do what is governed by the labelling policy (five audience axes: explore, unassigned tasks, assigned tasks, counting toward completion, modifying others' annotations). See [labelling-policy.md](labelling-policy.md). The annotation page opens in Tasks while a task the viewer may answer is still waiting on them, and in Explore otherwise; `?mode=` in the link overrides it.
 
 ## Imagery Configuration
 
@@ -79,9 +79,9 @@ Every campaign supports both; who may do what is governed by the labelling polic
   or a mouse release is missed, on both the main canvas and secondary screens.
 - While dragging a panel in edit mode, holding it near the canvas's top or bottom edge scrolls the canvas automatically. Scrolling stops on release or focus loss and works in secondary screens too.
 - Split between (Main map + minimap + control panel) and imagery windows items on the canvas. Prior are constant, latter may change.
-- Personal layouts saved per user, default layouts per campaign; a collection is a window exactly when its key is in the layout
+- Personal layouts saved per user, default layouts per campaign; every collection of a view's sources is a window, and a layout only places windows and lists the ones it hides
 - Per-view state (active slice, empty detection, selected viz), saved and restored when switching views
-- Imagery windows (ImageryContainer) can be hidden from the canvas; the timeline sidebar lists the active source's collections within the selected view
+- Imagery windows (ImageryContainer) can be hidden from the canvas; a layout remembers what it hides, and a collection added to a view's source appears as a window on its own. The timeline sidebar lists the active source's collections within the selected view
 - Multi-monitor pop-out: canvas cards can be sent to secondary browser windows, one grid per screen, persisted per user + campaign and restored with one click
 
 ### Basemaps
@@ -143,7 +143,7 @@ Hotkey & Shortcut drive. Complete annotation process can be done without using a
 - Comments/remarks field
 - Annotations can be flagged for review (`F`) with a flag comment, filterable in review
 
-### Shared Annotation View (open mode)
+### Shared Annotation View
 
 - Saved annotations are drawn from backend-rendered vector tiles, so a campaign with hundreds of thousands of them loads the same way a small one does (nothing is drawn below zoom 9)
 - Writes made while the page is open are drawn over the tiles right away instead of refetching them; the tiles are only refetched when that overlay grows large
@@ -167,7 +167,7 @@ See [annotation-tiles.md](annotation-tiles.md) for details.
 - Each field has a title, optional description (shown on hover of a "?" icon), and a required flag
 - Required fields block submission while a label is selected; skipping stays ungated
 - Hotkeys: Tab/Shift+Tab cycle fields, number keys toggle options or focus the active input, Esc leaves the field
-- Open mode reveals the fields only after a geometry is drawn: the label list is replaced by the questions catalog for that shape, committed by drawing the next shape, Enter, or the Save button; Esc or the x close the draft, committing it when all required fields are answered and discarding it otherwise. Campaigns without fields keep the instant-save draw. Edit mode can change an annotation's answers and its label (same geometry type)
+- Explore reveals the fields only after a geometry is drawn: the label list is replaced by the questions catalog for that shape, committed by drawing the next shape, Enter, or the Save button; Esc or the x close the draft, committing it when all required fields are answered and discarding it otherwise. Campaigns without fields keep the instant-save draw. Edit mode can change an annotation's answers and its label (same geometry type)
 - Export adds one column per field (`stacnotator_field_<slug>`); multi category values join into one cell; GeoJSON export carries raw values for lossless re-import
 
 ### Navigation
@@ -199,7 +199,7 @@ See [annotation-tiles.md](annotation-tiles.md) for details.
 - Charts scale to the index rather than a fixed 0-1 axis, and give a differently scaled index (GCVI against NDVI, say) its own right-hand axis coloured to match its line; beyond two scales the ranges are grouped so only genuine outliers move across
 - Point-based querying - click on map to see temporal profile
 - Chart with Savitzky-Golay smoothing
-- Configurable per campaign; series are grouped into named canvas windows (`window_name`)
+- Configurable per campaign; series are grouped into named canvas windows, which can be renamed without moving them on anyone's canvas
 
 ## Embeddings & Similarity
 
@@ -211,7 +211,7 @@ See [annotation-tiles.md](annotation-tiles.md) for details.
 ## Review & Quality Assurance
 
 - **Task Mode Review** - per-task annotation overview, filtering, statistics. Multiple annotators per task possible.
-- **Open Mode Review** - annotation distribution map, location-based browsing
+- **Explore Review** - annotation distribution map, location-based browsing
 - **Inter-Annotator Agreement** - Krippendorff's Alpha, pairwise agreement, per-user statistics
 - Authoritative reviewer role (project-scoped) for validation: disagreement can be resolved by an authoritative label (which alone completes the task) or by the users changing their labels to agreement.
 
@@ -244,10 +244,10 @@ See [annotation-tiles.md](annotation-tiles.md) for details.
 Post-creation editing via the settings page (three tabs):
 
 - General: name, guide markdown, bounding box, sample extent, labels, custom form fields, labelling access, embedding year, danger zone
-- Imagery: source display settings, visualization params, collection refresh, add/remove visualizations, and independently reopening any saved temporal generator to regenerate its series (unrelated/manual collections are preserved by default after an explicit choice)
+- Imagery: source display settings, visualization params, source refresh (re-ingest a source's searches), add/remove visualizations, and independently reopening any saved temporal generator to regenerate its series (unrelated/manual collections are preserved by default after an explicit choice)
 - Time Series: add/remove configurations
 
-Tasks (upload, generate, assign, move between sets, delete) live on the campaign's separate Tasks page; members and roles are managed in the project settings. Project visibility is a project attribute, not a campaign one.
+Tasks (upload, generate, assign, move between sets, delete) live on the campaign's separate Tasks page; members and roles are managed in the project settings. Project visibility is a project attribute, not a campaign one. Deleting tasks takes each annotator's answer to them along; a labelled answer stays as a shape of its own unless the admin chooses to delete the annotations too, which also removes the shapes drawn for a draw task.
 
 ## Python SDK (Active Learning)
 
@@ -278,10 +278,10 @@ See `docs/agentic-labelling.md` for setup and how it works.
 
 Campaign creation kicks off async background threads for:
 
-- **Mosaic registration** - STAC searches, item storage, tile URL generation
+- **Mosaic registration** - registers each STAC search a slice is missing on MPC or a hosted tiler; tile URLs are derived from those mosaics when read
 - **Embedding computation** - Earth Engine calls for satellite embeddings
 
-Both run independently with status tracking (`registering` → `ready`/`failed`). Annotation access is blocked until completion (campaign admins can still enter edit mode via "Set up layout anyway" to author views and layout). Errors are stored and displayed in settings.
+Both run independently with status tracking (`registering` → `ready`/`failed`), each keeping its own errors. Annotation access is blocked until completion (campaign admins can still enter edit mode via "Set up layout anyway" to author views and layout). Errors are stored and displayed in settings. A published visualizer polls while its own imagery registers.
 
 ## Deployment
 

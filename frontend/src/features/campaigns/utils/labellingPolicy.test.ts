@@ -45,6 +45,7 @@ describe('withAnyoneSeeded', () => {
       unassigned_tasks: { kinds: [], user_ids: [] },
       assigned_tasks: { kinds: [], user_ids: [] },
       complete_assigned: { kinds: ['assignees'], user_ids: [] },
+      modify_others: { kinds: ['admins'] },
     };
 
     const seeded = withAnyoneSeeded(policy);
@@ -59,6 +60,7 @@ describe('withAnyoneSeeded', () => {
       unassigned_tasks: { kinds: [], user_ids: [] },
       assigned_tasks: { kinds: [], user_ids: [] },
       complete_assigned: { kinds: [], user_ids: [] },
+      modify_others: { kinds: ['admins'] },
     };
 
     const seeded = withAnyoneSeeded(policy);

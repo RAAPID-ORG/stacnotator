@@ -13,6 +13,7 @@
     "loadTasks": "Failed to load tasks",
     "loadTaskSets": "Failed to load task sets",
     "loadStatistics": "Failed to load statistics",
+    "loadSettingsLocks": "Failed to load which settings are locked",
     "loadAnnotations": "Failed to load annotations",
     "loadAnnotationCounts": "Failed to load annotation counts",
     "loadProjects": "Failed to load projects",
@@ -80,22 +81,28 @@
     "labelsRequired": "At least one label is required.",
     "emptyLabels_one": "{{count}} label has an empty name.",
     "emptyLabels_other": "{{count}} labels have an empty name.",
+    "duplicateLabels": "Label names must be unique.",
     "sourcesRequired": "Add at least one imagery source.",
     "sourceNameRequired": "Source {{index}}: Name is required.",
     "vizRequired": "Source \"{{source}}\": At least one visualization is required.",
-    "vizUnnamed_one": "Source \"{{source}}\": {{count}} visualization(s) have no name.",
-    "vizUnnamed_other": "Source \"{{source}}\": {{count}} visualization(s) have no name.",
+    "vizUnnamed_one": "Source \"{{source}}\": {{count}} visualization has no name.",
+    "vizUnnamed_other": "Source \"{{source}}\": {{count}} visualizations have no name.",
     "collectionsRequired": "Source \"{{source}}\": At least one collection is required.",
     "noSlices": "Source \"{{source}}\", Collection \"{{collection}}\": Has no time slices.",
-    "missingVizUrls_one": "Source \"{{source}}\", Collection \"{{collection}}\": {{count}} slice(s) have missing visualization URLs.",
-    "missingVizUrls_other": "Source \"{{source}}\", Collection \"{{collection}}\": {{count}} slice(s) have missing visualization URLs.",
+    "missingVizUrls_one": "Source \"{{source}}\", Collection \"{{collection}}\": {{count}} slice has missing visualization URLs.",
+    "missingVizUrls_other": "Source \"{{source}}\", Collection \"{{collection}}\": {{count}} slices have missing visualization URLs.",
+    "basemapUrl": "Basemap \"{{basemap}}\": URL must start with http:// or https://.",
+    "sliceUnnamed_one": "Source \"{{source}}\", Collection \"{{collection}}\": {{count}} slice has no name.",
+    "sliceUnnamed_other": "Source \"{{source}}\", Collection \"{{collection}}\": {{count}} slices have no name.",
+    "sliceDates_one": "Source \"{{source}}\", Collection \"{{collection}}\": {{count}} slice has a missing or invalid date, or ends before it starts.",
+    "sliceDates_other": "Source \"{{source}}\", Collection \"{{collection}}\": {{count}} slices have a missing or invalid date, or end before they start.",
+    "vizNoBands": "Source \"{{source}}\", Collection \"{{collection}}\": Visualization \"{{viz}}\" has no bands selected.",
     "timeseries": {
       "name": "Timeseries {{index}}: Name is required.",
       "start": "Timeseries {{index}}: Start date is required.",
       "end": "Timeseries {{index}}: End date is required.",
       "dates": "Timeseries {{index}}: Start date must be before end date.",
       "source": "Timeseries {{index}}: Data source is required.",
-      "provider": "Timeseries {{index}}: Provider is required.",
       "type": "Timeseries {{index}}: Type is required."
     },
     "formFields": {
@@ -174,13 +181,11 @@
       "timeseries": "All timeseries configurations",
       "settings": "All campaign settings"
     },
-    "typeToConfirm": "Please type <name>{{name}}</name> to confirm:",
-    "placeholder": "Type campaign name here",
     "confirm": "Delete campaign"
   },
   "moveTasks": {
-    "title_one": "Move {{count}} task(s) to another set",
-    "title_other": "Move {{count}} task(s) to another set",
+    "title_one": "Move {{count}} task to another set",
+    "title_other": "Move {{count}} tasks to another set",
     "selectTarget": "Select target set",
     "setOption_one": "{{name}} ({{count}} tasks)",
     "setOption_other": "{{name}} ({{count}} tasks)",
@@ -198,7 +203,7 @@
     "importFailed": "Failed to import task assignments",
     "exported": "Task assignments exported",
     "imported": "Task assignments imported",
-    "importSummary": "Updated {{tasks}} task(s): {{assignees}} assignee(s), {{reviewers}} reviewer(s)",
+    "importSummary": "Updated tasks: {{tasks}}, assignees added: {{assignees}}, reviewers added: {{reviewers}}",
     "exporting": "Exporting…",
     "export": "Export",
     "chooseCsv": "Choose CSV",
@@ -219,8 +224,8 @@
   "importFeatures": {
     "wrongFileType": "Please upload a .geojson or .json file",
     "failed": "Failed to import features",
-    "success_one": "{{count}} feature(s) imported successfully",
-    "success_other": "{{count}} feature(s) imported successfully",
+    "success_one": "{{count}} feature imported successfully",
+    "success_other": "{{count}} features imported successfully",
     "title": "Import Existing Features",
     "description": "Upload a GeoJSON file of existing features. Each feature must carry a <code>stacnotator_label_id</code> property whose value is one of this campaign's label ids (listed below). The import is rejected if any feature is missing a label or uses a label id that does not belong to this campaign.",
     "labelIds": "Campaign label ids",
@@ -231,8 +236,8 @@
     "submit": "Import Features"
   },
   "assignSelected": {
-    "title_one": "Assign {{count}} selected task(s)",
-    "title_other": "Assign {{count}} selected task(s)",
+    "title_one": "Assign {{count}} selected task",
+    "title_other": "Assign {{count}} selected tasks",
     "mode": "Assignment mode",
     "everyUser": "Every selected user on every task",
     "distribute": "Distribute tasks evenly among selected users",
@@ -253,16 +258,17 @@
     "cancelCreate": "Cancel creating set",
     "newSet": "+ New set",
     "deleteTitle": "Delete task set \"{{name}}\"?",
-    "deleteDescription_one": "This permanently deletes the set and its {{count}} task(s) with all associated annotations. This action cannot be undone.",
-    "deleteDescription_other": "This permanently deletes the set and its {{count}} task(s) with all associated annotations. This action cannot be undone."
+    "deleteDescription_one": "This permanently deletes the set and its {{count}} task with all associated annotations. This action cannot be undone.",
+    "deleteDescription_other": "This permanently deletes the set and its {{count}} tasks with all associated annotations. This action cannot be undone."
   },
   "optional": "(optional)",
   "vectorLayers": {
     "loadFailed": "Failed to load vector layers",
     "addFailed": "Failed to add vector layer",
+    "urlInvalid": "The URL must start with http:// or https://",
     "deleteFailed": "Failed to delete vector layer",
     "title": "Vector layers (PMTiles)",
-    "description": "Toggle on/off in open mode, hover to highlight, and label features by clicking with the Label vector tool.",
+    "description": "Toggle them on or off while annotating, hover to highlight, and label features by clicking with the Label vector tool.",
     "add": "+ Add vector layer",
     "loadError": "Could not load the vector layers.",
     "tryAgain": "Try again",
@@ -312,7 +318,7 @@
       "title": "Keep personal layouts?",
       "body": "Copies the canvas window arrangements individual users saved for themselves."
     },
-    "withoutTasksNotice": "Without tasks, only annotations that are not linked to a task (open-mode labels) are copied."
+    "withoutTasksNotice": "Without tasks, only annotations that are not linked to a task (Explore labels) are copied."
   },
   "assignAll": {
     "failed": "Assignment failed",
@@ -331,10 +337,10 @@
     "admin": "Admin",
     "authoritativeReviewer": "Authoritative Reviewer",
     "tasksLabel": "Tasks:",
-    "previewEven_one": "<strong>Preview:</strong> Will assign {{count}} tasks evenly distributed across {{users}} user(s)",
-    "previewEven_other": "<strong>Preview:</strong> Will assign {{count}} tasks evenly distributed across {{users}} user(s)",
-    "previewFixed_one": "<strong>Preview:</strong> Will assign {{count}} tasks to {{users}} user(s)",
-    "previewFixed_other": "<strong>Preview:</strong> Will assign {{count}} tasks to {{users}} user(s)",
+    "previewEven_one": "<strong>Preview:</strong> Will assign {{count}} task to the selected users ({{users}})",
+    "previewEven_other": "<strong>Preview:</strong> Will assign {{count}} tasks evenly distributed across the selected users ({{users}})",
+    "previewFixed_one": "<strong>Preview:</strong> Will assign {{count}} task to the selected users ({{users}})",
+    "previewFixed_other": "<strong>Preview:</strong> Will assign {{count}} tasks to the selected users ({{users}})",
     "assigning": "Assigning...",
     "submit_one": "Assign {{count}} Tasks",
     "submit_other": "Assign {{count}} Tasks"
@@ -400,14 +406,14 @@
     "pattern": "Assignment Pattern",
     "percentageBased": "Percentage-Based",
     "fixedNumber": "Fixed Number",
-    "percentageHelp_one": "A random subset of tasks will be selected for review. For each selected task, <strong>{{count}}</strong> user(s) from your pool will be assigned to review it.",
-    "percentageHelp_other": "A random subset of tasks will be selected for review. For each selected task, <strong>{{count}}</strong> user(s) from your pool will be assigned to review it.",
+    "percentageHelp_one": "A random subset of tasks will be selected for review. For each selected task, <strong>{{count}}</strong> user from your pool will be assigned to review it.",
+    "percentageHelp_other": "A random subset of tasks will be selected for review. For each selected task, <strong>{{count}}</strong> users from your pool will be assigned to review it.",
     "percentageOfTasks": "Percentage of tasks: {{percentage}}%",
     "approxReviewed_one": "≈ {{count}} tasks will be reviewed",
     "approxReviewed_other": "≈ {{count}} tasks will be reviewed",
     "reviewersPerTask": "Reviewers per task:",
-    "fixedHelp_one": "An exact number of randomly selected tasks will each be reviewed by <strong>{{count}}</strong> user(s) from your pool.",
-    "fixedHelp_other": "An exact number of randomly selected tasks will each be reviewed by <strong>{{count}}</strong> user(s) from your pool.",
+    "fixedHelp_one": "An exact number of randomly selected tasks will each be reviewed by <strong>{{count}}</strong> user from your pool.",
+    "fixedHelp_other": "An exact number of randomly selected tasks will each be reviewed by <strong>{{count}}</strong> users from your pool.",
     "numTasks": "Number of tasks to review:",
     "totalAvailable_one": "Total tasks available: {{count}}",
     "totalAvailable_other": "Total tasks available: {{count}}",
@@ -416,8 +422,8 @@
     "poolHelp_other": "The system randomly picks <strong>{{count}}</strong> of these users per task. Users are never assigned to review a task they originally annotated. Select at least {{count}}.",
     "selected_one": "Selected: {{count}} reviewers",
     "selected_other": "Selected: {{count}} reviewers",
-    "preview_one": "<strong>Preview:</strong> Randomly assign {{reviewers}} reviewer(s) from your {{pool}}-person pool to each of the {{count}} selected tasks. Users won't review tasks they annotated.",
-    "preview_other": "<strong>Preview:</strong> Randomly assign {{reviewers}} reviewer(s) from your {{pool}}-person pool to each of the {{count}} selected tasks. Users won't review tasks they annotated.",
+    "preview_one": "<strong>Preview:</strong> Randomly assign reviewers ({{reviewers}}) from your {{pool}}-person pool to the selected task. Users won't review tasks they annotated.",
+    "preview_other": "<strong>Preview:</strong> Randomly assign reviewers ({{reviewers}}) from your {{pool}}-person pool to each of the {{count}} selected tasks. Users won't review tasks they annotated.",
     "submit_one": "Assign to {{count}} Tasks",
     "submit_other": "Assign to {{count}} Tasks"
   },
@@ -532,7 +538,7 @@
     "duplicatePanel": "A panel with this name already exists.",
     "renamePanelAria": "Rename {{name}} panel",
     "rename": "Rename",
-    "series": "Series {{number}}",
+    "series": "Series {{number}} (no name yet)",
     "name": "Timeseries name",
     "startDate": "Start Date",
     "endDate": "End Date",
@@ -541,8 +547,6 @@
     "index": "Index",
     "selectIndex": "Select index",
     "pickSourceFirst": "Pick a data source first",
-    "provider": "Provider",
-    "selectProvider": "Select provider",
     "addAnother": "+ Add another timeseries",
     "add": "+ Add timeseries",
     "newPanelName": "New panel name",
@@ -567,24 +571,24 @@
       "delete": "Failed to delete tasks"
     },
     "toasts": {
-      "uploaded": "Annotation task(s) uploaded successfully",
-      "moved_one": "Moved {{count}} task(s)",
-      "moved_other": "Moved {{count}} task(s)",
+      "uploaded": "Annotation tasks uploaded successfully",
+      "moved_one": "Moved {{count}} task",
+      "moved_other": "Moved {{count}} tasks",
       "generated_one": "{{count}} tasks generated successfully",
       "generated_other": "{{count}} tasks generated successfully",
-      "assignedBulk_one": "{{count}} task(s) assigned successfully",
-      "assignedBulk_other": "{{count}} task(s) assigned successfully",
-      "assigned_one": "{{count}} task(s) assigned",
-      "assigned_other": "{{count}} task(s) assigned",
+      "assignedBulk_one": "{{count}} task assigned successfully",
+      "assignedBulk_other": "{{count}} tasks assigned successfully",
+      "assigned_one": "{{count}} task assigned",
+      "assigned_other": "{{count}} tasks assigned",
       "reviewersPercentage_one": "Assigned {{count}} reviewers to {{percentage}}% of tasks",
       "reviewersPercentage_other": "Assigned {{count}} reviewers to {{percentage}}% of tasks",
       "reviewersFixed_one": "Assigned {{count}} reviewers to {{tasks}} tasks",
       "reviewersFixed_other": "Assigned {{count}} reviewers to {{tasks}} tasks",
       "noneSelected": "No tasks selected",
-      "unassigned_one": "Unassigned all users from {{count}} task(s)",
-      "unassigned_other": "Unassigned all users from {{count}} task(s)",
-      "deleted_one": "{{count}} task(s) deleted successfully",
-      "deleted_other": "{{count}} task(s) deleted successfully"
+      "unassigned_one": "Unassigned all users from {{count}} task",
+      "unassigned_other": "Unassigned all users from {{count}} tasks",
+      "deleted_one": "{{count}} task deleted successfully",
+      "deleted_other": "{{count}} tasks deleted successfully"
     }
   },
   "overview": {
@@ -695,12 +699,14 @@
       "description": "Allow the annotations created in this campaign to be published as open research data, without any annotator's name. Off by default. Turning it off stops future releases - anything already published cannot be recalled. See the Terms of Service.",
       "label": "Publishable as research data"
     },
+    "answeredFields": "Cannot change the type or options of {{fields}}: annotations already answered it. Add a new field instead.",
     "taskOutput": {
       "title": "Task output",
       "description": "What finishes a task: picking a label for the task's own point or polygon, or drawing shapes around it. Fixed once the first task has been annotated.",
       "label": "Tasks are finished by",
       "classify": "Labelling the task location",
-      "draw": "Drawing shapes around it"
+      "draw": "Drawing shapes around it",
+      "locked": "Tasks have been annotated, so this can no longer change."
     },
     "saveSettings": "Save settings",
     "extent": {
@@ -712,8 +718,7 @@
     "labels": {
       "title": "Annotation labels",
       "description": "The class names annotators choose from when labeling. You can add new labels and rename existing ones; renaming requires confirmation since it affects how prior annotations display. Deleting labels is not supported (it would orphan existing annotations).",
-      "save": "Save labels",
-      "invalid": "Label names must be non-empty and unique."
+      "save": "Save labels"
     },
     "formFields": {
       "title": "Custom form fields",
@@ -745,7 +750,7 @@
     "south": "South (Lat)",
     "east": "East (Long)",
     "north": "North (Lat)",
-    "dragHint": "Drag the corner handles to resize, or drag the box to move it"
+    "dragHint": "Drag the box to move it, or its corners and edges to resize it. Shift-drag draws a new box."
   },
   "customMaps": {
     "status": {

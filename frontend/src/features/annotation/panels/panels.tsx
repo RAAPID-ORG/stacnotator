@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { collectionsInView, type ImageryCatalog } from '../campaign/imagery';
+import { windowsShown, type ImageryCatalog } from '../campaign/imagery';
 import { groupTimeseriesIntoWindows } from '../campaign/timeseries';
 import type { WorkspaceLayout } from '../canvas/grid';
 import { ExploreControls } from './ExploreControls/ExploreControls';
@@ -56,6 +56,9 @@ export interface PanelContext {
    *  marks as active. Passed in rather than read off the store so a change of
    *  collection rebuilds the panels and the outline moves with it. */
   activeCollectionId: number | null;
+  /** Panels sent to a screen window. A timeline there runs horizontally,
+   *  across the window, whatever it does on the main canvas. */
+  onScreen: ReadonlySet<string>;
 }
 
 /**
@@ -71,6 +74,7 @@ export function buildPanels({
   mode,
   layout,
   activeCollectionId,
+  onScreen,
 }: PanelContext): PanelDef[] {
   const panels: PanelDef[] = [
     {
@@ -111,7 +115,15 @@ export function buildPanels({
       title: t('titles.timeline'),
       headerless: true,
       placeholder: { name: t('titles.timeline'), description: t('placeholders.timeline') },
-      body: <Timeline orientation={layout.main.timeline.orientation ?? 'vertical'} />,
+      body: (
+        <Timeline
+          orientation={
+            onScreen.has('timeline')
+              ? 'horizontal'
+              : (layout.main.timeline.orientation ?? 'vertical')
+          }
+        />
+      ),
     });
   }
   if (layout.main.imagery) {
@@ -137,8 +149,7 @@ export function buildPanels({
     });
   }
 
-  for (const collection of collectionsInView(catalog, view)) {
-    if (layout.windows[collection.id] === undefined) continue;
+  for (const collection of windowsShown(catalog, view, layout.hidden)) {
     const activate = () => useImageryStore.getState().activateCollection(catalog, collection.id);
     panels.push({
       id: String(collection.id),

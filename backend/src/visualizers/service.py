@@ -8,12 +8,12 @@ per source (see ``timeline``), which is the whole reason the two can be mixed.
 """
 
 import secrets
+from datetime import datetime
 
 from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from src import background
 from src.auth.models import User
 from src.campaigns.models import Campaign
 from src.custom_layers.models import CustomMap, VectorLayer
@@ -25,13 +25,13 @@ from src.imagery.models import (
     ImagerySlice,
     ImagerySource,
 )
-from src.imagery.registration import StacRegistrationSpec
 from src.imagery.schemas import (
     BasemapOut,
     ImagerySourceCreate,
     ImagerySourceOut,
+    SliceTileOut,
+    VisualizationOut,
 )
-from src.layers import LayerOwner
 from src.projects.models import Project
 from src.visualizers import timeline
 from src.visualizers.models import (
@@ -59,7 +59,6 @@ from src.visualizers.schemas import (
     VisualizerOptionsOut,
     VisualizerOverlayCreate,
     VisualizerStepOut,
-    VisualizerTileOut,
     VisualizerUpdate,
     VisualizerViewOut,
 )
@@ -75,23 +74,32 @@ def _new_slug(db: Session) -> str:
             return slug
 
 
+def _source_tree():
+    return (
+        selectinload(ImagerySource.visualizations),
+        selectinload(ImagerySource.collections).options(
+            selectinload(ImageryCollection.visualizations),
+            selectinload(ImageryCollection.slices).options(
+                selectinload(ImagerySlice.mosaics), selectinload(ImagerySlice.templates)
+            ),
+        ),
+    )
+
+
 def _source_loads():
+    """The linked sources and the visualizer's own, with all a view reads off them."""
     return (
         selectinload(Visualizer.imagery)
         .selectinload(VisualizerImagery.source)
-        .options(
-            selectinload(ImagerySource.visualizations),
-            selectinload(ImagerySource.collections)
-            .selectinload(ImageryCollection.slices)
-            .selectinload(ImagerySlice.tile_urls),
-        )
+        .options(*_source_tree()),
+        selectinload(Visualizer.imagery_sources).options(*_source_tree()),
     )
 
 
 def load(db: Session, *, visualizer_id: int | None = None, slug: str | None = None) -> Visualizer:
     stmt = select(Visualizer).options(
         selectinload(Visualizer.project),
-        _source_loads(),
+        *_source_loads(),
         selectinload(Visualizer.overlays).selectinload(VisualizerOverlay.custom_map),
         selectinload(Visualizer.overlays).selectinload(VisualizerOverlay.vector_layer),
         selectinload(Visualizer.basemaps),
@@ -158,10 +166,9 @@ def create(db: Session, project: Project, payload: VisualizerCreate, user_id) ->
     db.add(visualizer)
     db.flush()
     _replace_layers(db, visualizer, payload.imagery, payload.overlays)
-    pending = _save_own_imagery(db, visualizer, payload.own_imagery)
-    imagery_service.save_visualizer_basemaps(db, visualizer=visualizer, basemaps=payload.basemaps)
-    db.commit()
-    _spawn_registration(visualizer.id, pending, area_out(visualizer))
+    _save_own_imagery(db, visualizer, payload.own_imagery)
+    imagery_service.save_visualizer_basemaps(db, visualizer, payload.basemaps)
+    registration.commit_and_register(db, visualizer, visualizer.bbox)
     return load(db, visualizer_id=visualizer.id)
 
 
@@ -172,8 +179,13 @@ def update(db: Session, visualizer: Visualizer, payload: VisualizerUpdate) -> Vi
         visualizer.description = payload.description
     if payload.is_public is not None:
         visualizer.is_public = payload.is_public
-    if payload.area is not None:
-        _apply_area(visualizer, payload.area)
+    area_moved = payload.area is not None and payload.area != area_out(visualizer)
+    if area_moved and visualizer.registration_status == "registering":
+        raise HTTPException(
+            status_code=409,
+            detail="Wait for imagery registration to finish before moving the area",
+        )
+    _apply_area(visualizer, payload.area)
     if payload.imagery is not None or payload.overlays is not None:
         _replace_layers(
             db,
@@ -181,17 +193,16 @@ def update(db: Session, visualizer: Visualizer, payload: VisualizerUpdate) -> Vi
             payload.imagery if payload.imagery is not None else _imagery_config(visualizer),
             payload.overlays if payload.overlays is not None else _overlay_config(visualizer),
         )
-    pending = (
+    if payload.own_imagery is not None:
         _save_own_imagery(db, visualizer, payload.own_imagery)
-        if payload.own_imagery is not None
-        else []
-    )
+    if area_moved:
+        # Every search was registered over the old area.
+        db.flush()
+        db.expire(visualizer, ["imagery_sources"])
+        registration.drop_mosaics(visualizer.imagery_sources)
     if payload.basemaps is not None:
-        imagery_service.save_visualizer_basemaps(
-            db, visualizer=visualizer, basemaps=payload.basemaps
-        )
-    db.commit()
-    _spawn_registration(visualizer.id, pending, area_out(visualizer))
+        imagery_service.save_visualizer_basemaps(db, visualizer, payload.basemaps)
+    registration.commit_and_register(db, visualizer, visualizer.bbox)
     return load(db, visualizer_id=visualizer.id)
 
 
@@ -202,7 +213,7 @@ def delete(db: Session, visualizer: Visualizer) -> None:
 
 def _save_own_imagery(
     db: Session, visualizer: Visualizer, sources: list[ImagerySourceCreate]
-) -> list[StacRegistrationSpec]:
+) -> None:
     """Set up imagery for this visualizer alone, searched over its own area.
 
     An area is what a STAC search is registered over, so imagery cannot be set
@@ -214,32 +225,7 @@ def _save_own_imagery(
             status_code=400,
             detail="Choose the area this visualizer covers before adding imagery to it",
         )
-    pending = imagery_service.save_visualizer_imagery(
-        db, visualizer=visualizer, sources=sources, bbox=_bbox(visualizer)
-    )
-    if pending:
-        background.begin_status_run(visualizer, registration.VISUALIZER_REGISTRATION_RUN)
-        visualizer.registration_errors = None
-    return pending
-
-
-def _bbox(visualizer: Visualizer) -> list[float]:
-    area = area_out(visualizer)
-    return [area.west, area.south, area.east, area.north] if area else []
-
-
-def _spawn_registration(
-    visualizer_id: int, pending: list[StacRegistrationSpec], area: VisualizerArea | None
-) -> None:
-    """Off the request path, after the commit - the provider calls are slow enough
-    that holding the write transaction across them trips the idle backstop."""
-    if not pending or area is None:
-        return
-    registration.spawn_background_registration(
-        LayerOwner(visualizer_id=visualizer_id),
-        pending,
-        [area.west, area.south, area.east, area.north],
-    )
+    imagery_service.save_visualizer_imagery(db, visualizer, sources)
 
 
 def _apply_area(visualizer: Visualizer, area: VisualizerArea | None) -> None:
@@ -413,27 +399,36 @@ def area_out(visualizer: Visualizer) -> VisualizerArea | None:
     )
 
 
-def tile_scopes(visualizer: Visualizer) -> list[str]:
-    """Every scope this visualizer's tiles are served under, for its tiler token.
+def linked_tile_layers(visualizer: Visualizer) -> list[str]:
+    """The campaign layers this visualizer links, each granted on its own in its
+    tiler token. What the visualizer registered itself it reads as their owner."""
+    layers = {entry.source.tile_layer for entry in visualizer.imagery if entry.source is not None}
+    layers |= {o.custom_map.tile_layer for o in visualizer.overlays if o.custom_map is not None}
+    return sorted(layers)
 
-    A linked source or overlay is served under its campaign's scope; imagery the
-    visualizer registered itself is served under its own. Handing out exactly
-    these is what lets a visitor with no account fetch this visualizer's tiles
-    and nothing else.
-    """
-    scopes = {
-        entry.source.owner.tile_scope for entry in visualizer.imagery if entry.source is not None
-    }
-    scopes |= {source.owner.tile_scope for source in visualizer.imagery_sources}
-    scopes |= {
-        o.custom_map.owner.tile_scope for o in visualizer.overlays if o.custom_map is not None
-    }
-    return sorted(scopes)
+
+def renew_imagery(db: Session, visualizer: Visualizer) -> datetime | None:
+    """Register again the MPC imagery this map shows that is about to expire, its own
+    and its linked campaigns', and return when the next is due."""
+    owners: list[Campaign | Visualizer] = [visualizer, *_linked_campaigns(visualizer)]
+    due = [registration.renew_expiring_mpc_mosaics(db, owner) for owner in owners]
+    return min((d for d in due if d is not None), default=None)
+
+
+def _linked_campaigns(visualizer: Visualizer) -> list[Campaign]:
+    campaigns = {e.source.campaign for e in visualizer.imagery if e.source is not None}
+    return sorted((c for c in campaigns if c is not None), key=lambda c: c.id)
 
 
 def build_view(
-    db: Session, visualizer: Visualizer, *, can_edit: bool, can_give_feedback: bool
+    db: Session,
+    visualizer: Visualizer,
+    *,
+    can_edit: bool,
+    can_give_feedback: bool,
+    imagery_renew_at: datetime | None = None,
 ) -> VisualizerViewOut:
+    registering = any(c.registration_status == "registering" for c in _linked_campaigns(visualizer))
     return VisualizerViewOut(
         id=visualizer.id,
         slug=visualizer.slug,
@@ -452,7 +447,8 @@ def build_view(
         overlays=[out for out in (_overlay_out(o) for o in visualizer.overlays) if out],
         can_edit=can_edit,
         can_give_feedback=can_give_feedback,
-        registration_status=visualizer.registration_status,
+        registration_status="registering" if registering else visualizer.registration_status,
+        imagery_renew_at=imagery_renew_at,
     )
 
 
@@ -495,10 +491,7 @@ def _imagery_out(source: ImagerySource, visualizer: Visualizer) -> list[Visualiz
     and the cadence is what distinguishes them by name.
     """
     tiles_by_slice = {
-        s.id: {
-            t.visualization_name: VisualizerTileOut(url=t.tile_url, provider=t.tile_provider)
-            for t in s.tile_urls
-        }
+        s.id: [SliceTileOut.model_validate(t) for t in s.tiles]
         for collection in source.collections
         for s in collection.slices
     }
@@ -508,7 +501,7 @@ def _imagery_out(source: ImagerySource, visualizer: Visualizer) -> list[Visualiz
             id=f"{source.id}:{record.cadence}" if len(records) > 1 else str(source.id),
             tile_proxy_base=tile_proxy_base(visualizer),
             name=f"{source.name} {record.cadence}" if len(records) > 1 else source.name,
-            visualizations=[v.name for v in source.visualizations],
+            visualizations=[VisualizationOut.model_validate(r) for r in source.visualizations],
             default_zoom=source.default_zoom,
             max_native_zoom=source.max_native_zoom,
             has_api_key=source.has_api_key,
@@ -518,7 +511,7 @@ def _imagery_out(source: ImagerySource, visualizer: Visualizer) -> list[Visualiz
                     label=step.label,
                     start_date=step.start_date,
                     end_date=step.end_date,
-                    tiles=tiles_by_slice.get(step.slice_id, {}),
+                    tiles=tiles_by_slice.get(step.slice_id, []),
                 )
                 for step in record.steps
                 if tiles_by_slice.get(step.slice_id)
@@ -582,14 +575,10 @@ def options(db: Session, project_id: int) -> VisualizerOptionsOut:
             .options(
                 selectinload(Campaign.imagery_sources).options(
                     selectinload(ImagerySource.visualizations),
-                    selectinload(ImagerySource.collections).options(
-                        selectinload(ImageryCollection.slices),
-                        selectinload(ImageryCollection.stac_config),
-                    ),
+                    selectinload(ImagerySource.collections).selectinload(ImageryCollection.slices),
                 ),
                 selectinload(Campaign.custom_maps),
                 selectinload(Campaign.vector_layers),
-                selectinload(Campaign.settings),
             )
             .order_by(Campaign.name)
         )
@@ -628,15 +617,12 @@ def options(db: Session, project_id: int) -> VisualizerOptionsOut:
     )
 
 
-def _campaign_area(campaign: Campaign) -> VisualizerArea | None:
-    settings = campaign.settings
-    if settings is None:
-        return None
+def _campaign_area(campaign: Campaign) -> VisualizerArea:
     return VisualizerArea(
-        west=settings.bbox_west,
-        south=settings.bbox_south,
-        east=settings.bbox_east,
-        north=settings.bbox_north,
+        west=campaign.bbox_west,
+        south=campaign.bbox_south,
+        east=campaign.bbox_east,
+        north=campaign.bbox_north,
     )
 
 
@@ -651,7 +637,7 @@ def _source_option(source: ImagerySource) -> SourceOptionOut:
         # What the picker will actually add. Two cadences means two entries in
         # the viewer, which is worth knowing before ticking the box.
         cadences=[record.cadence for record in records],
-        visualizations=[v.name for v in source.visualizations],
+        visualizations=[r.name for r in source.visualizations],
         start_date=steps[0].start_date if steps else None,
         end_date=steps[-1].end_date if steps else None,
         restriction=source_restriction(source),
@@ -659,7 +645,7 @@ def _source_option(source: ImagerySource) -> SourceOptionOut:
 
 
 def _reads_private_catalog(source: ImagerySource) -> bool:
-    return any(c.stac_config is not None and c.stac_config.storage_auth for c in source.collections)
+    return any(c.storage_auth for c in source.collections)
 
 
 PRIVATE_CATALOG_NOT_PUBLISHABLE = (
@@ -679,9 +665,7 @@ def source_restriction(source: ImagerySource) -> LayerRestriction | None:
         return "storage_access"
     if source.has_api_key:
         return "api_key"
-    if any(
-        c.stac_config is not None and c.stac_config.internal_storage for c in source.collections
-    ):
+    if any(c.internal_storage for c in source.collections):
         return "internal_storage"
     return None
 
@@ -750,6 +734,7 @@ def list_feedback(db: Session, visualizer_id: int) -> list[VisualizerFeedbackOut
             ),
             layer_name=row.layer_name,
             verdict=row.verdict,
+            suggested_value=row.suggested_value,
             suggested_label=row.suggested_label,
             note=row.note,
             viewing=row.viewing,

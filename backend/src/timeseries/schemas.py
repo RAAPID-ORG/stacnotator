@@ -3,10 +3,9 @@ from datetime import date
 
 from pydantic import BaseModel, ConfigDict, computed_field, field_validator, model_validator
 
-from src.timeseries.indices import INDICES, SpectralIndex, index_for, render_formula
+from src.timeseries.indices import INDICES, INDICES_BY_KEY, SpectralIndex, index_for, render_formula
 from src.timeseries.sources import (
     SOURCES,
-    SUPPORTED_TIMESERIES_PROVIDERS,
     TimeseriesSource,
     indices_for_source,
     offers,
@@ -85,17 +84,16 @@ def source_out(source: TimeseriesSource) -> TimeseriesSourceOut:
 
 
 # ============================================================================
-# TimeSeries Related Schemas
+# Timeseries Related Schemas
 # ============================================================================
 
 
-class TimeSeriesCreate(BaseModel):
+class TimeseriesCreate(BaseModel):
     name: str
     window_name: str = DEFAULT_TIMESERIES_WINDOW_NAME
     start_ym: str
     end_ym: str
     data_source: str
-    provider: str
     ts_type: str
 
     @field_validator("window_name")
@@ -110,13 +108,10 @@ class TimeSeriesCreate(BaseModel):
         return v
 
     @model_validator(mode="after")
-    def validate_source_and_index(self) -> "TimeSeriesCreate":
+    def validate_source_and_index(self) -> "TimeseriesCreate":
         """Reject a combination the source cannot compute, and store the canonical
         keys. Catching this here means a series can never be saved only to fail
         every time an annotator opens it."""
-        if self.provider not in SUPPORTED_TIMESERIES_PROVIDERS:
-            raise ValueError(f"Unsupported provider: {self.provider}")
-
         source = source_for(self.data_source)
         if source is None:
             raise ValueError(f"Unsupported data source: {self.data_source}")
@@ -133,43 +128,38 @@ class TimeSeriesCreate(BaseModel):
         return self
 
 
-class TimeSeriesOut(BaseModel):
-    """Deliberately not a subclass of the create schema: what comes back carries
-    the resolved index description, and a row written before an index was renamed
-    should still list rather than fail validation."""
+class TimeseriesOut(BaseModel):
+    """What comes back carries the resolved index description besides the keys."""
 
     id: int
     campaign_id: int
     name: str
+    window_id: int
     window_name: str
     start_ym: str
     end_ym: str
     data_source: str
-    provider: str
     ts_type: str
 
     model_config = ConfigDict(from_attributes=True)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def index(self) -> SpectralIndexOut | None:
+    def index(self) -> SpectralIndexOut:
         """The index this series plots, so the chart can scale its axis and
         explain itself without a second request."""
-        index = index_for(self.ts_type)
-        return index_out(index) if index else None
+        return index_out(INDICES_BY_KEY[self.ts_type])
 
 
-class TimeSeriesOptionsOut(BaseModel):
+class TimeseriesOptionsOut(BaseModel):
     sources: list[TimeseriesSourceOut]
     indices: list[SpectralIndexOut]
-    providers: list[str]
 
 
-def timeseries_options() -> TimeSeriesOptionsOut:
-    return TimeSeriesOptionsOut(
+def timeseries_options() -> TimeseriesOptionsOut:
+    return TimeseriesOptionsOut(
         sources=[source_out(source) for source in SOURCES],
         indices=[index_out(index) for index in INDICES],
-        providers=list(SUPPORTED_TIMESERIES_PROVIDERS),
     )
 
 
@@ -179,28 +169,23 @@ def timeseries_options() -> TimeSeriesOptionsOut:
 
 
 class TimeseriesBulkCreateRequest(BaseModel):
-    timeseries: list[TimeSeriesCreate]
+    timeseries: list[TimeseriesCreate]
 
 
-class TimeseriesPanelRenameRequest(BaseModel):
-    old_name: str
-    new_name: str
+class TimeseriesWindowRenameRequest(BaseModel):
+    name: str
 
-    @field_validator("old_name", "new_name")
+    @field_validator("name")
     @classmethod
-    def validate_panel_name(cls, value: str) -> str:
+    def validate_window_name(cls, value: str) -> str:
         name = value.strip()
         if not name:
-            raise ValueError("Panel name must not be empty")
+            raise ValueError("Window name must not be empty")
         return name
 
 
 class TimeseriesBulkCreateResponse(BaseModel):
-    new_items: list[TimeSeriesOut]
-
-
-class TimeseriesListResponse(BaseModel):
-    items: list[TimeSeriesOut]
+    new_items: list[TimeseriesOut]
 
 
 class TimeseriesDataResponse(BaseModel):

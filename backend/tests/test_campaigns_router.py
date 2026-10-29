@@ -15,7 +15,8 @@ from src.campaigns.router import _with_viewer_roles
 from src.campaigns.schemas import (
     CampaignDuplicateRequest,
     CampaignOut,
-    UpdateCampaignLabelsRequest,
+    CampaignUpdate,
+    default_labelling_policy,
 )
 from src.projects.models import ProjectUser
 
@@ -27,11 +28,11 @@ def _out() -> CampaignOut:
 
 
 def _user(is_admin: bool):
-    return SimpleNamespace(id=uuid4(), is_admin=is_admin)
+    return SimpleNamespace(id=uuid4(), is_platform_admin=is_admin)
 
 
 def _db(membership, project=None, org_membership=None):
-    project = project or SimpleNamespace(visibility="private", organization_id=5)
+    project = project or SimpleNamespace(id=PROJECT_ID, visibility="private", organization_id=5)
     db = MagicMock()
     db.get.side_effect = lambda model, key: membership if model is ProjectUser else project
     # is_active_org_member reads the active-org-membership row via db.scalars.
@@ -71,7 +72,7 @@ class TestViewerRoleFlags:
 
         assert (out.viewer_is_admin, out.viewer_is_member) == (True, True)
         assert out.viewer_is_authoritative_reviewer is False
-        assert db.get.call_args_list[0].args[1] == (user.id, PROJECT_ID)
+        assert (user.id, PROJECT_ID) in [call.args[1] for call in db.get.call_args_list]
 
     def test_authoritative_reviewer_flag_comes_from_membership(self):
         membership = SimpleNamespace(is_admin=False, is_authoritative_reviewer=True)
@@ -102,7 +103,7 @@ class TestViewerRoleFlags:
     def test_org_member_on_org_public_project_is_member_without_roles(self):
         """Org-public access must advertise the member standing enforcement
         grants (build_policy_context), and nothing more."""
-        project = SimpleNamespace(visibility="organization", organization_id=5)
+        project = SimpleNamespace(id=PROJECT_ID, visibility="organization", organization_id=5)
         db = _db(None, project=project, org_membership=SimpleNamespace())
 
         out = _with_viewer_roles(_out(), db, _user(is_admin=False), PROJECT_ID)
@@ -111,7 +112,7 @@ class TestViewerRoleFlags:
         assert (out.viewer_is_admin, out.viewer_is_authoritative_reviewer) == (False, False)
 
     def test_non_org_member_on_org_public_project_gets_no_flags(self):
-        project = SimpleNamespace(visibility="organization", organization_id=5)
+        project = SimpleNamespace(id=PROJECT_ID, visibility="organization", organization_id=5)
         db = _db(None, project=project)
 
         out = _with_viewer_roles(_out(), db, _user(is_admin=False), PROJECT_ID)
@@ -126,9 +127,8 @@ def _campaign_row():
         project_id=PROJECT_ID,
         name="Campaign",
         created_at=datetime(2026, 1, 1),
-        mode="open",
         settings=SimpleNamespace(
-            labels={"1": {"name": "Forest", "geometry_type": "polygon"}},
+            labels=[{"id": 1, "name": "Forest", "geometry_type": "polygon"}],
             bbox_west=0.0,
             bbox_south=0.0,
             bbox_east=1.0,
@@ -136,9 +136,10 @@ def _campaign_row():
             embedding_year=None,
             guide_markdown=None,
             sample_extent_meters=None,
-            labelling_policy={},
+            labelling_policy=default_labelling_policy().model_dump(),
             form_fields=[],
             research_sharing=False,
+            task_output="classify",
         ),
         imagery_sources=[],
         imagery_views=[],
@@ -155,14 +156,14 @@ class TestMutationResponsesCarryViewerFlags:
         row = _campaign_row()
         monkeypatch.setattr(
             campaigns_router.service,
-            "update_campaign_labels",
-            lambda db, campaign_id, labels: row,
+            "update_campaign",
+            lambda db, campaign, update: row,
         )
         db = _db(SimpleNamespace(is_admin=True, is_authoritative_reviewer=False))
 
-        out = campaigns_router.update_campaign_labels(
+        out = campaigns_router.update_campaign(
             campaign_id=row.id,
-            req=UpdateCampaignLabelsRequest(labels=[]),
+            req=CampaignUpdate(labels=[]),
             db=db,
             campaign=row,
             user=_user(is_admin=False),
@@ -189,7 +190,7 @@ class TestDuplicateTarget:
             id=99, organization=SimpleNamespace(id=5, name="Harvest", allowed_tiler_names=[])
         )
         monkeypatch.setattr(
-            campaigns_router, "assert_project_admin", lambda db, user, project_id: project
+            campaigns_router, "require_project_admin", lambda project_id, db, user: project
         )
         monkeypatch.setattr(
             campaigns_router.duplication,

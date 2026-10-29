@@ -1,7 +1,6 @@
 """TaskSet model registration and schema wiring (DB-free)."""
 
-from src.annotation.models import AnnotationTask
-from src.campaigns.models import TaskSet
+from src.tasks.models import Task, TaskSet
 
 
 def test_task_set_table_definition():
@@ -14,7 +13,7 @@ def test_task_set_table_definition():
 
 
 def test_annotation_task_references_task_set():
-    col = AnnotationTask.__table__.c.task_set_id
+    col = Task.__table__.c.task_set_id
     assert col.nullable is False
     fk = next(iter(col.foreign_keys))
     assert fk.target_fullname == "data.task_sets.id"

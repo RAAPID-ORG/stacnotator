@@ -32,7 +32,7 @@ def require_org_member(
 ) -> Organization:
     """Active org membership (or platform admin). Pending members are not in."""
     org, membership = _get_org_and_membership(organization_id, db, user)
-    if user.is_admin:
+    if user.is_platform_admin:
         return org
     if membership is None or membership.status != MEMBER_STATUS_ACTIVE:
         raise HTTPException(
@@ -48,7 +48,7 @@ def require_org_admin(
     user: User = Depends(require_authenticated_user),
 ) -> Organization:
     org, membership = _get_org_and_membership(organization_id, db, user)
-    if user.is_admin:
+    if user.is_platform_admin:
         return org
     if membership is None or membership.status != MEMBER_STATUS_ACTIVE or not membership.is_admin:
         raise HTTPException(

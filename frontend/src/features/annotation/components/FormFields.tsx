@@ -49,6 +49,11 @@ export interface FormFieldsProps {
  *  one custom field. Shared so every group in the panel reads the same. */
 export const activeGroupClass = 'ring-1 ring-inset ring-brand-500/50 rounded bg-brand-50/35';
 
+export const sectionHeaderClass = (active = false) =>
+  `text-[11px] font-medium uppercase tracking-wider ${
+    active ? 'text-brand-700' : 'text-neutral-500'
+  }`;
+
 // Laid out and sized like the label chips, so every choice in the panel reads the same.
 const optionButtonClass = (selected: boolean, disabled: boolean) =>
   `min-w-0 text-left px-2.5 py-1 text-[11px] font-medium rounded transition-colors flex gap-2 justify-between items-center ${
@@ -94,11 +99,7 @@ function applyDateRangeSide(
 
 function FieldHeader({ field, active }: { field: FormField; active: boolean }) {
   return (
-    <div
-      className={`flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider ${
-        active ? 'text-brand-700' : 'text-neutral-500'
-      }`}
-    >
+    <div className={`flex items-center gap-1 ${sectionHeaderClass(active)}`}>
       <span>{field.title}</span>
       {field.required && <span className="text-red-500">*</span>}
       {field.description && (
@@ -169,39 +170,25 @@ function NumberField({
   const raw = values[String(field.id)];
   const numericValue = typeof raw === 'number' ? raw : undefined;
   const step = field.step ?? (field.number_type === 'int' ? 1 : undefined);
+  const { t } = useTranslation('annotation');
 
-  const clamp = (value: number) => {
-    let result = field.number_type === 'int' ? Math.round(value) : value;
-    if (field.min != null) result = Math.max(field.min, result);
-    if (field.max != null) result = Math.min(field.max, result);
-    return result;
+  const rangeError = (): string | null => {
+    if (numericValue === undefined) return null;
+    if (field.number_type === 'int' && !Number.isInteger(numericValue)) {
+      return t('formFields.wholeNumber');
+    }
+    if (field.min != null && numericValue < field.min) {
+      return t('formFields.atLeast', { value: field.min });
+    }
+    if (field.max != null && numericValue > field.max) {
+      return t('formFields.atMost', { value: field.max });
+    }
+    return null;
   };
 
-  // Clamping happens on blur, not per keystroke: clamping while typing garbles
-  // entry whenever min has 2+ digits (typing "2015" with min 1990 would clamp
-  // the intermediate "2" to 1990). Round for int fields immediately since that
-  // never conflicts with a digit prefix.
   const handleChange = (rawValue: string) => {
-    if (rawValue === '') {
-      onChange(setFieldValue(values, field.id, null));
-      return;
-    }
-    const parsed = Number(rawValue);
-    if (Number.isNaN(parsed)) {
-      onChange(setFieldValue(values, field.id, null));
-      return;
-    }
-    onChange(
-      setFieldValue(values, field.id, field.number_type === 'int' ? Math.round(parsed) : parsed)
-    );
-  };
-
-  const handleBlur = () => {
-    if (numericValue === undefined) return;
-    const clamped = clamp(numericValue);
-    if (clamped !== numericValue) {
-      onChange(setFieldValue(values, field.id, clamped));
-    }
+    const parsed = rawValue === '' ? NaN : Number(rawValue);
+    onChange(setFieldValue(values, field.id, Number.isNaN(parsed) ? null : parsed));
   };
 
   if (field.slider && field.min != null && field.max != null) {
@@ -225,18 +212,22 @@ function NumberField({
     );
   }
 
+  const error = rangeError();
   return (
-    <input
-      type="number"
-      value={numericValue ?? ''}
-      min={field.min ?? undefined}
-      max={field.max ?? undefined}
-      step={step}
-      onChange={(e) => handleChange(e.target.value)}
-      onBlur={handleBlur}
-      disabled={disabled}
-      className={textInputClass}
-    />
+    <div>
+      <input
+        type="number"
+        value={numericValue ?? ''}
+        min={field.min ?? undefined}
+        max={field.max ?? undefined}
+        step={step}
+        onChange={(e) => handleChange(e.target.value)}
+        disabled={disabled}
+        aria-invalid={error !== null}
+        className={textInputClass}
+      />
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+    </div>
   );
 }
 
@@ -394,7 +385,7 @@ export function FormFields({
           key={field.id}
           data-form-field-id={field.id}
           tabIndex={-1}
-          className={`flex flex-col gap-1.5 p-3 border-r border-b border-neutral-100 flex-1 min-w-[10rem] focus:outline-none ${
+          className={`flex flex-col gap-1.5 p-3 border-r border-b border-neutral-100 flex-1 basis-40 min-w-0 focus:outline-none ${
             activeFieldIndex === index ? activeGroupClass : ''
           }`}
         >

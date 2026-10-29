@@ -14,13 +14,13 @@ from src.main import app
 from src.database import SessionLocal
 from src.campaigns.service import get_campaign_full
 from src.campaigns.schemas import CampaignOutFull
-from src.annotation.service import get_annotation_tasks_for_campaign
-from src.annotation.schemas import AnnotationTaskOut
+from src.tasks.service import get_tasks
+from src.tasks.schemas import TaskOut
 
 db = SessionLocal()
 campaign = get_campaign_full(db, ${CAMPAIGN_ID})
 out = CampaignOutFull.from_orm(campaign).model_dump(mode='json')
-tasks = [AnnotationTaskOut.model_validate(task).model_dump(mode='json') for task in get_annotation_tasks_for_campaign(db, campaign)]
+tasks = [TaskOut.model_validate(task).model_dump(mode='json') for task in get_tasks(db, campaign)]
 print(json.dumps({'campaign': out, 'tasks': tasks}))
 db.close()
 `;
@@ -55,7 +55,7 @@ const tasks = (real?.tasks ?? []).map((task: any) => ({
 }));
 
 function pointOf(task: any): { lon: number; lat: number } {
-  const numbers = task.geometry.geometry.match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];
+  const numbers = task.geometry_wkt.match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];
   if (numbers.length < 2) throw new Error(`Task ${task.id} is not a point`);
   return { lon: numbers[0], lat: numbers[1] };
 }
@@ -101,12 +101,12 @@ const visibleIds = new Set<number>(
 );
 const markerToCollection = new Map<string, number>();
 for (const source of real?.campaign.imagery_sources ?? []) {
-  const visualization = source.visualizations[0]?.name;
+  const visualization = source.visualizations[0]?.id;
   for (const collection of source.collections) {
     if (!visibleIds.has(collection.id)) continue;
     const slice = collection.slices[collection.cover_slice_index ?? 0];
-    const tile = slice?.tile_urls.find((entry: any) => entry.visualization_name === visualization);
-    const marker = tile ? mosaicId(tile.tile_url) : null;
+    const tile = slice?.tiles.find((entry: any) => entry.visualization_id === visualization);
+    const marker = tile ? mosaicId(tile.url) : null;
     if (marker) markerToCollection.set(marker, collection.id);
   }
 }
@@ -118,11 +118,9 @@ test(`campaign ${CAMPAIGN_ID} retries a transient foreground tile after cycling 
   const task = tasks[0];
   const source = real?.campaign.imagery_sources[0];
   const collection = source?.collections[0];
-  const visualization = source?.visualizations[0]?.name;
+  const visualization = source?.visualizations[0]?.id;
   const slice = collection?.slices[collection.cover_slice_index ?? 0];
-  const tileUrl = slice?.tile_urls.find(
-    (entry: any) => entry.visualization_name === visualization
-  )?.tile_url;
+  const tileUrl = slice?.tiles.find((entry: any) => entry.visualization_id === visualization)?.url;
   const marker = tileUrl ? mosaicId(tileUrl) : null;
   expect(task).toBeTruthy();
   expect(marker).toBeTruthy();
@@ -177,7 +175,7 @@ test(`campaign ${CAMPAIGN_ID} retries a transient foreground tile after cycling 
   await annotationPage.route('**/api/campaigns/*/detailed', (route) =>
     route.fulfill({ json: real.campaign })
   );
-  await annotationPage.route('**/api/campaigns/*/annotation-tasks', (route) =>
+  await annotationPage.route('**/api/campaigns/*/tasks', (route) =>
     route.fulfill({ json: { campaign_id: CAMPAIGN_ID, tasks } })
   );
   await annotationPage.evaluate(() => {
@@ -264,7 +262,7 @@ test(`campaign ${CAMPAIGN_ID} cold random-task benchmark`, async ({ annotationPa
   await annotationPage.route('**/api/campaigns/*/detailed', async (route) => {
     await route.fulfill({ json: real.campaign });
   });
-  await annotationPage.route('**/api/campaigns/*/annotation-tasks', async (route) => {
+  await annotationPage.route('**/api/campaigns/*/tasks', async (route) => {
     await route.fulfill({ json: { campaign_id: CAMPAIGN_ID, tasks } });
   });
   await annotationPage.reload({ waitUntil: 'domcontentloaded', timeout: 60_000 });

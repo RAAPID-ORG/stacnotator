@@ -1,26 +1,12 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
-import { makeCampaign } from '~/features/annotation/testing/fixtures';
+import { makeCampaign, makeSettings } from '~/features/annotation/testing/fixtures';
 import { helpRows } from '../../hotkeys';
 import { GuidePanel } from './GuidePanel';
 
 const CAMPAIGN = makeCampaign({
-  settings: {
-    bbox_west: -10,
-    bbox_south: -20,
-    bbox_east: 10,
-    bbox_north: 20,
-    labels: [],
-    labelling_policy: {
-      explore: { kinds: ['anyone'] },
-      assigned_tasks: { kinds: ['anyone'] },
-      complete_assigned: { kinds: ['anyone'] },
-      unassigned_tasks: { kinds: ['anyone'] },
-    },
-    research_sharing: false,
-    guide_markdown: 'Label the fields.',
-  },
+  settings: makeSettings({ guide_markdown: 'Label the fields.' }),
 });
 
 describe('GuidePanel', () => {

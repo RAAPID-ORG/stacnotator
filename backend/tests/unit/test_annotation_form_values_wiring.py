@@ -13,15 +13,16 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
-from src.annotation.schemas import AnnotationCreate, AnnotationFromTaskCreate, AnnotationUpdate
+from src.annotation.schemas import AnnotationCreate, AnnotationUpdate, TaskAnswerCreate
 from src.annotation.service import (
     add_annotation_for_task,
     create_annotation,
-    create_annotations_bulk,
+    create_annotations,
     update_annotation,
     validate_annotation_form_values,
 )
-from src.campaigns.schemas import LabellingPolicy, PolicyAudience
+from src.campaigns.schemas import PolicyAudience
+from tests.conftest import make_policy
 
 REQUIRED_CATEGORY_FIELD = [
     {
@@ -34,18 +35,21 @@ REQUIRED_CATEGORY_FIELD = [
 ]
 
 
+pytestmark = pytest.mark.usefixtures("membership_from_db_mock")
+
+
 def _campaign(form_fields=None, *, campaign_id=1, is_public=False):
     campaign = MagicMock()
     campaign.id = campaign_id
     campaign.is_public = is_public
-    campaign.settings.labels = {"1": {"name": "Forest"}, "2": {"name": "Water"}}
-    campaign.settings.labelling_policy = LabellingPolicy(
+    campaign.label_names = {1: "Forest", 2: "Water"}
+    campaign.labelling_policy = make_policy(
         explore=PolicyAudience(kinds=["members"]),
         unassigned_tasks=PolicyAudience(kinds=["members"]),
         assigned_tasks=PolicyAudience(kinds=["members"]),
         complete_assigned=PolicyAudience(kinds=["members"]),
     ).model_dump(mode="json")
-    campaign.settings.form_fields = form_fields if form_fields is not None else []
+    campaign.form_fields = form_fields if form_fields is not None else []
     return campaign
 
 
@@ -94,7 +98,7 @@ class TestValidateAnnotationFormValuesHelper:
     def test_fields_are_parsed_from_campaign_settings_form_fields(self):
         # A different campaign's field list rejects an option id that would
         # be valid under REQUIRED_CATEGORY_FIELD, proving the fields actually
-        # come from campaign.settings.form_fields rather than being ignored.
+        # come from campaign.form_fields rather than being ignored.
         other_fields = [
             {
                 "id": 1,
@@ -112,12 +116,6 @@ class TestValidateAnnotationFormValuesHelper:
 
     def test_empty_field_list_allows_missing_values(self):
         campaign = _campaign([])
-
-        assert validate_annotation_form_values(campaign, None, enforce_required=True) is None
-
-    def test_none_form_fields_on_campaign_treated_as_empty(self):
-        campaign = _campaign()
-        campaign.settings.form_fields = None
 
         assert validate_annotation_form_values(campaign, None, enforce_required=True) is None
 
@@ -234,7 +232,7 @@ class TestCreateAnnotationsBulkFormValuesWiring:
             ),
         ]
 
-        created_count = create_annotations_bulk(db, campaign, payloads, uuid4())
+        created_count = len(create_annotations(db, campaign, payloads, uuid4()))
 
         assert created_count == 2
         (annotations,), _ = db.add_all.call_args_list[-1]
@@ -255,7 +253,7 @@ class TestCreateAnnotationsBulkFormValuesWiring:
         ]
 
         with pytest.raises(HTTPException) as exc:
-            create_annotations_bulk(db, campaign, payloads, uuid4())
+            create_annotations(db, campaign, payloads, uuid4())
 
         assert exc.value.status_code == 400
         db.add_all.assert_not_called()
@@ -266,6 +264,7 @@ class TestUpdateAnnotationFormValuesWiring:
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
         existing.output_of_task_id = None
+        existing.task_id = None
         existing.label_id = 1
         author = uuid4()
         existing.created_by_user_id = author
@@ -275,7 +274,6 @@ class TestUpdateAnnotationFormValuesWiring:
             label_id=None,
             comment=None,
             geometry_wkt=None,
-            is_authoritative=None,
             form_values={"1": 2},
         )
 
@@ -287,6 +285,7 @@ class TestUpdateAnnotationFormValuesWiring:
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
         existing.output_of_task_id = None
+        existing.task_id = None
         existing.label_id = 1
         author = uuid4()
         existing.created_by_user_id = author
@@ -296,7 +295,6 @@ class TestUpdateAnnotationFormValuesWiring:
             label_id=None,
             comment=None,
             geometry_wkt=None,
-            is_authoritative=None,
             form_values={},
         )
 
@@ -313,6 +311,7 @@ class TestUpdateAnnotationFormValuesWiring:
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
         existing.output_of_task_id = None
+        existing.task_id = None
         existing.label_id = 1
         author = uuid4()
         existing.created_by_user_id = author
@@ -322,7 +321,6 @@ class TestUpdateAnnotationFormValuesWiring:
             label_id=None,
             comment=None,
             geometry_wkt=None,
-            is_authoritative=None,
             form_values={"1": 99},
         )
 
@@ -337,15 +335,14 @@ class TestUpdateAnnotationFormValuesWiring:
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
         existing.output_of_task_id = None
+        existing.task_id = None
         existing.label_id = 1
         author = uuid4()
         existing.created_by_user_id = author
         existing.form_values = {"1": 1}
         db = _db(cu=_MEMBER)
         db.execute.return_value.scalar_one_or_none.return_value = existing
-        payload = AnnotationUpdate(
-            label_id=None, comment="a note", geometry_wkt=None, is_authoritative=None
-        )
+        payload = AnnotationUpdate(label_id=None, comment="a note", geometry_wkt=None)
 
         annotation = update_annotation(db, 5, payload, author, campaign=campaign)
 
@@ -358,15 +355,14 @@ class TestUpdateAnnotationFormValuesWiring:
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
         existing.output_of_task_id = None
+        existing.task_id = None
         existing.label_id = None
         author = uuid4()
         existing.created_by_user_id = author
         existing.form_values = None
         db = _db(cu=_MEMBER)
         db.execute.return_value.scalar_one_or_none.return_value = existing
-        payload = AnnotationUpdate(
-            label_id=1, comment=None, geometry_wkt=None, is_authoritative=None
-        )
+        payload = AnnotationUpdate(label_id=1, comment=None, geometry_wkt=None)
 
         with pytest.raises(HTTPException) as exc:
             update_annotation(db, 5, payload, author, campaign=campaign)
@@ -378,15 +374,14 @@ class TestUpdateAnnotationFormValuesWiring:
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
         existing.output_of_task_id = None
+        existing.task_id = None
         existing.label_id = None
         author = uuid4()
         existing.created_by_user_id = author
         existing.form_values = {"1": 1}
         db = _db(cu=_MEMBER)
         db.execute.return_value.scalar_one_or_none.return_value = existing
-        payload = AnnotationUpdate(
-            label_id=1, comment=None, geometry_wkt=None, is_authoritative=None
-        )
+        payload = AnnotationUpdate(label_id=1, comment=None, geometry_wkt=None)
 
         annotation = update_annotation(db, 5, payload, author, campaign=campaign)
 
@@ -396,6 +391,7 @@ class TestUpdateAnnotationFormValuesWiring:
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
         existing.output_of_task_id = None
+        existing.task_id = None
         existing.label_id = None
         author = uuid4()
         existing.created_by_user_id = author
@@ -406,7 +402,6 @@ class TestUpdateAnnotationFormValuesWiring:
             label_id=None,
             comment=None,
             geometry_wkt=None,
-            is_authoritative=None,
             form_values={},
         )
 
@@ -418,13 +413,15 @@ class TestUpdateAnnotationFormValuesWiring:
 class TestAddAnnotationForTaskFormValuesWiring:
     @staticmethod
     def _task(assignments=None):
-        return SimpleNamespace(id=1, campaign_id=1, geometry_id=10, assignments=assignments or [])
+        return SimpleNamespace(
+            id=1, campaign_id=1, geometry="POINT(0 0)", assignments=assignments or []
+        )
 
     def test_enforces_required_when_label_submitted(self):
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         db = _db(cu=_MEMBER)
         db.get.return_value = campaign
-        payload = AnnotationFromTaskCreate(label_id=1, comment=None)
+        payload = TaskAnswerCreate(label_id=1, comment=None)
 
         with pytest.raises(HTTPException) as exc:
             add_annotation_for_task(db, self._task(), payload, uuid4())
@@ -436,7 +433,7 @@ class TestAddAnnotationForTaskFormValuesWiring:
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         db = _db(cu=_MEMBER)
         db.get.return_value = campaign
-        payload = AnnotationFromTaskCreate(label_id=1, comment=None, form_values={"1": 1})
+        payload = TaskAnswerCreate(label_id=1, comment=None, form_values={"1": 1})
 
         annotation = add_annotation_for_task(db, self._task(), payload, uuid4())
 
@@ -447,7 +444,7 @@ class TestAddAnnotationForTaskFormValuesWiring:
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         db = _db(cu=_MEMBER)
         db.get.return_value = campaign
-        payload = AnnotationFromTaskCreate(label_id=None, comment="skipping without a label")
+        payload = TaskAnswerCreate(label_id=None, comment="skipping without a label")
 
         annotation = add_annotation_for_task(db, self._task(), payload, uuid4())
 

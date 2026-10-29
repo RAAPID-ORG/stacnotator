@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 
 from src.agents import service
 from src.agents.schemas import (
-    AgentAnnotate,
     AgentOut,
     AgentRegister,
     AgentsOverviewOut,
@@ -14,12 +13,13 @@ from src.agents.schemas import (
     NextTasksOut,
     ReleasedTasksOut,
 )
-from src.annotation.schemas import AnnotationTaskSubmitResponse
+from src.annotation.schemas import TaskAnswerCreate
 from src.auth.dependencies import require_authenticated_user
 from src.auth.models import User
 from src.campaigns.dependencies import require_campaign_access
 from src.campaigns.models import Campaign
 from src.database import get_db
+from src.tasks.schemas import TaskSubmitResponse
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
@@ -98,14 +98,12 @@ def next_agent_tasks(
     return service.next_tasks(db, agent_id, user)
 
 
-@router.post(
-    "/agents/{agent_id}/tasks/{task_id}/annotate", response_model=AnnotationTaskSubmitResponse
-)
+@router.post("/agents/{agent_id}/tasks/{task_id}/annotate", response_model=TaskSubmitResponse)
 def annotate_agent_task(
     agent_id: UUID,
     task_id: int,
-    body: AgentAnnotate,
+    body: TaskAnswerCreate,
     db: Session = Depends(get_db),
     user: User = Depends(require_authenticated_user),
-) -> AnnotationTaskSubmitResponse:
+) -> TaskSubmitResponse:
     return service.submit_annotation(db, agent_id, user, task_id, body)

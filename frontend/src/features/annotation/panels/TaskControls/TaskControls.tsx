@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
-import type { AnnotationTaskOut } from '~/api/client';
+import type { TaskOut } from '~/api/client';
 import { isLabelGroupActive } from '../../campaign/annotation';
 import { toNotes } from '../../campaign/sliceComments';
 import { useCampaign, useCampaignStore, useCatalog } from '../../stores/campaign';
@@ -12,13 +12,14 @@ import { ExploreControls } from '../ExploreControls/ExploreControls';
 import { LabelGrid } from './LabelGrid';
 import { ReviewList } from './ReviewList';
 import { ActionBar, CommentSection, ConfidenceSection, FieldsSection } from './sections';
-import { sectionCellClass, sectionGridClass, sectionHeaderClass } from './styles';
+import { sectionCellClass, sectionGridClass } from './styles';
+import { sectionHeaderClass } from '../../components/FormFields';
 import { currentTask, useTasksStore } from '../../stores/tasks';
 import { useClaims } from './useClaims';
 
 /** Populates the work-store form from a task's existing annotation by the
  *  current user, or blanks it for a task with none yet. */
-function loadTaskIntoForm(task: AnnotationTaskOut | null, currentUserId: string | null): void {
+function loadTaskIntoForm(task: TaskOut | null, currentUserId: string | null): void {
   const work = useWorkStore.getState();
   const mine = task?.annotations.find((a) => a.created_by_user_id === currentUserId) ?? null;
   work.setSelectedLabelId(mine?.label_id ?? null);
@@ -55,7 +56,11 @@ export function TaskControls() {
   const setSelectedLabelId = useWorkStore((s) => s.setSelectedLabelId);
 
   const labels = campaign.settings.labels;
-  const fields = campaign.settings.form_fields ?? [];
+  // Validation compares a label with its neighbours' embeddings, so it is only
+  // offered once the campaign has computed them.
+  const embeddingsActive =
+    campaign.settings.embedding_year != null && campaign.embedding_status === 'ready';
+  const fields = campaign.settings.form_fields;
   const labelGroupActive = isLabelGroupActive(activeFieldIndex, fields.length);
 
   // A draw task's form holds the answers for the shape being drawn, which may
@@ -107,22 +112,24 @@ export function TaskControls() {
             >
               <div className="flex items-center justify-between gap-2">
                 <span className={sectionHeaderClass(labelGroupActive)}>{t('task.label')}</span>
-                <label
-                  className="flex items-center gap-1.5 cursor-pointer select-none"
-                  title={t('task.validateTitle')}
-                >
-                  <span className="relative">
-                    <input
-                      type="checkbox"
-                      checked={knnValidationEnabled}
-                      onChange={(e) => setKnnValidationEnabled(e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <span className="block w-6 h-3 bg-neutral-300 rounded-full peer-checked:bg-brand-600 transition-colors" />
-                    <span className="absolute top-0.5 left-0.5 w-2 h-2 bg-white rounded-full shadow-sm peer-checked:translate-x-3 transition-transform" />
-                  </span>
-                  <span className="text-[10px] text-neutral-600">{t('task.validate')}</span>
-                </label>
+                {embeddingsActive && (
+                  <label
+                    className="flex items-center gap-1.5 cursor-pointer select-none"
+                    title={t('task.validateTitle')}
+                  >
+                    <span className="relative">
+                      <input
+                        type="checkbox"
+                        checked={knnValidationEnabled}
+                        onChange={(e) => setKnnValidationEnabled(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <span className="block w-6 h-3 bg-neutral-300 rounded-full peer-checked:bg-brand-600 transition-colors" />
+                      <span className="absolute top-0.5 left-0.5 w-2 h-2 bg-white rounded-full shadow-sm peer-checked:translate-x-3 transition-transform" />
+                    </span>
+                    <span className="text-[10px] text-neutral-600">{t('task.validate')}</span>
+                  </label>
+                )}
               </div>
               <LabelGrid
                 labels={labels}

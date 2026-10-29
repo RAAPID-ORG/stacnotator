@@ -54,19 +54,14 @@ class PlanetSeriesMosaicsOut(BaseModel):
     mosaics: list[PlanetMosaicOut]
 
 
-class PlanetScenesGenerationConfigV1(BaseModel):
-    """Lossless, versioned input for a Planet scene-stack source.
+class PlanetScenesGenerationConfig(BaseModel):
+    """The search a Planet scene-stack source was planned from.
 
     Saved on the source's generation series the way the STAC generator's config is, so
     the source can be regenerated later without anyone remembering what was searched.
     """
 
     kind: Literal["planet_scenes"]
-    version: Literal[1] = 1
-    # Where to search is not part of a scene source: it is wherever the annotator is
-    # standing when they ask. Accepted and ignored so configs written before that
-    # moved to annotation time still load.
-    aoi: dict | None = None
     item_types: list[str] = ["PSScene"]
     start_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     end_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
@@ -85,7 +80,7 @@ class PlanetScenesGenerationConfigV1(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     @model_validator(mode="after")
-    def dates_are_ordered(self) -> "PlanetScenesGenerationConfigV1":
+    def dates_are_ordered(self) -> "PlanetScenesGenerationConfig":
         if self.end_date < self.start_date:
             raise ValueError("end_date must not precede start_date")
         return self
@@ -111,4 +106,37 @@ class PlanetScenePlan(BaseModel):
     hold imagery depends on where you are standing, and is asked at annotation time."""
 
     project_id: int
-    config: PlanetScenesGenerationConfigV1
+    config: PlanetScenesGenerationConfig
+
+
+class PlanetSceneSearchIn(BaseModel):
+    """The extent to search, west/south/east/north: whatever is on screen."""
+
+    bbox: list[float] = Field(min_length=4, max_length=4)
+
+
+class PlanetSceneLayersIn(BaseModel):
+    """The dates to mint tile layers for, over the extent they were found on."""
+
+    bbox: list[float] = Field(min_length=4, max_length=4)
+    slice_ids: list[int] = Field(min_length=1, max_length=64)
+
+
+class PlanetSceneSliceOut(BaseModel):
+    """One of the source's slices, and what this extent has for it.
+
+    ``layer_id`` is null for a date that holds imagery but has no tile layer yet: a
+    search mints the covers only, and the rest are minted when they are opened."""
+
+    slice_id: int
+    scene_count: int
+    layer_id: str | None = None
+
+
+class PlanetSceneSearchOut(BaseModel):
+    """What this extent has. Slices missing from ``slices`` hold no imagery here, which
+    is the answer the search exists to give - a date with nothing over you is a date
+    not worth stepping to."""
+
+    slices: list[PlanetSceneSliceOut]
+    errors: list[str] = []

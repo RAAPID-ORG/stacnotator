@@ -205,5 +205,3 @@ export const LabellingPolicyEditor = ({
     </ul>
   );
 };
-
-export default LabellingPolicyEditor;

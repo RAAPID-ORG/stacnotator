@@ -23,7 +23,6 @@ def test_the_summary_carries_what_the_pages_actually_read():
         "project_id",
         "name",
         "created_at",
-        "mode",
         "settings",
         "registration_status",
         "embedding_status",

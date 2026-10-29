@@ -1,19 +1,23 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { updateAnnotationOpenmode, type AnnotationOut } from '~/api/client';
+import { updateAnnotation, type AnnotationOut } from '~/api/client';
 import type { FormValues } from '../../campaign/annotation';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 import {
   extendedLabels,
   formValuesEqual,
-  labelsWithSameGeometry,
+  labelsForGeometry,
   validateForm,
+  wktToGeometry,
 } from '../../campaign/annotation';
 import { useCampaign, useCanModifyAnnotation } from '../../stores/campaign';
+import { usePrefsStore } from '../../stores/prefs';
 import { useWorkStore } from '../../stores/work';
+import { labelSwatch } from '../../campaign/labelStyle';
 import { FormFields } from '../../components/FormFields';
 import { LabelChips } from '../../components/LabelChips';
+import { CHIP_MIN_WIDTH } from '../../components/chipGrid';
 
 function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
   const { t } = useTranslation('panels');
@@ -25,32 +29,35 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
   const showAlert = useLayoutStore((s) => s.showAlert);
   const readOnly = !useCanModifyAnnotation()(annotation);
 
-  const labels = extendedLabels(campaign);
-  const selectable = labelsWithSameGeometry(labels, annotation.label_id);
-  const fields = campaign.settings.form_fields ?? [];
-  const dirty =
-    labelId !== annotation.label_id || !formValuesEqual(values, annotation.form_values ?? {});
+  const labelStyles = usePrefsStore((s) => s.labelStyles);
+  const labels = extendedLabels(campaign).map((label) => labelSwatch(label, labelStyles[label.id]));
+  const selectable = labelsForGeometry(labels, wktToGeometry(annotation.geometry_wkt));
+  const fields = campaign.settings.form_fields;
+  const dirty = !formValuesEqual(values, annotation.form_values ?? {});
 
-  const save = async () => {
-    if (labelId === null) return;
+  /** Picking a label saves it, as the flag does: the map paints the shape by its
+   *  label, so a pick waiting on a separate save looked done and was not. */
+  const saveLabel = async (next: number) => {
+    if (next === labelId) return;
+    const previous = labelId;
+    setLabelId(next);
+    if (!(await save(next))) setLabelId(previous);
+  };
+
+  const save = async (labelId: number | null): Promise<boolean> => {
+    if (labelId === null) return false;
     const { ok, missing } = validateForm(fields, values);
     if (!ok) {
       showAlert(t('editDetails.missingRequired', { fields: missing.join(', ') }), 'error');
-      return;
+      return false;
     }
     setSaving(true);
     try {
-      const result = await updateAnnotationOpenmode({
+      const result = await updateAnnotation({
         path: { campaign_id: campaign.id, annotation_id: annotation.id },
-        body: {
-          label_id: labelId,
-          comment: annotation.comment ?? null,
-          geometry_wkt: null,
-          is_authoritative: null,
-          // Always the full answer set: {} would clear the stored answers,
-          // and the backend re-checks required fields against the new label.
-          form_values: values,
-        },
+        // The full answer set, because the backend re-checks required fields
+        // against the new label; {} clears them.
+        body: { label_id: labelId, form_values: values },
       });
       // The shared session is what the geometry save will send back, so it
       // learns about this write immediately - server copy when there is one,
@@ -69,12 +76,17 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
           .recordWrites([{ id: annotation.id, labelId, geometry, origin: 'local' }]);
       }
       showAlert(t('editDetails.updated'), 'success');
+      return true;
     } catch (error) {
       handleError(error, t('editDetails.updateFailed'));
+      return false;
     } finally {
       setSaving(false);
     }
   };
+
+  // A label switch mid-reshape would leave map and form disagreeing; finish one first.
+  const reshaping = useWorkStore((s) => s.edit?.pending != null);
 
   return (
     <div className="flex flex-col gap-1.5 pt-2 border-t border-neutral-200">
@@ -88,14 +100,18 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
         </span>
       )}
 
-      {selectable.length > 1 && (
+      {selectable.length > 0 && (
         <LabelChips
+          minWidth={CHIP_MIN_WIDTH}
           labels={selectable}
           selectedId={labelId}
-          onSelect={(label) => setLabelId(label.id)}
-          disabled={saving || readOnly}
+          onSelect={(label) => void saveLabel(label.id)}
+          disabled={saving || readOnly || reshaping}
           showIndex={false}
         />
+      )}
+      {reshaping && selectable.length > 1 && (
+        <span className="text-[11px] text-neutral-500">{t('editDetails.finishReshapeFirst')}</span>
       )}
 
       {fields.length > 0 && (
@@ -148,11 +164,11 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
         />
       )}
 
-      {!readOnly && (fields.length > 0 || selectable.length > 1) && (
+      {!readOnly && fields.length > 0 && (
         <button
           type="button"
           data-testid="edit-details-save"
-          onClick={() => void save()}
+          onClick={() => void save(labelId)}
           disabled={saving || !dirty || labelId === null}
           className="self-start px-3 py-1.5 rounded text-[11px] font-semibold bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
         >

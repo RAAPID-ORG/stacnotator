@@ -16,5 +16,3 @@ def get_auth_provider() -> AuthProvider:
             from src.auth.providers.local import LocalAuthProvider
 
             return LocalAuthProvider()
-        case _:
-            raise RuntimeError("Unknown AUTH_PROVIDER")

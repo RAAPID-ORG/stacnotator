@@ -97,27 +97,26 @@ describe('coversPanels', () => {
 });
 
 describe('showWindow / hideWindow / hideAllWindows', () => {
-  it('shows a window, then hides it', () => {
+  it('hides a window, then shows it again', () => {
+    useLayoutStore.getState().hideWindow(10);
+    expect(useLayoutStore.getState().currentLayout.hidden).toEqual([10]);
+
     useLayoutStore.getState().showWindow(10);
     expect(useLayoutStore.getState().currentLayout.windows[10]).toBeDefined();
-
-    useLayoutStore.getState().hideWindow(10);
-    expect(useLayoutStore.getState().currentLayout.windows[10]).toBeUndefined();
+    expect(useLayoutStore.getState().currentLayout.hidden).toEqual([]);
   });
 
-  it('showWindow is a no-op when the window is already present (same reference in, packed once)', () => {
-    useLayoutStore.getState().showWindow(10);
+  it('showWindow is a no-op for a window that is not hidden', () => {
     const layout = useLayoutStore.getState().currentLayout;
     useLayoutStore.getState().showWindow(10);
     expect(useLayoutStore.getState().currentLayout).toBe(layout);
   });
 
-  it('hideAllWindows clears every window but keeps the main chrome', () => {
-    useLayoutStore.getState().showWindow(10);
-    useLayoutStore.getState().showWindow(20);
-    useLayoutStore.getState().hideAllWindows();
+  it('hideAllWindows hides every window it is given but keeps the main chrome', () => {
+    useLayoutStore.getState().hideAllWindows([10, 20]);
     const layout = useLayoutStore.getState().currentLayout;
     expect(layout.windows).toEqual({});
+    expect(layout.hidden).toEqual([10, 20]);
     expect(layout.main).toEqual(EMPTY_LAYOUT.main);
   });
 });
@@ -144,12 +143,12 @@ describe('startEditing / saveLayout / cancelEditing', () => {
     layout = useLayoutStore.getState().currentLayout;
     expect(layout.main.timeline).toMatchObject({
       x: 2,
-      y: 19,
+      y: 21,
       w: 30,
-      h: 4,
+      h: 2,
       orientation: 'horizontal',
     });
-    expect(layout.main.main).toMatchObject({ x: 2, y: 3, w: 30, h: 16 });
+    expect(layout.main.main).toMatchObject({ x: 2, y: 3, w: 30, h: 18 });
     expect(layout.main.minimap).toEqual(initial.main.minimap);
     expect(layout.windows).toEqual(initial.windows);
     for (const item of toGridLayout(layout)) {
@@ -230,6 +229,7 @@ describe('startEditing / saveLayout / cancelEditing', () => {
     useLayoutStore.getState().startEditing();
     expect(useLayoutStore.getState().editing).toBe(true);
 
+    useLayoutStore.getState().hideWindow(10);
     useLayoutStore.getState().showWindow(10);
     expect(useLayoutStore.getState().currentLayout.windows[10]).toBeDefined();
 
@@ -241,6 +241,7 @@ describe('startEditing / saveLayout / cancelEditing', () => {
 
   it('saveLayout commits currentLayout into savedLayout and clears editing', () => {
     useLayoutStore.getState().startEditing();
+    useLayoutStore.getState().hideWindow(10);
     useLayoutStore.getState().showWindow(10);
     const editedLayout = useLayoutStore.getState().currentLayout;
 
@@ -259,10 +260,21 @@ describe('startEditing / saveLayout / cancelEditing', () => {
 describe('setNewWindowSize', () => {
   it('sizes newly-shown windows using the configured perRow/rows', () => {
     useLayoutStore.getState().setNewWindowSize({ perRow: 3, rows: 12 });
+    useLayoutStore.getState().hideWindow(10);
     useLayoutStore.getState().showWindow(10);
     expect(useLayoutStore.getState().currentLayout.windows[10]).toMatchObject({
       w: 20,
       h: 12,
     });
+  });
+});
+
+describe('sendToScreen', () => {
+  it('opens a timeline-only screen as a full-width horizontal strip', () => {
+    useLayoutStore.getState().setScope('test');
+    useLayoutStore.getState().sendToScreen('timeline', 'new', undefined, 1200);
+    const [screen] = useLayoutStore.getState().screens.screens;
+    expect(screen.layout).toEqual([expect.objectContaining({ i: 'timeline', w: 60, h: 2 })]);
+    expect(screen.bounds?.height).toBeLessThan(200);
   });
 });

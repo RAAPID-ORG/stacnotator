@@ -3,23 +3,25 @@ import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-quer
 import { useTranslation } from 'react-i18next';
 import type {
   AnnotationListItemOut,
-  AnnotationTaskOut,
+  TaskOut,
   ListAnnotationsForCampaignData,
   TaskSetOut,
 } from '~/api/client';
 import {
-  getAllAnnotationTasksOptions,
-  getAllAnnotationTasksQueryKey,
+  listTasksOptions,
+  listTasksQueryKey,
   getCampaignOptions,
   getCampaignSummaryOptions,
   getCampaignQueryKey,
+  getCampaignSummaryQueryKey,
   getAnnotationFacetsOptions,
-  getCampaignStatisticsEndpointOptions,
+  getCampaignSettingsLocksOptions,
+  getCampaignStatisticsOptions,
   listAnnotationsForCampaignOptions,
   listTaskSetsOptions,
   listTaskSetsQueryKey,
 } from '~/api/queries';
-import { SHARED_WORK } from '~/api/queryClient';
+import { SHARED_WORK, RUN_POLL_MS } from '~/api/queryClient';
 
 /**
  * How a campaign and the work inside it are read, in one place, because the
@@ -40,15 +42,14 @@ import { SHARED_WORK } from '~/api/queryClient';
 /** How often to re-ask while mosaic registration or embedding is still running.
  *  Long enough that a slow setup does not hammer the API, short enough that the
  *  page stops saying "initializing" soon after it finishes. */
-const REGISTRATION_POLL_MS = 5000;
-
 type MaybeRegistering = { registration_status?: string; embedding_status?: string } | undefined;
 
 export const isRegistering = (campaign: MaybeRegistering) =>
   campaign?.registration_status === 'registering' || campaign?.embedding_status === 'registering';
 
-const NO_TASKS: AnnotationTaskOut[] = [];
+const NO_TASKS: TaskOut[] = [];
 const NO_TASK_SETS: TaskSetOut[] = [];
+const NO_IDS: number[] = [];
 const NO_ANNOTATIONS: AnnotationListItemOut[] = [];
 
 /**
@@ -69,7 +70,7 @@ export const useCampaignSummary = (campaignId: number | null) => {
     meta: { errorMessage: t('errors.loadCampaign') },
     // These pages are reachable during setup, so what they say about it has to
     // stop being true on its own. Stops as soon as setup finishes.
-    refetchInterval: (query) => (isRegistering(query.state.data) ? REGISTRATION_POLL_MS : false),
+    refetchInterval: (query) => (isRegistering(query.state.data) ? RUN_POLL_MS : false),
   });
   return { campaign: data, loading: campaignId !== null && isPending };
 };
@@ -85,9 +86,7 @@ export const useCampaign = (campaignId: number, options?: { pollWhileRegistering
     ...getCampaignOptions({ path: { campaign_id: campaignId } }),
     meta: { errorMessage: t('errors.loadCampaign') },
     refetchInterval: (query) =>
-      options?.pollWhileRegistering && isRegistering(query.state.data)
-        ? REGISTRATION_POLL_MS
-        : false,
+      options?.pollWhileRegistering && isRegistering(query.state.data) ? RUN_POLL_MS : false,
   });
   return { campaign: data, loading: isPending };
 };
@@ -98,7 +97,7 @@ export const useCampaignTasks = (campaignId: number, options?: { enabled?: boole
   const { t } = useTranslation('campaigns');
   const enabled = options?.enabled ?? true;
   const { data, isPending } = useQuery({
-    ...getAllAnnotationTasksOptions({ path: { campaign_id: campaignId } }),
+    ...listTasksOptions({ path: { campaign_id: campaignId } }),
     ...SHARED_WORK,
     enabled,
     meta: { errorMessage: t('errors.loadTasks') },
@@ -125,7 +124,7 @@ export const useCampaignTaskSets = (campaignId: number, options?: { enabled?: bo
 export const useCampaignStatistics = (campaignId: number, taskSetId?: number) => {
   const { t } = useTranslation('campaigns');
   const { data, isPending, error } = useQuery({
-    ...getCampaignStatisticsEndpointOptions({
+    ...getCampaignStatisticsOptions({
       path: { campaign_id: campaignId },
       query: { task_set_id: taskSetId },
     }),
@@ -135,15 +134,32 @@ export const useCampaignStatistics = (campaignId: number, taskSetId?: number) =>
   return { statistics: data, loading: isPending, error };
 };
 
+/** What stored annotations no longer let the settings change. Nothing is locked
+ *  while this loads or fails; the server still refuses and says why. */
+export const useCampaignSettingsLocks = (campaignId: number) => {
+  const { t } = useTranslation('campaigns');
+  const { data } = useQuery({
+    ...getCampaignSettingsLocksOptions({ path: { campaign_id: campaignId } }),
+    ...SHARED_WORK,
+    meta: { errorMessage: t('errors.loadSettingsLocks'), showUser: false },
+  });
+  return {
+    taskOutputLocked: data?.task_output_locked ?? false,
+    answeredFieldIds: data?.answered_form_field_ids ?? NO_IDS,
+  };
+};
+
+/** After a write to the campaign: both reads of it, so the sidebar and the summary
+ *  pages show the change as well as the settings editor. */
 export const useRefreshCampaign = (campaignId: number) => {
   const queryClient = useQueryClient();
-  return useCallback(
-    () =>
-      queryClient.invalidateQueries({
-        queryKey: getCampaignQueryKey({ path: { campaign_id: campaignId } }),
-      }),
-    [queryClient, campaignId]
-  );
+  return useCallback(() => {
+    const path = { campaign_id: campaignId };
+    return Promise.all([
+      queryClient.invalidateQueries({ queryKey: getCampaignQueryKey({ path }) }),
+      queryClient.invalidateQueries({ queryKey: getCampaignSummaryQueryKey({ path }) }),
+    ]);
+  }, [queryClient, campaignId]);
 };
 
 export const useRefreshCampaignTasks = (campaignId: number) => {
@@ -151,7 +167,7 @@ export const useRefreshCampaignTasks = (campaignId: number) => {
   return useCallback(
     () =>
       queryClient.invalidateQueries({
-        queryKey: getAllAnnotationTasksQueryKey({ path: { campaign_id: campaignId } }),
+        queryKey: listTasksQueryKey({ path: { campaign_id: campaignId } }),
       }),
     [queryClient, campaignId]
   );

@@ -1,18 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import 'leaflet/dist/leaflet.css';
-import {
-  getAnnotationDensityByLabel,
-  type AnnotationLabelDensityCell,
-  type LabelBase,
-  type LabelFacet,
-} from '~/api/client';
-import i18n from '~/shared/i18n';
-import { handleError } from '~/shared/utils/errorHandler';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import type { LabelBase, LabelFacet } from '~/api/client';
+import { getAnnotationDensityByLabelOptions } from '~/api/queries';
 import { DensityLegend } from './DensityLegend';
-import { drawDensityCells, TARGET_CELLS, useDensityViewport, useHiddenKeys } from './densityMap';
-import { generateLabelColors } from './labelColors';
-import { useLeafletMap } from './useLeafletMap';
+import {
+  DensityMap,
+  TARGET_CELLS,
+  useDensityMap,
+  useHiddenKeys,
+  type AreaBounds,
+} from './densityMap';
+import { labelColor } from '../../utils/labelColors';
 
 /**
  * Where each class sits across the whole campaign.
@@ -25,19 +24,18 @@ import { useLeafletMap } from './useLeafletMap';
  * The previous version placed one Leaflet DOM marker per annotation. At 100k that is
  * 100k DOM nodes, and it needed every geometry shipped to the browser to build them.
  *
- * The campaign pages have three maps and they answer different questions:
+ * The campaign pages have two density maps and they answer different questions:
  *   - this one            - annotations, by class
- *   - `TasksByLabelMap`   - tasks, by the label an annotator gave them
  *   - `TaskLocationsMap`  - tasks, by task status
- * All three read a density grid and share their viewport following, cell drawing and
- * legend from `densityMap`; only what they fetch and how a category is coloured differs.
+ * Both read a density grid and share their viewport following, cell drawing and legend
+ * from `densityMap`; only what they fetch and how a category is coloured differs.
  */
 interface ClassDistributionMapProps {
   campaignId: number;
   /** Campaign-wide counts per class, for the legend. */
   labelCounts: LabelFacet[];
   labels: LabelBase[];
-  bbox: { west: number; south: number; east: number; north: number };
+  bbox: AreaBounds;
 }
 
 const NO_LABEL_COLOR = '#9CA3AF';
@@ -50,38 +48,23 @@ export const ClassDistributionMap: React.FC<ClassDistributionMapProps> = ({
   bbox,
 }) => {
   const { t } = useTranslation('review');
-  const containerRef = useRef<HTMLDivElement>(null);
-  const { mapRef, markersLayerRef, mapReady } = useLeafletMap(containerRef, bbox);
-  const view = useDensityViewport(mapRef, mapReady);
-  const [labelColors, setLabelColors] = useState<Record<number, string>>({});
-  const [cells, setCells] = useState<AnnotationLabelDensityCell[]>([]);
+  const { camera, view } = useDensityMap(bbox);
   const { hidden, toggle } = useHiddenKeys<number>();
-
-  useEffect(() => {
-    setLabelColors(generateLabelColors(labels));
-  }, [labels]);
-
-  useEffect(() => {
-    if (!view) return;
-    let cancelled = false;
-    getAnnotationDensityByLabel({
+  const { data: cells = [] } = useQuery({
+    ...getAnnotationDensityByLabelOptions({
       path: { campaign_id: campaignId },
-      query: { bbox: view, target_cells: TARGET_CELLS },
-    })
-      .then((res) => {
-        if (!cancelled) setCells(res.data ?? []);
-      })
-      .catch((err) => {
-        if (!cancelled) handleError(err, i18n.t('review:densityMap.loadFailed'));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [campaignId, view]);
+      query: { bbox: view ?? '', target_cells: TARGET_CELLS },
+    }),
+    enabled: view !== null,
+    placeholderData: keepPreviousData,
+    meta: { errorMessage: t('densityMap.loadFailed') },
+  });
 
   const keyOf = (labelId: number | null) => labelId ?? NO_LABEL_KEY;
-  const colorOf = (labelId: number | null) =>
-    labelId === null ? NO_LABEL_COLOR : (labelColors[labelId] ?? NO_LABEL_COLOR);
+  const colorOf = (labelId: number | null) => {
+    const index = labels.findIndex((l) => l.id === labelId);
+    return index === -1 ? NO_LABEL_COLOR : labelColor(index);
+  };
   const nameOf = (labelId: number | null) =>
     labelId === null
       ? t('noLabel')
@@ -100,22 +83,11 @@ export const ClassDistributionMap: React.FC<ClassDistributionMapProps> = ({
     [cells, hidden]
   );
 
-  useEffect(() => {
-    if (!markersLayerRef.current || !mapReady) return;
-    drawDensityCells(
-      markersLayerRef.current,
-      visible,
-      (key) => colorOf(key === NO_LABEL_KEY ? null : key),
-      (key) => nameOf(key === NO_LABEL_KEY ? null : key)
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- map refs are stable, from useLeafletMap
-  }, [visible, mapReady, labelColors, labels, t]);
-
   const legend = [
-    ...labels.map((label) => ({
+    ...labels.map((label, index) => ({
       key: label.id,
       name: label.name,
-      color: labelColors[label.id],
+      color: labelColor(index),
       count: labelCounts.find((c) => c.label_id === label.id)?.count ?? 0,
     })),
     {
@@ -130,7 +102,14 @@ export const ClassDistributionMap: React.FC<ClassDistributionMapProps> = ({
     <div>
       <DensityLegend entries={legend} hidden={hidden} onToggle={toggle} />
 
-      <div ref={containerRef} className="w-full h-96 rounded-lg border border-neutral-200" />
+      <DensityMap
+        camera={camera}
+        area={bbox}
+        points={visible}
+        colorOf={(key) => colorOf(key === NO_LABEL_KEY ? null : key)}
+        nameOf={(key) => nameOf(key === NO_LABEL_KEY ? null : key)}
+        className="w-full h-96 rounded-lg border border-neutral-200"
+      />
     </div>
   );
 };

@@ -1,24 +1,24 @@
-"""Tests for the registration work orders and spawn_background_registration's
-wiring into the background-run protocol (src/background.py, covered in
-test_background_runs.py). Mirrors test_collection_refresh_spawn.py.
-"""
+"""Registration registers what is missing: the mosaics a source's STAC slices need on
+the providers their visualizations route to, and nothing a slice already has. The run's
+wiring into the background-run protocol is covered in test_background_runs.py."""
 
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
+import httpx
 import pytest
 
+from src.config import TilerCfg
 from src.imagery import registration
 from src.imagery.models import (
-    CollectionStacConfig,
-    CollectionVizConfig,
+    CollectionVisualization,
     ImageryCollection,
     ImagerySlice,
     ImagerySource,
-    SliceTileUrl,
-    VisualizationTemplate,
+    SliceMosaic,
+    SliceTemplate,
+    Visualization,
 )
-from src.imagery.registration import StacRegistrationSpec
-from src.imagery.schemas import CollectionStacConfigCreate
 from src.layers import LayerOwner
 from src.tilers.registry import MPC_STAC_URL
 
@@ -30,132 +30,93 @@ def spawn(monkeypatch):
     return spawn
 
 
-def _make_spec(collection_id: int = 7) -> StacRegistrationSpec:
-    return StacRegistrationSpec(
-        collection_id=collection_id,
-        collection_name="Sentinel-2",
-        stac_config=CollectionStacConfigCreate(),
-        has_dedicated_cover=True,
-        cover_slice_index=0,
-        source_viz_names=["true_color"],
-    )
+def test_spawns_the_owners_status_run_and_prefixes_its_errors(spawn):
+    registration.spawn_background_registration(LayerOwner(campaign_id=1), [0, 0, 1, 1])
+
+    args, kwargs = spawn.call_args
+    assert args == (1, registration.REGISTRATION_RUN)
+    sanitized = kwargs["sanitize_error"](ValueError("Unknown tiler 'bogus'"))
+    assert sanitized == "Imagery registration: Unknown tiler 'bogus'"
 
 
-class TestStacRegistrationSpec:
-    def test_is_frozen(self):
-        spec = _make_spec()
-        with pytest.raises(AttributeError):
-            spec.collection_id = 99
-
-
-class TestSpawnBackgroundRegistration:
-    def test_spawns_the_registration_status_run(self, spawn):
-        registration.spawn_background_registration(
-            LayerOwner(campaign_id=1),
-            [_make_spec()],
-            bbox=[0, 0, 1, 1],
-        )
-
-        spawn.assert_called_once()
-        args, kwargs = spawn.call_args
-        assert args == (1, registration.REGISTRATION_RUN)
-        assert kwargs["name"] == "imagery registration"
-
-    def test_work_passes_specs_straight_through_without_db_lookup(self, spawn, monkeypatch):
-        register = MagicMock(return_value=[])
-        monkeypatch.setattr(registration, "_register_all_stac_browser_collections", register)
-
-        specs = [_make_spec()]
-        registration.spawn_background_registration(
-            LayerOwner(campaign_id=1), specs, bbox=[0, 0, 1, 1]
-        )
-        db = MagicMock()
-        assert spawn.call_args.kwargs["work"](db) == []
-
-        register.assert_called_once_with(db, specs, [0, 0, 1, 1], "1")
-        db.get.assert_not_called()
-
-    def test_sanitizer_prefixes_the_domain(self, spawn):
-        registration.spawn_background_registration(
-            LayerOwner(campaign_id=1),
-            [_make_spec()],
-            bbox=[0, 0, 1, 1],
-        )
-
-        sanitized = spawn.call_args.kwargs["sanitize_error"](ValueError("Unknown tiler 'bogus'"))
-        assert sanitized == "Imagery registration: Unknown tiler 'bogus'"
-
-
-@pytest.mark.parametrize("hosted_fails", [False, True])
-def test_roi_reregistration_rebuilds_saved_slices_without_holding_a_transaction(
-    monkeypatch, hosted_fails
-):
-    from src.config import TilerCfg
-
-    collection = ImageryCollection(
-        id=7,
+def _source() -> ImagerySource:
+    rgb, median = Visualization(id=1, name="RGB"), Visualization(id=2, name="Median")
+    stac = ImageryCollection(
         name="January",
         has_dedicated_cover=True,
         cover_slice_index=0,
-        stac_config=CollectionStacConfig(
-            catalog_url=MPC_STAC_URL,
-            stac_collection_id="sentinel-2-l2a",
-            tile_provider="test-tiler",
-            search_query={"collections": ["sentinel-2-l2a"], "limit": 10},
-            cover_search_query={"collections": ["sentinel-2-l2a"], "limit": 20},
-            internal_storage=True,
-        ),
-        viz_configs=[
-            CollectionVizConfig(
-                name="RGB",
-                render_params={"assets": ["B04", "B03", "B02"]},
-                cover_render_params={"assets": ["visual"]},
+        catalog_url=MPC_STAC_URL,
+        stac_collection_id="sentinel-2-l2a",
+        tiler="test-tiler",
+        search_query={"collections": ["sentinel-2-l2a"], "limit": 10},
+        cover_search_query={"collections": ["sentinel-2-l2a"], "limit": 20},
+        internal_storage=True,
+        visualizations=[
+            CollectionVisualization(
+                visualization_id=1,
+                params={"assets": ["B04", "B03", "B02"]},
+                cover_params={"assets": ["visual"]},
             ),
-            CollectionVizConfig(
-                name="Median",
-                render_params={"assets": ["B04"], "compositing": "median"},
+            CollectionVisualization(
+                visualization_id=2, params={"assets": ["B04"], "compositing": "median"}
             ),
         ],
         slices=[
+            ImagerySlice(id=11, name="Cover", start_date="2024-01-01", end_date="2024-01-31"),
+            ImagerySlice(id=12, name="Week", start_date="2024-01-01", end_date="2024-01-07"),
+        ],
+    )
+    manual = ImageryCollection(
+        name="Manual",
+        slices=[
             ImagerySlice(
-                id=11,
-                name="Cover",
+                id=13,
                 start_date="2024-01-01",
                 end_date="2024-01-31",
-                display_order=0,
-                tile_urls=[
-                    SliceTileUrl(visualization_name="RGB", tile_url="https://old.test/tiles")
+                templates=[
+                    SliceTemplate(visualization_id=1, url="https://manual.test/{z}/{x}/{y}")
                 ],
-            ),
-            # No existing URLs: a failed slice must be retried for the new ROI too.
-            ImagerySlice(
-                id=12,
-                name="Week",
-                start_date="2024-01-01",
-                end_date="2024-01-07",
-                display_order=1,
-            ),
+            )
         ],
     )
-    manual_url = SliceTileUrl(visualization_name="RGB", tile_url="https://manual.test/tiles")
-    source = ImagerySource(
-        campaign_id=1,
-        visualizations=[VisualizationTemplate(name="RGB"), VisualizationTemplate(name="Median")],
-        collections=[
-            collection,
-            ImageryCollection(slices=[ImagerySlice(tile_urls=[manual_url])]),
-        ],
+    return ImagerySource(
+        id=4, campaign_id=1, visualizations=[rgb, median], collections=[stac, manual]
     )
-    db = MagicMock()
-    db.execute.return_value.scalars.return_value.all.return_value = [source]
-    specs = registration.prepare_stac_reregistration(db, 1)
-    db.delete.assert_called_once_with(collection.slices[0].tile_urls[0])
-    db.commit.assert_not_called()
-    assert len(specs) == 1
 
-    # Emulate the request commit before the worker uses a separate session.
-    db.reset_mock()
-    db.execute.return_value.scalars.return_value.all.return_value = collection.slices
+
+def test_every_stac_slice_needs_a_mosaic_per_provider_its_renderings_route_to():
+    orders = registration.missing_mosaics([_source()])
+
+    assert {(o.slice_id, o.provider) for o in orders} == {
+        (11, "mpc"),
+        (11, "test-tiler"),
+        (12, "mpc"),
+        (12, "test-tiler"),
+    }
+    queries = {o.slice_id: o.search_query["limit"] for o in orders}
+    assert queries == {11: 20, 12: 10}
+
+
+def test_a_slice_with_its_mosaics_needs_nothing_and_a_moved_area_drops_them():
+    source = _source()
+    for sl in source.collections[0].slices:
+        sl.mosaics = [
+            SliceMosaic(provider="mpc", mosaic_id="pc1.4000000000.m"),
+            SliceMosaic(provider="test-tiler", mosaic_id="h"),
+        ]
+    assert registration.missing_mosaics([source]) == []
+
+    registration.drop_mosaics([source])
+    assert len(registration.missing_mosaics([source])) == 4
+    assert source.collections[1].slices[0].templates
+
+
+@pytest.mark.parametrize("hosted_fails", [False, True])
+def test_registers_the_missing_mosaics_without_holding_a_transaction(monkeypatch, hosted_fails):
+    source = _source()
+    db = MagicMock()
+    db.scalars.return_value = [11, 12]
+    monkeypatch.setattr(registration, "_owner_sources", lambda db, owner: [source])
     bbox = [10, 20, 11, 21]
     tiler = TilerCfg(url="https://tiler.test", allows_ingest=True)
     monkeypatch.setattr(registration.providers, "resolve_tiler", lambda name: tiler)
@@ -169,37 +130,103 @@ def test_roi_reregistration_rebuilds_saved_slices_without_holding_a_transaction(
         response.json.return_value = {"searchid": f"mpc-{json['limit']}"}
         return response
 
-    monkeypatch.setattr(registration.httpx, "post", post)
-
     def ingest(tiler, catalog, collection_id, new_bbox, *args, **kwargs):
         db.commit.assert_called_once()
         assert new_bbox == bbox
         if hosted_fails:
             raise ValueError("Catalog unavailable")
 
-    monkeypatch.setattr(registration.providers, "ingest_on_tiler", ingest)
-
-    def register(tiler, body, scope, **kwargs):
-        assert scope == "1"
-        assert body["bbox"] == bbox
+    def register(tiler, body, owner, layer, **kwargs):
+        assert (owner, layer) == ("1", "source:4")
         assert kwargs["internal_storage"] is True
         return f"hosted-{body['limit']}"
 
+    monkeypatch.setattr(registration.httpx, "post", post)
+    monkeypatch.setattr(registration.providers, "ingest_on_tiler", ingest)
     monkeypatch.setattr(registration.providers, "register_on_tiler", register)
-    errors = registration._register_all_stac_browser_collections(db, specs, bbox, "1")
-    urls = {
-        (c.args[0].slice_id, c.args[0].visualization_name): c.args[0] for c in db.add.call_args_list
-    }
-    assert urls[11, "RGB"].mosaic_id == "mpc-20"
-    assert "assets=visual" in urls[11, "RGB"].tile_url
-    assert urls[12, "RGB"].mosaic_id == "mpc-10"
-    assert "assets=B04" in urls[12, "RGB"].tile_url
+
+    errors = registration.register_missing(db, LayerOwner(campaign_id=1), bbox)
+
+    stored = {(m.slice_id, m.provider): m.mosaic_id for (m,), _ in db.merge.call_args_list}
+    expected = {(11, "mpc"): "mpc-20", (12, "mpc"): "mpc-10"}
     if hosted_fails:
-        assert len(errors) == 2
-        assert all(e["error"] == "Catalog unavailable" for e in errors)
-        assert all(name == "RGB" for _, name in urls)
+        assert [e["error"] for e in errors] == ["Catalog unavailable"] * 2
     else:
         assert errors == []
-        assert urls[11, "Median"].mosaic_id == "hosted-20"
-        assert urls[12, "Median"].mosaic_id == "hosted-10"
-        assert "compositing=median" in urls[12, "Median"].tile_url
+        expected |= {(11, "test-tiler"): "hosted-20", (12, "test-tiler"): "hosted-10"}
+    assert stored == expected
+
+
+def test_a_search_edited_while_its_registration_was_out_is_not_kept(monkeypatch):
+    registered, edited = _source(), _source()
+    for collection in edited.collections:
+        if collection.search_query:
+            collection.search_query = {**collection.search_query, "limit": 99}
+    reads = iter([[registered], [edited]])
+    monkeypatch.setattr(registration, "_owner_sources", lambda db, owner: next(reads))
+    response = MagicMock()
+    response.json.return_value = {"searchid": "mpc-old"}
+    monkeypatch.setattr(registration.httpx, "post", lambda *a, **k: response)
+    monkeypatch.setattr(registration.providers, "resolve_tiler", lambda name: None)
+    monkeypatch.setattr(registration, "_register_hosted", lambda *a: "hosted-old")
+    db = MagicMock()
+
+    registration.register_missing(db, LayerOwner(campaign_id=1), [10, 20, 11, 21])
+
+    # The edit changed the regular slices' query; the cover keeps its own and its result.
+    assert {m.slice_id for (m,), _ in db.merge.call_args_list} == {11}
+
+
+@pytest.mark.parametrize(("status", "attempts"), [(400, 1), (503, 3)])
+def test_a_refused_search_is_not_retried(monkeypatch, status, attempts):
+    source = _source()
+    monkeypatch.setattr(registration, "_owner_sources", lambda db, owner: [source])
+    monkeypatch.setattr(registration.providers, "resolve_tiler", lambda name: None)
+    monkeypatch.setattr(registration.time, "sleep", lambda seconds: None)
+    calls: list[int] = []
+
+    def post(url, *, json, timeout):
+        calls.append(json["limit"])
+        request = httpx.Request("POST", url)
+        return httpx.Response(status, json={"detail": "Invalid filter"}, request=request)
+
+    monkeypatch.setattr(registration.httpx, "post", post)
+
+    db = MagicMock()
+    db.scalars.return_value = [11, 12]
+    errors = registration.register_missing(db, LayerOwner(campaign_id=1), [10, 20, 11, 21])
+
+    # Two slices, each on MPC and the hosted tiler, all through the one post here.
+    assert len(calls) == 4 * attempts
+    assert {e["error"] for e in errors} == {f"HTTP {status}: Invalid filter"}
+
+
+@pytest.fixture()
+def renewal(monkeypatch):
+    monkeypatch.setattr(registration.time, "time", lambda: 1_000_000)
+    register = MagicMock()
+    monkeypatch.setattr(registration, "commit_and_register", register)
+    owner = MagicMock(registration_status="ready", layer_owner=LayerOwner(campaign_id=7))
+
+    def renew(*mosaic_ids):
+        db = MagicMock()
+        db.scalars.return_value.all.return_value = list(mosaic_ids)
+        return registration.renew_expiring_mpc_mosaics(db, owner)
+
+    return renew, register
+
+
+def test_opening_a_map_whose_mpc_imagery_expires_soon_registers_it_again(renewal):
+    renew, register = renewal
+
+    assert renew("pc1.1100000.cd34", "pc1.1003600.ab12") is None
+    register.assert_called_once()
+
+
+def test_lasting_mpc_imagery_is_due_before_the_first_expires(renewal):
+    renew, register = renewal
+
+    renew_at = renew("pc1.1100000.cd34", "pc1.1050000.ef56")
+
+    assert renew_at == datetime.fromtimestamp(1_050_000 - 4 * 3600, UTC)
+    register.assert_not_called()

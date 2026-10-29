@@ -13,12 +13,17 @@ from fastapi import HTTPException
 
 from src.annotation.schemas import (
     AnnotationCreate,
-    AnnotationFromTaskCreate,
+    TaskAnswerCreate,
+)
+from src.annotation.service import add_annotation_for_task, create_annotation
+from src.campaigns.schemas import PolicyAudience
+from src.tasks.status import (
     compute_task_status_value,
     resolve_task_outcome,
 )
-from src.annotation.service import add_annotation_for_task, create_annotation
-from src.campaigns.schemas import LabellingPolicy, PolicyAudience
+from tests.conftest import make_policy
+
+pytestmark = pytest.mark.usefixtures("membership_from_db_mock")
 
 
 def _answer(user_id, answer):
@@ -34,10 +39,10 @@ def _campaign(task_output):
     campaign = MagicMock()
     campaign.id = 1
     campaign.is_public = False
-    campaign.settings.task_output = task_output
-    campaign.settings.labels = {"1": {"name": "Field"}}
-    campaign.settings.form_fields = []
-    campaign.settings.labelling_policy = LabellingPolicy(
+    campaign.task_output = task_output
+    campaign.label_names = {1: "Field"}
+    campaign.form_fields = []
+    campaign.labelling_policy = make_policy(
         explore=PolicyAudience(kinds=["members"]),
         unassigned_tasks=PolicyAudience(kinds=["members"]),
         assigned_tasks=PolicyAudience(kinds=["members"]),
@@ -58,7 +63,7 @@ def _db(campaign, *, has_shapes=False):
 
 
 def _task():
-    return SimpleNamespace(id=1, campaign_id=1, geometry_id=10, assignments=[])
+    return SimpleNamespace(id=1, campaign_id=1, geometry="POINT(0 0)", assignments=[])
 
 
 def test_classify_outcome_follows_the_label():
@@ -99,7 +104,7 @@ def test_done_needs_a_shape_of_your_own():
         add_annotation_for_task(
             db,
             _task(),
-            AnnotationFromTaskCreate(label_id=None, comment=None, outcome="drawn"),
+            TaskAnswerCreate(label_id=None, comment=None, outcome="drawn"),
             uuid4(),
         )
 
@@ -112,7 +117,7 @@ def test_done_is_stored_as_drawn():
     db = _db(campaign, has_shapes=True)
 
     annotation = add_annotation_for_task(
-        db, _task(), AnnotationFromTaskCreate(label_id=None, comment=None, outcome="drawn"), uuid4()
+        db, _task(), TaskAnswerCreate(label_id=None, comment=None, outcome="drawn"), uuid4()
     )
 
     assert annotation.outcome == "drawn"
@@ -139,7 +144,7 @@ def test_nothing_here_is_refused_once_you_drew():
         add_annotation_for_task(
             db,
             _task(),
-            AnnotationFromTaskCreate(label_id=None, comment=None, outcome="none_found"),
+            TaskAnswerCreate(label_id=None, comment=None, outcome="none_found"),
             uuid4(),
         )
 

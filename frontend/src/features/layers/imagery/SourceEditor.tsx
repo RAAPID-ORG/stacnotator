@@ -1,0 +1,724 @@
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useLayoutStore } from '~/shared/stores/layout.store';
+import i18n from '~/shared/i18n';
+import { Modal } from '~/shared/ui/Modal';
+import {
+  IconTrash,
+  IconChevronDown,
+  IconChevronUp,
+  IconSettings,
+  IconClock,
+  IconPlus,
+  IconSliders,
+} from '~/shared/ui/Icons';
+import type { CollectionItem, ImagerySource, NamedVizParams } from './types';
+import { emptyManualCollection, emptyVizParams, swap } from './types';
+import { isRealId } from './draftSync';
+import { rewriteVisualization } from './visualizations';
+import { IconButton, Input, Button } from '~/shared/ui/forms';
+import { Tooltip } from '~/shared/ui/Tooltip';
+import { CollectionEditor } from './CollectionEditor';
+import { CatalogBrowser, MPC_PRESETS } from './CatalogBrowser';
+import type { CatalogBrowserPreset, CatalogBrowserResult } from './CatalogBrowser';
+import { BulkApplyModal } from './BulkApplyModal';
+import type { BulkFocus } from './BulkApplyModal';
+import type { ImageryController } from './controller';
+import { sourceRegistration } from './controller';
+import { ApiKeyField } from './ApiKeyField';
+import { PrivateCatalogAccess } from './PrivateCatalogAccess';
+import {
+  editableGenerationSeries,
+  retainMatchingIds,
+  type EditableGenerationSeries,
+} from './generation';
+
+interface SourceEditorProps {
+  source: ImagerySource;
+  controller: ImageryController;
+  onClose: () => void;
+}
+
+type AddCollectionStep =
+  | null
+  | { kind: 'pick' }
+  | { kind: 'catalog'; preset: CatalogBrowserPreset | null };
+
+const collectionDisplayName = (c: CollectionItem) => {
+  if (c.name) return c.name;
+  if (c.slices.length === 0) return i18n.t('imagery:untitled');
+  const first = c.slices[0]?.startDate?.slice(0, 7) ?? '';
+  const last = c.slices[c.slices.length - 1]?.endDate?.slice(0, 7) ?? '';
+  return `${first} - ${last}`;
+};
+
+/** Align a freshly-added collection to the source's visualization names so it
+ * exposes the same named tabs. Params for a matching name are carried over;
+ * names the source has but the collection lacks become empty tabs ready to fill;
+ * extra names from the catalog that the source doesn't have are dropped. */
+/** The header actions that change every collection at once: a quiet chip, so
+ *  it reads as a control without competing with the collection tiles. */
+const allCollectionsAction =
+  'inline-flex items-center gap-1 rounded-md border border-brand-200 bg-brand-50 px-2 py-1 text-xs font-medium text-brand-700 transition-colors hover:border-brand-300 hover:bg-brand-100 cursor-pointer';
+
+function alignCollectionToVizNames(c: CollectionItem, vizNames: string[]): CollectionItem {
+  if (c.data.type !== 'stac_browser' || vizNames.length === 0) return c;
+  const data = c.data;
+  const byName = new Map(data.visualizations.map((v) => [v.name, v]));
+  const visualizations: NamedVizParams[] = vizNames.map(
+    (name) => byName.get(name) ?? { name, vizParams: emptyVizParams() }
+  );
+  let coverVisualizations = data.coverVisualizations;
+  if (coverVisualizations) {
+    const coverByName = new Map(coverVisualizations.map((v) => [v.name, v]));
+    coverVisualizations = vizNames.map(
+      (name) =>
+        coverByName.get(name) ?? { name, vizParams: { ...emptyVizParams(), compositing: 'first' } }
+    );
+  }
+  const vizUrls = vizNames.map(
+    (name) => data.vizUrls.find((u) => u.vizName === name) ?? { vizName: name, url: '' }
+  );
+  return { ...c, data: { ...data, visualizations, coverVisualizations, vizUrls } };
+}
+
+/**
+ * How much of this source is actually registered, and the way to re-run its
+ * searches. Registration happens per campaign but succeeds per source, so a
+ * source with no tiles is invisible in the campaign-wide status.
+ */
+function SourceRegistration({
+  controller,
+  source,
+}: {
+  controller: ImageryController;
+  source: ImagerySource;
+}) {
+  const { t } = useTranslation('imagery');
+  const registration = sourceRegistration(source, controller.campaignId);
+  if (!registration) return null;
+
+  const { registered, total, percent, complete } = registration;
+
+  return (
+    <div className="space-y-1" data-testid="source-registration">
+      <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
+        {t('sourceEditor.registration')}
+        <Tooltip text={t('sourceEditor.registrationTooltip')} />
+      </label>
+      <div className="flex items-center gap-3">
+        <span className={`text-[11px] ${complete ? 'text-green-700' : 'text-amber-600'}`}>
+          {t('sourceEditor.registered', { registered, total, percent })}
+        </span>
+        {source.refreshable && (
+          <button
+            type="button"
+            onClick={() => void controller.refreshSource(source.id)}
+            disabled={controller.pending}
+            data-testid="re-register-source"
+            className="text-xs text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {controller.pending ? t('sourceEditor.working') : t('sourceEditor.reregister')}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps) => {
+  const { t } = useTranslation(['imagery', 'common']);
+  const [editingCollectionId, setEditingCollectionId] = useState<string | null>(null);
+  const [addStep, setAddStep] = useState<AddCollectionStep>(null);
+  const [bulkFocus, setBulkFocus] = useState<BulkFocus | null>(null);
+  const [generationStep, setGenerationStep] = useState<'warning' | 'editing' | null>(null);
+  const [generationTargetId, setGenerationTargetId] = useState<string | null>(null);
+  const [preserveOtherCollections, setPreserveOtherCollections] = useState(true);
+
+  const vizNames = source.visualizations.map((v) => v.name);
+  const hasStac = source.collections.some((c) => c.data.type === 'stac_browser');
+  // A manual collection URL using {api_key} means this source needs a server-side provider key.
+  const sourceNeedsApiKey = source.collections.some(
+    (c) =>
+      c.data.type === 'manual' &&
+      (c.data.vizUrls.some((u) => u.url.includes('{api_key}')) ||
+        c.slices.some((sl) => sl.vizUrls?.some((u) => u.url.includes('{api_key}'))))
+  );
+  const updateSource = (patch: Partial<ImagerySource>) => controller.updateSource(source.id, patch);
+  const generationSeries = editableGenerationSeries(source);
+  const activeGenerationSeries = generationSeries.find(
+    (series) => series.id === generationTargetId
+  );
+
+  const handleRemoveSource = async () => {
+    if (controller.mode === 'persisted') {
+      const ok = await useLayoutStore.getState().showConfirmDialog({
+        title: t('sourceEditor.confirmDeleteTitle', { name: source.name || t('untitled') }),
+        description: t('sourceEditor.confirmDeleteDescription'),
+        confirmText: t('common:actions.delete'),
+        isDangerous: true,
+      });
+      if (!ok) return;
+    }
+    await controller.removeSource(source.id);
+    onClose();
+  };
+
+  const handleRemoveCollection = async (collection: CollectionItem) => {
+    if (controller.mode === 'persisted' && isRealId(collection.id)) {
+      const ok = await useLayoutStore.getState().showConfirmDialog({
+        title: t('sourceEditor.confirmDeleteCollectionTitle', {
+          name: collectionDisplayName(collection),
+        }),
+        description: t('sourceEditor.confirmDeleteCollectionDescription'),
+        confirmText: t('common:actions.delete'),
+        isDangerous: true,
+      });
+      if (!ok) return false;
+    }
+    await controller.removeCollection(source.id, collection.id);
+    return true;
+  };
+
+  const addManualCollection = () => {
+    const col = emptyManualCollection(vizNames);
+    void controller.addCollection(source.id, col);
+    setAddStep(null);
+    setEditingCollectionId(col.id);
+  };
+
+  const renameVisualization = (index: number, newName: string) => {
+    void updateSource(rewriteVisualization(source, index, newName));
+  };
+
+  const removeVisualization = (index: number) => {
+    void updateSource(rewriteVisualization(source, index, null));
+  };
+
+  const addCollectionsFromCatalog = async (result: CatalogBrowserResult) => {
+    const collections = result.collections.map((collection) =>
+      alignCollectionToVizNames(collection, vizNames)
+    );
+    await updateSource({
+      collections: [...source.collections, ...collections],
+      generationSeries: result.generationSeries
+        ? [...source.generationSeries, result.generationSeries]
+        : source.generationSeries,
+    });
+    setAddStep(null);
+  };
+
+  const openGenerationEditor = (series: EditableGenerationSeries) => {
+    setGenerationTargetId(series.id);
+    setPreserveOtherCollections(true);
+    setGenerationStep(series.otherCollections.length > 0 ? 'warning' : 'editing');
+  };
+
+  const replaceGeneratedSeries = async (
+    result: CatalogBrowserResult,
+    series: EditableGenerationSeries
+  ) => {
+    const generated = result.collections;
+    if (generated.length === 0) return;
+    // Visualizations added in the generator join the source's list.
+    const addedVizNames = [
+      ...new Set(
+        generated.flatMap((c) =>
+          c.data.type === 'stac_browser' ? c.data.visualizations.map((v) => v.name) : []
+        )
+      ),
+    ].filter((name) => name && !vizNames.includes(name));
+    const seriesVizNames = [...vizNames, ...addedVizNames];
+    const replacements = retainMatchingIds(
+      generated.map((collection) => alignCollectionToVizNames(collection, seriesVizNames)),
+      series.collections
+    );
+    const replacedIds = new Set(series.collections.map((c) => c.id));
+
+    let collections: CollectionItem[];
+    if (!preserveOtherCollections) {
+      collections = replacements;
+    } else {
+      collections = [];
+      let inserted = false;
+      for (const collection of source.collections) {
+        if (replacedIds.has(collection.id)) {
+          if (!inserted) {
+            collections.push(...replacements);
+            inserted = true;
+          }
+        } else {
+          collections.push(collection);
+        }
+      }
+      if (!inserted) collections.push(...replacements);
+    }
+
+    await updateSource({
+      ...(addedVizNames.length > 0 && {
+        visualizations: [...source.visualizations, ...addedVizNames.map((name) => ({ name }))],
+      }),
+      collections,
+      generationSeries: preserveOtherCollections
+        ? source.generationSeries.map((candidate) =>
+            candidate.id === series.id ? (result.generationSeries ?? candidate) : candidate
+          )
+        : [result.generationSeries ?? source.generationSeries.find((s) => s.id === series.id)!],
+    });
+    setGenerationStep(null);
+    setGenerationTargetId(null);
+  };
+
+  if (bulkFocus) {
+    return (
+      <BulkApplyModal
+        source={source}
+        controller={controller}
+        focus={bulkFocus}
+        onClose={() => setBulkFocus(null)}
+      />
+    );
+  }
+
+  if (addStep?.kind === 'catalog') {
+    return (
+      <CatalogBrowser
+        projectId={controller.projectId}
+        preset={addStep.preset}
+        campaignBbox={controller.campaignBbox}
+        initialAdvanced={controller.mode === 'persisted'}
+        allowPrivateCatalogs={controller.allowsPrivateCatalogs}
+        onAdd={(result) => void addCollectionsFromCatalog(result)}
+        onClose={() => setAddStep(null)}
+      />
+    );
+  }
+
+  if (generationStep === 'editing' && activeGenerationSeries) {
+    return (
+      <CatalogBrowser
+        projectId={controller.projectId}
+        campaignBbox={controller.campaignBbox}
+        initialAdvanced={controller.mode === 'persisted'}
+        initialGeneration={activeGenerationSeries.config}
+        privateCatalog={activeGenerationSeries.privateCatalog}
+        generationSeriesId={activeGenerationSeries.id}
+        onAdd={(result) => void replaceGeneratedSeries(result, activeGenerationSeries)}
+        onClose={() => setGenerationStep(null)}
+      />
+    );
+  }
+
+  if (generationStep === 'warning' && activeGenerationSeries) {
+    const count = activeGenerationSeries.otherCollections.length;
+    return (
+      <Modal
+        title={t('sourceEditor.outsideSeries.title')}
+        onClose={() => setGenerationStep(null)}
+        maxWidth="max-w-lg"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setGenerationStep(null)}>
+              {t('common:actions.cancel')}
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => setGenerationStep('editing')}>
+              {t('sourceEditor.outsideSeries.continue')}
+            </Button>
+          </div>
+        }
+      >
+        <div className="p-4 space-y-3 text-sm text-neutral-700">
+          <p>{t('sourceEditor.outsideSeries.description', { count })}</p>
+          <label className="flex items-start gap-2 rounded-md border border-brand-200 bg-brand-50/40 p-3 cursor-pointer">
+            <input
+              type="radio"
+              name="non-generated-collections"
+              checked={preserveOtherCollections}
+              onChange={() => setPreserveOtherCollections(true)}
+              className="mt-0.5"
+            />
+            <span>
+              <strong className="block text-neutral-800">
+                {t('sourceEditor.outsideSeries.keep', { count })}
+              </strong>
+              <span className="text-xs text-neutral-500">
+                {t('sourceEditor.outsideSeries.keepHelp')}
+              </span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2 rounded-md border border-neutral-200 p-3 cursor-pointer">
+            <input
+              type="radio"
+              name="non-generated-collections"
+              checked={!preserveOtherCollections}
+              onChange={() => setPreserveOtherCollections(false)}
+              className="mt-0.5"
+            />
+            <span>
+              <strong className="block text-neutral-800">
+                {t('sourceEditor.outsideSeries.remove', { count })}
+              </strong>
+              <span className="text-xs text-neutral-500">
+                {t('sourceEditor.outsideSeries.removeHelp')}
+              </span>
+            </span>
+          </label>
+        </div>
+      </Modal>
+    );
+  }
+
+  if (addStep?.kind === 'pick') {
+    return (
+      <Modal title={t('sourceEditor.addCollection.title')} onClose={() => setAddStep(null)}>
+        <div className="p-3 space-y-1.5">
+          <p className="text-[11px] text-neutral-400 uppercase tracking-wider font-semibold px-1 pt-0.5 pb-1">
+            {t('sourceEditor.addCollection.fromStac')}
+          </p>
+          {MPC_PRESETS.map((preset) => (
+            <button
+              key={preset.stacCollectionId}
+              type="button"
+              onClick={() => setAddStep({ kind: 'catalog', preset })}
+              className="w-full text-left px-3 py-2 rounded-md hover:bg-brand-50/30 cursor-pointer transition-colors"
+            >
+              <span className="text-sm text-neutral-800">{preset.label}</span>
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setAddStep({ kind: 'catalog', preset: null })}
+            className="w-full text-left px-3 py-2 rounded-md hover:bg-brand-50/30 cursor-pointer transition-colors"
+          >
+            <span className="text-sm text-neutral-800">
+              {t('sourceEditor.addCollection.otherStac')}
+            </span>
+          </button>
+          <div className="border-t border-neutral-100 my-1.5" />
+          <p className="text-[11px] text-neutral-400 uppercase tracking-wider font-semibold px-1 pt-0.5 pb-1">
+            {t('sourceEditor.addCollection.manual')}
+          </p>
+          <button
+            type="button"
+            onClick={addManualCollection}
+            className="w-full text-left px-3 py-2 rounded-md hover:bg-neutral-50 cursor-pointer transition-colors"
+          >
+            <span className="text-sm text-neutral-800">{t('sourceEditor.addCollection.xyz')}</span>
+            <p className="text-[11px] text-neutral-500 mt-0.5">
+              {t('sourceEditor.addCollection.xyzHelp', { placeholders: '{z}/{x}/{y}' })}
+            </p>
+          </button>
+        </div>
+      </Modal>
+    );
+  }
+
+  const editingCollection = editingCollectionId
+    ? source.collections.find((c) => c.id === editingCollectionId)
+    : null;
+  if (editingCollection) {
+    const closeCollection = () => setEditingCollectionId(null);
+    return (
+      <Modal
+        title={t('sourceEditor.editCollection')}
+        onClose={closeCollection}
+        maxWidth="max-w-xl"
+        footer={
+          <div className="flex items-center justify-between">
+            <Button variant="primary" size="sm" onClick={closeCollection}>
+              {t('sourceEditor.done')}
+            </Button>
+          </div>
+        }
+      >
+        <CollectionEditor
+          collection={editingCollection}
+          projectId={controller.projectId}
+          vizNames={vizNames}
+          onChange={(updates) =>
+            controller.updateCollection(source.id, editingCollection.id, updates)
+          }
+          onRemove={() => {
+            void handleRemoveCollection(editingCollection).then((removed) => {
+              if (removed) closeCollection();
+            });
+          }}
+          inModal
+        />
+      </Modal>
+    );
+  }
+
+  return (
+    <Modal
+      title={t('sourceEditor.title')}
+      onClose={onClose}
+      maxWidth="max-w-xl"
+      footer={
+        <div className="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => void handleRemoveSource()}
+            className="text-xs text-red-500 hover:text-red-700 transition-colors cursor-pointer"
+          >
+            {t('sourceEditor.deleteSource')}
+          </button>
+          <div className="flex items-center gap-3">
+            <Button variant="primary" size="sm" onClick={onClose}>
+              {t('sourceEditor.done')}
+            </Button>
+          </div>
+        </div>
+      }
+    >
+      <div className="p-4 space-y-4">
+        <div className="space-y-1">
+          <label className="text-xs text-neutral-700 font-medium">{t('collection.name')}</label>
+          <Input
+            size="sm"
+            type="text"
+            value={source.name}
+            onChange={(e) => void updateSource({ name: e.target.value })}
+            placeholder={t('sourceEditor.namePlaceholder')}
+          />
+        </div>
+
+        <SourceRegistration controller={controller} source={source} />
+
+        <PrivateCatalogAccess source={source} controller={controller} />
+
+        {sourceNeedsApiKey && (
+          <ApiKeyField
+            projectId={controller.projectId}
+            configured={source.hasApiKey}
+            organizationApiKeyId={source.organizationApiKeyId}
+            apiKey={source.apiKey}
+            onChange={(choice) => void updateSource(choice)}
+          />
+        )}
+
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs text-neutral-700 flex items-center gap-1 shrink-0">
+              {t('sourceEditor.defaultZoom')}
+              <Tooltip text={t('sourceEditor.defaultZoomTooltip')} />
+            </label>
+            <Input
+              size="sm"
+              type="number"
+              min="1"
+              max="22"
+              value={source.defaultZoom}
+              onChange={(e) => void updateSource({ defaultZoom: Number(e.target.value) })}
+              className="!w-14 text-center"
+            />
+            {source.defaultZoom < 10 && (
+              <span className="text-[10px] text-amber-600">{t('sourceEditor.lowZoom')}</span>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs text-neutral-700 flex items-center gap-1 shrink-0">
+              {t('sourceEditor.maxNativeZoom')}
+              <Tooltip text={t('sourceEditor.maxNativeZoomTooltip')} />
+            </label>
+            <Input
+              size="sm"
+              type="number"
+              min="1"
+              max="22"
+              value={source.maxNativeZoom ?? ''}
+              onChange={(e) =>
+                void updateSource({
+                  maxNativeZoom: e.target.value ? Number(e.target.value) : null,
+                })
+              }
+              className="!w-14 text-center"
+            />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs text-neutral-700 shrink-0">
+              {t('sourceEditor.crosshair')}
+            </label>
+            <div className="relative">
+              <input
+                type="color"
+                value={`#${source.crosshairHex6}`}
+                onChange={(e) =>
+                  void updateSource({ crosshairHex6: e.target.value.replace('#', '') })
+                }
+                className="absolute opacity-0 w-5 h-5 cursor-pointer"
+                id={`crosshair-${source.id}`}
+              />
+              <label
+                htmlFor={`crosshair-${source.id}`}
+                className="w-5 h-5 rounded-full border-2 border-neutral-300 cursor-pointer block"
+                style={{ backgroundColor: `#${source.crosshairHex6}` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
+              {t('sourceEditor.vizOptions')}
+              <Tooltip text={t('sourceEditor.vizOptionsTooltip')} />
+            </label>
+            <button
+              type="button"
+              onClick={() =>
+                void updateSource({ visualizations: [...source.visualizations, { name: '' }] })
+              }
+              className="text-xs text-brand-700 hover:text-brand-800 transition-colors cursor-pointer"
+            >
+              {t('sourceEditor.addViz')}
+            </button>
+          </div>
+          {source.visualizations.map((viz, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <Input
+                size="sm"
+                type="text"
+                placeholder={t('vizTabs.namePlaceholder')}
+                value={viz.name}
+                onChange={(e) => renameVisualization(i, e.target.value)}
+                className="flex-1"
+              />
+              {hasStac && generationSeries.length === 0 && viz.name && (
+                <IconButton
+                  tone="brand"
+                  onClick={() => setBulkFocus({ kind: 'viz', name: viz.name })}
+                  title={t('sourceEditor.editVizAllTitle')}
+                  aria-label={t('sourceEditor.editVizAllAria', { name: viz.name })}
+                >
+                  <IconSettings className="w-3.5 h-3.5" />
+                </IconButton>
+              )}
+              <button
+                type="button"
+                onClick={() =>
+                  void updateSource({ visualizations: swap(source.visualizations, i, i - 1) })
+                }
+                disabled={i === 0}
+                className="text-neutral-400 hover:text-neutral-600 disabled:opacity-30 cursor-pointer disabled:cursor-default p-0.5"
+                title={t('sourceEditor.moveUp')}
+              >
+                <IconChevronUp className="w-3 h-3" />
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  void updateSource({ visualizations: swap(source.visualizations, i, i + 1) })
+                }
+                disabled={i === source.visualizations.length - 1}
+                className="text-neutral-400 hover:text-neutral-600 disabled:opacity-30 cursor-pointer disabled:cursor-default p-0.5"
+                title={t('sourceEditor.moveDown')}
+              >
+                <IconChevronDown className="w-3 h-3" />
+              </button>
+              {source.visualizations.length > 1 && (
+                <IconButton
+                  tone="danger"
+                  onClick={() => removeVisualization(i)}
+                  aria-label={t('sourceEditor.removeViz')}
+                >
+                  <IconTrash className="w-3 h-3" />
+                </IconButton>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <h4 className="text-xs font-medium text-neutral-700 flex items-center gap-1">
+              {t('sourceEditor.collections')}
+              <Tooltip text={t('sourceEditor.collectionsTooltip')} />
+            </h4>
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
+              {generationSeries.map((series) => (
+                <button
+                  key={series.id}
+                  type="button"
+                  onClick={() => openGenerationEditor(series)}
+                  title={t('sourceEditor.editSeriesTitle', { name: series.config.collectionTitle })}
+                  className={allCollectionsAction}
+                >
+                  <IconSliders className="w-3 h-3" />
+                  {generationSeries.length > 1
+                    ? t('sourceEditor.editSeriesNamed', { name: series.config.collectionTitle })
+                    : t('sourceEditor.editSeries')}
+                </button>
+              ))}
+              {hasStac && generationSeries.length === 0 && (
+                <button
+                  type="button"
+                  onClick={() => setBulkFocus({ kind: 'search' })}
+                  className={allCollectionsAction}
+                >
+                  <IconSliders className="w-3 h-3" />
+                  {t('bulk.searchTitle')}
+                </button>
+              )}
+            </div>
+          </div>
+          {(generationSeries.length > 0 || hasStac) && source.collections.length > 1 && (
+            <p className="text-[11px] text-neutral-500">{t('sourceEditor.collectionsHint')}</p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setAddStep({ kind: 'pick' })}
+              className="flex items-center justify-center rounded-lg border-2 border-dashed border-neutral-300 hover:border-brand-400 hover:bg-brand-50/30 transition-all cursor-pointer px-4 py-2.5 shrink-0"
+            >
+              <IconPlus className="w-4 h-4 text-neutral-400" />
+            </button>
+
+            {source.collections.map((c) => (
+              <div
+                key={c.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => setEditingCollectionId(c.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setEditingCollectionId(c.id);
+                  }
+                }}
+                className="group relative flex items-center justify-center rounded-lg border-2 transition-all cursor-pointer px-3 py-2.5 pr-7 shrink-0 border-neutral-200 bg-white text-neutral-800 hover:border-brand-400 hover:bg-brand-700/5"
+              >
+                <IconSettings className="w-3 h-3 mr-1.5 shrink-0 transition-opacity opacity-0 group-hover:opacity-100 text-brand-600" />
+                <span className="text-xs font-medium leading-tight truncate max-w-[120px]">
+                  {collectionDisplayName(c)}
+                </span>
+                {c.slices.length > 1 && (
+                  <span className="ml-1 text-[9px] shrink-0 flex items-center gap-0.5 text-neutral-400">
+                    <IconClock className="w-2.5 h-2.5" />
+                    {c.slices.length}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void handleRemoveCollection(c);
+                  }}
+                  title={t('sourceEditor.deleteCollectionTitle', {
+                    name: collectionDisplayName(c),
+                  })}
+                  aria-label={t('sourceEditor.deleteCollectionAria', {
+                    name: collectionDisplayName(c),
+                  })}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-red-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                >
+                  <IconTrash className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+};

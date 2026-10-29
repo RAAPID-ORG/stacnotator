@@ -45,10 +45,7 @@
     "countHere": "{{n}} here",
     "show": "Show {{name}}",
     "hide": "Hide {{name}}",
-    "loadFailed": "Failed to load annotation distribution",
-    "pending": "Pending",
-    "skipped": "Skipped",
-    "taskHeading": "Annotation Distribution ({{total}} total)"
+    "loadFailed": "Failed to load annotation distribution"
   },
   "userFilter": {
     "label": "Filter by User:",
@@ -59,15 +56,17 @@
     "noUsers": "No users found"
   },
   "export": {
-    "failedAs": "Failed to export annotations as {{format}}",
-    "succeeded": "Annotations exported as {{format}}",
-    "failed": "Failed to export annotations",
+    "title": "Export annotations",
+    "label": "Export",
     "exporting": "Exporting…",
-    "button": "Export",
-    "mergeDisabledTitle": "Disabled: this campaign has conflicting tasks. Resolve them in review mode before merging on agreement.",
-    "mergeOnAgreement": "Merge on agreement",
+    "failedAs": "Failed to export annotations as {{format}}",
+    "done": "Annotations exported as {{format}}",
+    "failed": "Failed to export annotations",
+    "merge": "Merge on agreement",
+    "mergeDisabledTip": "Disabled: this campaign has conflicting tasks. Resolve them in review mode before merging on agreement.",
     "mergeDisabled": "Disabled - resolve conflicting tasks first.",
-    "mergeHint": "Collapse multi-annotator tasks into one row when all annotators agree.",
+    "mergeHint": "Collapse multi-annotator tasks into one row when all agree.",
+    "geojsonHint": "FeatureCollection (.geojson)",
     "csvHint": "Tabular export (.csv)"
   },
   "statistics": {
@@ -140,12 +139,13 @@
     "footerMatching": "Matching:",
     "footerWithConfidence": "With Confidence:",
     "deleteFailed": "Failed to delete annotations",
-    "deleted": "Deleted {{count}} annotation(s)",
+    "deleted_one": "Deleted {{count}} annotation",
+    "deleted_other": "Deleted {{count}} annotations",
     "confirmDeleteTitle": "Delete selected annotations?",
-    "confirmDeleteDescription": "This will permanently delete {{count}} annotation(s). This action cannot be undone."
+    "confirmDeleteDescription_one": "This will permanently delete {{count}} annotation. This action cannot be undone.",
+    "confirmDeleteDescription_other": "This will permanently delete {{count}} annotations. This action cannot be undone."
   },
   "tasks": {
-    "subtitle": "View and filter all annotation tasks for this campaign.",
     "filterAndSort": "Filter and sort",
     "showingOf": "Showing {{shown}} of {{total}} tasks",
     "counts": {
@@ -205,11 +205,15 @@
     "annotate": "Annotate",
     "pageRange": "Showing {{from}} to {{to}} of {{total}}",
     "confirmDeleteTitle": "Delete selected tasks?",
-    "confirmDeleteWithAnnotations": "This will permanently delete {{count}} selected task(s). Their annotations are deleted with them. This action cannot be undone.",
-    "confirmDeleteKeepAnnotations": "This will permanently delete {{count}} selected task(s). Their annotations are kept, no longer linked to a task. This action cannot be undone.",
-    "alsoDeleteAnnotations": "Also delete their {{count}} annotation(s)",
+    "confirmDeleteWithAnnotations_one": "This will permanently delete {{count}} selected task. Their annotations are deleted with them. This action cannot be undone.",
+    "confirmDeleteWithAnnotations_other": "This will permanently delete {{count}} selected tasks. Their annotations are deleted with them. This action cannot be undone.",
+    "confirmDeleteKeepAnnotations_one": "This will permanently delete {{count}} selected task. Their annotations are kept, no longer linked to a task. This action cannot be undone.",
+    "confirmDeleteKeepAnnotations_other": "This will permanently delete {{count}} selected tasks. Their annotations are kept, no longer linked to a task. This action cannot be undone.",
+    "alsoDeleteAnnotations_one": "Also delete their {{count}} annotation",
+    "alsoDeleteAnnotations_other": "Also delete their {{count}} annotations",
     "confirmUnassignTitle": "Unassign selected tasks?",
-    "confirmUnassignDescription": "This will remove all user assignments from {{count}} selected task(s). Annotations already submitted are preserved. This action cannot be undone.",
+    "confirmUnassignDescription_one": "This will remove all user assignments from {{count}} selected task. Annotations already submitted are preserved. This action cannot be undone.",
+    "confirmUnassignDescription_other": "This will remove all user assignments from {{count}} selected tasks. Annotations already submitted are preserved. This action cannot be undone.",
     "unassign": "Unassign"
   }
 }

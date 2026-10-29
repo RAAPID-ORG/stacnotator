@@ -6,7 +6,10 @@ from uuid import uuid4
 
 from geoalchemy2.elements import WKTElement
 
-from src.annotation.schemas import AnnotationTaskOut, compute_task_status_value
+from src.tasks.schemas import TaskOut
+from src.tasks.status import (
+    compute_task_status_value,
+)
 
 
 def _make_assignment(user_id):
@@ -24,10 +27,10 @@ def _make_annotation(user_id, label_id, is_authoritative=False):
 
 
 def _make_task(assignments, annotations, task_id=1):
-    """Validate an AnnotationTaskOut from ORM-shaped fakes built out of the
+    """Validate an TaskOut from ORM-shaped fakes built out of the
     same assignment/annotation dicts used to call compute_task_status_value
     directly (see TestComputeTaskStatusValue), so both paths run on
-    identical inputs. AnnotationTaskOut is only ever validated from real ORM
+    identical inputs. TaskOut is only ever validated from real ORM
     rows in production, hence the attribute-bearing SimpleNamespace wrapper."""
     assignment_rows = [SimpleNamespace(is_review=False, **a) for a in assignments]
     annotation_rows = [
@@ -55,7 +58,7 @@ def _make_task(assignments, annotations, task_id=1):
         id=task_id,
         annotation_number=1,
         task_set_id=1,
-        geometry=SimpleNamespace(id=1, geometry=WKTElement("POINT(0 0)", srid=4326)),
+        geometry=WKTElement("POINT(0 0)", srid=4326),
         assignments=assignment_rows,
         annotations=annotation_rows,
         has_embedding=False,
@@ -63,7 +66,7 @@ def _make_task(assignments, annotations, task_id=1):
         claimed_at=None,
         claimed_by=None,
     )
-    return AnnotationTaskOut.model_validate(fake_task)
+    return TaskOut.model_validate(fake_task)
 
 
 class TestTaskStatusComputation:
@@ -243,7 +246,7 @@ class TestComputeTaskStatusValue:
     """The pure helper used by the CSV/GeoJSON export must match the schema path.
 
     The export computes status from in-memory data via ``compute_task_status_value``
-    instead of ``AnnotationTaskOut.model_validate`` (which lazy-loads relationships
+    instead of ``TaskOut.model_validate`` (which lazy-loads relationships
     per task/annotation). These assert the helper produces identical statuses.
     """
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { AnnotationOut, AnnotationTaskAssignmentOut } from '~/api/client';
+import type { AnnotationOut, TaskAssignmentOut } from '~/api/client';
 import { reviewRows } from './tasks';
 
 const annotation = (over: Partial<AnnotationOut>): AnnotationOut =>
@@ -11,8 +11,8 @@ const annotation = (over: Partial<AnnotationOut>): AnnotationOut =>
     ...over,
   }) as AnnotationOut;
 
-const assignment = (over: Partial<AnnotationTaskAssignmentOut>): AnnotationTaskAssignmentOut =>
-  ({ user_id: 'u1', status: 'pending', ...over }) as AnnotationTaskAssignmentOut;
+const assignment = (over: Partial<TaskAssignmentOut>): TaskAssignmentOut =>
+  ({ user_id: 'u1', status: 'pending', ...over }) as TaskAssignmentOut;
 
 describe('reviewRows', () => {
   it('pairs an annotation with its matching assignment by user id', () => {

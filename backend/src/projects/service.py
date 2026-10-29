@@ -3,32 +3,26 @@ from uuid import UUID
 from fastapi import HTTPException
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy.orm.attributes import flag_modified
 
-from src.annotation.geometries import delete_orphan_geometries
 from src.auth.constants import AGENT_ISSUER
 from src.auth.models import User
 from src.campaigns.models import Campaign
 from src.campaigns.policy import strip_anyone_kind
 from src.campaigns.schemas import CampaignListItemOut, LabellingPolicy
+from src.campaigns.service import delete_campaigns
 from src.organizations.models import (
-    MEMBER_STATUS_ACTIVE,
     ORG_STATUS_APPROVED,
     Organization,
-    OrganizationUser,
 )
 from src.organizations.service import (
     invite_emails,
     is_active_org_member,
-    normalize_emails,
+    split_by_account,
 )
-from src.projects.access import (
-    VISIBILITY_PUBLIC,
-    is_policy_member,
-    resolve_project_flags,
-)
+from src.projects.access import VISIBILITY_PUBLIC, ProjectFlags
 from src.projects.models import Project, ProjectUser
 from src.projects.schemas import ProjectOut, ProjectTilersOut, TilerOption
+from src.projects.viewer import ViewerStanding, project_flags
 from src.tilers import registry
 
 
@@ -53,7 +47,7 @@ def create_project(
     org = db.get(Organization, organization_id)
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
-    if not user.is_admin:
+    if not user.is_platform_admin:
         if org.status != ORG_STATUS_APPROVED:
             raise HTTPException(status_code=403, detail="Organization is not approved yet")
         if not is_active_org_member(db, user.id, organization_id):
@@ -81,110 +75,51 @@ def create_project(
     return project
 
 
+def _project_out(project: Project, flags: ProjectFlags, campaign_count: int) -> ProjectOut:
+    return ProjectOut.model_validate(project).model_copy(
+        update={
+            "is_admin": flags.is_admin,
+            "is_member": flags.is_member,
+            "has_access": flags.has_access,
+            "campaign_count": campaign_count,
+        }
+    )
+
+
 def list_projects_for_user(db: Session, user: User) -> list[ProjectOut]:
     projects = db.scalars(select(Project).order_by(Project.created_at.desc())).all()
-    memberships = {
-        pu.project_id: pu
-        for pu in db.scalars(select(ProjectUser).where(ProjectUser.user_id == user.id))
-    }
-    org_ids = set(
-        db.scalars(
-            select(OrganizationUser.organization_id)
-            .join(Organization, Organization.id == OrganizationUser.organization_id)
-            .where(
-                OrganizationUser.user_id == user.id,
-                OrganizationUser.status == MEMBER_STATUS_ACTIVE,
-                Organization.status == ORG_STATUS_APPROVED,
-            )
-        )
-    )
     rows = db.execute(select(Campaign.project_id, func.count()).group_by(Campaign.project_id)).all()
-    counts: dict = {row[0]: row[1] for row in rows}
-    viewer_is_platform_admin = user.is_admin
-
-    items: list[ProjectOut] = []
-    for project in projects:
-        membership = memberships.get(project.id)
-        flags = resolve_project_flags(
-            visibility=project.visibility,
-            is_active_org_member=project.organization_id in org_ids,
-            is_member=membership is not None,
-            member_is_admin=membership.is_admin if membership else False,
-            is_platform_admin=viewer_is_platform_admin,
-        )
-        if not flags.visible:
-            continue
-        out = ProjectOut.model_validate(project)
-        out.is_admin = flags.is_admin
-        out.is_member = flags.is_member
-        out.has_access = flags.has_access
-        out.campaign_count = counts.get(project.id, 0)
-        items.append(out)
-    return items
+    counts: dict[int, int] = {project_id: count for project_id, count in rows}
+    return [
+        _project_out(project, flags, counts.get(project.id, 0))
+        for project, flags in ViewerStanding(db, user).visible(projects)
+    ]
 
 
 def list_project_campaigns(db: Session, project: Project, user: User) -> list[CampaignListItemOut]:
-    membership = db.get(ProjectUser, (user.id, project.id))
-    is_member = is_policy_member(
-        visibility=project.visibility,
-        is_active_org_member=is_active_org_member(db, user.id, project.organization_id),
-        is_member=membership is not None,
-        is_platform_admin=user.is_admin,
-    )
-    is_admin = user.is_admin or (membership is not None and membership.is_admin)
+    flags = project_flags(db, user, project)
     campaigns = db.scalars(
         select(Campaign)
         .where(Campaign.project_id == project.id)
         .order_by(Campaign.created_at.desc())
     ).all()
-    return [
-        CampaignListItemOut(
-            id=c.id,
-            name=c.name,
-            created_at=c.created_at,
-            project_id=project.id,
-            is_admin=is_admin,
-            is_member=is_member,
-            is_public=project.visibility == VISIBILITY_PUBLIC,
-            registration_status=c.registration_status,
-            embedding_status=c.embedding_status,
-        )
-        for c in campaigns
-    ]
+    return [CampaignListItemOut.for_viewer(c, project, flags) for c in campaigns]
 
 
 def get_project_out(db: Session, project: Project, user: User) -> ProjectOut:
-    membership = db.get(ProjectUser, (user.id, project.id))
-    flags = resolve_project_flags(
-        visibility=project.visibility,
-        is_active_org_member=is_active_org_member(db, user.id, project.organization_id),
-        is_member=membership is not None,
-        member_is_admin=membership.is_admin if membership else False,
-        is_platform_admin=user.is_admin,
+    count = db.scalar(
+        select(func.count()).select_from(Campaign).where(Campaign.project_id == project.id)
     )
-    out = ProjectOut.model_validate(project)
-    out.is_admin = flags.is_admin
-    out.is_member = flags.is_member
-    out.has_access = flags.has_access
-    out.campaign_count = (
-        db.scalar(
-            select(func.count()).select_from(Campaign).where(Campaign.project_id == project.id)
-        )
-        or 0
-    )
-    return out
+    return _project_out(project, project_flags(db, user, project), count or 0)
 
 
 def _strip_anyone_from_campaign_policies(db: Session, project: Project) -> None:
     """Leaving platform-public visibility (for 'organization' or 'private')
     invalidates the 'anyone' audience on every campaign policy inside the
-    project - same invariant update_campaign_visibility enforced per campaign
-    before projects existed."""
+    project."""
     for campaign in project.campaigns:
-        if campaign.settings and campaign.settings.labelling_policy:
-            policy = LabellingPolicy.model_validate(campaign.settings.labelling_policy)
-            campaign.settings.labelling_policy = strip_anyone_kind(policy).model_dump(mode="json")
-            flag_modified(campaign.settings, "labelling_policy")
+        policy = LabellingPolicy.model_validate(campaign.labelling_policy)
+        campaign.labelling_policy = strip_anyone_kind(policy).model_dump(mode="json")
 
 
 def update_project(
@@ -211,14 +146,15 @@ def update_project(
 
 
 def delete_project(db: Session, project_id: int) -> None:
-    """Deletes the project and, via the database's own cascade, all its
-    campaigns and everything under them. Deleting the ORM object instead would
-    load every task and annotation into the session and delete them one
-    statement at a time. Annotation geometries have no campaign FK, so orphans
-    are swept explicitly."""
+    """Deletes the project's campaigns the way a single campaign is deleted, then
+    the project and, via the database's own cascade, everything else under it.
+    Deleting the ORM object instead would load every task and annotation into
+    the session and delete them one statement at a time."""
     _get_project(db, project_id)
+    delete_campaigns(
+        db, list(db.scalars(select(Campaign.id).where(Campaign.project_id == project_id)))
+    )
     db.execute(delete(Project).where(Project.id == project_id))
-    delete_orphan_geometries(db)
     db.commit()
 
 
@@ -242,25 +178,8 @@ def add_users_by_email(
 ) -> tuple[list[User], list[str]]:
     """Add registered users (org-external allowed by design) as members;
     store invites for the rest so they join automatically at sign-up."""
-    normalized = normalize_emails(emails)
-    users = db.scalars(select(User).where(func.lower(User.email).in_(normalized))).all()
-    by_email = {u.email.lower(): u for u in users}
-    added: list[User] = []
-    for email in normalized:
-        found = by_email.get(email)
-        if found is None:
-            continue
-        if db.get(ProjectUser, (found.id, project_id)) is None:
-            db.add(
-                ProjectUser(
-                    user_id=found.id,
-                    project_id=project_id,
-                    is_admin=False,
-                    is_authoritative_reviewer=False,
-                )
-            )
-            added.append(found)
-    unknown = [e for e in normalized if e not in by_email]
+    users, unknown = split_by_account(db, emails)
+    added = _add_members(db, project_id, users)
     invited = invite_emails(db, unknown, invited_by=invited_by, project_id=project_id)
     db.commit()
     return added, invited
@@ -277,17 +196,23 @@ def add_users_by_ids(db: Session, project_id: int, user_ids: list[UUID]) -> None
             status_code=404,
             detail=f"Users not found with IDs: {', '.join(str(uid) for uid in missing)}",
         )
-    for user in users:
-        if db.get(ProjectUser, (user.id, project_id)) is None:
-            db.add(
-                ProjectUser(
-                    user_id=user.id,
-                    project_id=project_id,
-                    is_admin=False,
-                    is_authoritative_reviewer=False,
-                )
-            )
+    _add_members(db, project_id, list(users))
     db.commit()
+
+
+def _add_members(db: Session, project_id: int, users: list[User]) -> list[User]:
+    """Make ``users`` members; returns those who were not already."""
+    added = [u for u in users if db.get(ProjectUser, (u.id, project_id)) is None]
+    for user in added:
+        db.add(
+            ProjectUser(
+                user_id=user.id,
+                project_id=project_id,
+                is_admin=False,
+                is_authoritative_reviewer=False,
+            )
+        )
+    return added
 
 
 def _assert_not_last_project_admin(db: Session, project_id: int, user_id: UUID) -> None:

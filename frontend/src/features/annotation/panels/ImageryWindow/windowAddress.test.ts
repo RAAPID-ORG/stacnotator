@@ -5,15 +5,15 @@ import {
   makeCollection,
   makeSlice,
   makeSource,
-  makeTileUrl,
+  makeTile,
   makeViz,
 } from '../../testing/fixtures';
 import { windowAddress } from './ImageryWindow';
 
-const trueColor = makeTileUrl({ visualization_name: 'True Color' });
-const falseColor = makeTileUrl({ visualization_name: 'False Color' });
+const trueColor = makeTile({ visualization_id: 900 });
+const falseColor = makeTile({ visualization_id: 901 });
 
-const slices = (id: number) => [makeSlice({ id, tile_urls: [trueColor, falseColor] })];
+const slices = (id: number) => [makeSlice({ id, tiles: [trueColor, falseColor] })];
 
 const catalog = buildImageryCatalog(
   makeCampaign({

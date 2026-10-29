@@ -14,14 +14,14 @@ import type VectorTile from 'ol/VectorTile';
 import { unByKey } from 'ol/Observable';
 import { ensureTilerSession } from '~/api/tilerToken';
 import { authManager } from '~/features/auth/index';
-import { isProxiedTileUrl, isSelfHostedTiler } from '~/shared/imagery/tileUrls';
+import { tileAuth } from '~/shared/imagery/tileUrls';
 
 export type CrossOrigin = 'anonymous' | 'use-credentials';
 
 /** Credentialed for our self-hosted tilers and for our backend key-proxy URLs
  *  (both authenticate via the tiler cookie); anonymous for MPC and public. */
-export function crossOriginForTile(url: string, provider?: string | null): CrossOrigin {
-  return isProxiedTileUrl(url) || isSelfHostedTiler(provider) ? 'use-credentials' : 'anonymous';
+export function crossOriginForTile(url: string, tiler?: string | null): CrossOrigin {
+  return tileAuth(url, tiler) === 'cookie' ? 'use-credentials' : 'anonymous';
 }
 
 /** Only credentialed sources need the cookie; MPC and public tiles need nothing. */

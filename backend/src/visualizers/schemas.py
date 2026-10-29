@@ -4,7 +4,14 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from src.custom_layers.schemas import RenderConfig
-from src.imagery.schemas import BasemapCreate, BasemapOut, ImagerySourceCreate, ImagerySourceOut
+from src.imagery.schemas import (
+    BasemapCreate,
+    BasemapOut,
+    ImagerySourceCreate,
+    ImagerySourceOut,
+    SliceTileOut,
+    VisualizationOut,
+)
 from src.visualizers.models import FeedbackVerdict
 
 
@@ -72,19 +79,12 @@ class VisualizerListItemOut(BaseModel):
     feedback_count: int
 
 
-class VisualizerTileOut(BaseModel):
-    url: str
-    # "mpc", a hosted tiler name, or null for a direct XYZ template. Decides
-    # whether the browser must send its tiler cookie with the tile request.
-    provider: str | None
-
-
 class VisualizerStepOut(BaseModel):
     slice_id: int
     label: str
     start_date: str
     end_date: str
-    tiles: dict[str, VisualizerTileOut]
+    tiles: list[SliceTileOut]
 
 
 class VisualizerImageryOut(BaseModel):
@@ -96,7 +96,7 @@ class VisualizerImageryOut(BaseModel):
     # and the viewer has no reason to care which it is looking at.
     tile_proxy_base: str
     name: str
-    visualizations: list[str]
+    visualizations: list[VisualizationOut]
     default_zoom: int
     max_native_zoom: int | None
     has_api_key: bool
@@ -160,8 +160,11 @@ class VisualizerViewOut(BaseModel):
     # Whether this viewer may leave feedback: signed in, on a published map.
     can_give_feedback: bool
     # Its own imagery's registration run, so the viewer can say why a source it
-    # lists has no dates yet rather than looking broken.
+    # lists has no dates yet rather than looking broken. Linked campaign imagery
+    # being registered again counts too.
     registration_status: str
+    # When the map should read its imagery again: its MPC tiles are about to expire.
+    imagery_renew_at: datetime | None = None
 
 
 class VisualizerConfigOut(BaseModel):
@@ -255,6 +258,7 @@ class VisualizerFeedbackOut(BaseModel):
     area: VisualizerArea
     layer_name: str | None
     verdict: FeedbackVerdict | None
+    suggested_value: int | None
     suggested_label: str | None
     note: str | None
     viewing: str | None

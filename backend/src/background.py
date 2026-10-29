@@ -13,11 +13,16 @@ shown when a dead run is swept) and drives it with:
 
 - ``begin_status_run``: status = "registering" plus a fresh heartbeat, in the
   caller's transaction, committed before the spawn.
-- ``spawn_status_run``: executes the work on a daemon thread with its own
-  session, refreshes the heartbeat while the work runs, and flips the status
-  to ready/failed via ``finish_status_run`` when it completes.
+- ``run_status_run``: executes the work with its own session, refreshes the
+  heartbeat while it runs, and flips the status to ready/failed via
+  ``finish_status_run`` when it completes; ``spawn_status_run`` does that on a
+  daemon thread.
+- ``claim_pending_runs``: a run left owed ("pending", by a migration that dropped
+  what the run makes) is claimed by exactly one booting worker, which starts it.
 - ``fail_stale_status_runs``: the recovery sweep - a run still "registering"
   whose heartbeat stopped belongs to a dead worker and is flipped to "failed".
+- ``requeue_stale_runs``: the boot-time sweep for a run that can simply start
+  again - it goes back to "pending" for the worker to claim instead.
   Liveness is judged by the absence of writes, so recovery needs no
   cooperation from the dead process; a run wrongly flipped during a long DB
   outage self-corrects when its finish_status_run overwrites the status.
@@ -171,57 +176,124 @@ def spawn_status_run(
     work: Callable[[Session], list[dict] | None],
     sanitize_error: Callable[[Exception], str],
 ) -> None:
-    """Run ``work`` on a daemon thread with its own session and heartbeat.
+    """``run_status_run`` on a daemon thread. The caller must have committed
+    begin_status_run first."""
+    threading.Thread(
+        target=run_status_run,
+        args=(row_id, field),
+        kwargs={"name": name, "work": work, "sanitize_error": sanitize_error},
+        daemon=True,
+    ).start()
 
-    The caller must have committed begin_status_run first. ``work`` returns a
-    list of error dicts for partial failures (empty/None = success) and raises
-    for a total failure; either way the status column ends at ready/failed via
-    finish_status_run. ``sanitize_error`` turns a raised exception into the
-    user-facing registration_errors message.
+
+def run_status_run(
+    row_id: int,
+    field: StatusField,
+    *,
+    name: str,
+    work: Callable[[Session], list[dict] | None],
+    sanitize_error: Callable[[Exception], str],
+) -> None:
+    """Run ``work`` with its own session and heartbeat, then record how it ended.
+
+    ``work`` returns a list of error dicts for partial failures (empty/None =
+    success) and raises for a total failure; either way the status column ends
+    at ready/failed via finish_status_run. ``sanitize_error`` turns a raised
+    exception into the user-facing registration_errors message.
     """
-
-    def _run() -> None:
-        db = SessionLocal()
+    db = SessionLocal()
+    try:
+        logger.info("Background %s started for %s %d", name, field.table, row_id)
+        with heartbeat(row_id, field):
+            errors = work(db) or []
+        finish_status_run(
+            db,
+            row_id,
+            field=field,
+            status="failed" if errors else "ready",
+            errors=errors,
+        )
+        db.commit()
+        if errors:
+            logger.warning(
+                "Background %s for %s %d finished with %d errors",
+                name,
+                field.table,
+                row_id,
+                len(errors),
+            )
+        else:
+            logger.info("Background %s completed for %s %d", name, field.table, row_id)
+    except Exception as exc:
+        logger.exception("Background %s failed for %s %d", name, field.table, row_id)
+        db.rollback()
         try:
-            logger.info("Background %s started for %s %d", name, field.table, row_id)
-            with heartbeat(row_id, field):
-                errors = work(db) or []
             finish_status_run(
                 db,
                 row_id,
                 field=field,
-                status="failed" if errors else "ready",
-                errors=errors,
+                status="failed",
+                errors=[{"error": sanitize_error(exc)}],
             )
             db.commit()
-            if errors:
-                logger.warning(
-                    "Background %s for %s %d finished with %d errors",
-                    name,
-                    field.table,
-                    row_id,
-                    len(errors),
-                )
-            else:
-                logger.info("Background %s completed for %s %d", name, field.table, row_id)
-        except Exception as exc:
-            logger.exception("Background %s failed for %s %d", name, field.table, row_id)
-            db.rollback()
-            try:
-                finish_status_run(
-                    db,
-                    row_id,
-                    field=field,
-                    status="failed",
-                    errors=[{"error": sanitize_error(exc)}],
-                )
-                db.commit()
-            except Exception:
-                logger.warning("Failed to persist %s failure status", name, exc_info=True)
-        finally:
-            db.close()
+        except Exception:
+            logger.warning("Failed to persist %s failure status", name, exc_info=True)
+    finally:
+        db.close()
 
-    threading.Thread(target=_run, daemon=True).start()
+
+def claim_pending_runs(db: Session, field: StatusField) -> list[int]:
+    """Move every "pending" run to "registering" with a fresh heartbeat and return
+    their ids, for the caller to commit and then spawn. The status guard is inside
+    the UPDATE, so of several workers booting at once each run goes to one."""
+    return list(
+        db.execute(
+            text(
+                f"UPDATE {field.table} "
+                f"SET {field.status_column} = 'registering', "
+                f"    {field.heartbeat_column} = now(), "
+                f"    {field.errors_column} = NULL "
+                f"WHERE {field.status_column} = 'pending' RETURNING id"
+            )
+        ).scalars()
+    )
+
+
+def _stale(field: StatusField) -> str:
+    return (
+        f"{field.status_column} = 'registering' "
+        f"AND ({field.heartbeat_column} IS NULL "
+        f"     OR {field.heartbeat_column} < now() - make_interval(secs => :stale))"
+    )
+
+
+def requeue_stale_runs(db: Session, fields: Iterable[StatusField]) -> int:
+    """Put dead runs back to "pending", for runs that only do what is still owed
+    (registering a missing search), so an interrupted one loses nothing by
+    starting over. Called at boot, before the pending runs are claimed; the
+    caller commits."""
+    requeued = 0
+    for field in fields:
+        swept = (
+            db.execute(
+                text(
+                    f"UPDATE {field.table} SET {field.status_column} = 'pending' "  # noqa: S608
+                    f"WHERE {_stale(field)} RETURNING id"
+                ),
+                {"stale": STALE_AFTER_SECONDS},
+            )
+            .scalars()
+            .all()
+        )
+        if swept:
+            logger.warning(
+                "Requeued interrupted %s run(s) for %s %s",
+                field.status_column,
+                field.table,
+                list(swept),
+            )
+        requeued += len(swept)
+    return requeued
 
 
 def fail_stale_status_runs(
@@ -241,9 +313,7 @@ def fail_stale_status_runs(
             f"SET {field.errors_column} = coalesce({field.errors_column}, '[]'::jsonb) "
             "        || cast(:interrupted AS jsonb), "
             f"    {field.status_column} = 'failed' "
-            f"WHERE {field.status_column} = 'registering' "
-            f"  AND ({field.heartbeat_column} IS NULL "
-            f"       OR {field.heartbeat_column} < now() - make_interval(secs => :stale))"
+            f"WHERE {_stale(field)}"
         )
         params: dict = {
             "interrupted": json.dumps([{"error": field.interrupted_error}]),

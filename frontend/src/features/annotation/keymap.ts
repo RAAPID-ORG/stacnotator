@@ -35,10 +35,10 @@ import { useImageryStore } from './stores/imagery';
 import { currentTask, useTasksStore } from './stores/tasks';
 import { useWorkStore, type Tool } from './stores/work';
 import {
-  advance,
-  skipCurrent,
+  finishDrawTask,
+  goToNextTask,
   submitAnnotation,
-  submitAuthoritative,
+  taskLabellingPolicy,
   DEFAULT_CONFIDENCE,
 } from './taskActions';
 
@@ -97,7 +97,7 @@ export function rememberLastAddress(addr: SliceAddress | null): void {
 export function resetNavMemory(): void {
   stopAutoNav();
   lastBySource = {};
-  resetDigitBuffer();
+  clearDigitBuffer();
 }
 
 // ---------------------------------------------------------------------------
@@ -113,13 +113,13 @@ function clearDigitBuffer(): void {
   digitBuffer = '';
 }
 
-export const resetDigitBuffer = clearDigitBuffer;
-
 function commitDigits(labels: LabelBase[]): void {
   const position = parseInt(digitBuffer, 10);
   clearDigitBuffer();
   const label = labels[position - 1];
-  if (!label) return;
+  // The label grid is disabled while a save is out; a pick made then would be
+  // dropped when the save moves on to the next task.
+  if (!label || useTasksStore.getState().isSubmitting) return;
   const work = useWorkStore.getState();
   work.setSelectedLabelId(work.selectedLabelId === label.id ? null : label.id);
   reveal(document.querySelector<HTMLElement>(`[data-task-labels] [data-label-id="${label.id}"]`));
@@ -397,7 +397,7 @@ function exploreBindings(): Binding[] {
     },
     {
       key: 'escape',
-      help: (campaign.settings.form_fields ?? []).some((f) => f.required)
+      help: campaign.settings.form_fields.some((f) => f.required)
         ? t('keymap.closeDraft')
         : t('keymap.closeQuestions'),
       when: draftIsOpen,
@@ -419,22 +419,37 @@ function adjustConfidence(delta: number): void {
   revealConfidence();
 }
 
+/** Stepping waits for a save in flight, which moves on by itself once it
+ *  lands - the same rule that disables the Prev and Next buttons. */
 function taskStepBindings(): Binding[] {
   const { catalog } = campaignState();
+  const idle = () => !useTasksStore.getState().isSubmitting;
   return [
     {
       key: 'w',
       help: t('keymap.previousTask'),
+      when: idle,
       run: () => useTasksStore.getState().previous(catalog),
     },
-    { key: 's', help: t('keymap.nextTask'), run: () => void advance() },
+    { key: 's', help: t('keymap.nextTask'), when: idle, run: () => void goToNextTask() },
   ];
 }
 
 /** A draw task is worked with Explore's drawing keys, plus stepping between
- *  tasks. Finishing one is the panel's Done button. */
+ *  tasks. Plain Enter already finishes a shape and saves its draft, so Done
+ *  takes Shift+Enter. */
 function drawTaskBindings(): Binding[] {
-  return [...exploreBindings(), ...taskStepBindings()];
+  return [
+    ...exploreBindings(),
+    ...taskStepBindings(),
+    {
+      key: 'shift+enter',
+      help: t('keymap.finishDrawTask'),
+      when: () =>
+        !useTasksStore.getState().isSubmitting && taskLabellingPolicy(currentTask()).mayLabel,
+      run: () => void finishDrawTask('drawn'),
+    },
+  ];
 }
 
 function taskBindings(): Binding[] {
@@ -765,5 +780,3 @@ export function pageKeymap(): Binding[] {
     ...tag(mapBindings(), 'map'),
   ];
 }
-
-export { skipCurrent, submitAnnotation, submitAuthoritative };

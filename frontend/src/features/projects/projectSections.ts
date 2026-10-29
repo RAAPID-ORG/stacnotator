@@ -1,4 +1,4 @@
-export const PROJECT_SECTIONS = ['campaigns', 'visualizers', 'members', 'settings'] as const;
+const PROJECT_SECTIONS = ['campaigns', 'visualizers', 'members', 'settings'] as const;
 export type ProjectSection = (typeof PROJECT_SECTIONS)[number];
 
 type ProjectAccess = { is_admin?: boolean | null; is_member?: boolean | null };

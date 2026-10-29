@@ -4,6 +4,7 @@ import {
   COLLECTION_S2,
   MOCK_CAMPAIGN,
   MOCK_CAMPAIGN_MULTI_SOURCE,
+  SOURCE,
 } from './fixtures/mock-data';
 import type { CanvasLayoutCreate, CanvasLayoutItem, ImageryViewOut } from '../src/api/client';
 
@@ -14,7 +15,9 @@ for (const admin of [false, true]) {
     await page.route('**/api/campaigns/*/detailed', (route) =>
       route.fulfill({ json: { ...MOCK_CAMPAIGN, viewer_is_admin: admin } })
     );
-    await page.route('**/api/*/new-layout', (route) => route.fulfill({ status: 201, json: {} }));
+    await page.route('**/api/campaigns/*/layouts', (route) =>
+      route.fulfill({ status: 201, json: {} })
+    );
     await page.reload();
     await page.getByTestId('edit-layout-trigger').click();
     const tray = page.getByTestId('hidden-tray');
@@ -89,7 +92,7 @@ for (const admin of [false, true]) {
     expect(menuBounds.y + menuBounds.height).toBeLessThan(saveBounds.y);
     expect(menuBounds.x).toBeGreaterThanOrEqual(0);
     expect(menuBounds.x + menuBounds.width).toBeLessThanOrEqual(800);
-    const saving = page.waitForResponse('**/api/*/new-layout');
+    const saving = page.waitForResponse('**/api/campaigns/*/layouts');
     await actions.getByTestId('save-personal').click();
     expect((await saving).request().postDataJSON().should_be_default).toBe(false);
     await expect(page.getByTestId('edit-layout-trigger')).toBeVisible();
@@ -116,7 +119,7 @@ test('desktop slice navigation follows campaign defaults and preserves a persona
       },
     })
   );
-  await page.route('**/api/*/new-layout', async (route) => {
+  await page.route('**/api/campaigns/*/layouts', async (route) => {
     saved = route.request().postDataJSON().layout;
     await route.fulfill({ status: 201, json: {} });
   });
@@ -127,7 +130,7 @@ test('desktop slice navigation follows campaign defaults and preserves a persona
   await expect(checkbox).toBeChecked();
   await checkbox.uncheck();
   await page.getByTestId('save-menu-trigger').click();
-  const saving = page.waitForResponse('**/api/*/new-layout');
+  const saving = page.waitForResponse('**/api/campaigns/*/layouts');
   await page.getByTestId('save-personal').click();
   await saving;
   expect(saved?.main_layout_data?.find((item) => item.i === 'main')?.slice_navigation).toBe(false);
@@ -140,8 +143,15 @@ test('desktop slice navigation follows campaign defaults and preserves a persona
 test('saving a new source shows an orange off-canvas warning before persisting', async ({
   annotationPage: page,
 }) => {
+  // Save validates every source, and the shared NDVI fixture leaves one of its
+  // visualizations without a URL, so keep only the collection that is complete.
+  const campaign = {
+    ...MOCK_CAMPAIGN,
+    viewer_is_admin: true,
+    imagery_sources: [{ ...SOURCE, collections: [COLLECTION_S2] }],
+  };
   await page.route(/\/api\/campaigns\/\d+(\/detailed)?(\?.*)?$/, (route) =>
-    route.fulfill({ json: { ...MOCK_CAMPAIGN, viewer_is_admin: true } })
+    route.fulfill({ json: campaign })
   );
   await page.route(/\/api\/campaigns\/\d+\/(custom-maps|vector-layers)(\?.*)?$/, (route) =>
     route.fulfill({ json: [] })
@@ -153,6 +163,10 @@ test('saving a new source shows an orange off-canvas warning before persisting',
   await page
     .getByPlaceholder('https://.../tiles/{z}/{x}/{y}', { exact: true })
     .fill('https://tiles.example.com/test/{z}/{x}/{y}.png');
+  const wizard = page.getByRole('dialog');
+  await wizard.getByPlaceholder('Slice 1', { exact: true }).fill('January');
+  await wizard.locator('input[type="date"]').nth(0).fill('2024-01-01');
+  await wizard.locator('input[type="date"]').nth(1).fill('2024-01-31');
   await page.getByRole('button', { name: 'Add source', exact: true }).click();
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await page.getByRole('button', { name: 'Save changes', exact: true }).click();
@@ -163,7 +177,7 @@ test('saving a new source shows an orange off-canvas warning before persisting',
   await page.getByRole('button', { name: 'Discard', exact: true }).click();
 });
 
-for (const mode of ['tasks', 'open']) {
+for (const mode of ['tasks', 'explore']) {
   test(`${mode}: source order saves on the view and selects the first source after reload`, async ({
     annotationPage: page,
   }) => {
@@ -173,13 +187,12 @@ for (const mode of ['tasks', 'open']) {
       route.fulfill({
         json: {
           ...MOCK_CAMPAIGN_MULTI_SOURCE,
-          mode,
           viewer_is_admin: true,
           imagery_views: [view, alternateView],
         },
       })
     );
-    await page.route('**/api/*/imagery/views/1', (route) => {
+    await page.route('**/api/campaigns/*/views/1', (route) => {
       const body: Pick<ImageryViewOut, 'source_ids'> = route.request().postDataJSON();
       view.source_ids = body.source_ids;
       return route.fulfill({ json: view });
@@ -187,7 +200,8 @@ for (const mode of ['tasks', 'open']) {
     await page.route(/\/api\/campaigns\/\d+\/(custom-maps|vector-layers)(\?.*)?$/, (route) =>
       route.fulfill({ json: [] })
     );
-    await page.reload();
+    const annotateUrl = `/projects/7/campaigns/42/annotate?mode=${mode}`;
+    await page.goto(annotateUrl);
     const activeLayer = page.locator('[data-tour="layer-selector"] button').first();
     await expect(activeLayer).toContainText('Sentinel-2');
     await page.getByTestId('edit-layout-trigger').click();
@@ -201,7 +215,7 @@ for (const mode of ['tasks', 'open']) {
     await page.getByRole('button', { name: view.name, exact: true }).click();
     await expect(firstSource).toContainText('Sentinel-2');
     await expect(sources.getByRole('button', { name: 'Move source Sentinel-2 up' })).toBeDisabled();
-    const saving = page.waitForResponse('**/api/*/imagery/views/1');
+    const saving = page.waitForResponse('**/api/campaigns/*/views/1');
     await sources
       .getByRole('button', {
         name: mode === 'tasks' ? 'Move source VHR up' : 'Move source Sentinel-2 down',
@@ -211,7 +225,7 @@ for (const mode of ['tasks', 'open']) {
     await expect(firstSource).toContainText('VHR');
     await expect(sources.getByRole('button', { name: 'Move source VHR up' })).toBeDisabled();
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
-    await page.reload();
+    await page.goto(annotateUrl);
     await expect(activeLayer).toContainText('VHR');
     await page.getByTestId('edit-layout-trigger').click();
     await expect(firstSource).toContainText('VHR');
@@ -249,7 +263,7 @@ test('work list follows settings in both task and explore modes', async ({
     'button[title="Campaign Settings"] + [data-testid="open-work-list"]'
   );
   await expect(workList).toHaveText('All tasks');
-  await page.getByRole('button', { name: 'Explore', exact: true }).click();
+  await page.getByRole('radio', { name: 'Explore', exact: true }).click();
   await expect(workList).toHaveText('All annotations');
 });
 
@@ -350,7 +364,7 @@ test('detach, resize, save and reload navigation panels with one-click imagery c
   annotationPage: page,
 }) => {
   let saved: CanvasLayoutCreate | undefined;
-  await page.route('**/api/*/new-layout', async (route) => {
+  await page.route('**/api/campaigns/*/layouts', async (route) => {
     saved = route.request().postDataJSON().layout;
     await route.fulfill({ status: 201, json: {} });
   });
@@ -444,7 +458,7 @@ test('detach, resize, save and reload navigation panels with one-click imagery c
   await imageryPanel.getByRole('button', { name: 'Expand Collections', exact: true }).click();
   await imageryPanel.getByRole('button', { name: 'Expand Dates', exact: true }).click();
   await page.getByTestId('save-menu-trigger').click();
-  const saving = page.waitForResponse('**/api/*/new-layout');
+  const saving = page.waitForResponse('**/api/campaigns/*/layouts');
   await page.getByTestId('save-personal').click();
   await saving;
   await expect(page.getByTestId('edit-layout-trigger')).toBeVisible();

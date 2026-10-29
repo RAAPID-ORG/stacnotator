@@ -13,7 +13,7 @@ interface LabelsEditorProps {
   value: LabelBase[];
   onChange: (labels: LabelBase[]) => void;
   readOnly?: boolean;
-  /** When true (open mode), show geometry type selector per label */
+  /** When true (Explore), show geometry type selector per label */
   showGeometryType?: boolean;
   /** Hide the per-row delete button. Used post-creation where removing a label
    *  would orphan existing annotations referencing it. */

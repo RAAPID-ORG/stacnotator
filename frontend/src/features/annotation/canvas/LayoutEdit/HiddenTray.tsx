@@ -41,7 +41,8 @@ function loadPanelGeometry(storageKey: string): PanelGeometry {
   } catch {
     // ignore malformed/absent value
   }
-  return { ...DEFAULT_PANEL_SIZE, offset: { dx: 0, dy: 0 } };
+  // Starts left of the right-hand column, whose window controls it would otherwise cover.
+  return { ...DEFAULT_PANEL_SIZE, offset: { dx: -Math.round(window.innerWidth * 0.3), dy: 0 } };
 }
 
 /** Keeps the panel reachable: it may leave its corner, but not the viewport. */

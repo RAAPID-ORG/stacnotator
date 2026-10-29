@@ -38,7 +38,7 @@ beforeEach(() => {
     account: {
       id: 'u-1',
       email: 'ada@example.org',
-      is_admin: false,
+      is_platform_admin: false,
       issuer: 'local',
       external_uid: 'u-1',
       terms_version: '1',
@@ -57,7 +57,7 @@ describe('AccountMenu', () => {
     'offers organization settings for platform admin=$platformAdmin and organization admin=$orgAdmin',
     async ({ platformAdmin, orgAdmin, canManage }) => {
       const account = useAccountStore.getState().account!;
-      useAccountStore.setState({ account: { ...account, is_admin: platformAdmin } });
+      useAccountStore.setState({ account: { ...account, is_platform_admin: platformAdmin } });
       vi.mocked(listOrganizations).mockResolvedValue(harvest(orgAdmin));
       const onNavigate = vi.fn();
       renderWithQuery(
@@ -84,7 +84,7 @@ describe('AccountMenu', () => {
 
   it('offers no organization settings when no organization is selected, even to a platform admin', async () => {
     const account = useAccountStore.getState().account!;
-    useAccountStore.setState({ account: { ...account, is_admin: true } });
+    useAccountStore.setState({ account: { ...account, is_platform_admin: true } });
     useOrgStore.setState({ activeOrgId: null });
     vi.mocked(listOrganizations).mockResolvedValue(apiSuccess({ items: [] }));
     renderWithQuery(

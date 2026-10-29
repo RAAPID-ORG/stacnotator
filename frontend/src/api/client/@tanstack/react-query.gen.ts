@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { acceptTerms, addOrganizationUsers, addProjectUsers, addProjectUsersByIds, addVisualizerFeedback, annotateAgentTask, approveOrganization, approveOrganizationAccessRequest, assignReviewers, assignTasksToUsers, batchCreateAnnotations, batchDeleteAnnotations, batchUnassignTasks, claimAnnotationTask, claimNextAnnotationTask, completeAnnotationTask, createAnnotationOpenmode, createCampaign, createCustomMap, createImageryView, createNewCanvasLayout, createOrganizationApiKey, createProject, createTaskSet, createTimeseriesForCampaign, createVectorLayer, createVisualizer, createVisualizerCustomMap, createVisualizerVectorLayer, deleteAnnotation, deleteAnnotationTasks, deleteCampaign, deleteCustomMap, deleteImageryView, deleteOrganizationApiKey, deleteProject, deleteTaskSet, deleteTimeseries, deleteVectorLayer, deleteVisualizer, deleteVisualizerCustomMap, deleteVisualizerFeedback, deleteVisualizerVectorLayer, demoteOrganizationAdmin, demoteProjectAdmin, demoteProjectAuthoritativeReviewer, duplicateCampaign, editUserInfo, exportAnnotations, exportAnnotationsGeojson, exportTaskAssignments, generateTasksFromSampling, getAgent, getAllAnnotationTasks, getAnnotation, getAnnotationChanges, getAnnotationDensity, getAnnotationDensityByLabel, getAnnotationFacets, getAnnotationIdsInBbox, getAnnotationsExtent, getAnnotationTaskChanges, getAnnotationTile, getCampaign, getCampaignStatisticsEndpoint, getCampaignSummary, getCampaignWithImageryWindows, getCollections, getKnnValidationStatus, getOrganizationTilers, getOrganizationUsers, getPrivateCollections, getProject, getProjectOrganizationKeys, getProjectTilers, getProjectUsers, getSharedVisualizer, getTaskDensity, getTilerToken, getTimeseriesCreationOptions, getTimeseriesData, getTimeseriesForCampaign, getVisualizer, getVisualizerTilerToken, grantAdmin, grantAdminSingle, importTaskAssignments, ingestAnnotationsFromGeojson, ingestAnnotationTasksFromCsv, ingestAnnotationTasksFromGeojson, listAgents, listAllCampaigns, listAnnotationsForCampaign, listCatalogs, listCustomMaps, listGrantableTilers, listOrganizationAccessRequests, listOrganizationApiKeys, listOrganizationDirectory, listOrganizationInvites, listOrganizations, listPlanetSeries, listPlanetSeriesMosaics, listProjectCampaigns, listProjectInvites, listProjects, listTaskSets, listUsers, listVectorLayers, listVisualizerCustomMaps, listVisualizerFeedback, listVisualizerOptions, listVisualizers, listVisualizerVectorLayers, makeOrganizationAdmin, makeProjectAdmin, makeProjectAuthoritativeReviewer, me, mintPlanetSceneLayers, moveTasksToSet, nextAgentTasks, type Options, planPlanetScenes, proxyBasemapTile, proxyPlanetLayerTile, proxySliceTile, proxyVisualizerBasemapTile, proxyVisualizerSliceTile, refreshCollectionImagery, refreshSourceImagery, registerAgent, rejectOrganization, rejectOrganizationAccessRequest, releaseAgentTasks, removeOrganizationMember, removeProjectUser, renameTaskSet, renameTimeseriesPanel, reorderImageryViews, requestOrganization, requestOrganizationAccess, revokeAdmin, revokeAdminSingle, revokeOrganizationInvite, revokeProjectInvite, rotateOrganizationApiKey, saveImagery, search, searchPlanetScenes, setOrganizationTilers, unassignUserFromTask, updateAgent, updateAnnotationOpenmode, updateCampaignBbox, updateCampaignFormFields, updateCampaignGuide, updateCampaignLabels, updateCampaignName, updateCustomMap, updateEmbeddingYear, updateImageryView, updateInternalStorage, updateLabellingPolicy, updateOrganization, updateProject, updateResearchSharing, updateSampleExtent, updateTaskOutput, updateVectorLayer, updateVisualizer, updateVisualizerCustomMap, updateVisualizerVectorLayer, validateAnnotationSubmission } from '../sdk.gen';
-import type { AcceptTermsData, AcceptTermsError, AcceptTermsResponse, AddOrganizationUsersData, AddOrganizationUsersError, AddOrganizationUsersResponse, AddProjectUsersByIdsData, AddProjectUsersByIdsError, AddProjectUsersData, AddProjectUsersError, AddProjectUsersResponse, AddVisualizerFeedbackData, AddVisualizerFeedbackError, AddVisualizerFeedbackResponse, AnnotateAgentTaskData, AnnotateAgentTaskError, AnnotateAgentTaskResponse, ApproveOrganizationAccessRequestData, ApproveOrganizationAccessRequestError, ApproveOrganizationAccessRequestResponse, ApproveOrganizationData, ApproveOrganizationError, ApproveOrganizationResponse, AssignReviewersData, AssignReviewersError, AssignTasksToUsersData, AssignTasksToUsersError, AssignTasksToUsersResponse, BatchCreateAnnotationsData, BatchCreateAnnotationsError, BatchCreateAnnotationsResponse2, BatchDeleteAnnotationsData, BatchDeleteAnnotationsError, BatchDeleteAnnotationsResponse2, BatchUnassignTasksData, BatchUnassignTasksError, ClaimAnnotationTaskData, ClaimAnnotationTaskError, ClaimAnnotationTaskResponse, ClaimNextAnnotationTaskData, ClaimNextAnnotationTaskError, ClaimNextAnnotationTaskResponse, CompleteAnnotationTaskData, CompleteAnnotationTaskError, CompleteAnnotationTaskResponse, CreateAnnotationOpenmodeData, CreateAnnotationOpenmodeError, CreateAnnotationOpenmodeResponse, CreateCampaignData, CreateCampaignError, CreateCampaignResponse, CreateCustomMapData, CreateCustomMapError, CreateCustomMapResponse, CreateImageryViewData, CreateImageryViewError, CreateImageryViewResponse, CreateNewCanvasLayoutData, CreateNewCanvasLayoutError, CreateOrganizationApiKeyData, CreateOrganizationApiKeyError, CreateOrganizationApiKeyResponse, CreateProjectData, CreateProjectError, CreateProjectResponse, CreateTaskSetData, CreateTaskSetError, CreateTaskSetResponse, CreateTimeseriesForCampaignData, CreateTimeseriesForCampaignError, CreateTimeseriesForCampaignResponse, CreateVectorLayerData, CreateVectorLayerError, CreateVectorLayerResponse, CreateVisualizerCustomMapData, CreateVisualizerCustomMapError, CreateVisualizerCustomMapResponse, CreateVisualizerData, CreateVisualizerError, CreateVisualizerResponse, CreateVisualizerVectorLayerData, CreateVisualizerVectorLayerError, CreateVisualizerVectorLayerResponse, DeleteAnnotationData, DeleteAnnotationError, DeleteAnnotationResponse, DeleteAnnotationTasksData, DeleteAnnotationTasksError, DeleteCampaignData, DeleteCampaignError, DeleteCampaignResponse, DeleteCustomMapData, DeleteCustomMapError, DeleteCustomMapResponse, DeleteImageryViewData, DeleteImageryViewError, DeleteImageryViewResponse, DeleteOrganizationApiKeyData, DeleteOrganizationApiKeyError, DeleteOrganizationApiKeyResponse, DeleteProjectData, DeleteProjectError, DeleteProjectResponse, DeleteTaskSetData, DeleteTaskSetError, DeleteTaskSetResponse, DeleteTimeseriesData, DeleteTimeseriesError, DeleteTimeseriesResponse, DeleteVectorLayerData, DeleteVectorLayerError, DeleteVectorLayerResponse, DeleteVisualizerCustomMapData, DeleteVisualizerCustomMapError, DeleteVisualizerCustomMapResponse, DeleteVisualizerData, DeleteVisualizerError, DeleteVisualizerFeedbackData, DeleteVisualizerFeedbackError, DeleteVisualizerFeedbackResponse, DeleteVisualizerResponse, DeleteVisualizerVectorLayerData, DeleteVisualizerVectorLayerError, DeleteVisualizerVectorLayerResponse, DemoteOrganizationAdminData, DemoteOrganizationAdminError, DemoteOrganizationAdminResponse, DemoteProjectAdminData, DemoteProjectAdminError, DemoteProjectAdminResponse, DemoteProjectAuthoritativeReviewerData, DemoteProjectAuthoritativeReviewerError, DemoteProjectAuthoritativeReviewerResponse, DuplicateCampaignData, DuplicateCampaignError, DuplicateCampaignResponse, EditUserInfoData, EditUserInfoError, EditUserInfoResponse, ExportAnnotationsData, ExportAnnotationsError, ExportAnnotationsGeojsonData, ExportAnnotationsGeojsonError, ExportTaskAssignmentsData, ExportTaskAssignmentsError, GenerateTasksFromSamplingData, GenerateTasksFromSamplingError, GenerateTasksFromSamplingResponse, GetAgentData, GetAgentError, GetAgentResponse, GetAllAnnotationTasksData, GetAllAnnotationTasksError, GetAllAnnotationTasksResponse, GetAnnotationChangesData, GetAnnotationChangesError, GetAnnotationChangesResponse, GetAnnotationData, GetAnnotationDensityByLabelData, GetAnnotationDensityByLabelError, GetAnnotationDensityByLabelResponse, GetAnnotationDensityData, GetAnnotationDensityError, GetAnnotationDensityResponse, GetAnnotationError, GetAnnotationFacetsData, GetAnnotationFacetsError, GetAnnotationFacetsResponse, GetAnnotationIdsInBboxData, GetAnnotationIdsInBboxError, GetAnnotationIdsInBboxResponse, GetAnnotationResponse, GetAnnotationsExtentData, GetAnnotationsExtentError, GetAnnotationsExtentResponse, GetAnnotationTaskChangesData, GetAnnotationTaskChangesError, GetAnnotationTaskChangesResponse, GetAnnotationTileData, GetAnnotationTileError, GetCampaignData, GetCampaignError, GetCampaignResponse, GetCampaignStatisticsEndpointData, GetCampaignStatisticsEndpointError, GetCampaignStatisticsEndpointResponse, GetCampaignSummaryData, GetCampaignSummaryError, GetCampaignSummaryResponse, GetCampaignWithImageryWindowsData, GetCampaignWithImageryWindowsError, GetCampaignWithImageryWindowsResponse, GetCollectionsData, GetCollectionsError, GetCollectionsResponse, GetKnnValidationStatusData, GetKnnValidationStatusError, GetKnnValidationStatusResponse, GetOrganizationTilersData, GetOrganizationTilersError, GetOrganizationTilersResponse, GetOrganizationUsersData, GetOrganizationUsersError, GetOrganizationUsersResponse, GetPrivateCollectionsData, GetPrivateCollectionsError, GetPrivateCollectionsResponse, GetProjectData, GetProjectError, GetProjectOrganizationKeysData, GetProjectOrganizationKeysError, GetProjectOrganizationKeysResponse, GetProjectResponse, GetProjectTilersData, GetProjectTilersError, GetProjectTilersResponse, GetProjectUsersData, GetProjectUsersError, GetProjectUsersResponse, GetSharedVisualizerData, GetSharedVisualizerError, GetSharedVisualizerResponse, GetTaskDensityData, GetTaskDensityError, GetTaskDensityResponse, GetTilerTokenData, GetTimeseriesCreationOptionsData, GetTimeseriesCreationOptionsResponse, GetTimeseriesDataData, GetTimeseriesDataError, GetTimeseriesDataResponse, GetTimeseriesForCampaignData, GetTimeseriesForCampaignError, GetTimeseriesForCampaignResponse, GetVisualizerData, GetVisualizerError, GetVisualizerResponse, GetVisualizerTilerTokenData, GetVisualizerTilerTokenError, GetVisualizerTilerTokenResponse, GrantAdminData, GrantAdminError, GrantAdminResponse, GrantAdminSingleData, GrantAdminSingleError, GrantAdminSingleResponse, ImportTaskAssignmentsData, ImportTaskAssignmentsError, ImportTaskAssignmentsResponse, IngestAnnotationsFromGeojsonData, IngestAnnotationsFromGeojsonError, IngestAnnotationTasksFromCsvData, IngestAnnotationTasksFromCsvError, IngestAnnotationTasksFromGeojsonData, IngestAnnotationTasksFromGeojsonError, ListAgentsData, ListAgentsError, ListAgentsResponse, ListAllCampaignsData, ListAllCampaignsResponse, ListAnnotationsForCampaignData, ListAnnotationsForCampaignError, ListAnnotationsForCampaignResponse, ListCatalogsData, ListCatalogsError, ListCatalogsResponse, ListCustomMapsData, ListCustomMapsError, ListCustomMapsResponse, ListGrantableTilersData, ListGrantableTilersResponse, ListOrganizationAccessRequestsData, ListOrganizationAccessRequestsError, ListOrganizationAccessRequestsResponse, ListOrganizationApiKeysData, ListOrganizationApiKeysError, ListOrganizationApiKeysResponse, ListOrganizationDirectoryData, ListOrganizationDirectoryResponse, ListOrganizationInvitesData, ListOrganizationInvitesError, ListOrganizationInvitesResponse, ListOrganizationsData, ListOrganizationsResponse, ListPlanetSeriesData, ListPlanetSeriesError, ListPlanetSeriesMosaicsData, ListPlanetSeriesMosaicsError, ListPlanetSeriesMosaicsResponse, ListPlanetSeriesResponse, ListProjectCampaignsData, ListProjectCampaignsError, ListProjectCampaignsResponse, ListProjectInvitesData, ListProjectInvitesError, ListProjectInvitesResponse, ListProjectsData, ListProjectsResponse, ListTaskSetsData, ListTaskSetsError, ListTaskSetsResponse, ListUsersData, ListUsersResponse, ListVectorLayersData, ListVectorLayersError, ListVectorLayersResponse, ListVisualizerCustomMapsData, ListVisualizerCustomMapsError, ListVisualizerCustomMapsResponse, ListVisualizerFeedbackData, ListVisualizerFeedbackError, ListVisualizerFeedbackResponse, ListVisualizerOptionsData, ListVisualizerOptionsError, ListVisualizerOptionsResponse, ListVisualizersData, ListVisualizersError, ListVisualizersResponse, ListVisualizerVectorLayersData, ListVisualizerVectorLayersError, ListVisualizerVectorLayersResponse, MakeOrganizationAdminData, MakeOrganizationAdminError, MakeOrganizationAdminResponse, MakeProjectAdminData, MakeProjectAdminError, MakeProjectAdminResponse, MakeProjectAuthoritativeReviewerData, MakeProjectAuthoritativeReviewerError, MakeProjectAuthoritativeReviewerResponse, MeData, MeResponse, MintPlanetSceneLayersData, MintPlanetSceneLayersError, MintPlanetSceneLayersResponse, MoveTasksToSetData, MoveTasksToSetError, MoveTasksToSetResponse, NextAgentTasksData, NextAgentTasksError, NextAgentTasksResponse, PlanPlanetScenesData, PlanPlanetScenesError, PlanPlanetScenesResponse, ProxyBasemapTileData, ProxyBasemapTileError, ProxyPlanetLayerTileData, ProxyPlanetLayerTileError, ProxySliceTileData, ProxySliceTileError, ProxyVisualizerBasemapTileData, ProxyVisualizerBasemapTileError, ProxyVisualizerSliceTileData, ProxyVisualizerSliceTileError, RefreshCollectionImageryData, RefreshCollectionImageryError, RefreshSourceImageryData, RefreshSourceImageryError, RegisterAgentData, RegisterAgentError, RegisterAgentResponse, RejectOrganizationAccessRequestData, RejectOrganizationAccessRequestError, RejectOrganizationAccessRequestResponse, RejectOrganizationData, RejectOrganizationError, RejectOrganizationResponse, ReleaseAgentTasksData, ReleaseAgentTasksError, ReleaseAgentTasksResponse, RemoveOrganizationMemberData, RemoveOrganizationMemberError, RemoveOrganizationMemberResponse, RemoveProjectUserData, RemoveProjectUserError, RemoveProjectUserResponse, RenameTaskSetData, RenameTaskSetError, RenameTaskSetResponse, RenameTimeseriesPanelData, RenameTimeseriesPanelError, RenameTimeseriesPanelResponse, ReorderImageryViewsData, ReorderImageryViewsError, ReorderImageryViewsResponse, RequestOrganizationAccessData, RequestOrganizationAccessError, RequestOrganizationAccessResponse, RequestOrganizationData, RequestOrganizationError, RequestOrganizationResponse, RevokeAdminData, RevokeAdminError, RevokeAdminResponse, RevokeAdminSingleData, RevokeAdminSingleError, RevokeAdminSingleResponse, RevokeOrganizationInviteData, RevokeOrganizationInviteError, RevokeOrganizationInviteResponse, RevokeProjectInviteData, RevokeProjectInviteError, RevokeProjectInviteResponse, RotateOrganizationApiKeyData, RotateOrganizationApiKeyError, RotateOrganizationApiKeyResponse, SaveImageryData, SaveImageryError, SearchData, SearchError, SearchPlanetScenesData, SearchPlanetScenesError, SearchPlanetScenesResponse, SearchResponse2, SetOrganizationTilersData, SetOrganizationTilersError, SetOrganizationTilersResponse, UnassignUserFromTaskData, UnassignUserFromTaskError, UpdateAgentData, UpdateAgentError, UpdateAgentResponse, UpdateAnnotationOpenmodeData, UpdateAnnotationOpenmodeError, UpdateAnnotationOpenmodeResponse, UpdateCampaignBboxData, UpdateCampaignBboxError, UpdateCampaignBboxResponse, UpdateCampaignFormFieldsData, UpdateCampaignFormFieldsError, UpdateCampaignFormFieldsResponse, UpdateCampaignGuideData, UpdateCampaignGuideError, UpdateCampaignGuideResponse, UpdateCampaignLabelsData, UpdateCampaignLabelsError, UpdateCampaignLabelsResponse, UpdateCampaignNameData, UpdateCampaignNameError, UpdateCampaignNameResponse, UpdateCustomMapData, UpdateCustomMapError, UpdateCustomMapResponse, UpdateEmbeddingYearData, UpdateEmbeddingYearError, UpdateEmbeddingYearResponse, UpdateImageryViewData, UpdateImageryViewError, UpdateImageryViewResponse, UpdateInternalStorageData, UpdateInternalStorageError, UpdateInternalStorageResponse, UpdateLabellingPolicyData, UpdateLabellingPolicyError, UpdateLabellingPolicyResponse, UpdateOrganizationData, UpdateOrganizationError, UpdateOrganizationResponse, UpdateProjectData, UpdateProjectError, UpdateProjectResponse, UpdateResearchSharingData, UpdateResearchSharingError, UpdateResearchSharingResponse, UpdateSampleExtentData, UpdateSampleExtentError, UpdateSampleExtentResponse, UpdateTaskOutputData, UpdateTaskOutputError, UpdateTaskOutputResponse, UpdateVectorLayerData, UpdateVectorLayerError, UpdateVectorLayerResponse, UpdateVisualizerCustomMapData, UpdateVisualizerCustomMapError, UpdateVisualizerCustomMapResponse, UpdateVisualizerData, UpdateVisualizerError, UpdateVisualizerResponse, UpdateVisualizerVectorLayerData, UpdateVisualizerVectorLayerError, UpdateVisualizerVectorLayerResponse, ValidateAnnotationSubmissionData, ValidateAnnotationSubmissionError, ValidateAnnotationSubmissionResponse } from '../types.gen';
+import { acceptTerms, addOrganizationUsers, addProjectUsers, addProjectUsersByIds, addVisualizerFeedback, annotateAgentTask, annotateTask, approveOrganization, approveOrganizationAccessRequest, assignReviewers, assignTasksToUsers, batchCreateAnnotations, batchDeleteAnnotations, claimNextTask, claimTask, createAnnotation, createCampaign, createCustomMap, createImageryView, createOrganizationApiKey, createProject, createTaskSet, createTimeseriesForCampaign, createVectorLayer, createVisualizer, createVisualizerCustomMap, createVisualizerVectorLayer, deleteAnnotation, deleteCampaign, deleteCustomMap, deleteImageryView, deleteOrganizationApiKey, deleteProject, deleteTasks, deleteTaskSet, deleteTimeseries, deleteVectorLayer, deleteVisualizer, deleteVisualizerCustomMap, deleteVisualizerFeedback, deleteVisualizerVectorLayer, demoteOrganizationAdmin, demoteProjectAdmin, demoteProjectAuthoritativeReviewer, duplicateCampaign, editUserInfo, exportAnnotations, exportAnnotationsGeojson, exportTaskAssignments, generateTasksFromSampling, getAgent, getAnnotation, getAnnotationChanges, getAnnotationDensity, getAnnotationDensityByLabel, getAnnotationFacets, getAnnotationIdsInBbox, getAnnotationsExtent, getAnnotationTile, getCampaign, getCampaignSettingsLocks, getCampaignStatistics, getCampaignSummary, getCampaignWithImageryWindows, getCollections, getOrganizationTilers, getOrganizationUsers, getPrivateCollections, getProject, getProjectOrganizationKeys, getProjectTilers, getProjectUsers, getSharedVisualizer, getTaskDensity, getTilerToken, getTimeseriesCreationOptions, getTimeseriesData, getVisualizer, getVisualizerTilerToken, grantAdmin, importTaskAssignments, importTasksFromCsv, importTasksFromGeojson, ingestAnnotationsFromGeojson, listAgents, listAllCampaigns, listAnnotationsForCampaign, listCatalogs, listCustomMaps, listGrantableTilers, listOrganizationAccessRequests, listOrganizationApiKeys, listOrganizationDirectory, listOrganizationInvites, listOrganizations, listPlanetSeries, listPlanetSeriesMosaics, listProjectCampaigns, listProjectInvites, listProjects, listTaskChanges, listTasks, listTaskSets, listUsers, listVectorLayers, listVisualizerCustomMaps, listVisualizerFeedback, listVisualizerOptions, listVisualizers, listVisualizerVectorLayers, makeOrganizationAdmin, makeProjectAdmin, makeProjectAuthoritativeReviewer, me, mintPlanetSceneLayers, moveTasksToSet, nextAgentTasks, type Options, planPlanetScenes, proxyBasemapTile, proxyPlanetLayerTile, proxySliceTile, proxyVisualizerBasemapTile, proxyVisualizerSliceTile, refreshSourceImagery, registerAgent, rejectOrganization, rejectOrganizationAccessRequest, releaseAgentTasks, removeOrganizationMember, removeProjectUser, renameTaskSet, renameTimeseriesWindow, reorderImageryViews, requestOrganization, requestOrganizationAccess, revokeAdmin, revokeOrganizationInvite, revokeProjectInvite, rotateOrganizationApiKey, saveCanvasLayout, saveImagery, search, searchPlanetScenes, setOrganizationTilers, unassignTasks, updateAgent, updateAnnotation, updateCampaign, updateCustomMap, updateImageryView, updateInternalStorage, updateOrganization, updateProject, updateVectorLayer, updateVisualizer, updateVisualizerCustomMap, updateVisualizerVectorLayer, validateTaskLabel } from '../sdk.gen';
+import type { AcceptTermsData, AcceptTermsError, AcceptTermsResponse, AddOrganizationUsersData, AddOrganizationUsersError, AddOrganizationUsersResponse, AddProjectUsersByIdsData, AddProjectUsersByIdsError, AddProjectUsersData, AddProjectUsersError, AddProjectUsersResponse, AddVisualizerFeedbackData, AddVisualizerFeedbackError, AddVisualizerFeedbackResponse, AnnotateAgentTaskData, AnnotateAgentTaskError, AnnotateAgentTaskResponse, AnnotateTaskData, AnnotateTaskError, AnnotateTaskResponse, ApproveOrganizationAccessRequestData, ApproveOrganizationAccessRequestError, ApproveOrganizationAccessRequestResponse, ApproveOrganizationData, ApproveOrganizationError, ApproveOrganizationResponse, AssignReviewersData, AssignReviewersError, AssignTasksToUsersData, AssignTasksToUsersError, AssignTasksToUsersResponse, BatchCreateAnnotationsData, BatchCreateAnnotationsError, BatchCreateAnnotationsResponse2, BatchDeleteAnnotationsData, BatchDeleteAnnotationsError, BatchDeleteAnnotationsResponse2, ClaimNextTaskData, ClaimNextTaskError, ClaimNextTaskResponse, ClaimTaskData, ClaimTaskError, ClaimTaskResponse2, CreateAnnotationData, CreateAnnotationError, CreateAnnotationResponse, CreateCampaignData, CreateCampaignError, CreateCampaignResponse, CreateCustomMapData, CreateCustomMapError, CreateCustomMapResponse, CreateImageryViewData, CreateImageryViewError, CreateImageryViewResponse, CreateOrganizationApiKeyData, CreateOrganizationApiKeyError, CreateOrganizationApiKeyResponse, CreateProjectData, CreateProjectError, CreateProjectResponse, CreateTaskSetData, CreateTaskSetError, CreateTaskSetResponse, CreateTimeseriesForCampaignData, CreateTimeseriesForCampaignError, CreateTimeseriesForCampaignResponse, CreateVectorLayerData, CreateVectorLayerError, CreateVectorLayerResponse, CreateVisualizerCustomMapData, CreateVisualizerCustomMapError, CreateVisualizerCustomMapResponse, CreateVisualizerData, CreateVisualizerError, CreateVisualizerResponse, CreateVisualizerVectorLayerData, CreateVisualizerVectorLayerError, CreateVisualizerVectorLayerResponse, DeleteAnnotationData, DeleteAnnotationError, DeleteAnnotationResponse, DeleteCampaignData, DeleteCampaignError, DeleteCampaignResponse, DeleteCustomMapData, DeleteCustomMapError, DeleteCustomMapResponse, DeleteImageryViewData, DeleteImageryViewError, DeleteImageryViewResponse, DeleteOrganizationApiKeyData, DeleteOrganizationApiKeyError, DeleteOrganizationApiKeyResponse, DeleteProjectData, DeleteProjectError, DeleteProjectResponse, DeleteTasksData, DeleteTasksError, DeleteTaskSetData, DeleteTaskSetError, DeleteTaskSetResponse, DeleteTimeseriesData, DeleteTimeseriesError, DeleteTimeseriesResponse, DeleteVectorLayerData, DeleteVectorLayerError, DeleteVectorLayerResponse, DeleteVisualizerCustomMapData, DeleteVisualizerCustomMapError, DeleteVisualizerCustomMapResponse, DeleteVisualizerData, DeleteVisualizerError, DeleteVisualizerFeedbackData, DeleteVisualizerFeedbackError, DeleteVisualizerFeedbackResponse, DeleteVisualizerResponse, DeleteVisualizerVectorLayerData, DeleteVisualizerVectorLayerError, DeleteVisualizerVectorLayerResponse, DemoteOrganizationAdminData, DemoteOrganizationAdminError, DemoteOrganizationAdminResponse, DemoteProjectAdminData, DemoteProjectAdminError, DemoteProjectAdminResponse, DemoteProjectAuthoritativeReviewerData, DemoteProjectAuthoritativeReviewerError, DemoteProjectAuthoritativeReviewerResponse, DuplicateCampaignData, DuplicateCampaignError, DuplicateCampaignResponse, EditUserInfoData, EditUserInfoError, EditUserInfoResponse, ExportAnnotationsData, ExportAnnotationsError, ExportAnnotationsGeojsonData, ExportAnnotationsGeojsonError, ExportTaskAssignmentsData, ExportTaskAssignmentsError, GenerateTasksFromSamplingData, GenerateTasksFromSamplingError, GenerateTasksFromSamplingResponse, GetAgentData, GetAgentError, GetAgentResponse, GetAnnotationChangesData, GetAnnotationChangesError, GetAnnotationChangesResponse, GetAnnotationData, GetAnnotationDensityByLabelData, GetAnnotationDensityByLabelError, GetAnnotationDensityByLabelResponse, GetAnnotationDensityData, GetAnnotationDensityError, GetAnnotationDensityResponse, GetAnnotationError, GetAnnotationFacetsData, GetAnnotationFacetsError, GetAnnotationFacetsResponse, GetAnnotationIdsInBboxData, GetAnnotationIdsInBboxError, GetAnnotationIdsInBboxResponse, GetAnnotationResponse, GetAnnotationsExtentData, GetAnnotationsExtentError, GetAnnotationsExtentResponse, GetAnnotationTileData, GetAnnotationTileError, GetCampaignData, GetCampaignError, GetCampaignResponse, GetCampaignSettingsLocksData, GetCampaignSettingsLocksError, GetCampaignSettingsLocksResponse, GetCampaignStatisticsData, GetCampaignStatisticsError, GetCampaignStatisticsResponse, GetCampaignSummaryData, GetCampaignSummaryError, GetCampaignSummaryResponse, GetCampaignWithImageryWindowsData, GetCampaignWithImageryWindowsError, GetCampaignWithImageryWindowsResponse, GetCollectionsData, GetCollectionsError, GetCollectionsResponse, GetOrganizationTilersData, GetOrganizationTilersError, GetOrganizationTilersResponse, GetOrganizationUsersData, GetOrganizationUsersError, GetOrganizationUsersResponse, GetPrivateCollectionsData, GetPrivateCollectionsError, GetPrivateCollectionsResponse, GetProjectData, GetProjectError, GetProjectOrganizationKeysData, GetProjectOrganizationKeysError, GetProjectOrganizationKeysResponse, GetProjectResponse, GetProjectTilersData, GetProjectTilersError, GetProjectTilersResponse, GetProjectUsersData, GetProjectUsersError, GetProjectUsersResponse, GetSharedVisualizerData, GetSharedVisualizerError, GetSharedVisualizerResponse, GetTaskDensityData, GetTaskDensityError, GetTaskDensityResponse, GetTilerTokenData, GetTimeseriesCreationOptionsData, GetTimeseriesCreationOptionsResponse, GetTimeseriesDataData, GetTimeseriesDataError, GetTimeseriesDataResponse, GetVisualizerData, GetVisualizerError, GetVisualizerResponse, GetVisualizerTilerTokenData, GetVisualizerTilerTokenError, GetVisualizerTilerTokenResponse, GrantAdminData, GrantAdminError, GrantAdminResponse, ImportTaskAssignmentsData, ImportTaskAssignmentsError, ImportTaskAssignmentsResponse, ImportTasksFromCsvData, ImportTasksFromCsvError, ImportTasksFromGeojsonData, ImportTasksFromGeojsonError, IngestAnnotationsFromGeojsonData, IngestAnnotationsFromGeojsonError, ListAgentsData, ListAgentsError, ListAgentsResponse, ListAllCampaignsData, ListAllCampaignsResponse, ListAnnotationsForCampaignData, ListAnnotationsForCampaignError, ListAnnotationsForCampaignResponse, ListCatalogsData, ListCatalogsError, ListCatalogsResponse, ListCustomMapsData, ListCustomMapsError, ListCustomMapsResponse, ListGrantableTilersData, ListGrantableTilersResponse, ListOrganizationAccessRequestsData, ListOrganizationAccessRequestsError, ListOrganizationAccessRequestsResponse, ListOrganizationApiKeysData, ListOrganizationApiKeysError, ListOrganizationApiKeysResponse, ListOrganizationDirectoryData, ListOrganizationDirectoryResponse, ListOrganizationInvitesData, ListOrganizationInvitesError, ListOrganizationInvitesResponse, ListOrganizationsData, ListOrganizationsResponse, ListPlanetSeriesData, ListPlanetSeriesError, ListPlanetSeriesMosaicsData, ListPlanetSeriesMosaicsError, ListPlanetSeriesMosaicsResponse, ListPlanetSeriesResponse, ListProjectCampaignsData, ListProjectCampaignsError, ListProjectCampaignsResponse, ListProjectInvitesData, ListProjectInvitesError, ListProjectInvitesResponse, ListProjectsData, ListProjectsResponse, ListTaskChangesData, ListTaskChangesError, ListTaskChangesResponse, ListTasksData, ListTasksError, ListTaskSetsData, ListTaskSetsError, ListTaskSetsResponse, ListTasksResponse, ListUsersData, ListUsersResponse, ListVectorLayersData, ListVectorLayersError, ListVectorLayersResponse, ListVisualizerCustomMapsData, ListVisualizerCustomMapsError, ListVisualizerCustomMapsResponse, ListVisualizerFeedbackData, ListVisualizerFeedbackError, ListVisualizerFeedbackResponse, ListVisualizerOptionsData, ListVisualizerOptionsError, ListVisualizerOptionsResponse, ListVisualizersData, ListVisualizersError, ListVisualizersResponse, ListVisualizerVectorLayersData, ListVisualizerVectorLayersError, ListVisualizerVectorLayersResponse, MakeOrganizationAdminData, MakeOrganizationAdminError, MakeOrganizationAdminResponse, MakeProjectAdminData, MakeProjectAdminError, MakeProjectAdminResponse, MakeProjectAuthoritativeReviewerData, MakeProjectAuthoritativeReviewerError, MakeProjectAuthoritativeReviewerResponse, MeData, MeResponse, MintPlanetSceneLayersData, MintPlanetSceneLayersError, MintPlanetSceneLayersResponse, MoveTasksToSetData, MoveTasksToSetError, MoveTasksToSetResponse, NextAgentTasksData, NextAgentTasksError, NextAgentTasksResponse, PlanPlanetScenesData, PlanPlanetScenesError, PlanPlanetScenesResponse, ProxyBasemapTileData, ProxyBasemapTileError, ProxyPlanetLayerTileData, ProxyPlanetLayerTileError, ProxySliceTileData, ProxySliceTileError, ProxyVisualizerBasemapTileData, ProxyVisualizerBasemapTileError, ProxyVisualizerSliceTileData, ProxyVisualizerSliceTileError, RefreshSourceImageryData, RefreshSourceImageryError, RefreshSourceImageryResponse, RegisterAgentData, RegisterAgentError, RegisterAgentResponse, RejectOrganizationAccessRequestData, RejectOrganizationAccessRequestError, RejectOrganizationAccessRequestResponse, RejectOrganizationData, RejectOrganizationError, RejectOrganizationResponse, ReleaseAgentTasksData, ReleaseAgentTasksError, ReleaseAgentTasksResponse, RemoveOrganizationMemberData, RemoveOrganizationMemberError, RemoveOrganizationMemberResponse, RemoveProjectUserData, RemoveProjectUserError, RemoveProjectUserResponse, RenameTaskSetData, RenameTaskSetError, RenameTaskSetResponse, RenameTimeseriesWindowData, RenameTimeseriesWindowError, RenameTimeseriesWindowResponse, ReorderImageryViewsData, ReorderImageryViewsError, ReorderImageryViewsResponse, RequestOrganizationAccessData, RequestOrganizationAccessError, RequestOrganizationAccessResponse, RequestOrganizationData, RequestOrganizationError, RequestOrganizationResponse, RevokeAdminData, RevokeAdminError, RevokeAdminResponse, RevokeOrganizationInviteData, RevokeOrganizationInviteError, RevokeOrganizationInviteResponse, RevokeProjectInviteData, RevokeProjectInviteError, RevokeProjectInviteResponse, RotateOrganizationApiKeyData, RotateOrganizationApiKeyError, RotateOrganizationApiKeyResponse, SaveCanvasLayoutData, SaveCanvasLayoutError, SaveImageryData, SaveImageryError, SaveImageryResponse, SearchData, SearchError, SearchPlanetScenesData, SearchPlanetScenesError, SearchPlanetScenesResponse, SearchResponse2, SetOrganizationTilersData, SetOrganizationTilersError, SetOrganizationTilersResponse, UnassignTasksData, UnassignTasksError, UpdateAgentData, UpdateAgentError, UpdateAgentResponse, UpdateAnnotationData, UpdateAnnotationError, UpdateAnnotationResponse, UpdateCampaignData, UpdateCampaignError, UpdateCampaignResponse, UpdateCustomMapData, UpdateCustomMapError, UpdateCustomMapResponse, UpdateImageryViewData, UpdateImageryViewError, UpdateImageryViewResponse, UpdateInternalStorageData, UpdateInternalStorageError, UpdateInternalStorageResponse, UpdateOrganizationData, UpdateOrganizationError, UpdateOrganizationResponse, UpdateProjectData, UpdateProjectError, UpdateProjectResponse, UpdateVectorLayerData, UpdateVectorLayerError, UpdateVectorLayerResponse, UpdateVisualizerCustomMapData, UpdateVisualizerCustomMapError, UpdateVisualizerCustomMapResponse, UpdateVisualizerData, UpdateVisualizerError, UpdateVisualizerResponse, UpdateVisualizerVectorLayerData, UpdateVisualizerVectorLayerError, UpdateVisualizerVectorLayerResponse, ValidateTaskLabelData, ValidateTaskLabelError, ValidateTaskLabelResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -134,47 +134,6 @@ export const editUserInfoMutation = (options?: Partial<Options<EditUserInfoData>
     const mutationOptions: UseMutationOptions<EditUserInfoResponse, EditUserInfoError, Options<EditUserInfoData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await editUserInfo({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Grant Admin Single
- *
- * Grant the platform admin role to a single user (admin only).
- */
-export const grantAdminSingleMutation = (options?: Partial<Options<GrantAdminSingleData>>): UseMutationOptions<GrantAdminSingleResponse, GrantAdminSingleError, Options<GrantAdminSingleData>> => {
-    const mutationOptions: UseMutationOptions<GrantAdminSingleResponse, GrantAdminSingleError, Options<GrantAdminSingleData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await grantAdminSingle({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Revoke Admin Single
- *
- * Revoke admin role from a single user (admin only).
- *
- * Removes admin role from the specified user.
- * Prevents revoking admin from the last admin user.
- */
-export const revokeAdminSingleMutation = (options?: Partial<Options<RevokeAdminSingleData>>): UseMutationOptions<RevokeAdminSingleResponse, RevokeAdminSingleError, Options<RevokeAdminSingleData>> => {
-    const mutationOptions: UseMutationOptions<RevokeAdminSingleResponse, RevokeAdminSingleError, Options<RevokeAdminSingleData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await revokeAdminSingle({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -1062,6 +1021,29 @@ export const getCampaignOptions = (options: Options<GetCampaignData>) => queryOp
     queryKey: getCampaignQueryKey(options)
 });
 
+/**
+ * Update Campaign
+ *
+ * Change any of the campaign's settings; only the fields sent change. Labels
+ * keep their ids and cannot be removed, a removed form field takes its answers
+ * with it, the task output is fixed once tasks are worked, 'anyone' audiences
+ * need a public campaign, a new area registers the imagery again and a new
+ * embedding year fetches embeddings again.
+ */
+export const updateCampaignMutation = (options?: Partial<Options<UpdateCampaignData>>): UseMutationOptions<UpdateCampaignResponse, UpdateCampaignError, Options<UpdateCampaignData>> => {
+    const mutationOptions: UseMutationOptions<UpdateCampaignResponse, UpdateCampaignError, Options<UpdateCampaignData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await updateCampaign({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
 export const getCampaignSummaryQueryKey = (options: Options<GetCampaignSummaryData>) => createQueryKey('getCampaignSummary', options);
 
 /**
@@ -1080,6 +1062,24 @@ export const getCampaignSummaryOptions = (options: Options<GetCampaignSummaryDat
         return data;
     },
     queryKey: getCampaignSummaryQueryKey(options)
+});
+
+export const getCampaignSettingsLocksQueryKey = (options: Options<GetCampaignSettingsLocksData>) => createQueryKey('getCampaignSettingsLocks', options);
+
+/**
+ * Get Campaign Settings Locks
+ */
+export const getCampaignSettingsLocksOptions = (options: Options<GetCampaignSettingsLocksData>) => queryOptions<GetCampaignSettingsLocksResponse, GetCampaignSettingsLocksError, GetCampaignSettingsLocksResponse, ReturnType<typeof getCampaignSettingsLocksQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getCampaignSettingsLocks({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getCampaignSettingsLocksQueryKey(options)
 });
 
 /**
@@ -1123,51 +1123,40 @@ export const getCampaignWithImageryWindowsOptions = (options: Options<GetCampaig
     queryKey: getCampaignWithImageryWindowsQueryKey(options)
 });
 
-/**
- * Update Campaign Name
- */
-export const updateCampaignNameMutation = (options?: Partial<Options<UpdateCampaignNameData>>): UseMutationOptions<UpdateCampaignNameResponse, UpdateCampaignNameError, Options<UpdateCampaignNameData>> => {
-    const mutationOptions: UseMutationOptions<UpdateCampaignNameResponse, UpdateCampaignNameError, Options<UpdateCampaignNameData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await updateCampaignName({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
+export const getCampaignStatisticsQueryKey = (options: Options<GetCampaignStatisticsData>) => createQueryKey('getCampaignStatistics', options);
 
 /**
- * Update Research Sharing
+ * Get Campaign Statistics
  *
- * Whether this campaign's annotations may be published as open research data.
- */
-export const updateResearchSharingMutation = (options?: Partial<Options<UpdateResearchSharingData>>): UseMutationOptions<UpdateResearchSharingResponse, UpdateResearchSharingError, Options<UpdateResearchSharingData>> => {
-    const mutationOptions: UseMutationOptions<UpdateResearchSharingResponse, UpdateResearchSharingError, Options<UpdateResearchSharingData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await updateResearchSharing({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Update Task Output
+ * Get comprehensive statistics for a campaign, or for one of its task sets.
  *
- * Whether tasks are finished by labelling them or by drawing shapes around them.
+ * Returns:
+ * - Overall campaign metrics (total annotations, tasks with multiple annotations)
+ * - Krippendorff's Alpha for inter-annotator agreement
+ * - Overall label distribution
+ * - Per-annotator stats (total annotations, label distribution)
+ * - Pairwise agreement percentage between every pair of annotators
  */
-export const updateTaskOutputMutation = (options?: Partial<Options<UpdateTaskOutputData>>): UseMutationOptions<UpdateTaskOutputResponse, UpdateTaskOutputError, Options<UpdateTaskOutputData>> => {
-    const mutationOptions: UseMutationOptions<UpdateTaskOutputResponse, UpdateTaskOutputError, Options<UpdateTaskOutputData>> = {
+export const getCampaignStatisticsOptions = (options: Options<GetCampaignStatisticsData>) => queryOptions<GetCampaignStatisticsResponse, GetCampaignStatisticsError, GetCampaignStatisticsResponse, ReturnType<typeof getCampaignStatisticsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getCampaignStatistics({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getCampaignStatisticsQueryKey(options)
+});
+
+/**
+ * Annotate Task
+ */
+export const annotateTaskMutation = (options?: Partial<Options<AnnotateTaskData>>): UseMutationOptions<AnnotateTaskResponse, AnnotateTaskError, Options<AnnotateTaskData>> => {
+    const mutationOptions: UseMutationOptions<AnnotateTaskResponse, AnnotateTaskError, Options<AnnotateTaskData>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await updateTaskOutput({
+            const { data } = await annotateTask({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -1179,50 +1168,125 @@ export const updateTaskOutputMutation = (options?: Partial<Options<UpdateTaskOut
 };
 
 /**
- * Update Campaign Guide
- */
-export const updateCampaignGuideMutation = (options?: Partial<Options<UpdateCampaignGuideData>>): UseMutationOptions<UpdateCampaignGuideResponse, UpdateCampaignGuideError, Options<UpdateCampaignGuideData>> => {
-    const mutationOptions: UseMutationOptions<UpdateCampaignGuideResponse, UpdateCampaignGuideError, Options<UpdateCampaignGuideData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await updateCampaignGuide({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Update Campaign Bbox
- */
-export const updateCampaignBboxMutation = (options?: Partial<Options<UpdateCampaignBboxData>>): UseMutationOptions<UpdateCampaignBboxResponse, UpdateCampaignBboxError, Options<UpdateCampaignBboxData>> => {
-    const mutationOptions: UseMutationOptions<UpdateCampaignBboxResponse, UpdateCampaignBboxError, Options<UpdateCampaignBboxData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await updateCampaignBbox({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Update Campaign Labels
+ * Ingest Annotations From Geojson
  *
- * Replace the campaign's label set. Renames (same id, new name) and adds
- * (new id) are accepted; removing an existing label is rejected since it
- * would orphan annotations that reference it.
+ * Bulk-import existing features as standalone annotations (no task assignment).
+ *
+ * Each feature becomes one annotation owned by the uploading admin. The label
+ * is read from the ``stacnotator_label_id`` property and must be a label of
+ * the campaign; otherwise the whole import is rejected.
  */
-export const updateCampaignLabelsMutation = (options?: Partial<Options<UpdateCampaignLabelsData>>): UseMutationOptions<UpdateCampaignLabelsResponse, UpdateCampaignLabelsError, Options<UpdateCampaignLabelsData>> => {
-    const mutationOptions: UseMutationOptions<UpdateCampaignLabelsResponse, UpdateCampaignLabelsError, Options<UpdateCampaignLabelsData>> = {
+export const ingestAnnotationsFromGeojsonMutation = (options?: Partial<Options<IngestAnnotationsFromGeojsonData>>): UseMutationOptions<unknown, IngestAnnotationsFromGeojsonError, Options<IngestAnnotationsFromGeojsonData>> => {
+    const mutationOptions: UseMutationOptions<unknown, IngestAnnotationsFromGeojsonError, Options<IngestAnnotationsFromGeojsonData>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await updateCampaignLabels({
+            const { data } = await ingestAnnotationsFromGeojson({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listAnnotationsForCampaignQueryKey = (options: Options<ListAnnotationsForCampaignData>) => createQueryKey('listAnnotationsForCampaign', options);
+
+/**
+ * List Annotations For Campaign
+ *
+ * One page of a campaign's annotations, filtered and sorted server-side.
+ *
+ * Paged and geometry-free by necessity rather than taste: returning every annotation
+ * with its geometry measured 10.2s and 70.5 MB on a campaign holding 100k of them,
+ * which is one worker and one pooled connection occupied for ten seconds by a single
+ * page load. The map beside the table reads the density grid instead, which is already
+ * aggregated.
+ */
+export const listAnnotationsForCampaignOptions = (options: Options<ListAnnotationsForCampaignData>) => queryOptions<ListAnnotationsForCampaignResponse, ListAnnotationsForCampaignError, ListAnnotationsForCampaignResponse, ReturnType<typeof listAnnotationsForCampaignQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listAnnotationsForCampaign({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listAnnotationsForCampaignQueryKey(options)
+});
+
+const createInfiniteParams = <K extends Pick<QueryKey<Options>[0], 'body' | 'headers' | 'path' | 'query'>>(queryKey: QueryKey<Options>, page: K) => {
+    const params = { ...queryKey[0] };
+    if (page.body) {
+        params.body = {
+            ...queryKey[0].body as any,
+            ...page.body as any
+        };
+    }
+    if (page.headers) {
+        params.headers = {
+            ...queryKey[0].headers,
+            ...page.headers
+        };
+    }
+    if (page.path) {
+        params.path = {
+            ...queryKey[0].path as any,
+            ...page.path as any
+        };
+    }
+    if (page.query) {
+        params.query = {
+            ...queryKey[0].query as any,
+            ...page.query as any
+        };
+    }
+    return params as unknown as typeof page;
+};
+
+export const listAnnotationsForCampaignInfiniteQueryKey = (options: Options<ListAnnotationsForCampaignData>): QueryKey<Options<ListAnnotationsForCampaignData>> => createQueryKey('listAnnotationsForCampaign', options, true);
+
+/**
+ * List Annotations For Campaign
+ *
+ * One page of a campaign's annotations, filtered and sorted server-side.
+ *
+ * Paged and geometry-free by necessity rather than taste: returning every annotation
+ * with its geometry measured 10.2s and 70.5 MB on a campaign holding 100k of them,
+ * which is one worker and one pooled connection occupied for ten seconds by a single
+ * page load. The map beside the table reads the density grid instead, which is already
+ * aggregated.
+ */
+export const listAnnotationsForCampaignInfiniteOptions = (options: Options<ListAnnotationsForCampaignData>) => infiniteQueryOptions<ListAnnotationsForCampaignResponse, ListAnnotationsForCampaignError, InfiniteData<ListAnnotationsForCampaignResponse>, QueryKey<Options<ListAnnotationsForCampaignData>>, number | Pick<QueryKey<Options<ListAnnotationsForCampaignData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+// @ts-ignore
+{
+    queryFn: async ({ pageParam, queryKey, signal }) => {
+        // @ts-ignore
+        const page: Pick<QueryKey<Options<ListAnnotationsForCampaignData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+            query: {
+                offset: pageParam
+            }
+        };
+        const params = createInfiniteParams(queryKey, page);
+        const { data } = await listAnnotationsForCampaign({
+            ...options,
+            ...params,
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listAnnotationsForCampaignInfiniteQueryKey(options)
+});
+
+/**
+ * Create Annotation
+ */
+export const createAnnotationMutation = (options?: Partial<Options<CreateAnnotationData>>): UseMutationOptions<CreateAnnotationResponse, CreateAnnotationError, Options<CreateAnnotationData>> => {
+    const mutationOptions: UseMutationOptions<CreateAnnotationResponse, CreateAnnotationError, Options<CreateAnnotationData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await createAnnotation({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -1234,16 +1298,15 @@ export const updateCampaignLabelsMutation = (options?: Partial<Options<UpdateCam
 };
 
 /**
- * Update Campaign Form Fields
+ * Batch Create Annotations
  *
- * Replace the campaign's custom form fields. Edits (same id) and adds (new
- * id) are accepted; removing a field, or reshaping one that already has
- * stored answers, is rejected since answers key off the field id.
+ * Create many standalone annotations in one call (e.g. labelling many vector
+ * features at once), in a single transaction with one annotations-version bump.
  */
-export const updateCampaignFormFieldsMutation = (options?: Partial<Options<UpdateCampaignFormFieldsData>>): UseMutationOptions<UpdateCampaignFormFieldsResponse, UpdateCampaignFormFieldsError, Options<UpdateCampaignFormFieldsData>> => {
-    const mutationOptions: UseMutationOptions<UpdateCampaignFormFieldsResponse, UpdateCampaignFormFieldsError, Options<UpdateCampaignFormFieldsData>> = {
+export const batchCreateAnnotationsMutation = (options?: Partial<Options<BatchCreateAnnotationsData>>): UseMutationOptions<BatchCreateAnnotationsResponse2, BatchCreateAnnotationsError, Options<BatchCreateAnnotationsData>> => {
+    const mutationOptions: UseMutationOptions<BatchCreateAnnotationsResponse2, BatchCreateAnnotationsError, Options<BatchCreateAnnotationsData>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await updateCampaignFormFields({
+            const { data } = await batchCreateAnnotations({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -1255,12 +1318,54 @@ export const updateCampaignFormFieldsMutation = (options?: Partial<Options<Updat
 };
 
 /**
- * Update Sample Extent
+ * Delete Annotation
+ *
+ * Delete a specific annotation from a campaign.
+ *
+ * If the annotation is linked to a task, returns updated task_status and
+ * assignment_status. Otherwise returns null.
  */
-export const updateSampleExtentMutation = (options?: Partial<Options<UpdateSampleExtentData>>): UseMutationOptions<UpdateSampleExtentResponse, UpdateSampleExtentError, Options<UpdateSampleExtentData>> => {
-    const mutationOptions: UseMutationOptions<UpdateSampleExtentResponse, UpdateSampleExtentError, Options<UpdateSampleExtentData>> = {
+export const deleteAnnotationMutation = (options?: Partial<Options<DeleteAnnotationData>>): UseMutationOptions<DeleteAnnotationResponse, DeleteAnnotationError, Options<DeleteAnnotationData>> => {
+    const mutationOptions: UseMutationOptions<DeleteAnnotationResponse, DeleteAnnotationError, Options<DeleteAnnotationData>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await updateSampleExtent({
+            const { data } = await deleteAnnotation({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const getAnnotationQueryKey = (options: Options<GetAnnotationData>) => createQueryKey('getAnnotation', options);
+
+/**
+ * Get Annotation
+ *
+ * Fetch one annotation's full-resolution geometry for click-to-edit.
+ */
+export const getAnnotationOptions = (options: Options<GetAnnotationData>) => queryOptions<GetAnnotationResponse, GetAnnotationError, GetAnnotationResponse, ReturnType<typeof getAnnotationQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getAnnotation({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getAnnotationQueryKey(options)
+});
+
+/**
+ * Update Annotation
+ */
+export const updateAnnotationMutation = (options?: Partial<Options<UpdateAnnotationData>>): UseMutationOptions<UpdateAnnotationResponse, UpdateAnnotationError, Options<UpdateAnnotationData>> => {
+    const mutationOptions: UseMutationOptions<UpdateAnnotationResponse, UpdateAnnotationError, Options<UpdateAnnotationData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await updateAnnotation({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -1272,18 +1377,304 @@ export const updateSampleExtentMutation = (options?: Partial<Options<UpdateSampl
 };
 
 /**
- * Update Embedding Year
+ * Batch Delete Annotations
  *
- * Set or change the year used for satellite embeddings.
+ * Delete multiple annotations from a campaign in one call.
  *
- * When the year changes, all existing embeddings are deleted and
- * re-fetched for the new year.  This can take some time for large
- * campaigns.
+ * Public campaigns: non-admins may only delete their own annotations.
+ * Task-linked annotations have their per-user assignment reset to 'pending'.
  */
-export const updateEmbeddingYearMutation = (options?: Partial<Options<UpdateEmbeddingYearData>>): UseMutationOptions<UpdateEmbeddingYearResponse, UpdateEmbeddingYearError, Options<UpdateEmbeddingYearData>> => {
-    const mutationOptions: UseMutationOptions<UpdateEmbeddingYearResponse, UpdateEmbeddingYearError, Options<UpdateEmbeddingYearData>> = {
+export const batchDeleteAnnotationsMutation = (options?: Partial<Options<BatchDeleteAnnotationsData>>): UseMutationOptions<BatchDeleteAnnotationsResponse2, BatchDeleteAnnotationsError, Options<BatchDeleteAnnotationsData>> => {
+    const mutationOptions: UseMutationOptions<BatchDeleteAnnotationsResponse2, BatchDeleteAnnotationsError, Options<BatchDeleteAnnotationsData>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await updateEmbeddingYear({
+            const { data } = await batchDeleteAnnotations({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const exportAnnotationsQueryKey = (options: Options<ExportAnnotationsData>) => createQueryKey('exportAnnotations', options);
+
+/**
+ * Export Annotations
+ *
+ * Export campaign annotations as CSV.
+ *
+ * When ``merge_on_agreement`` is true, multi-annotator tasks whose
+ * annotators all agreed on the same label are collapsed into a single
+ * row. Tasks with disagreement (conflict) cause the request to fail
+ * with HTTP 400 - resolve the conflicts first.
+ */
+export const exportAnnotationsOptions = (options: Options<ExportAnnotationsData>) => queryOptions<unknown, ExportAnnotationsError, unknown, ReturnType<typeof exportAnnotationsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await exportAnnotations({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: exportAnnotationsQueryKey(options)
+});
+
+export const exportAnnotationsGeojsonQueryKey = (options: Options<ExportAnnotationsGeojsonData>) => createQueryKey('exportAnnotationsGeojson', options);
+
+/**
+ * Export Annotations Geojson
+ *
+ * Export all annotations for a campaign as a GeoJSON FeatureCollection file.
+ *
+ * See ``export_annotations`` for the meaning of ``merge_on_agreement``.
+ */
+export const exportAnnotationsGeojsonOptions = (options: Options<ExportAnnotationsGeojsonData>) => queryOptions<unknown, ExportAnnotationsGeojsonError, unknown, ReturnType<typeof exportAnnotationsGeojsonQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await exportAnnotationsGeojson({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: exportAnnotationsGeojsonQueryKey(options)
+});
+
+export const getAnnotationDensityByLabelQueryKey = (options: Options<GetAnnotationDensityByLabelData>) => createQueryKey('getAnnotationDensityByLabel', options);
+
+/**
+ * Get Annotation Density By Label
+ *
+ * The campaign's class distribution as a grid.
+ *
+ * Separate from ``/density``, which the minimap uses and which knows only where
+ * annotations are. This one answers where each class is, independent of whatever the
+ * annotations table happens to be showing.
+ *
+ * Pass ``bbox`` as ``minx,miny,maxx,maxy`` to follow a viewport: the grid is then
+ * sized from that window, so zooming in shrinks the cells until each holds a single
+ * annotation and the map resolves to individual points. Omit it for the whole
+ * campaign at a fixed resolution.
+ */
+export const getAnnotationDensityByLabelOptions = (options: Options<GetAnnotationDensityByLabelData>) => queryOptions<GetAnnotationDensityByLabelResponse, GetAnnotationDensityByLabelError, GetAnnotationDensityByLabelResponse, ReturnType<typeof getAnnotationDensityByLabelQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getAnnotationDensityByLabel({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getAnnotationDensityByLabelQueryKey(options)
+});
+
+export const getAnnotationFacetsQueryKey = (options: Options<GetAnnotationFacetsData>) => createQueryKey('getAnnotationFacets', options);
+
+/**
+ * Get Annotation Facets
+ *
+ * Campaign-wide counts for the annotations page's filters, legend and totals.
+ *
+ * Separate from the page itself because it does not change as the reader pages, and
+ * because deriving it in the browser is only possible if the browser has every
+ * annotation - which is exactly what the paged endpoint stopped shipping.
+ */
+export const getAnnotationFacetsOptions = (options: Options<GetAnnotationFacetsData>) => queryOptions<GetAnnotationFacetsResponse, GetAnnotationFacetsError, GetAnnotationFacetsResponse, ReturnType<typeof getAnnotationFacetsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getAnnotationFacets({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getAnnotationFacetsQueryKey(options)
+});
+
+export const getAnnotationTileQueryKey = (options: Options<GetAnnotationTileData>) => createQueryKey('getAnnotationTile', options);
+
+/**
+ * Get Annotation Tile
+ *
+ * Return one Mapbox Vector Tile of a campaign's annotations.
+ *
+ * Each feature carries only ``annotation_id`` and ``label_id``; the frontend
+ * styles by label and fetches full geometry by id when a feature is edited.
+ * ``include_tasks=false`` leaves out annotations made from a task; it is part
+ * of the URL, so the two variants never share a cache entry.
+ */
+export const getAnnotationTileOptions = (options: Options<GetAnnotationTileData>) => queryOptions<unknown, GetAnnotationTileError, unknown, ReturnType<typeof getAnnotationTileQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getAnnotationTile({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getAnnotationTileQueryKey(options)
+});
+
+export const getAnnotationIdsInBboxQueryKey = (options: Options<GetAnnotationIdsInBboxData>) => createQueryKey('getAnnotationIdsInBbox', options);
+
+/**
+ * Get Annotation Ids In Bbox
+ *
+ * Return ids of annotations intersecting ``bbox`` (``minx,miny,maxx,maxy``
+ * in EPSG:4326). Backs box/multi-select against the tiled display.
+ */
+export const getAnnotationIdsInBboxOptions = (options: Options<GetAnnotationIdsInBboxData>) => queryOptions<GetAnnotationIdsInBboxResponse, GetAnnotationIdsInBboxError, GetAnnotationIdsInBboxResponse, ReturnType<typeof getAnnotationIdsInBboxQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getAnnotationIdsInBbox({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getAnnotationIdsInBboxQueryKey(options)
+});
+
+export const getAnnotationChangesQueryKey = (options: Options<GetAnnotationChangesData>) => createQueryKey('getAnnotationChanges', options);
+
+/**
+ * Get Annotation Changes
+ *
+ * What happened to this campaign's annotations since ``since``.
+ *
+ * Lets one annotator pick up another's work without either refetching tiles:
+ * creates and edits as rows, deletions as ids. Without ``since`` it only hands
+ * back the cursor to poll with next, which is what an arriving client does -
+ * everything before it is already in the tiles it just loaded.
+ */
+export const getAnnotationChangesOptions = (options: Options<GetAnnotationChangesData>) => queryOptions<GetAnnotationChangesResponse, GetAnnotationChangesError, GetAnnotationChangesResponse, ReturnType<typeof getAnnotationChangesQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getAnnotationChanges({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getAnnotationChangesQueryKey(options)
+});
+
+export const getAnnotationsExtentQueryKey = (options: Options<GetAnnotationsExtentData>) => createQueryKey('getAnnotationsExtent', options);
+
+/**
+ * Get Annotations Extent
+ *
+ * Return the bounding box of a campaign's annotations for fit-to-bounds.
+ */
+export const getAnnotationsExtentOptions = (options: Options<GetAnnotationsExtentData>) => queryOptions<GetAnnotationsExtentResponse, GetAnnotationsExtentError, GetAnnotationsExtentResponse, ReturnType<typeof getAnnotationsExtentQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getAnnotationsExtent({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getAnnotationsExtentQueryKey(options)
+});
+
+export const getAnnotationDensityQueryKey = (options: Options<GetAnnotationDensityData>) => createQueryKey('getAnnotationDensity', options);
+
+/**
+ * Get Annotation Density
+ *
+ * Return a coarse grid of annotation counts for the minimap overview.
+ */
+export const getAnnotationDensityOptions = (options: Options<GetAnnotationDensityData>) => queryOptions<GetAnnotationDensityResponse, GetAnnotationDensityError, GetAnnotationDensityResponse, ReturnType<typeof getAnnotationDensityQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getAnnotationDensity({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getAnnotationDensityQueryKey(options)
+});
+
+/**
+ * Delete Tasks
+ *
+ * Delete multiple annotation tasks from a campaign
+ */
+export const deleteTasksMutation = (options?: Partial<Options<DeleteTasksData>>): UseMutationOptions<unknown, DeleteTasksError, Options<DeleteTasksData>> => {
+    const mutationOptions: UseMutationOptions<unknown, DeleteTasksError, Options<DeleteTasksData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deleteTasks({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listTasksQueryKey = (options: Options<ListTasksData>) => createQueryKey('listTasks', options);
+
+/**
+ * List Tasks
+ */
+export const listTasksOptions = (options: Options<ListTasksData>) => queryOptions<ListTasksResponse, ListTasksError, ListTasksResponse, ReturnType<typeof listTasksQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listTasks({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listTasksQueryKey(options)
+});
+
+export const listTaskChangesQueryKey = (options: Options<ListTaskChangesData>) => createQueryKey('listTaskChanges', options);
+
+/**
+ * List Task Changes
+ *
+ * Tasks changed since ``since``, so one annotator's list reflects
+ * everyone's work and the admins' edits without reloading it. Without ``since``
+ * it only hands back the cursor, like the annotation changes poll.
+ */
+export const listTaskChangesOptions = (options: Options<ListTaskChangesData>) => queryOptions<ListTaskChangesResponse, ListTaskChangesError, ListTaskChangesResponse, ReturnType<typeof listTaskChangesQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listTaskChanges({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listTaskChangesQueryKey(options)
+});
+
+/**
+ * Claim Task
+ */
+export const claimTaskMutation = (options?: Partial<Options<ClaimTaskData>>): UseMutationOptions<ClaimTaskResponse2, ClaimTaskError, Options<ClaimTaskData>> => {
+    const mutationOptions: UseMutationOptions<ClaimTaskResponse2, ClaimTaskError, Options<ClaimTaskData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await claimTask({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -1295,15 +1686,18 @@ export const updateEmbeddingYearMutation = (options?: Partial<Options<UpdateEmbe
 };
 
 /**
- * Update Labelling Policy
+ * Claim Next Task
  *
- * Replace the campaign's labelling policy. Rejects 'anyone' audiences
- * with 400 unless the campaign is public.
+ * Hand out the next task nobody is working on, claimed in the same
+ * transaction so simultaneous callers get different ones.
+ *
+ * `after_annotation_number` keeps the caller moving forward through the
+ * campaign and wraps once nothing is left ahead of them.
  */
-export const updateLabellingPolicyMutation = (options?: Partial<Options<UpdateLabellingPolicyData>>): UseMutationOptions<UpdateLabellingPolicyResponse, UpdateLabellingPolicyError, Options<UpdateLabellingPolicyData>> => {
-    const mutationOptions: UseMutationOptions<UpdateLabellingPolicyResponse, UpdateLabellingPolicyError, Options<UpdateLabellingPolicyData>> = {
+export const claimNextTaskMutation = (options?: Partial<Options<ClaimNextTaskData>>): UseMutationOptions<ClaimNextTaskResponse, ClaimNextTaskError, Options<ClaimNextTaskData>> => {
+    const mutationOptions: UseMutationOptions<ClaimNextTaskResponse, ClaimNextTaskError, Options<ClaimNextTaskData>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await updateLabellingPolicy({
+            const { data } = await claimNextTask({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -1313,6 +1707,98 @@ export const updateLabellingPolicyMutation = (options?: Partial<Options<UpdateLa
     };
     return mutationOptions;
 };
+
+export const validateTaskLabelQueryKey = (options: Options<ValidateTaskLabelData>) => createQueryKey('validateTaskLabel', options);
+
+/**
+ * Validate Task Label
+ *
+ * Check whether a label_id agrees with the KNN-majority prediction
+ * derived from the task's satellite embedding and its nearest neighbours
+ * in the same campaign.
+ *
+ * Always returns 200 with a status field indicating the outcome:
+ * - ok - label matches neighbours
+ * - mismatch - label disagrees with neighbours
+ * - skipped_no_embedding - no embedding for the task
+ * - skipped_insufficient_data - not enough labeled data yet
+ * - disabled - no embedding year configured for this campaign
+ */
+export const validateTaskLabelOptions = (options: Options<ValidateTaskLabelData>) => queryOptions<ValidateTaskLabelResponse, ValidateTaskLabelError, ValidateTaskLabelResponse, ReturnType<typeof validateTaskLabelQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await validateTaskLabel({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: validateTaskLabelQueryKey(options)
+});
+
+/**
+ * Import Tasks From Csv
+ */
+export const importTasksFromCsvMutation = (options?: Partial<Options<ImportTasksFromCsvData>>): UseMutationOptions<unknown, ImportTasksFromCsvError, Options<ImportTasksFromCsvData>> => {
+    const mutationOptions: UseMutationOptions<unknown, ImportTasksFromCsvError, Options<ImportTasksFromCsvData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await importTasksFromCsv({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Import Tasks From Geojson
+ *
+ * Ingest annotation tasks from a GeoJSON file.
+ *
+ * Each feature becomes one annotation task. Supported geometry types:
+ * Point, Polygon, MultiPolygon. Polygon geometries are stored as-is and
+ * displayed as the sample extent during annotation.
+ */
+export const importTasksFromGeojsonMutation = (options?: Partial<Options<ImportTasksFromGeojsonData>>): UseMutationOptions<unknown, ImportTasksFromGeojsonError, Options<ImportTasksFromGeojsonData>> => {
+    const mutationOptions: UseMutationOptions<unknown, ImportTasksFromGeojsonError, Options<ImportTasksFromGeojsonData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await importTasksFromGeojson({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const getTaskDensityQueryKey = (options: Options<GetTaskDensityData>) => createQueryKey('getTaskDensity', options);
+
+/**
+ * Get Task Density
+ *
+ * A grid of task counts by status and label, for the campaign maps.
+ *
+ * `bbox` both windows the result and sizes the cells, so zooming resolves: cells
+ * shrink until one holds a single task and its reported position is that task's own.
+ */
+export const getTaskDensityOptions = (options: Options<GetTaskDensityData>) => queryOptions<GetTaskDensityResponse, GetTaskDensityError, GetTaskDensityResponse, ReturnType<typeof getTaskDensityQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getTaskDensity({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getTaskDensityQueryKey(options)
+});
 
 /**
  * Assign Tasks To Users
@@ -1334,36 +1820,17 @@ export const assignTasksToUsersMutation = (options?: Partial<Options<AssignTasks
 };
 
 /**
- * Unassign User From Task
- *
- * Remove a user's assignment from a specific task.
- */
-export const unassignUserFromTaskMutation = (options?: Partial<Options<UnassignUserFromTaskData>>): UseMutationOptions<unknown, UnassignUserFromTaskError, Options<UnassignUserFromTaskData>> => {
-    const mutationOptions: UseMutationOptions<unknown, UnassignUserFromTaskError, Options<UnassignUserFromTaskData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await unassignUserFromTask({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Batch Unassign Tasks
+ * Unassign Tasks
  *
  * Batch-remove assignments from multiple tasks.
  *
  * If `user_ids` is provided, only those users are unassigned from each task.
  * Otherwise, all users are unassigned from each task in `task_ids`.
  */
-export const batchUnassignTasksMutation = (options?: Partial<Options<BatchUnassignTasksData>>): UseMutationOptions<unknown, BatchUnassignTasksError, Options<BatchUnassignTasksData>> => {
-    const mutationOptions: UseMutationOptions<unknown, BatchUnassignTasksError, Options<BatchUnassignTasksData>> = {
+export const unassignTasksMutation = (options?: Partial<Options<UnassignTasksData>>): UseMutationOptions<unknown, UnassignTasksError, Options<UnassignTasksData>> => {
+    const mutationOptions: UseMutationOptions<unknown, UnassignTasksError, Options<UnassignTasksData>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await batchUnassignTasks({
+            const { data } = await unassignTasks({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -1377,14 +1844,7 @@ export const batchUnassignTasksMutation = (options?: Partial<Options<BatchUnassi
 /**
  * Assign Reviewers
  *
- * Assign reviewers to tasks using different patterns:
- * - 'percentage': Assign reviewers to X% of already-assigned tasks
- * - 'manual': Manually assign specific reviewers to specific tasks
- * - 'fixed': Assign reviewers to a fixed number of already-assigned tasks
- *
- * Reviewers are only added to tasks that already have a primary (non-review)
- * assignment, and each task is topped up to the requested number of reviewers
- * rather than accumulating more on every call.
+ * Add reviewers to a percentage or a fixed number of already-assigned tasks.
  */
 export const assignReviewersMutation = (options?: Partial<Options<AssignReviewersData>>): UseMutationOptions<unknown, AssignReviewersError, Options<AssignReviewersData>> => {
     const mutationOptions: UseMutationOptions<unknown, AssignReviewersError, Options<AssignReviewersData>> = {
@@ -1399,43 +1859,6 @@ export const assignReviewersMutation = (options?: Partial<Options<AssignReviewer
     };
     return mutationOptions;
 };
-
-/**
- * Delete Annotation Tasks
- *
- * Delete multiple annotation tasks from a campaign
- */
-export const deleteAnnotationTasksMutation = (options?: Partial<Options<DeleteAnnotationTasksData>>): UseMutationOptions<unknown, DeleteAnnotationTasksError, Options<DeleteAnnotationTasksData>> => {
-    const mutationOptions: UseMutationOptions<unknown, DeleteAnnotationTasksError, Options<DeleteAnnotationTasksData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await deleteAnnotationTasks({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-export const getAllAnnotationTasksQueryKey = (options: Options<GetAllAnnotationTasksData>) => createQueryKey('getAllAnnotationTasks', options);
-
-/**
- * Get All Annotation Tasks
- */
-export const getAllAnnotationTasksOptions = (options: Options<GetAllAnnotationTasksData>) => queryOptions<GetAllAnnotationTasksResponse, GetAllAnnotationTasksError, GetAllAnnotationTasksResponse, ReturnType<typeof getAllAnnotationTasksQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await getAllAnnotationTasks({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: getAllAnnotationTasksQueryKey(options)
-});
 
 export const listTaskSetsQueryKey = (options: Options<ListTaskSetsData>) => createQueryKey('listTaskSets', options);
 
@@ -1583,688 +2006,6 @@ export const importTaskAssignmentsMutation = (options?: Partial<Options<ImportTa
     return mutationOptions;
 };
 
-export const getCampaignStatisticsEndpointQueryKey = (options: Options<GetCampaignStatisticsEndpointData>) => createQueryKey('getCampaignStatisticsEndpoint', options);
-
-/**
- * Get Campaign Statistics Endpoint
- *
- * Get comprehensive statistics for a campaign, or for one of its task sets.
- *
- * Returns:
- * - Overall campaign metrics (total annotations, tasks with multiple annotations)
- * - Krippendorff's Alpha for inter-annotator agreement
- * - Overall label distribution
- * - Per-annotator stats (total annotations, label distribution)
- * - Pairwise agreement percentage between every pair of annotators
- */
-export const getCampaignStatisticsEndpointOptions = (options: Options<GetCampaignStatisticsEndpointData>) => queryOptions<GetCampaignStatisticsEndpointResponse, GetCampaignStatisticsEndpointError, GetCampaignStatisticsEndpointResponse, ReturnType<typeof getCampaignStatisticsEndpointQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await getCampaignStatisticsEndpoint({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: getCampaignStatisticsEndpointQueryKey(options)
-});
-
-export const getAnnotationTaskChangesQueryKey = (options: Options<GetAnnotationTaskChangesData>) => createQueryKey('getAnnotationTaskChanges', options);
-
-/**
- * Get Annotation Task Changes
- *
- * Tasks annotated since ``since``, so one annotator's progress reflects
- * everyone's without reloading the whole task list. Without ``since`` it only
- * hands back the cursor, like the annotation changes poll.
- */
-export const getAnnotationTaskChangesOptions = (options: Options<GetAnnotationTaskChangesData>) => queryOptions<GetAnnotationTaskChangesResponse, GetAnnotationTaskChangesError, GetAnnotationTaskChangesResponse, ReturnType<typeof getAnnotationTaskChangesQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await getAnnotationTaskChanges({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: getAnnotationTaskChangesQueryKey(options)
-});
-
-/**
- * Complete Annotation Task
- */
-export const completeAnnotationTaskMutation = (options?: Partial<Options<CompleteAnnotationTaskData>>): UseMutationOptions<CompleteAnnotationTaskResponse, CompleteAnnotationTaskError, Options<CompleteAnnotationTaskData>> => {
-    const mutationOptions: UseMutationOptions<CompleteAnnotationTaskResponse, CompleteAnnotationTaskError, Options<CompleteAnnotationTaskData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await completeAnnotationTask({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Claim Annotation Task
- */
-export const claimAnnotationTaskMutation = (options?: Partial<Options<ClaimAnnotationTaskData>>): UseMutationOptions<ClaimAnnotationTaskResponse, ClaimAnnotationTaskError, Options<ClaimAnnotationTaskData>> => {
-    const mutationOptions: UseMutationOptions<ClaimAnnotationTaskResponse, ClaimAnnotationTaskError, Options<ClaimAnnotationTaskData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await claimAnnotationTask({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Claim Next Annotation Task
- *
- * Hand out the next task nobody is working on, claimed in the same
- * transaction so simultaneous callers get different ones.
- *
- * `after_annotation_number` keeps the caller moving forward through the
- * campaign and wraps once nothing is left ahead of them.
- */
-export const claimNextAnnotationTaskMutation = (options?: Partial<Options<ClaimNextAnnotationTaskData>>): UseMutationOptions<ClaimNextAnnotationTaskResponse, ClaimNextAnnotationTaskError, Options<ClaimNextAnnotationTaskData>> => {
-    const mutationOptions: UseMutationOptions<ClaimNextAnnotationTaskResponse, ClaimNextAnnotationTaskError, Options<ClaimNextAnnotationTaskData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await claimNextAnnotationTask({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-export const validateAnnotationSubmissionQueryKey = (options: Options<ValidateAnnotationSubmissionData>) => createQueryKey('validateAnnotationSubmission', options);
-
-/**
- * Validate Annotation Submission
- *
- * Check whether a label_id agrees with the KNN-majority prediction
- * derived from the task's satellite embedding and its nearest neighbours
- * in the same campaign.
- *
- * Always returns 200 with a status field indicating the outcome:
- * - ok - label matches neighbours
- * - mismatch - label disagrees with neighbours
- * - skipped_no_embedding - no embedding for the task
- * - skipped_insufficient_data - not enough labeled data yet
- * - disabled - no embedding year configured for this campaign
- */
-export const validateAnnotationSubmissionOptions = (options: Options<ValidateAnnotationSubmissionData>) => queryOptions<ValidateAnnotationSubmissionResponse, ValidateAnnotationSubmissionError, ValidateAnnotationSubmissionResponse, ReturnType<typeof validateAnnotationSubmissionQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await validateAnnotationSubmission({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: validateAnnotationSubmissionQueryKey(options)
-});
-
-export const getKnnValidationStatusQueryKey = (options: Options<GetKnnValidationStatusData>) => createQueryKey('getKnnValidationStatus', options);
-
-/**
- * Get Knn Validation Status
- *
- * Summarize how close the campaign is to having enough data for KNN
- * label validation. Used by the annotator UI to explain why validation
- * is unavailable on a given task/label.
- */
-export const getKnnValidationStatusOptions = (options: Options<GetKnnValidationStatusData>) => queryOptions<GetKnnValidationStatusResponse, GetKnnValidationStatusError, GetKnnValidationStatusResponse, ReturnType<typeof getKnnValidationStatusQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await getKnnValidationStatus({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: getKnnValidationStatusQueryKey(options)
-});
-
-/**
- * Ingest Annotation Tasks From Csv
- */
-export const ingestAnnotationTasksFromCsvMutation = (options?: Partial<Options<IngestAnnotationTasksFromCsvData>>): UseMutationOptions<unknown, IngestAnnotationTasksFromCsvError, Options<IngestAnnotationTasksFromCsvData>> => {
-    const mutationOptions: UseMutationOptions<unknown, IngestAnnotationTasksFromCsvError, Options<IngestAnnotationTasksFromCsvData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await ingestAnnotationTasksFromCsv({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Ingest Annotation Tasks From Geojson
- *
- * Ingest annotation tasks from a GeoJSON file.
- *
- * Each feature becomes one annotation task. Supported geometry types:
- * Point, Polygon, MultiPolygon. Polygon geometries are stored as-is and
- * displayed as the sample extent during annotation.
- */
-export const ingestAnnotationTasksFromGeojsonMutation = (options?: Partial<Options<IngestAnnotationTasksFromGeojsonData>>): UseMutationOptions<unknown, IngestAnnotationTasksFromGeojsonError, Options<IngestAnnotationTasksFromGeojsonData>> => {
-    const mutationOptions: UseMutationOptions<unknown, IngestAnnotationTasksFromGeojsonError, Options<IngestAnnotationTasksFromGeojsonData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await ingestAnnotationTasksFromGeojson({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Ingest Annotations From Geojson
- *
- * Bulk-import existing features as standalone annotations (no task assignment).
- *
- * Each feature becomes one annotation owned by the uploading admin. The label
- * is read from the ``stacnotator_label_id`` property and must be a label of
- * the campaign; otherwise the whole import is rejected.
- */
-export const ingestAnnotationsFromGeojsonMutation = (options?: Partial<Options<IngestAnnotationsFromGeojsonData>>): UseMutationOptions<unknown, IngestAnnotationsFromGeojsonError, Options<IngestAnnotationsFromGeojsonData>> => {
-    const mutationOptions: UseMutationOptions<unknown, IngestAnnotationsFromGeojsonError, Options<IngestAnnotationsFromGeojsonData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await ingestAnnotationsFromGeojson({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Create Annotation Openmode
- */
-export const createAnnotationOpenmodeMutation = (options?: Partial<Options<CreateAnnotationOpenmodeData>>): UseMutationOptions<CreateAnnotationOpenmodeResponse, CreateAnnotationOpenmodeError, Options<CreateAnnotationOpenmodeData>> => {
-    const mutationOptions: UseMutationOptions<CreateAnnotationOpenmodeResponse, CreateAnnotationOpenmodeError, Options<CreateAnnotationOpenmodeData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await createAnnotationOpenmode({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Batch Create Annotations
- *
- * Create many standalone annotations in one call (e.g. labelling many vector
- * features at once), in a single transaction with one annotations-version bump.
- */
-export const batchCreateAnnotationsMutation = (options?: Partial<Options<BatchCreateAnnotationsData>>): UseMutationOptions<BatchCreateAnnotationsResponse2, BatchCreateAnnotationsError, Options<BatchCreateAnnotationsData>> => {
-    const mutationOptions: UseMutationOptions<BatchCreateAnnotationsResponse2, BatchCreateAnnotationsError, Options<BatchCreateAnnotationsData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await batchCreateAnnotations({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Update Annotation Openmode
- */
-export const updateAnnotationOpenmodeMutation = (options?: Partial<Options<UpdateAnnotationOpenmodeData>>): UseMutationOptions<UpdateAnnotationOpenmodeResponse, UpdateAnnotationOpenmodeError, Options<UpdateAnnotationOpenmodeData>> => {
-    const mutationOptions: UseMutationOptions<UpdateAnnotationOpenmodeResponse, UpdateAnnotationOpenmodeError, Options<UpdateAnnotationOpenmodeData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await updateAnnotationOpenmode({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Delete Annotation
- *
- * Delete a specific annotation from a campaign.
- *
- * If the annotation is linked to a task, returns updated task_status and
- * assignment_status. Otherwise returns null.
- */
-export const deleteAnnotationMutation = (options?: Partial<Options<DeleteAnnotationData>>): UseMutationOptions<DeleteAnnotationResponse, DeleteAnnotationError, Options<DeleteAnnotationData>> => {
-    const mutationOptions: UseMutationOptions<DeleteAnnotationResponse, DeleteAnnotationError, Options<DeleteAnnotationData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await deleteAnnotation({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-export const getAnnotationQueryKey = (options: Options<GetAnnotationData>) => createQueryKey('getAnnotation', options);
-
-/**
- * Get Annotation
- *
- * Fetch one annotation's full-resolution geometry for click-to-edit.
- */
-export const getAnnotationOptions = (options: Options<GetAnnotationData>) => queryOptions<GetAnnotationResponse, GetAnnotationError, GetAnnotationResponse, ReturnType<typeof getAnnotationQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await getAnnotation({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: getAnnotationQueryKey(options)
-});
-
-/**
- * Batch Delete Annotations
- *
- * Delete multiple annotations from a campaign in one call.
- *
- * Public campaigns: non-admins may only delete their own annotations.
- * Task-linked annotations have their per-user assignment reset to 'pending'.
- */
-export const batchDeleteAnnotationsMutation = (options?: Partial<Options<BatchDeleteAnnotationsData>>): UseMutationOptions<BatchDeleteAnnotationsResponse2, BatchDeleteAnnotationsError, Options<BatchDeleteAnnotationsData>> => {
-    const mutationOptions: UseMutationOptions<BatchDeleteAnnotationsResponse2, BatchDeleteAnnotationsError, Options<BatchDeleteAnnotationsData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await batchDeleteAnnotations({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-export const exportAnnotationsQueryKey = (options: Options<ExportAnnotationsData>) => createQueryKey('exportAnnotations', options);
-
-/**
- * Export Annotations
- *
- * Export campaign annotations as CSV.
- *
- * When ``merge_on_agreement`` is true, multi-annotator tasks whose
- * annotators all agreed on the same label are collapsed into a single
- * row. Tasks with disagreement (conflict) cause the request to fail
- * with HTTP 400 - resolve the conflicts first.
- */
-export const exportAnnotationsOptions = (options: Options<ExportAnnotationsData>) => queryOptions<unknown, ExportAnnotationsError, unknown, ReturnType<typeof exportAnnotationsQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await exportAnnotations({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: exportAnnotationsQueryKey(options)
-});
-
-export const exportAnnotationsGeojsonQueryKey = (options: Options<ExportAnnotationsGeojsonData>) => createQueryKey('exportAnnotationsGeojson', options);
-
-/**
- * Export Annotations Geojson
- *
- * Export all annotations for a campaign as a GeoJSON FeatureCollection file.
- *
- * See ``export_annotations`` for the meaning of ``merge_on_agreement``.
- */
-export const exportAnnotationsGeojsonOptions = (options: Options<ExportAnnotationsGeojsonData>) => queryOptions<unknown, ExportAnnotationsGeojsonError, unknown, ReturnType<typeof exportAnnotationsGeojsonQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await exportAnnotationsGeojson({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: exportAnnotationsGeojsonQueryKey(options)
-});
-
-export const listAnnotationsForCampaignQueryKey = (options: Options<ListAnnotationsForCampaignData>) => createQueryKey('listAnnotationsForCampaign', options);
-
-/**
- * List Annotations For Campaign
- *
- * One page of a campaign's annotations, filtered and sorted server-side.
- *
- * Paged and geometry-free by necessity rather than taste: returning every annotation
- * with its geometry measured 10.2s and 70.5 MB on a campaign holding 100k of them,
- * which is one worker and one pooled connection occupied for ten seconds by a single
- * page load. The map beside the table reads the density grid instead, which is already
- * aggregated.
- */
-export const listAnnotationsForCampaignOptions = (options: Options<ListAnnotationsForCampaignData>) => queryOptions<ListAnnotationsForCampaignResponse, ListAnnotationsForCampaignError, ListAnnotationsForCampaignResponse, ReturnType<typeof listAnnotationsForCampaignQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await listAnnotationsForCampaign({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: listAnnotationsForCampaignQueryKey(options)
-});
-
-const createInfiniteParams = <K extends Pick<QueryKey<Options>[0], 'body' | 'headers' | 'path' | 'query'>>(queryKey: QueryKey<Options>, page: K) => {
-    const params = { ...queryKey[0] };
-    if (page.body) {
-        params.body = {
-            ...queryKey[0].body as any,
-            ...page.body as any
-        };
-    }
-    if (page.headers) {
-        params.headers = {
-            ...queryKey[0].headers,
-            ...page.headers
-        };
-    }
-    if (page.path) {
-        params.path = {
-            ...queryKey[0].path as any,
-            ...page.path as any
-        };
-    }
-    if (page.query) {
-        params.query = {
-            ...queryKey[0].query as any,
-            ...page.query as any
-        };
-    }
-    return params as unknown as typeof page;
-};
-
-export const listAnnotationsForCampaignInfiniteQueryKey = (options: Options<ListAnnotationsForCampaignData>): QueryKey<Options<ListAnnotationsForCampaignData>> => createQueryKey('listAnnotationsForCampaign', options, true);
-
-/**
- * List Annotations For Campaign
- *
- * One page of a campaign's annotations, filtered and sorted server-side.
- *
- * Paged and geometry-free by necessity rather than taste: returning every annotation
- * with its geometry measured 10.2s and 70.5 MB on a campaign holding 100k of them,
- * which is one worker and one pooled connection occupied for ten seconds by a single
- * page load. The map beside the table reads the density grid instead, which is already
- * aggregated.
- */
-export const listAnnotationsForCampaignInfiniteOptions = (options: Options<ListAnnotationsForCampaignData>) => infiniteQueryOptions<ListAnnotationsForCampaignResponse, ListAnnotationsForCampaignError, InfiniteData<ListAnnotationsForCampaignResponse>, QueryKey<Options<ListAnnotationsForCampaignData>>, number | Pick<QueryKey<Options<ListAnnotationsForCampaignData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
-// @ts-ignore
-{
-    queryFn: async ({ pageParam, queryKey, signal }) => {
-        // @ts-ignore
-        const page: Pick<QueryKey<Options<ListAnnotationsForCampaignData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
-            query: {
-                offset: pageParam
-            }
-        };
-        const params = createInfiniteParams(queryKey, page);
-        const { data } = await listAnnotationsForCampaign({
-            ...options,
-            ...params,
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: listAnnotationsForCampaignInfiniteQueryKey(options)
-});
-
-export const getAnnotationDensityByLabelQueryKey = (options: Options<GetAnnotationDensityByLabelData>) => createQueryKey('getAnnotationDensityByLabel', options);
-
-/**
- * Get Annotation Density By Label
- *
- * The campaign's class distribution as a grid.
- *
- * Separate from ``/density``, which the minimap uses and which knows only where
- * annotations are. This one answers where each class is, independent of whatever the
- * annotations table happens to be showing.
- *
- * Pass ``bbox`` as ``minx,miny,maxx,maxy`` to follow a viewport: the grid is then
- * sized from that window, so zooming in shrinks the cells until each holds a single
- * annotation and the map resolves to individual points. Omit it for the whole
- * campaign at a fixed resolution.
- */
-export const getAnnotationDensityByLabelOptions = (options: Options<GetAnnotationDensityByLabelData>) => queryOptions<GetAnnotationDensityByLabelResponse, GetAnnotationDensityByLabelError, GetAnnotationDensityByLabelResponse, ReturnType<typeof getAnnotationDensityByLabelQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await getAnnotationDensityByLabel({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: getAnnotationDensityByLabelQueryKey(options)
-});
-
-export const getAnnotationFacetsQueryKey = (options: Options<GetAnnotationFacetsData>) => createQueryKey('getAnnotationFacets', options);
-
-/**
- * Get Annotation Facets
- *
- * Campaign-wide counts for the annotations page's filters, legend and totals.
- *
- * Separate from the page itself because it does not change as the reader pages, and
- * because deriving it in the browser is only possible if the browser has every
- * annotation - which is exactly what the paged endpoint stopped shipping.
- */
-export const getAnnotationFacetsOptions = (options: Options<GetAnnotationFacetsData>) => queryOptions<GetAnnotationFacetsResponse, GetAnnotationFacetsError, GetAnnotationFacetsResponse, ReturnType<typeof getAnnotationFacetsQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await getAnnotationFacets({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: getAnnotationFacetsQueryKey(options)
-});
-
-export const getAnnotationTileQueryKey = (options: Options<GetAnnotationTileData>) => createQueryKey('getAnnotationTile', options);
-
-/**
- * Get Annotation Tile
- *
- * Return one Mapbox Vector Tile of a campaign's annotations.
- *
- * Each feature carries only ``annotation_id`` and ``label_id``; the frontend
- * styles by label and fetches full geometry by id when a feature is edited.
- * ``include_tasks=false`` leaves out annotations made from a task; it is part
- * of the URL, so the two variants never share a cache entry.
- */
-export const getAnnotationTileOptions = (options: Options<GetAnnotationTileData>) => queryOptions<unknown, GetAnnotationTileError, unknown, ReturnType<typeof getAnnotationTileQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await getAnnotationTile({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: getAnnotationTileQueryKey(options)
-});
-
-export const getAnnotationIdsInBboxQueryKey = (options: Options<GetAnnotationIdsInBboxData>) => createQueryKey('getAnnotationIdsInBbox', options);
-
-/**
- * Get Annotation Ids In Bbox
- *
- * Return ids of annotations intersecting ``bbox`` (``minx,miny,maxx,maxy``
- * in EPSG:4326). Backs box/multi-select against the tiled display.
- */
-export const getAnnotationIdsInBboxOptions = (options: Options<GetAnnotationIdsInBboxData>) => queryOptions<GetAnnotationIdsInBboxResponse, GetAnnotationIdsInBboxError, GetAnnotationIdsInBboxResponse, ReturnType<typeof getAnnotationIdsInBboxQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await getAnnotationIdsInBbox({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: getAnnotationIdsInBboxQueryKey(options)
-});
-
-export const getAnnotationChangesQueryKey = (options: Options<GetAnnotationChangesData>) => createQueryKey('getAnnotationChanges', options);
-
-/**
- * Get Annotation Changes
- *
- * What happened to this campaign's annotations since ``since``.
- *
- * Lets one annotator pick up another's work without either refetching tiles:
- * creates and edits as rows, deletions as ids. Without ``since`` it only hands
- * back the cursor to poll with next, which is what an arriving client does -
- * everything before it is already in the tiles it just loaded.
- */
-export const getAnnotationChangesOptions = (options: Options<GetAnnotationChangesData>) => queryOptions<GetAnnotationChangesResponse, GetAnnotationChangesError, GetAnnotationChangesResponse, ReturnType<typeof getAnnotationChangesQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await getAnnotationChanges({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: getAnnotationChangesQueryKey(options)
-});
-
-export const getAnnotationsExtentQueryKey = (options: Options<GetAnnotationsExtentData>) => createQueryKey('getAnnotationsExtent', options);
-
-/**
- * Get Annotations Extent
- *
- * Return the bounding box of a campaign's annotations for fit-to-bounds.
- */
-export const getAnnotationsExtentOptions = (options: Options<GetAnnotationsExtentData>) => queryOptions<GetAnnotationsExtentResponse, GetAnnotationsExtentError, GetAnnotationsExtentResponse, ReturnType<typeof getAnnotationsExtentQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await getAnnotationsExtent({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: getAnnotationsExtentQueryKey(options)
-});
-
-export const getTaskDensityQueryKey = (options: Options<GetTaskDensityData>) => createQueryKey('getTaskDensity', options);
-
-/**
- * Get Task Density
- *
- * A grid of task counts by status and label, for the campaign maps.
- *
- * `bbox` both windows the result and sizes the cells, so zooming resolves: cells
- * shrink until one holds a single task and its reported position is that task's own.
- */
-export const getTaskDensityOptions = (options: Options<GetTaskDensityData>) => queryOptions<GetTaskDensityResponse, GetTaskDensityError, GetTaskDensityResponse, ReturnType<typeof getTaskDensityQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await getTaskDensity({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: getTaskDensityQueryKey(options)
-});
-
-export const getAnnotationDensityQueryKey = (options: Options<GetAnnotationDensityData>) => createQueryKey('getAnnotationDensity', options);
-
-/**
- * Get Annotation Density
- *
- * Return a coarse grid of annotation counts for the minimap overview.
- */
-export const getAnnotationDensityOptions = (options: Options<GetAnnotationDensityData>) => queryOptions<GetAnnotationDensityResponse, GetAnnotationDensityError, GetAnnotationDensityResponse, ReturnType<typeof getAnnotationDensityQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await getAnnotationDensity({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: getAnnotationDensityQueryKey(options)
-});
-
-export const getTimeseriesForCampaignQueryKey = (options: Options<GetTimeseriesForCampaignData>) => createQueryKey('getTimeseriesForCampaign', options);
-
-/**
- * Get Timeseries For Campaign
- *
- * Get all timeseries configurations for a campaign. NOT the actual data, just the metadata about the timeseries.
- */
-export const getTimeseriesForCampaignOptions = (options: Options<GetTimeseriesForCampaignData>) => queryOptions<GetTimeseriesForCampaignResponse, GetTimeseriesForCampaignError, GetTimeseriesForCampaignResponse, ReturnType<typeof getTimeseriesForCampaignQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await getTimeseriesForCampaign({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: getTimeseriesForCampaignQueryKey(options)
-});
-
 /**
  * Create Timeseries For Campaign
  *
@@ -2306,12 +2047,12 @@ export const getTimeseriesCreationOptionsOptions = (options?: Options<GetTimeser
 });
 
 /**
- * Rename Timeseries Panel
+ * Rename Timeseries Window
  */
-export const renameTimeseriesPanelMutation = (options?: Partial<Options<RenameTimeseriesPanelData>>): UseMutationOptions<RenameTimeseriesPanelResponse, RenameTimeseriesPanelError, Options<RenameTimeseriesPanelData>> => {
-    const mutationOptions: UseMutationOptions<RenameTimeseriesPanelResponse, RenameTimeseriesPanelError, Options<RenameTimeseriesPanelData>> = {
+export const renameTimeseriesWindowMutation = (options?: Partial<Options<RenameTimeseriesWindowData>>): UseMutationOptions<RenameTimeseriesWindowResponse, RenameTimeseriesWindowError, Options<RenameTimeseriesWindowData>> => {
+    const mutationOptions: UseMutationOptions<RenameTimeseriesWindowResponse, RenameTimeseriesWindowError, Options<RenameTimeseriesWindowData>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await renameTimeseriesPanel({
+            const { data } = await renameTimeseriesWindow({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -2327,7 +2068,7 @@ export const getTimeseriesDataQueryKey = (options: Options<GetTimeseriesDataData
 /**
  * Get Timeseries Data
  *
- * Fetch the actual timeseries data from an external provider based on the timeseries config.
+ * A series' values at a point, fetched from its provider.
  */
 export const getTimeseriesDataOptions = (options: Options<GetTimeseriesDataData>) => queryOptions<GetTimeseriesDataResponse, GetTimeseriesDataError, GetTimeseriesDataResponse, ReturnType<typeof getTimeseriesDataQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -2345,7 +2086,7 @@ export const getTimeseriesDataOptions = (options: Options<GetTimeseriesDataData>
 /**
  * Delete Timeseries
  *
- * Delete a timeseries. If it's the last one, removes it from all layouts.
+ * Delete a timeseries, and its window when it was the window's last.
  */
 export const deleteTimeseriesMutation = (options?: Partial<Options<DeleteTimeseriesData>>): UseMutationOptions<DeleteTimeseriesResponse, DeleteTimeseriesError, Options<DeleteTimeseriesData>> => {
     const mutationOptions: UseMutationOptions<DeleteTimeseriesResponse, DeleteTimeseriesError, Options<DeleteTimeseriesData>> = {
@@ -2403,8 +2144,8 @@ export const generateTasksFromSamplingMutation = (options?: Partial<Options<Gene
  * edit flow's Save button - reconciles adds/updates/deletes across sources,
  * collections, slices, and basemaps in a single transaction.
  */
-export const saveImageryMutation = (options?: Partial<Options<SaveImageryData>>): UseMutationOptions<unknown, SaveImageryError, Options<SaveImageryData>> => {
-    const mutationOptions: UseMutationOptions<unknown, SaveImageryError, Options<SaveImageryData>> = {
+export const saveImageryMutation = (options?: Partial<Options<SaveImageryData>>): UseMutationOptions<SaveImageryResponse, SaveImageryError, Options<SaveImageryData>> => {
+    const mutationOptions: UseMutationOptions<SaveImageryResponse, SaveImageryError, Options<SaveImageryData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await saveImagery({
                 ...options,
@@ -2418,35 +2159,12 @@ export const saveImageryMutation = (options?: Partial<Options<SaveImageryData>>)
 };
 
 /**
- * Create New Canvas Layout
+ * Save Canvas Layout
  */
-export const createNewCanvasLayoutMutation = (options?: Partial<Options<CreateNewCanvasLayoutData>>): UseMutationOptions<unknown, CreateNewCanvasLayoutError, Options<CreateNewCanvasLayoutData>> => {
-    const mutationOptions: UseMutationOptions<unknown, CreateNewCanvasLayoutError, Options<CreateNewCanvasLayoutData>> = {
+export const saveCanvasLayoutMutation = (options?: Partial<Options<SaveCanvasLayoutData>>): UseMutationOptions<unknown, SaveCanvasLayoutError, Options<SaveCanvasLayoutData>> => {
+    const mutationOptions: UseMutationOptions<unknown, SaveCanvasLayoutError, Options<SaveCanvasLayoutData>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await createNewCanvasLayout({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Refresh Collection Imagery
- *
- * Re-search STAC catalog with stored params and re-ingest mosaic items.
- *
- * Ingest is a slow per-slice HTTP call to the tiler; it runs off the request
- * path (see spawn_background_collection_refresh) so this transaction isn't
- * held open across it.
- */
-export const refreshCollectionImageryMutation = (options?: Partial<Options<RefreshCollectionImageryData>>): UseMutationOptions<unknown, RefreshCollectionImageryError, Options<RefreshCollectionImageryData>> => {
-    const mutationOptions: UseMutationOptions<unknown, RefreshCollectionImageryError, Options<RefreshCollectionImageryData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await refreshCollectionImagery({
+            const { data } = await saveCanvasLayout({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -2463,11 +2181,11 @@ export const refreshCollectionImageryMutation = (options?: Partial<Options<Refre
  * Re-run every STAC search this source was built from and re-ingest what
  * comes back, so a season that has moved on picks up its newer imagery.
  *
- * Same shape as the per-collection refresh: validate synchronously, then hand
- * the slow per-slice tiler calls to a background run.
+ * Validated synchronously, then the slow per-slice tiler calls run in the
+ * background.
  */
-export const refreshSourceImageryMutation = (options?: Partial<Options<RefreshSourceImageryData>>): UseMutationOptions<unknown, RefreshSourceImageryError, Options<RefreshSourceImageryData>> => {
-    const mutationOptions: UseMutationOptions<unknown, RefreshSourceImageryError, Options<RefreshSourceImageryData>> = {
+export const refreshSourceImageryMutation = (options?: Partial<Options<RefreshSourceImageryData>>): UseMutationOptions<RefreshSourceImageryResponse, RefreshSourceImageryError, Options<RefreshSourceImageryData>> => {
+    const mutationOptions: UseMutationOptions<RefreshSourceImageryResponse, RefreshSourceImageryError, Options<RefreshSourceImageryData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await refreshSourceImagery({
                 ...options,
@@ -3303,12 +3021,11 @@ export const addVisualizerFeedbackMutation = (options?: Partial<Options<AddVisua
 /**
  * Get Visualizer Tiler Token
  *
- * Tile access for exactly the campaigns this visualizer draws from.
+ * Tile access for exactly what this visualizer shows.
  *
- * Scoping the token to the visualizer's own campaigns is what lets a visitor
- * with no account fetch its tiles without opening anything else. The scopes
- * alone would be the whole of those campaigns, so the token also names the
- * visualizer and the tile proxy serves it nothing else.
+ * The token names the visualizer itself and the single campaign layers it
+ * links, never those campaigns, which is what lets a visitor with no account
+ * fetch its tiles without opening anything else.
  */
 export const getVisualizerTilerTokenMutation = (options?: Partial<Options<GetVisualizerTilerTokenData>>): UseMutationOptions<GetVisualizerTilerTokenResponse, GetVisualizerTilerTokenError, Options<GetVisualizerTilerTokenData>> => {
     const mutationOptions: UseMutationOptions<GetVisualizerTilerTokenResponse, GetVisualizerTilerTokenError, Options<GetVisualizerTilerTokenData>> = {

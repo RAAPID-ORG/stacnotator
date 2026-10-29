@@ -5,7 +5,7 @@ export interface PasswordRequirement {
   test: (password: string) => boolean;
 }
 
-export const PASSWORD_REQUIREMENTS: PasswordRequirement[] = [
+const PASSWORD_REQUIREMENTS: PasswordRequirement[] = [
   { id: 'minLength', test: (p) => p.length >= 8 },
   { id: 'uppercase', test: (p) => /[A-Z]/.test(p) },
   { id: 'lowercase', test: (p) => /[a-z]/.test(p) },
@@ -17,7 +17,7 @@ export function passwordMeetsAllRequirements(password: string): boolean {
   return PASSWORD_REQUIREMENTS.every((req) => req.test(password));
 }
 
-export function PasswordRequirementIndicator({
+function PasswordRequirementIndicator({
   requirement,
   password,
 }: {

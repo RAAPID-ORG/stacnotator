@@ -3,22 +3,11 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from src.campaigns.models import Campaign
-from src.canvas.layout import rename_window_in_layout
-from src.canvas.service import sync_main_layouts
-from src.config import get_settings
 from src.timeseries.fetch import fetch_index_series
 from src.timeseries.indices import index_for
-from src.timeseries.models import TimeSeries
-from src.timeseries.schemas import TimeSeriesCreate
+from src.timeseries.models import Timeseries, TimeseriesWindow
+from src.timeseries.schemas import TimeseriesCreate
 from src.timeseries.sources import source_for
-from src.timeseries.windows import (
-    distinct_window_keys,
-    sync_timeseries_windows_in_layout,
-    window_grid_key,
-)
-
-settings = get_settings()
 
 
 def get_timeseries_data(
@@ -54,122 +43,75 @@ def get_timeseries_data(
 # ============================================================================
 
 
-def sync_campaign_timeseries_windows(campaign_id: int, db: Session) -> None:
-    """
-    Reconcile every main canvas layout with the campaign's current timeseries
-    windows: one window per distinct ``window_name`` (unnamed series share the
-    default window). Called after any create/delete so windows appear as their
-    first series is added and disappear once emptied. Main layouts have
-    ``view_id = None`` (both the campaign default and per-user personal copies).
-    """
-    window_names = (
-        db.execute(select(TimeSeries.window_name).where(TimeSeries.campaign_id == campaign_id))
-        .scalars()
-        .all()
-    )
-    desired_keys = distinct_window_keys(window_names)
-    sync_main_layouts(
-        db, campaign_id, lambda ld: sync_timeseries_windows_in_layout(ld, desired_keys)
-    )
-
-
-def get_timeseries_for_campaign(campaign_id: int, db: Session) -> list[TimeSeries]:
-    # Check campaign exists
-    campaign = db.execute(select(Campaign).where(Campaign.id == campaign_id)).scalar_one_or_none()
-    if not campaign:
-        raise HTTPException(status_code=404, detail=f"Campaign with id {campaign_id} not found")
-
-    return list(
-        db.execute(select(TimeSeries).where(TimeSeries.campaign_id == campaign_id)).scalars().all()
-    )
+def add_timeseries(
+    db: Session, campaign_id: int, ts_creates: list[TimeseriesCreate]
+) -> list[Timeseries]:
+    """Add series to a campaign (uncommitted), each into the window it names, which
+    is created the first time a series names it."""
+    windows = {
+        w.name: w
+        for w in db.scalars(
+            select(TimeseriesWindow).where(TimeseriesWindow.campaign_id == campaign_id)
+        )
+    }
+    new_items = []
+    for ts in ts_creates:
+        window = windows.get(ts.window_name)
+        if window is None:
+            window = TimeseriesWindow(campaign_id=campaign_id, name=ts.window_name)
+            db.add(window)
+            windows[ts.window_name] = window
+        new_items.append(
+            Timeseries(
+                campaign_id=campaign_id, window=window, **ts.model_dump(exclude={"window_name"})
+            )
+        )
+    db.add_all(new_items)
+    db.flush()
+    return new_items
 
 
 def create_timeseries_bulk(
-    campaign_id: int, ts_creates: list[TimeSeriesCreate], db: Session
-) -> list[TimeSeries]:
-    """
-    Create multiple timeseries for a campaign and sync the canvas windows.
-
-    Each series is placed in the window named by its ``window_name`` (unnamed
-    series share the default window); the main canvas layouts gain one window per
-    distinct name.
-
-    Args:
-        campaign_id: ID of the campaign
-        ts_creates: List of timeseries creation schemas
-        db: Database session
-
-    Returns:
-        List of created timeseries objects
-    """
-    # Verify campaign exists
-    campaign = db.execute(select(Campaign).where(Campaign.id == campaign_id)).scalar_one_or_none()
-    if not campaign:
-        raise HTTPException(status_code=404, detail=f"Campaign with id {campaign_id} not found")
-
-    # Create timeseries entries
-    new_items = []
-    for ts_create in ts_creates:
-        ts_item = TimeSeries(
-            campaign_id=campaign_id,
-            name=ts_create.name,
-            window_name=ts_create.window_name,
-            start_ym=ts_create.start_ym,
-            end_ym=ts_create.end_ym,
-            data_source=ts_create.data_source,
-            provider=ts_create.provider,
-            ts_type=ts_create.ts_type,
-        )
-        new_items.append(ts_item)
-
-    db.add_all(new_items)
-    db.flush()
-
-    sync_campaign_timeseries_windows(campaign_id, db)
-
+    campaign_id: int, ts_creates: list[TimeseriesCreate], db: Session
+) -> list[Timeseries]:
+    new_items = add_timeseries(db, campaign_id, ts_creates)
     db.commit()
     return new_items
 
 
-def rename_timeseries_panel(campaign_id: int, old_name: str, new_name: str, db: Session) -> None:
-    series = list(
-        db.execute(
-            select(TimeSeries).where(TimeSeries.campaign_id == campaign_id).with_for_update()
+def rename_timeseries_window(campaign_id: int, window_id: int, name: str, db: Session) -> None:
+    window = db.scalar(
+        select(TimeseriesWindow).where(
+            TimeseriesWindow.id == window_id, TimeseriesWindow.campaign_id == campaign_id
         )
-        .scalars()
-        .all()
     )
-    old_key, new_key = window_grid_key(old_name), window_grid_key(new_name)
-    matching = [item for item in series if window_grid_key(item.window_name) == old_key]
-    if not matching:
-        raise HTTPException(status_code=404, detail="Timeseries panel not found")
-    if old_key == new_key:
+    if window is None:
+        raise HTTPException(status_code=404, detail="Timeseries window not found")
+    if window.name == name:
         return
-    if any(window_grid_key(item.window_name) == new_key for item in series):
-        raise HTTPException(status_code=409, detail="A panel with this name already exists")
-    for item in matching:
-        item.window_name = new_name
-    sync_main_layouts(
-        db, campaign_id, lambda layout: rename_window_in_layout(layout, old_key, new_key)
+    taken = db.scalar(
+        select(TimeseriesWindow.id).where(
+            TimeseriesWindow.campaign_id == campaign_id, TimeseriesWindow.name == name
+        )
     )
+    if taken is not None:
+        raise HTTPException(status_code=409, detail="A window with this name already exists")
+    window.name = name
     db.commit()
 
 
-def get_timeseries_by_id(timeseries_id: int, db: Session) -> TimeSeries:
+def get_timeseries_by_id(timeseries_id: int, db: Session) -> Timeseries:
     ts_item = db.execute(
-        select(TimeSeries).where(TimeSeries.id == timeseries_id)
+        select(Timeseries).where(Timeseries.id == timeseries_id)
     ).scalar_one_or_none()
     if not ts_item:
-        raise HTTPException(status_code=404, detail=f"TimeSeries with id {timeseries_id} not found")
+        raise HTTPException(status_code=404, detail=f"Timeseries with id {timeseries_id} not found")
     return ts_item
 
 
 def delete_timeseries(timeseries_id: int, campaign_id: int, db: Session) -> None:
     """
-    Delete a timeseries and sync the canvas windows.
-
-    Removing the last series in a window drops that window from all main canvas
-    layouts (default and personal); other windows are left in place.
+    Delete a timeseries; a window left without series goes with it.
 
     Args:
         timeseries_id: ID of the timeseries to delete
@@ -178,22 +120,22 @@ def delete_timeseries(timeseries_id: int, campaign_id: int, db: Session) -> None
     """
     # Verify timeseries exists and belongs to campaign
     ts_item = db.execute(
-        select(TimeSeries).where(
-            TimeSeries.id == timeseries_id,
-            TimeSeries.campaign_id == campaign_id,
+        select(Timeseries).where(
+            Timeseries.id == timeseries_id,
+            Timeseries.campaign_id == campaign_id,
         )
     ).scalar_one_or_none()
 
     if not ts_item:
         raise HTTPException(
             status_code=404,
-            detail=f"TimeSeries {timeseries_id} not found in campaign {campaign_id}",
+            detail=f"Timeseries {timeseries_id} not found in campaign {campaign_id}",
         )
 
-    # Delete the timeseries
+    window = ts_item.window
     db.delete(ts_item)
     db.flush()
-
-    sync_campaign_timeseries_windows(campaign_id, db)
-
+    db.refresh(window)
+    if not window.series:
+        db.delete(window)
     db.commit()

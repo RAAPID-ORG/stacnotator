@@ -4,16 +4,16 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from src.campaigns.schemas import (
-    AssignReviewersRequest,
     CampaignCreate,
     CampaignOut,
     CampaignOutFull,
     CampaignSettingsCreate,
     default_labelling_policy,
 )
+from src.tasks.schemas import AssignReviewersRequest, ReviewNumberOfTasks, ReviewShareOfTasks
 
 
 def _minimal_settings() -> dict:
@@ -24,47 +24,6 @@ def _minimal_settings() -> dict:
         "bbox_east": 10.0,
         "bbox_north": 10.0,
     }
-
-
-def test_campaign_create_mode_tasks_accepted():
-    data = CampaignCreate(
-        name="x", mode="tasks", project_id=1, settings=CampaignSettingsCreate(**_minimal_settings())
-    )
-    assert data.mode == "tasks"
-
-
-def test_campaign_create_mode_open_accepted():
-    data = CampaignCreate(
-        name="x", mode="open", project_id=1, settings=CampaignSettingsCreate(**_minimal_settings())
-    )
-    assert data.mode == "open"
-
-
-def test_campaign_create_mode_invalid_rejected():
-    with pytest.raises(ValidationError):
-        CampaignCreate(
-            name="x",
-            mode="open-world",
-            project_id=1,
-            settings=CampaignSettingsCreate(**_minimal_settings()),
-        )
-
-
-def test_campaign_create_mode_arbitrary_string_rejected():
-    with pytest.raises(ValidationError):
-        CampaignCreate(
-            name="x",
-            mode="bogus",
-            project_id=1,
-            settings=CampaignSettingsCreate(**_minimal_settings()),
-        )
-
-
-def test_campaign_create_mode_defaults_to_tasks():
-    data = CampaignCreate(
-        name="x", project_id=1, settings=CampaignSettingsCreate(**_minimal_settings())
-    )
-    assert data.mode == "tasks"
 
 
 def test_campaign_create_labelling_policy_defaults_to_none():
@@ -92,11 +51,14 @@ def _campaign_orm_stub(project_id: int = 7) -> SimpleNamespace:
         project_id=project_id,
         name="Campaign",
         created_at=datetime(2026, 1, 1, tzinfo=UTC),
-        mode="open",
         is_public=False,
         annotations_version=0,
         settings=SimpleNamespace(
-            **_minimal_settings(),
+            **{
+                **_minimal_settings(),
+                "labels": [{"id": 1, "name": "Forest", "geometry_type": "polygon"}],
+            },
+            task_output="classify",
             labelling_policy=default_labelling_policy(),
             form_fields=[],
             research_sharing=False,
@@ -119,12 +81,12 @@ def test_campaign_out_exposes_project_id():
 
 
 def test_campaign_out_full_from_orm_carries_project_id():
-    out = CampaignOutFull.from_orm(_campaign_orm_stub(project_id=7))
+    out = CampaignOutFull.model_validate(_campaign_orm_stub(project_id=7))
     assert out.project_id == 7
 
 
 def test_campaign_out_full_viewer_role_flags_default_to_false():
-    out = CampaignOutFull.from_orm(_campaign_orm_stub())
+    out = CampaignOutFull.model_validate(_campaign_orm_stub())
     assert not out.viewer_is_admin
     assert not out.viewer_is_member
     assert not out.viewer_is_authoritative_reviewer
@@ -137,7 +99,7 @@ def test_campaign_out_full_preserves_background_status(registration_status):
     campaign.embedding_status = "registering"
     campaign.registration_errors = [{"message": "Registration failed"}]
 
-    out = CampaignOutFull.from_orm(campaign)
+    out = CampaignOutFull.model_validate(campaign)
 
     assert out.registration_status == registration_status
     assert out.embedding_status == "registering"
@@ -148,26 +110,28 @@ def test_campaign_out_full_preserves_background_status(registration_status):
     )
 
 
-def test_assign_reviewers_pattern_percentage_accepted():
-    req = AssignReviewersRequest(
-        pattern="percentage", percentage=50.0, num_reviewers=1, reviewer_ids=[]
+def test_assign_reviewers_request_is_picked_by_pattern():
+    adapter = TypeAdapter(AssignReviewersRequest)
+    share = adapter.validate_python(
+        {"pattern": "percentage", "percentage": 50.0, "reviewers_per_task": 1, "reviewer_ids": []}
     )
-    assert req.pattern == "percentage"
+    number = adapter.validate_python(
+        {"pattern": "fixed", "num_tasks": 10, "reviewers_per_task": 1, "reviewer_ids": []}
+    )
+    assert isinstance(share, ReviewShareOfTasks)
+    assert isinstance(number, ReviewNumberOfTasks)
 
 
-def test_assign_reviewers_pattern_fixed_accepted():
-    req = AssignReviewersRequest(pattern="fixed", num_tasks=10, fixed_num_reviewers=1)
-    assert req.pattern == "fixed"
-
-
-def test_assign_reviewers_pattern_manual_accepted():
-    req = AssignReviewersRequest(pattern="manual", manual_assignments={1: []})
-    assert req.pattern == "manual"
-
-
-def test_assign_reviewers_pattern_invalid_rejected():
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"pattern": "manual", "manual_assignments": {1: []}},
+        {"pattern": "fixed", "reviewers_per_task": 1, "reviewer_ids": []},
+    ],
+)
+def test_assign_reviewers_request_rejects_incomplete_or_unknown_patterns(body):
     with pytest.raises(ValidationError):
-        AssignReviewersRequest(pattern="random")
+        TypeAdapter(AssignReviewersRequest).validate_python(body)
 
 
 def test_settings_accept_form_fields():

@@ -154,7 +154,7 @@ Hosted tilers (and their flags) come from the `TILERS` env var; adding one is co
 
 ## Per-collection tiler selection
 
-A collection can name which hosted tiler it uses (`stac_config.tiler`); unset means the default
+A collection can name which hosted tiler it uses (its search's `tiler`); unset means the default
 tiler. Collections saved together can target different tilers. In the wizard the tiler is
 normally set automatically by the catalog you browse (next section); an **Advanced → Tile
 server** dropdown lets you override it for non-MPC collections.
@@ -178,29 +178,35 @@ collection targeting a tiler the campaign's organization isn't allowed is reject
 anything is written. This gates *who may set up imagery on a tiler*; it does not gate viewing
 (below).
 
-## Viewing (campaign-scoped)
+## Viewing (owner- and layer-scoped)
 
-The backend mints a short-lived HS256 cookie carrying the user's campaigns, signed with a
-secret **shared by the backend and all tilers**. A tiler serves a tile only if the search's
-`campaign_id` (stamped at registration) is in the token - so users see only their campaigns'
-imagery, and only data actually registered on that tiler. A tiler is therefore part of one
-trusted deployment, not a third-party service: it must share `TILER_TOKEN_SECRET` with the
-backend and sit on a subdomain of the app so the cookie reaches it.
+Every search the backend registers on a tiler is stamped with its **owner** (a campaign's bare
+id, or `visualizer:<id>`, see `layers.LayerOwner`) and its **layer** (`source:<id>` or
+`custom_map:<id>`). The backend mints a short-lived HS256 cookie naming `owners` and `layers`,
+signed with a secret **shared by the backend and all tilers**, and a tiler serves a tile only
+when the search's owner or its layer is named. A tiler is therefore part of one trusted
+deployment, not a third-party service: it must share `TILER_TOKEN_SECRET` with the backend and
+sit on a subdomain of the app so the cookie reaches it.
 
-A published visualizer hands its visitors the same kind of cookie, scoped to the campaigns it
-draws linked layers from - the tiler knows no unit smaller than a campaign, so that is what a
-linked source has to be asked for by. Those tokens also carry a `visualizer` claim, and the
-backend's own tile proxy (the path that spends a provider API key, `imagery/proxy_router.py`)
-honours it: such a session is served only under `/api/visualizers/{id}/...`, which resolves
-just the sources that visualizer owns or links. Without it a shared link would be a read
-session on every layer of the campaigns behind it.
+- A signed-in user's cookie names the campaigns they can see as owners.
+- A published visualizer's cookie names the visualizer as owner and, as layers, only the
+  campaign sources and custom maps it links. Linking one source of a campaign opens that
+  source's mosaics and nothing else the campaign registered.
+
+The backend's own tile proxy (the path that spends a provider API key,
+`imagery/proxy_router.py`) checks the same cookie by owner: a visualizer's session is served
+only under `/api/visualizers/{id}/...`, which resolves just the sources that visualizer owns or
+links.
+
+Changing what a search is stamped with changes its id (pgstac hashes the metadata with the
+search), so the migration that introduced owner and layer dropped every hosted mosaic and left
+its owners `pending`; each booting worker claims pending runs and registers what is missing.
+The tiler refuses searches stamped the old way, and its `docs/database.md` has the cleanup for
+them. Deploy the tiler before the backend.
 
 Known trade-offs (intentionally simple for now): a single shared secret works across all
 tilers, and a campaign's tiler access is implicit (it's "on" a tiler once data is registered
-there). The tiler itself still checks only the campaign scope, so tiler-served imagery a
-visualizer links is reachable at campaign granularity by anyone holding that visualizer's
-cookie; narrowing that needs a finer claim the tiler understands. In the future we might want
-to switch to asymetric keys.
+there). In the future we might want to switch to asymmetric keys.
 
 ## Deploying a tiler
 

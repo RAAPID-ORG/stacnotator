@@ -3,13 +3,12 @@ import threading
 
 import httpx
 from fastapi import HTTPException
-from sqlalchemy import exists, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from src import storage_access
-from src.config import TilerCfg
+from src import background, storage_access
+from src.config import TilerCfg, get_settings
 from src.custom_layers.models import CustomMap, VectorLayer
-from src.custom_layers.render import build_viz_params
 from src.custom_layers.schemas import (
     CustomMapCreate,
     CustomMapUpdate,
@@ -20,7 +19,6 @@ from src.database import SessionLocal
 from src.layers import LayerOwner
 from src.redact import redact_urls
 from src.tilers.providers import (
-    build_tile_url,
     register_cog_on_tiler,
     resolve_tiler,
     revoke_on_tiler,
@@ -32,6 +30,17 @@ logger = logging.getLogger(__name__)
 
 class DuplicateCustomMapName(Exception):
     pass
+
+
+CUSTOM_MAP_RUN = background.StatusField(
+    model=CustomMap,
+    status_column="status",
+    heartbeat_column="heartbeat_at",
+    errors_column="status_errors",
+    interrupted_error=(
+        "Registering this map was interrupted by a server restart. Save it again to retry."
+    ),
+)
 
 
 PRIVATE_MAP_NOT_PUBLISHABLE = (
@@ -61,23 +70,19 @@ def _revoke_private_search(db: Session, cm: CustomMap, search_id: str | None) ->
 
     The search carries the SAS sealed inside it, so for as long as it exists it serves
     with a token the owner has replaced or removed. The edit fails rather than leave it
-    live. A search another map still points at (a duplicated campaign's copy) is that
-    map's to retire.
+    live. Every map registers its own search (a duplicated campaign's copies too), so
+    no other map reads through it.
     """
     if search_id is None:
         return
-    shared = db.scalar(
-        select(exists().where(CustomMap.mosaic_id == search_id, CustomMap.id != cm.id))
-    )
-    if not shared:
-        try:
-            revoke_on_tiler(resolve_tiler(None), search_id)
-        except (httpx.HTTPError, ValueError) as exc:
-            logger.exception("Revoking tiler search %s for custom map %s failed", search_id, cm.id)
-            raise HTTPException(status_code=502, detail=REVOKE_FAILED) from exc
+    try:
+        revoke_on_tiler(resolve_tiler(cm.tiler), search_id)
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.exception("Revoking tiler search %s for custom map %s failed", search_id, cm.id)
+        raise HTTPException(status_code=502, detail=REVOKE_FAILED) from exc
     if cm.mosaic_id == search_id:
         cm.mosaic_id = None
-        cm.tile_url = None
+        cm.tiler = None
 
 
 def _discard_orphan(tiler: TilerCfg, search_id: str, map_id: int) -> None:
@@ -111,8 +116,8 @@ def _insert(db: Session, owner: LayerOwner, payload: CustomMapCreate) -> CustomM
         max_native_zoom=payload.max_native_zoom,
         mlops_url=payload.mlops_url,
         internal_storage=payload.internal_storage,
-        status="registering",
     )
+    background.begin_status_run(cm, CUSTOM_MAP_RUN)
     storage_access.store(cm, payload.storage_access)
     db.add(cm)
     db.commit()
@@ -120,30 +125,25 @@ def _insert(db: Session, owner: LayerOwner, payload: CustomMapCreate) -> CustomM
     return cm
 
 
-def _stamp_tile_url(cm: CustomMap, search_id: str, tiler: TilerCfg) -> None:
-    viz_params = build_viz_params(cm.render_config)
-    cm.tile_url = build_tile_url("hosted", search_id, viz_params, tiler=tiler)
-
-
 def run_registration(db: Session, cm: CustomMap) -> None:
     registered_access = (cm.cog_url, cm.internal_storage, cm.encrypted_storage_secret)
 
     def still_current() -> bool:
         db.refresh(
-            cm,
-            ["render_config", "cog_url", "internal_storage", "encrypted_storage_secret"],
-            with_for_update=True,
+            cm, ["cog_url", "internal_storage", "encrypted_storage_secret"], with_for_update=True
         )
         return registered_access == (cm.cog_url, cm.internal_storage, cm.encrypted_storage_secret)
 
     sealed_search: str | None = None
     try:
-        tiler = resolve_tiler(None)
+        tiler_name = get_settings().DEFAULT_TILER
+        tiler = resolve_tiler(tiler_name)
         access = storage_access.stored(cm)
         search_id = register_cog_on_tiler(
             tiler,
             cm.cog_url,
             cm.owner.tile_scope,
+            cm.tile_layer,
             internal_storage=cm.internal_storage,
             sealed_storage_access=(
                 storage_access.seal_for_tiler(access, cm.cog_url) if access else None
@@ -151,16 +151,14 @@ def run_registration(db: Session, cm: CustomMap) -> None:
         )
         if access is not None:
             sealed_search = search_id
-        # A colour edit can land while the tiler call is in flight, and update_custom_map
-        # cannot restamp a map that has no search yet, so pick up the current config here.
         if not still_current():
             if sealed_search is not None:
                 _discard_orphan(tiler, sealed_search, cm.id)
             return
-        _stamp_tile_url(cm, search_id, tiler)
         cm.mosaic_id = search_id
+        cm.tiler = tiler_name
         cm.status = "ready"
-        cm.status_error = None
+        cm.status_errors = None
     except Exception as exc:
         if sealed_search is not None:
             _discard_orphan(tiler, sealed_search, cm.id)
@@ -168,22 +166,34 @@ def run_registration(db: Session, cm: CustomMap) -> None:
             return
         logger.exception("Custom map registration failed for map %s", cm.id)
         cm.status = "failed"
-        cm.status_error = {"error": redact_urls(str(exc))}
+        cm.status_errors = [{"error": redact_urls(str(exc))}]
     db.commit()
 
 
 def _register_async(map_id: int) -> None:
+    """Not ``background.spawn_status_run``: a run overtaken by an edit must leave the
+    status to the run that edit started, so this one writes its own outcome. It still
+    beats, so the stale-run sweep can tell a dead worker's run from a live one."""
     bg_db = SessionLocal()
     try:
-        cm = bg_db.get(CustomMap, map_id)
-        if cm is not None:
-            run_registration(bg_db, cm)
+        with background.heartbeat(map_id, CUSTOM_MAP_RUN):
+            cm = bg_db.get(CustomMap, map_id)
+            if cm is not None:
+                run_registration(bg_db, cm)
     finally:
         bg_db.close()
 
 
-def _spawn_registration(map_id: int) -> None:
+def spawn_registration(map_id: int) -> None:
     threading.Thread(target=_register_async, args=(map_id,), daemon=True).start()
+
+
+def resume_pending(db: Session) -> None:
+    """Start the custom-map registrations left owed, for the maps this worker claims."""
+    map_ids = background.claim_pending_runs(db, CUSTOM_MAP_RUN)
+    db.commit()
+    for map_id in map_ids:
+        spawn_registration(map_id)
 
 
 def create_custom_map(db: Session, owner: LayerOwner, payload: CustomMapCreate) -> CustomMap:
@@ -192,18 +202,25 @@ def create_custom_map(db: Session, owner: LayerOwner, payload: CustomMapCreate) 
     if _name_taken(db, owner, payload.name):
         raise DuplicateCustomMapName(payload.name)
     cm = _insert(db, owner, payload)
-    _spawn_registration(cm.id)
+    spawn_registration(cm.id)
     return cm
 
 
 def list_custom_maps(db: Session, owner: LayerOwner) -> list[CustomMap]:
-    return list(
-        db.execute(
-            select(CustomMap)
-            .where(_owned(CustomMap, owner))
-            .order_by(CustomMap.display_order, CustomMap.id)
-        ).scalars()
+    """The editor polls this while a map registers, so a run whose worker died is
+    failed here rather than left "registering" until the next restart."""
+    query = (
+        select(CustomMap)
+        .where(_owned(CustomMap, owner))
+        .order_by(CustomMap.display_order, CustomMap.id)
     )
+    maps = list(db.execute(query).scalars())
+    if any(cm.status == "registering" for cm in maps) and background.fail_stale_status_runs(
+        db, (CUSTOM_MAP_RUN,)
+    ):
+        db.commit()
+        maps = list(db.execute(query.execution_options(populate_existing=True)).scalars())
+    return maps
 
 
 def _get_custom_map(db: Session, owner: LayerOwner, map_id: int) -> CustomMap | None:
@@ -251,10 +268,8 @@ def update_custom_map(
         and _name_taken(db, owner, data["name"], exclude_id=map_id)
     ):
         raise DuplicateCustomMapName(data["name"])
-    render_changed = False
     if payload.render_config is not None:
         cm.render_config = payload.render_config.model_dump(mode="json")
-        render_changed = True
     needs_reregister = False
     if "storage_access" in data:
         if payload.storage_access is None:
@@ -275,17 +290,12 @@ def update_custom_map(
     needs_reregister = needs_reregister or cm.status == "failed"
     if needs_reregister:
         _revoke_private_search(db, cm, private_search)
-        cm.status = "registering"
-        cm.status_error = None
-    elif render_changed and cm.mosaic_id and cm.status == "ready":
-        # No tiler call: the pgstac search keys on cog_url/campaign/internal_storage only, so
-        # colormap, rescale and band live in the tile URL alone. Anything not ready is skipped
-        # because its mosaic_id is stale or absent; its in-flight registration bakes this in.
-        _stamp_tile_url(cm, cm.mosaic_id, resolve_tiler(None))
+        background.begin_status_run(cm, CUSTOM_MAP_RUN)
+        cm.status_errors = None
     db.commit()
     db.refresh(cm)
     if needs_reregister:
-        _spawn_registration(cm.id)
+        spawn_registration(cm.id)
     return cm
 
 

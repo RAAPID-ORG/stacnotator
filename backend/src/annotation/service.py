@@ -1,76 +1,61 @@
 import logging
-from collections.abc import Sequence
-from datetime import datetime
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import String, delete, exists, func, insert, select, update
-from sqlalchemy.orm import Session, joinedload, selectinload
+from sqlalchemy import String, exists, func, select
+from sqlalchemy.orm import Session, joinedload
 
-from src.annotation import claims, spatial
-from src.annotation.completion import (
-    attach_counts_toward_completion_flat,
-    attach_counts_toward_completion_tree,
-)
-from src.annotation.constants import CHANGES_OVERLAP, DELETION_RETENTION
 from src.annotation.forms import (
     FormValidationError,
     campaign_form_fields,
     validate_form_values,
 )
-from src.annotation.geometries import (
-    delete_orphan_geometries,
-    delete_rows_and_orphan_geometries,
-)
-from src.annotation.models import (
-    Annotation,
-    AnnotationGeometry,
-    AnnotationTask,
-    AnnotationTaskAssignment,
-    DeletedAnnotation,
-    Embedding,
-)
+from src.annotation.models import Annotation
 from src.annotation.schemas import (
     AnnotationCreate,
     AnnotationFacetsOut,
-    AnnotationFromTaskCreate,
     AnnotationListItemOut,
     AnnotationSort,
     AnnotationsPageOut,
-    AnnotationTaskOut,
-    AnnotationTaskSubmitResponse,
     AnnotationUpdate,
     AnnotatorFacet,
     ConfidenceFacet,
     LabelFacet,
     SliceComment,
-    TaskStatusOut,
-    compute_task_status_value,
-    derive_assignment_status,
+    TaskAnswerCreate,
     normalize_slice_comments,
-    resolve_task_outcome,
-    task_status_inputs,
+)
+from src.annotation.sync import (
+    bump_campaign_annotations_version,
+    record_annotation_deletions,
+    touch_tasks,
 )
 from src.auth.models import User
 from src.campaigns.models import Campaign
 from src.campaigns.policy import (
-    PolicyContext,
     build_policy_context,
     counts_toward_completion,
     get_labelling_policy,
     is_allowed,
-    is_authoritative_reviewer,
-    is_platform_admin,
 )
-from src.projects.models import ProjectUser
+from src.geometry import ewkt
+from src.imagery.models import ImageryCollection, ImagerySlice, ImagerySource
+from src.tasks.completion import (
+    attach_counts_toward_completion,
+)
+from src.tasks.models import Task
+from src.tasks.schemas import TaskOut, TaskStatusOut, TaskSubmitResponse
+from src.tasks.service import (
+    get_task,
+    get_user_assignment_status,
+    require_task_access,
+    task_for_annotating,
+)
+from src.tasks.status import (
+    resolve_task_outcome,
+)
 
 logger = logging.getLogger(__name__)
-
-
-def get_user_assignment_status(task: AnnotationTask, user_id: UUID) -> str:
-    """Get a user's status on a task, derived from what they annotated."""
-    _, annotation_list = task_status_inputs([], task.annotations or [])
-    return derive_assignment_status(annotation_list, user_id)
 
 
 def _require_own_annotations(
@@ -99,105 +84,9 @@ def _require_own_annotations(
     )
 
 
-def _is_campaign_admin(db: Session, user_id: UUID, campaign_id: int) -> bool:
-    """Check if a user is an admin of the given campaign's project, or a
-    platform admin."""
-    campaign_admin = db.execute(
-        select(ProjectUser)
-        .join(Campaign, Campaign.project_id == ProjectUser.project_id)
-        .where(
-            Campaign.id == campaign_id,
-            ProjectUser.user_id == user_id,
-            ProjectUser.is_admin,
-        )
-    ).scalar_one_or_none()
-    return campaign_admin is not None or is_platform_admin(db, user_id)
-
-
-def record_annotation_deletions(
-    db: Session, campaign_id: int, annotation_ids: Sequence[int]
-) -> None:
-    """Tombstone deleted annotations so the changes poll can report them.
-
-    A deletion is the one change that leaves no row for the poll to read, so it
-    gets a record of its own. Issued in the same transaction as the delete, like
-    the version bump: a deletion nothing recorded is one no other annotator's
-    map can learn about. Tombstones the poll can no longer be asked for go at
-    the same time, which is what keeps the table the size of recent work.
-    """
-    if not annotation_ids:
-        return
-    db.execute(
-        insert(DeletedAnnotation),
-        [
-            {"annotation_id": annotation_id, "campaign_id": campaign_id}
-            for annotation_id in annotation_ids
-        ],
-    )
-    db.execute(
-        delete(DeletedAnnotation).where(
-            DeletedAnnotation.campaign_id == campaign_id,
-            DeletedAnnotation.deleted_at < func.now() - DELETION_RETENTION,
-        )
-    )
-
-
-def deletion_cursor_expired(since: datetime, now: datetime) -> bool:
-    """Whether deletions since ``since`` can still be answered from tombstones."""
-    return now - since > DELETION_RETENTION
-
-
-def get_deleted_annotation_ids(db: Session, campaign_id: int, since: datetime) -> list[int]:
-    """Ids tombstoned since ``since``, for the changes poll.
-
-    Reads back a little further than asked for the same reason the changes query
-    does: a row is stamped when its transaction runs, not when it commits.
-    """
-    rows = db.scalars(
-        select(DeletedAnnotation.annotation_id).where(
-            DeletedAnnotation.campaign_id == campaign_id,
-            DeletedAnnotation.deleted_at >= since - CHANGES_OVERLAP,
-        )
-    ).all()
-    return list(rows)
-
-
-def get_changed_task_ids(db: Session, campaign_id: int, since: datetime) -> list[int]:
-    """Tasks whose annotations were written since ``since``, for the task poll.
-
-    A task's status is derived from its annotations, so a write to one of them
-    is what changes it.
-    """
-    rows = db.scalars(
-        select(Annotation.annotation_task_id)
-        .where(
-            Annotation.campaign_id == campaign_id,
-            Annotation.annotation_task_id.is_not(None),
-            Annotation.updated_at >= since - CHANGES_OVERLAP,
-        )
-        .distinct()
-    ).all()
-    return [task_id for task_id in rows if task_id is not None]
-
-
-def bump_campaign_annotations_version(db: Session, campaign_id: int) -> None:
-    """Increment the campaign's annotation version counter.
-
-    Issued in the same transaction as an annotation mutation so the new value
-    commits atomically with the change. The counter is the cache-busting key in
-    annotation vector-tile URLs; any change invalidates the affected tiles.
-    """
-    db.execute(
-        update(Campaign)
-        .where(Campaign.id == campaign_id)
-        .values(annotations_version=Campaign.annotations_version + 1)
-    )
-
-
 def validate_label_id(campaign: Campaign, label_id: int) -> None:
     """Raise HTTP 400 if label_id is not a key in the campaign's label set."""
-    labels = (campaign.settings.labels if campaign.settings else None) or {}
-    if str(label_id) not in labels:
+    if label_id not in campaign.label_names:
         raise HTTPException(
             status_code=400,
             detail=f"label_id {label_id} is not a label of this campaign",
@@ -216,27 +105,6 @@ def validate_annotation_form_values(
         raise HTTPException(status_code=400, detail=exc.message) from exc
 
 
-def _require_task_access(
-    db: Session, campaign: Campaign, task: AnnotationTask, user_id: UUID
-) -> PolicyContext:
-    """Raise HTTP 403 unless the user may work this task, per the assigned or
-    unassigned tasks axis. Returns the policy context it checked."""
-    policy = get_labelling_policy(campaign)
-    has_assignments = bool(task.assignments)
-    ctx = build_policy_context(db, campaign, user_id, task=task)
-    axis = policy.assigned_tasks if has_assignments else policy.unassigned_tasks
-    if not is_allowed(axis, ctx):
-        raise HTTPException(
-            status_code=403,
-            detail=(
-                "You are not allowed to annotate assigned tasks in this campaign"
-                if has_assignments
-                else "You are not allowed to annotate unassigned tasks in this campaign"
-            ),
-        )
-    return ctx
-
-
 def _require_explore_access(db: Session, campaign: Campaign, user_id: UUID) -> None:
     """Raise HTTP 403 unless the user may do explorative (standalone,
     free-drawn) labelling in this campaign, per the `explore` policy axis."""
@@ -247,247 +115,6 @@ def _require_explore_access(db: Session, campaign: Campaign, user_id: UUID) -> N
             status_code=403,
             detail="You are not allowed to create standalone annotations in this campaign",
         )
-
-
-# ============================================================================
-# Task Retrieval
-# ============================================================================
-
-
-def get_annotation_task_by_id(
-    db: Session,
-    task_id: int,
-    campaign: Campaign,
-) -> AnnotationTask | None:
-    """
-    Retrieve a single annotation task by ID, ensuring it belongs to the campaign.
-
-    Args:
-        db: Database session
-        task_id: ID of the task
-        campaign: The campaign the task must belong to (routers pass the
-            object resolved by their access dependency).
-
-    Returns:
-        Annotation task item or None if not found
-    """
-    stmt = (
-        select(AnnotationTask)
-        .where(
-            AnnotationTask.id == task_id,
-            AnnotationTask.campaign_id == campaign.id,
-        )
-        .options(
-            joinedload(AnnotationTask.geometry),
-            joinedload(AnnotationTask.assignments).joinedload(AnnotationTaskAssignment.user),
-            joinedload(AnnotationTask.annotations).joinedload(Annotation.creator),
-            joinedload(AnnotationTask.claimed_by),
-        )
-    )
-
-    task = db.scalars(stmt).unique().first()
-    if task is not None:
-        _attach_has_embedding(db, [task])
-        _attach_linked_annotations(db, [task])
-        attach_counts_toward_completion_tree(db, campaign, [task])
-    return task
-
-
-def get_annotation_tasks_for_campaign(
-    db: Session,
-    campaign: Campaign,
-    task_ids: Sequence[int] | None = None,
-) -> list[AnnotationTask]:
-    """
-    Retrieve all annotation tasks for a campaign with eager loading
-    to avoid N+1 query problem.
-
-    This loads all related data (geometry, assignments, annotations)
-    in a single optimized query.
-
-    Args:
-        db: Database session
-        campaign: The campaign whose tasks to load.
-        task_ids: Load only these tasks instead of all of them.
-
-    Returns:
-        List of annotation task items with all relationships loaded
-    """
-    stmt = (
-        select(AnnotationTask)
-        .where(AnnotationTask.campaign_id == campaign.id)
-        .options(
-            joinedload(AnnotationTask.geometry),
-            joinedload(AnnotationTask.assignments).joinedload(AnnotationTaskAssignment.user),
-            joinedload(AnnotationTask.annotations).joinedload(Annotation.creator),
-            joinedload(AnnotationTask.claimed_by),
-        )
-        .order_by(AnnotationTask.annotation_number)
-    )
-    if task_ids is not None:
-        stmt = stmt.where(AnnotationTask.id.in_(task_ids))
-
-    tasks = list(db.scalars(stmt).unique().all())
-    _attach_has_embedding(db, tasks)
-    _attach_linked_annotations(db, tasks)
-    attach_counts_toward_completion_tree(db, campaign, tasks)
-    return tasks
-
-
-def _tasks_for_status(db: Session, campaign: Campaign) -> list[AnnotationTask]:
-    """Tasks carrying only what a status decision needs.
-
-    The full task read also loads geometries, annotators and embedding flags, none of
-    which a status costs. Status itself is still decided by the one shared function,
-    so this is a narrower query rather than a second copy of the rules.
-    """
-    tasks = list(
-        db.scalars(
-            select(AnnotationTask)
-            .where(AnnotationTask.campaign_id == campaign.id)
-            .options(
-                selectinload(AnnotationTask.assignments),
-                selectinload(AnnotationTask.annotations),
-            )
-        )
-        .unique()
-        .all()
-    )
-    attach_counts_toward_completion_tree(db, campaign, tasks)
-    return tasks
-
-
-def get_task_density(
-    db: Session,
-    campaign: Campaign,
-    target_cells: int = 48,
-    task_set_id: int | None = None,
-    bbox: tuple[float, float, float, float] | None = None,
-) -> list[dict]:
-    """Aggregate a campaign's tasks into a grid, split by status and by the label an
-    annotator gave them.
-
-    The campaign maps ask where tasks are and what state they are in, which a grid can
-    answer in a payload that grows with cells rather than with tasks. Status is not a
-    column - it follows from assignments, counting annotations and reviewer slots - so
-    it is derived here with the same function every other read path uses, and the
-    grouping happens in Python rather than as a second copy of those rules in SQL.
-    """
-    settings = campaign.settings
-    aoi = (
-        (settings.bbox_west, settings.bbox_south, settings.bbox_east, settings.bbox_north)
-        if settings
-        else None
-    )
-    grid = spatial.density_grid(aoi, target_cells, bbox)
-    centroids = spatial.task_centroids(db, campaign.id, task_set_id, bbox)
-    if not centroids:
-        return []
-
-    points = []
-    for task in _tasks_for_status(db, campaign):
-        point = centroids.get(task.id)
-        if point is None:
-            continue
-        annotations = task.annotations or []
-        assignment_list, annotation_list = task_status_inputs(task.assignments or [], annotations)
-        status = compute_task_status_value(assignment_list, annotation_list)
-        labelled = next((a for a in annotations if a.label_id is not None), None)
-        points.append((point[0], point[1], (status, labelled.label_id if labelled else None)))
-
-    return [
-        {
-            "lon": cell["lon"],
-            "lat": cell["lat"],
-            "task_status": cell["key"][0],
-            "label_id": cell["key"][1],
-            "count": cell["count"],
-        }
-        for cell in spatial.bin_density_cells(points, grid)
-    ]
-
-
-def claim_next_task(
-    db: Session,
-    campaign: Campaign,
-    user_id: UUID,
-    task_set_id: int | None = None,
-    after_annotation_number: int | None = None,
-) -> AnnotationTask | None:
-    """Claim the next free task and return it with the tree the client needs.
-
-    Composes the pick-and-claim with the same decorated fetch every other task
-    read goes through, so the caller can drop the task straight into its list
-    instead of reloading the campaign to find out what it just got.
-    """
-    claimed = claims.claim_next_task(
-        db,
-        campaign_id=campaign.id,
-        user_id=user_id,
-        task_set_id=task_set_id,
-        after_annotation_number=after_annotation_number,
-    )
-    if claimed is None:
-        return None
-    return get_annotation_task_by_id(db, claimed.id, campaign)
-
-
-def _attach_has_embedding(db: Session, tasks: list[AnnotationTask]) -> None:
-    """Set `has_embedding` on each task via one lightweight indexed lookup.
-
-    Kept out of the main joinedload chain so it does not multiply the result
-    rows; Embedding has its own hnsw index and FK on annotation_task_id.
-    """
-    if not tasks:
-        return
-    task_ids = [t.id for t in tasks]
-    embedded_ids = set(
-        db.execute(
-            select(Embedding.annotation_task_id).where(Embedding.annotation_task_id.in_(task_ids))
-        ).scalars()
-    )
-    for task in tasks:
-        task.has_embedding = task.id in embedded_ids
-
-
-def _attach_linked_annotations(db: Session, tasks: list[AnnotationTask]) -> None:
-    """Set `nearby_annotation_count`, the standalone annotations drawn after
-    leaving this task for Explore, and `drawn_by_user_ids`, who drew shapes as
-    this draw task's answer."""
-    if not tasks:
-        return
-    task_ids = [t.id for t in tasks]
-    rows = db.execute(
-        select(Annotation.origin_task_id, func.count())
-        .where(Annotation.origin_task_id.in_(task_ids))
-        .group_by(Annotation.origin_task_id)
-    )
-    counts = {task_id: count for task_id, count in rows}
-    drawn_by: dict[int, list[UUID]] = {}
-    for task_id, user_id in db.execute(
-        select(Annotation.output_of_task_id, Annotation.created_by_user_id)
-        .where(Annotation.output_of_task_id.in_(task_ids))
-        .distinct()
-    ):
-        drawn_by.setdefault(task_id, []).append(user_id)
-    for task in tasks:
-        task.nearby_annotation_count = counts.get(task.id, 0)
-        task.drawn_by_user_ids = drawn_by.get(task.id, [])
-
-
-def get_annotation_task_id_for_annotation(
-    db: Session,
-    annotation_id: int,
-    campaign_id: int,
-) -> int | None:
-    """Get the task_id linked to an annotation (if any), before deletion."""
-    result = db.execute(
-        select(Annotation.annotation_task_id).where(
-            Annotation.id == annotation_id,
-            Annotation.campaign_id == campaign_id,
-        )
-    ).scalar_one_or_none()
-    return result
 
 
 # ============================================================================
@@ -545,9 +172,7 @@ def _validate_origin_tasks(db: Session, campaign: Campaign, items: list[Annotati
         return
     found = set(
         db.execute(
-            select(AnnotationTask.id).where(
-                AnnotationTask.campaign_id == campaign.id, AnnotationTask.id.in_(ids)
-            )
+            select(Task.id).where(Task.campaign_id == campaign.id, Task.id.in_(ids))
         ).scalars()
     )
     if found != ids:
@@ -565,13 +190,13 @@ def _require_drawing_access(
     task_ids = output_task_ids - {None}
     if not task_ids:
         return
-    if campaign.settings.task_output != "draw":
+    if campaign.task_output != "draw":
         raise HTTPException(status_code=400, detail="This campaign's tasks take no shapes")
     tasks = (
         db.scalars(
-            select(AnnotationTask)
-            .where(AnnotationTask.campaign_id == campaign.id, AnnotationTask.id.in_(task_ids))
-            .options(joinedload(AnnotationTask.assignments))
+            select(Task)
+            .where(Task.campaign_id == campaign.id, Task.id.in_(task_ids))
+            .options(joinedload(Task.assignments))
         )
         .unique()
         .all()
@@ -579,30 +204,59 @@ def _require_drawing_access(
     if len(tasks) != len(task_ids):
         raise HTTPException(status_code=400, detail="Task not found in this campaign")
     for task in tasks:
-        _require_task_access(db, campaign, task, user_id)
+        require_task_access(db, campaign, task, user_id)
+
+
+_NOTHING_VIEWED = dict.fromkeys(
+    ("imagery_slice_id", "imagery_source_name", "imagery_start_date", "imagery_end_date")
+)
+
+
+def viewed_imagery(db: Session, campaign: Campaign, slice_ids: set[int | None]) -> dict:
+    """slice id -> the ``Annotation.imagery_*`` columns recording it, read from the
+    slice so a client cannot misstate them. A slice of another campaign is refused."""
+    wanted = {i for i in slice_ids if i is not None}
+    rows = (
+        db.execute(
+            select(ImagerySlice, ImagerySource.name)
+            .join(ImageryCollection, ImageryCollection.id == ImagerySlice.collection_id)
+            .join(ImagerySource, ImagerySource.id == ImageryCollection.source_id)
+            .where(ImagerySlice.id.in_(wanted), ImagerySource.campaign_id == campaign.id)
+        ).all()
+        if wanted
+        else []
+    )
+    found: dict[int | None, dict] = {
+        sl.id: {
+            "imagery_slice_id": sl.id,
+            "imagery_source_name": source_name,
+            "imagery_start_date": sl.start_date,
+            "imagery_end_date": sl.end_date,
+        }
+        for sl, source_name in rows
+    }
+    if missing := wanted - found.keys():
+        raise HTTPException(
+            status_code=400, detail=f"Imagery slices not in this campaign: {sorted(missing)}"
+        )
+    return {None: _NOTHING_VIEWED, **found}
 
 
 def _standalone_annotation(
-    geometry_id: int,
     campaign: Campaign,
     user_id: UUID,
     item: AnnotationCreate,
     form_values: dict | None,
+    imagery: dict,
 ) -> Annotation:
-    """Build one task-less Annotation row. Shared by `create_annotation` and
-    `create_annotations_bulk` so the column list lives in one place even
-    though the two callers insert via different DB calls (single vs batch)."""
     return Annotation(
-        geometry_id=geometry_id,
+        geometry=ewkt(item.geometry_wkt),
         campaign_id=campaign.id,
         created_by_user_id=user_id,
-        annotation_task_id=None,  # Standalone annotation
+        task_id=None,
         origin_task_id=item.origin_task_id,
         output_of_task_id=item.output_of_task_id,
-        imagery_slice_id=item.imagery_slice_id,
-        imagery_source_name=item.imagery_source_name,
-        imagery_start_date=item.imagery_start_date,
-        imagery_end_date=item.imagery_end_date,
+        **imagery[item.imagery_slice_id],
         **annotation_values(
             label_id=item.label_id,
             comment=item.comment,
@@ -617,8 +271,8 @@ def _standalone_annotation(
 
 def add_annotation_for_task(
     db: Session,
-    annotation_task: AnnotationTask,
-    annotation_create: AnnotationFromTaskCreate,
+    task: Task,
+    annotation_create: TaskAnswerCreate,
     user_id: UUID,
 ) -> Annotation:
     """
@@ -631,22 +285,20 @@ def add_annotation_for_task(
 
     Args:
         db: Database session
-        annotation_task: Task item being annotated
+        task: Task item being annotated
         annotation_create: Annotation data from user
         user_id: ID of user creating the annotation
     """
 
-    campaign = db.get(Campaign, annotation_task.campaign_id)
+    campaign = db.get(Campaign, task.campaign_id)
     if campaign is None:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
     policy = get_labelling_policy(campaign)
-    has_assignments = bool(annotation_task.assignments)
-    ctx = _require_task_access(db, campaign, annotation_task, user_id)
+    has_assignments = bool(task.assignments)
+    ctx = require_task_access(db, campaign, task, user_id)
 
-    if annotation_create.is_authoritative and not is_authoritative_reviewer(
-        db, annotation_task.campaign_id, user_id
-    ):
+    if annotation_create.is_authoritative and not ctx.is_authoritative:
         raise HTTPException(
             status_code=403,
             detail="Only campaign admins or authoritative reviewers can submit authoritative annotations",
@@ -654,7 +306,7 @@ def add_annotation_for_task(
 
     try:
         outcome = resolve_task_outcome(
-            campaign.settings.task_output, annotation_create.label_id, annotation_create.outcome
+            campaign.task_output, annotation_create.label_id, annotation_create.outcome
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -663,7 +315,7 @@ def add_annotation_for_task(
         has_shapes = db.scalar(
             select(
                 exists().where(
-                    Annotation.output_of_task_id == annotation_task.id,
+                    Annotation.output_of_task_id == task.id,
                     Annotation.created_by_user_id == user_id,
                 )
             )
@@ -691,7 +343,7 @@ def add_annotation_for_task(
     # Check if annotation already exists for this task
     existing_annotation = db.execute(
         select(Annotation).where(
-            Annotation.annotation_task_id == annotation_task.id,
+            Annotation.task_id == task.id,
             Annotation.created_by_user_id == user_id,
         )
     ).scalar_one_or_none()
@@ -707,6 +359,11 @@ def add_annotation_for_task(
         is_authoritative=annotation_create.is_authoritative,
     )
     values["outcome"] = outcome
+    values.update(
+        viewed_imagery(db, campaign, {annotation_create.imagery_slice_id})[
+            annotation_create.imagery_slice_id
+        ]
+    )
 
     # A skip takes the same path: its row is the only record that this user
     # acted on the task.
@@ -716,9 +373,9 @@ def add_annotation_for_task(
         annotation = existing_annotation
     else:
         annotation = Annotation(
-            geometry_id=annotation_task.geometry_id,
-            annotation_task_id=annotation_task.id,
-            campaign_id=annotation_task.campaign_id,
+            geometry=task.geometry,
+            task_id=task.id,
+            campaign_id=task.campaign_id,
             created_by_user_id=user_id,
             **values,
         )
@@ -729,39 +386,21 @@ def add_annotation_for_task(
             annotation_create.active_ms / 1000
         )
 
+    # A task's answer is drawn in the annotation tiles too, coloured by its label.
+    bump_campaign_annotations_version(db, campaign.id)
     db.commit()
     db.refresh(annotation)
     annotation.counts_toward_completion = counts_toward_completion(policy, has_assignments, ctx)
     return annotation
 
 
-def _get_task_for_annotating(
-    db: Session, task_id: int, campaign: Campaign
-) -> AnnotationTask | None:
-    """Fetch a bare task scoped to the campaign, with just enough loaded
-    (assignments) for `add_annotation_for_task`'s policy checks - unlike
-    `get_annotation_task_by_id`, this skips the full annotations/geometry
-    joinedload tree and the counts/has_embedding attachment, all of which
-    would be thrown away by the mutation that follows.
-    """
-    stmt = (
-        select(AnnotationTask)
-        .where(
-            AnnotationTask.id == task_id,
-            AnnotationTask.campaign_id == campaign.id,
-        )
-        .options(joinedload(AnnotationTask.assignments))
-    )
-    return db.scalars(stmt).unique().first()
-
-
 def submit_task_annotation(
     db: Session,
     campaign: Campaign,
     task_id: int,
-    annotation_create: AnnotationFromTaskCreate,
+    annotation_create: TaskAnswerCreate,
     user_id: UUID,
-) -> AnnotationTaskSubmitResponse:
+) -> TaskSubmitResponse:
     """Submit (or skip) a task annotation and report the task's resulting status.
 
     Composes `add_annotation_for_task` with a single post-commit fetch of the
@@ -769,7 +408,7 @@ def submit_task_annotation(
     `assignment_status` - the one fetch that matters is the one reflecting
     what was just committed.
     """
-    task = _get_task_for_annotating(db, task_id, campaign)
+    task = task_for_annotating(db, task_id, campaign)
     if task is None:
         raise HTTPException(
             status_code=404,
@@ -778,16 +417,16 @@ def submit_task_annotation(
 
     annotation = add_annotation_for_task(
         db=db,
-        annotation_task=task,
+        task=task,
         annotation_create=annotation_create,
         user_id=user_id,
     )
 
-    refreshed_task = get_annotation_task_by_id(db, task_id, campaign)
+    refreshed_task = get_task(db, task_id, campaign)
     if refreshed_task is None:
         raise HTTPException(status_code=404, detail="Annotation task not found in this campaign")
-    task_out = AnnotationTaskOut.model_validate(refreshed_task)
-    return AnnotationTaskSubmitResponse(
+    task_out = TaskOut.model_validate(refreshed_task)
+    return TaskSubmitResponse(
         annotation=annotation,
         task_status=task_out.task_status,
         assignment_status=get_user_assignment_status(refreshed_task, user_id),
@@ -800,83 +439,33 @@ def create_annotation(
     annotation_create: AnnotationCreate,
     user_id: UUID,
 ) -> Annotation:
-    """
-    Create a standalone annotation (not linked to a task).
-
-    Creates a new geometry record and annotation for the given campaign.
-
-    Args:
-        db: Database session
-        campaign: Campaign to create annotation for
-        annotation_create: Annotation data including geometry
-        user_id: ID of user creating the annotation
-
-    Returns:
-        Created annotation record
-
-    Raises:
-        HTTPException: If geometry is invalid or creation fails
-    """
-    _require_drawing_access(db, campaign, user_id, {annotation_create.output_of_task_id})
-    _validate_origin_tasks(db, campaign, [annotation_create])
-
-    if annotation_create.label_id is not None:
-        validate_label_id(campaign, annotation_create.label_id)
-
-    normalized_form_values = validate_annotation_form_values(
-        campaign, annotation_create.form_values, enforce_required=True
-    )
-
-    try:
-        # Create geometry from WKT
-        geometry = AnnotationGeometry(geometry=f"SRID=4326;{annotation_create.geometry_wkt}")
-        db.add(geometry)
-        db.flush()  # Get geometry ID
-
-        # Create annotation
-        annotation = _standalone_annotation(
-            geometry.id, campaign, user_id, annotation_create, normalized_form_values
-        )
-        db.add(annotation)
-        bump_campaign_annotations_version(db, campaign.id)
-        db.commit()
-        db.refresh(annotation)
-
-        return annotation
-
-    except Exception as e:
-        db.rollback()
-        logger.exception("Failed to create annotation")
-        raise HTTPException(status_code=400, detail="Failed to create annotation") from e
+    """Create one standalone annotation (no task row of its own)."""
+    (annotation,) = create_annotations(db, campaign, [annotation_create], user_id)
+    db.refresh(annotation)
+    return annotation
 
 
-def create_annotations_bulk(
+def create_annotations(
     db: Session,
     campaign: Campaign,
     annotations_create: list[AnnotationCreate],
     user_id: UUID,
-) -> int:
+) -> list[Annotation]:
     """
-    Create many standalone annotations in a single transaction.
-
-    Used when labelling many vector features at once (e.g. box-selecting features
-    from a PMTiles layer): one request and one ``annotations_version`` bump instead
-    of one round trip per feature. Returns the number of annotations created.
+    Create standalone annotations in one transaction with one annotations-version
+    bump. Labelling many vector features at once goes through here as a single
+    request rather than a round trip per feature.
     """
     if not annotations_create:
-        return 0
+        return []
 
     _require_drawing_access(
         db, campaign, user_id, {a.output_of_task_id for a in annotations_create}
     )
     _validate_origin_tasks(db, campaign, annotations_create)
-
-    # Validate the distinct labels once rather than per-annotation.
-    for label_id in {a.label_id for a in annotations_create if a.label_id is not None}:
+    for label_id in {a.label_id for a in annotations_create}:
         validate_label_id(campaign, label_id)
 
-    # Parse the campaign's field definitions once and reuse across items,
-    # rather than re-parsing on every validate_annotation_form_values call.
     fields = campaign_form_fields(campaign)
     try:
         normalized_form_values = [
@@ -886,27 +475,20 @@ def create_annotations_bulk(
     except FormValidationError as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc
 
+    imagery = viewed_imagery(db, campaign, {a.imagery_slice_id for a in annotations_create})
     try:
-        geometries = [
-            AnnotationGeometry(geometry=f"SRID=4326;{a.geometry_wkt}") for a in annotations_create
-        ]
-        db.add_all(geometries)
-        db.flush()  # assign geometry ids
-
         annotations = [
-            _standalone_annotation(geometry.id, campaign, user_id, a, form_values)
-            for a, geometry, form_values in zip(
-                annotations_create, geometries, normalized_form_values, strict=True
-            )
+            _standalone_annotation(campaign, user_id, a, form_values, imagery)
+            for a, form_values in zip(annotations_create, normalized_form_values, strict=True)
         ]
         db.add_all(annotations)
         bump_campaign_annotations_version(db, campaign.id)
         db.commit()
-        return len(annotations)
+        return annotations
 
     except Exception as e:
         db.rollback()
-        logger.exception("Failed to bulk-create annotations")
+        logger.exception("Failed to create annotations")
         raise HTTPException(status_code=400, detail="Failed to create annotations") from e
 
 
@@ -917,27 +499,8 @@ def update_annotation(
     user_id: UUID,
     campaign: Campaign,
 ) -> Annotation:
-    """
-    Update an existing annotation.
-
-    Updates label, comment, and/or geometry. If geometry is updated,
-    creates a new geometry record and updates the reference.
-
-    In public campaigns, only the annotation creator can update their annotations.
-
-    Args:
-        db: Database session
-        annotation_id: ID of annotation to update
-        annotation_update: Updated annotation data
-        user_id: ID of user updating the annotation
-        campaign: Campaign object (used for public campaign ownership check)
-
-    Returns:
-        Updated annotation record
-
-    Raises:
-        HTTPException: If annotation not found, update fails, or ownership violated
-    """
+    """Apply the fields the update carries. Somebody else's annotation needs the
+    campaign's modify_others axis."""
     # Scoped to the campaign - without this, an annotation from any campaign
     # platform-wide would be editable through this endpoint, and the policy /
     # ownership checks below would evaluate against the wrong campaign.
@@ -949,32 +512,40 @@ def update_annotation(
     if annotation is None:
         raise HTTPException(status_code=404, detail="Annotation not found")
 
-    _require_drawing_access(db, campaign, user_id, {annotation.output_of_task_id})
+    if annotation.task_id is not None:
+        # An answer is edited by whoever may work its task, Explore or not.
+        task = db.scalars(
+            select(Task).where(Task.id == annotation.task_id).options(joinedload(Task.assignments))
+        ).first()
+        if task is not None:
+            require_task_access(db, campaign, task, user_id)
+    else:
+        _require_drawing_access(db, campaign, user_id, {annotation.output_of_task_id})
 
     _require_own_annotations(db, [annotation], campaign, user_id, "edit")
 
     try:
         # Update geometry if provided
         if annotation_update.geometry_wkt is not None:
-            old_geometry_id = annotation.geometry_id
-            new_geometry = AnnotationGeometry(
-                geometry=f"SRID=4326;{annotation_update.geometry_wkt}"
-            )
-            db.add(new_geometry)
-            db.flush()  # Get new geometry ID
-            annotation.geometry_id = new_geometry.id
-            delete_orphan_geometries(db, [old_geometry_id])
+            annotation.geometry = ewkt(annotation_update.geometry_wkt)
 
-            # The imagery snapshot reflects what was viewed during this geometry
-            # edit, so it only refreshes alongside a geometry change.
-            annotation.imagery_slice_id = annotation_update.imagery_slice_id
-            annotation.imagery_source_name = annotation_update.imagery_source_name
-            annotation.imagery_start_date = annotation_update.imagery_start_date
-            annotation.imagery_end_date = annotation_update.imagery_end_date
+            # What was viewed during this geometry edit, so it only changes
+            # alongside the geometry.
+            viewed = viewed_imagery(db, campaign, {annotation_update.imagery_slice_id})
+            for column, value in viewed[annotation_update.imagery_slice_id].items():
+                setattr(annotation, column, value)
 
         # Update label if provided
         if annotation_update.label_id is not None:
             validate_label_id(campaign, annotation_update.label_id)
+            if annotation.task_id is not None:
+                if campaign.task_output != "classify":
+                    raise HTTPException(
+                        status_code=400,
+                        detail="A draw task's answer has no label; label its shapes instead",
+                    )
+                # Labelling a skipped task turns the skip into an answer.
+                annotation.outcome = "labelled"
             annotation.label_id = annotation_update.label_id
 
         # Patch semantics like every other field: omitting form_values keeps
@@ -1139,7 +710,7 @@ def list_annotations_page(
 
     total = db.execute(select(func.count()).select_from(Annotation).where(*conditions)).scalar_one()
 
-    centroid = func.ST_Centroid(AnnotationGeometry.geometry)
+    centroid = func.ST_Centroid(Annotation.geometry)
     rows = db.execute(
         select(
             Annotation.id,
@@ -1148,7 +719,7 @@ def list_annotations_page(
             Annotation.flagged_for_review,
             Annotation.flag_comment,
             Annotation.comment,
-            Annotation.annotation_task_id,
+            Annotation.task_id,
             Annotation.created_at,
             Annotation.created_by_user_id,
             User.email,
@@ -1158,7 +729,6 @@ def list_annotations_page(
             Annotation.form_values,
         )
         .select_from(Annotation)
-        .join(AnnotationGeometry, AnnotationGeometry.id == Annotation.geometry_id)
         .outerjoin(User, User.id == Annotation.created_by_user_id)
         .where(*conditions)
         .order_by(*_SORTS[sort])
@@ -1175,7 +745,7 @@ def list_annotations_page(
                 flagged_for_review=r[3],
                 flag_comment=r[4],
                 comment=r[5],
-                annotation_task_id=r[6],
+                task_id=r[6],
                 created_at=r[7],
                 created_by_user_id=r[8],
                 created_by_user_email=r[9],
@@ -1199,7 +769,7 @@ def get_annotation_by_id(
 ) -> Annotation | None:
     """Fetch one annotation (with geometry + creator) scoped to a campaign.
 
-    Used by the open-mode tiled view to pull a single annotation's full-
+    Used by the tiled annotation view to pull a single annotation's full-
     resolution geometry when the user clicks a tile feature to edit it.
     """
     stmt = (
@@ -1209,67 +779,14 @@ def get_annotation_by_id(
             Annotation.campaign_id == campaign.id,
         )
         .options(
-            joinedload(Annotation.geometry),
             joinedload(Annotation.creator),
-            joinedload(Annotation.annotation_task).selectinload(AnnotationTask.assignments),
+            joinedload(Annotation.task).selectinload(Task.assignments),
         )
     )
     annotation = db.scalars(stmt).unique().first()
     if annotation is not None:
-        attach_counts_toward_completion_flat(db, campaign, [annotation])
+        attach_counts_toward_completion(db, campaign, [annotation])
     return annotation
-
-
-def delete_annotation(
-    db: Session,
-    annotation_id: int,
-    campaign: Campaign,
-    user_id: UUID,
-) -> None:
-    """
-    Delete a specific annotation from a campaign.
-
-    If the annotation is linked to a task item, the task status is updated
-    to 'pending' to allow re-annotation.
-
-    Only the annotation's author, a campaign admin or a platform admin may
-    delete it. `user_id` is required: an optional authorization input is one
-    a caller can forget to pass.
-
-    Args:
-        db: Database session
-        annotation_id: ID of annotation to delete
-        campaign: The campaign the annotation must belong to
-        user_id: ID of user requesting deletion (for ownership check)
-
-    Raises:
-        HTTPException: If annotation not found, doesn't belong to campaign, or ownership violated
-    """
-    # Get annotation and verify it belongs to the campaign
-    annotation = db.execute(
-        select(Annotation).where(
-            Annotation.id == annotation_id,
-            Annotation.campaign_id == campaign.id,
-        )
-    ).scalar_one_or_none()
-
-    if annotation is None:
-        raise HTTPException(status_code=404, detail="Annotation not found in this campaign")
-
-    _require_own_annotations(db, [annotation], campaign, user_id, "delete")
-
-    try:
-        # Nothing to reset alongside it: the annotation was the record, so
-        # removing it puts the author back to pending on the task by itself.
-        delete_rows_and_orphan_geometries(db, [annotation])
-        record_annotation_deletions(db, campaign.id, [annotation_id])
-        bump_campaign_annotations_version(db, campaign.id)
-        db.commit()
-
-    except Exception as e:
-        db.rollback()
-        logger.exception("Failed to delete annotation")
-        raise HTTPException(status_code=500, detail="Failed to delete annotation") from e
 
 
 def delete_annotation_with_status(
@@ -1278,46 +795,36 @@ def delete_annotation_with_status(
     campaign: Campaign,
     user_id: UUID,
 ) -> TaskStatusOut | None:
-    """Delete an annotation and, if it was task-linked, report the task's
-    resulting status; otherwise None.
-
-    The task id has to be looked up before the delete (the annotation's FK is
-    gone afterwards); the task's decorated tree is then fetched once, after
-    the delete has committed, to compute `task_status`/`assignment_status`.
-    """
-    task_id = get_annotation_task_id_for_annotation(db, annotation_id, campaign.id)
-
-    delete_annotation(db, annotation_id, campaign, user_id)
-
+    """Delete an annotation and, when it was a task's row, report where that
+    task now stands; None otherwise."""
+    task_id = db.scalar(
+        select(Annotation.task_id).where(
+            Annotation.id == annotation_id, Annotation.campaign_id == campaign.id
+        )
+    )
+    delete_annotations(db, [annotation_id], campaign, user_id)
     if task_id is None:
         return None
 
-    refreshed_task = get_annotation_task_by_id(db, task_id, campaign)
-    if refreshed_task is None:
+    task = get_task(db, task_id, campaign)
+    if task is None:
         return None
-
-    task_out = AnnotationTaskOut.model_validate(refreshed_task)
     return TaskStatusOut(
-        task_status=task_out.task_status,
-        assignment_status=get_user_assignment_status(refreshed_task, user_id),
+        task_status=TaskOut.model_validate(task).task_status,
+        assignment_status=get_user_assignment_status(task, user_id),
     )
 
 
-def delete_annotations_bulk(
+def delete_annotations(
     db: Session,
     annotation_ids: list[int],
     campaign: Campaign,
     user_id: UUID,
 ) -> int:
     """
-    Delete multiple annotations from a campaign in one transaction.
-
-    Mirrors `delete_annotation` semantics: in public campaigns, non-admins can
-    only delete their own annotations. Deleting a task-linked annotation
-    re-opens the task for its author, since the annotation was the record of
-    their work.
-
-    Returns the number of annotations actually deleted.
+    Delete annotations of a campaign in one transaction. Somebody else's need
+    the campaign's modify_others axis. Deleting a task's row puts its author
+    back to pending on that task, since the row was the record of their work.
     """
     if not annotation_ids:
         return 0
@@ -1340,16 +847,15 @@ def delete_annotations_bulk(
     _require_own_annotations(db, list(annotations), campaign, user_id, "delete")
 
     try:
-        delete_rows_and_orphan_geometries(db, annotations)
-
+        for annotation in annotations:
+            db.delete(annotation)
         record_annotation_deletions(db, campaign.id, sorted(found_ids))
+        touch_tasks(db, (a.task_id for a in annotations if a.task_id is not None))
         bump_campaign_annotations_version(db, campaign.id)
         db.commit()
         return len(annotations)
 
-    except HTTPException:
-        raise
     except Exception as e:
         db.rollback()
-        logger.exception("Failed to bulk-delete annotations")
+        logger.exception("Failed to delete annotations")
         raise HTTPException(status_code=500, detail="Failed to delete annotations") from e

@@ -3,11 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeCampaign, makeView } from '~/features/annotation/testing/fixtures';
 import { useLayoutStore } from '../../stores/layout';
 
-const createNewCanvasLayoutMock = vi.hoisted(() => vi.fn());
+const saveCanvasLayoutMock = vi.hoisted(() => vi.fn());
 
 vi.mock('~/api/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('~/api/client')>()),
-  createNewCanvasLayout: createNewCanvasLayoutMock,
+  saveCanvasLayout: saveCanvasLayoutMock,
 }));
 
 vi.mock('~/shared/utils/useIsMobile', async (importActual) => {
@@ -22,7 +22,7 @@ const CAMPAIGN = makeCampaign({ imagery_views: [makeView({ id: 1, name: 'V1' })]
 
 beforeEach(() => {
   useLayoutStore.setState({ editing: false });
-  createNewCanvasLayoutMock.mockReset();
+  saveCanvasLayoutMock.mockReset();
 });
 
 describe('LayoutEditControls', () => {
@@ -44,7 +44,7 @@ describe('LayoutEditControls', () => {
 
   it('persists first-view setup as the shared default', async () => {
     vi.mocked(useIsMobile).mockReturnValue(false);
-    createNewCanvasLayoutMock.mockResolvedValue({ data: {}, status: 201 });
+    saveCanvasLayoutMock.mockResolvedValue({ data: {}, status: 201 });
     const onSetupFinished = vi.fn();
     useLayoutStore.setState({ editing: true });
 
@@ -60,8 +60,8 @@ describe('LayoutEditControls', () => {
 
     fireEvent.click(screen.getByTestId('save-required-default'));
 
-    await waitFor(() => expect(createNewCanvasLayoutMock).toHaveBeenCalledTimes(1));
-    expect(createNewCanvasLayoutMock.mock.calls[0][0].body.should_be_default).toBe(true);
+    await waitFor(() => expect(saveCanvasLayoutMock).toHaveBeenCalledTimes(1));
+    expect(saveCanvasLayoutMock.mock.calls[0][0].body.should_be_default).toBe(true);
     expect(onSetupFinished).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,9 +1,14 @@
-import { getAllAnnotationTasks, getCampaignWithImageryWindows, listTaskSets } from '~/api/client';
+import { listTasks, getCampaignWithImageryWindows, listTaskSets } from '~/api/client';
 import { buildImageryCatalog } from './campaign/imagery';
 import { restoreSnapshot } from './campaign/imageryNav';
 import { layoutForView } from './canvas/grid';
-import { seedFilter } from './campaign/tasks';
-import { startCollectionFor, useCampaignStore, type WorkMode } from './stores/campaign';
+import { openingWorkMode, seedFilter } from './campaign/tasks';
+import {
+  startCollectionFor,
+  toPolicyContext,
+  useCampaignStore,
+  type WorkMode,
+} from './stores/campaign';
 import { useImageryStore } from './stores/imagery';
 import { useLayoutStore } from './stores/layout';
 import { resetScenes } from './stores/scenes';
@@ -35,7 +40,7 @@ export async function loadCampaign(
 ): Promise<{ annotationId: number | null }> {
   const [campaignRes, tasksRes, setsRes] = await Promise.all([
     getCampaignWithImageryWindows({ path: { campaign_id: campaignId } }),
-    getAllAnnotationTasks({ path: { campaign_id: campaignId } }),
+    listTasks({ path: { campaign_id: campaignId } }),
     listTaskSets({ path: { campaign_id: campaignId } }),
   ]);
 
@@ -51,13 +56,20 @@ export async function loadCampaign(
     isPublic: campaign.is_public,
   });
 
-  // A campaign with no tasks has nothing to claim, so it opens in Explore
-  // unless a deep link asked for a mode.
+  // A link to a task opens that task, even one with no work left for the
+  // viewer: the review pages link done tasks too.
   const workMode: WorkMode =
-    options.workMode ?? (campaign.mode === 'open' || tasks.length === 0 ? 'explore' : 'tasks');
+    options.workMode ??
+    (options.preferTaskId != null
+      ? 'tasks'
+      : openingWorkMode(
+          tasks,
+          campaign.settings.labelling_policy,
+          toPolicyContext(campaign, options.currentUserId)
+        ));
 
   const layout = layoutForView(campaign, view);
-  const startCollectionId = startCollectionFor(catalog, view, layout.windows);
+  const startCollectionId = startCollectionFor(catalog, view, layout.hidden);
 
   useWorkStore.getState().resetAll();
   resetScenes();

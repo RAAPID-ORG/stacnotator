@@ -94,7 +94,7 @@ export function Timeline({
 
   return (
     <div
-      className={`flex h-full min-h-0 w-full select-none gap-2 p-2 ${horizontal ? 'items-center' : 'flex-col'}`}
+      className={`flex h-full min-h-0 w-full select-none gap-2 ${horizontal ? 'items-center px-2 py-1' : 'flex-col p-2'}`}
       data-orientation={orientation}
       data-testid="imagery-timeline"
       data-tour="timeline-sidebar"

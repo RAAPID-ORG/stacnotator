@@ -3,14 +3,14 @@ import { useTranslation } from 'react-i18next';
 import { Outlet, useLocation } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 import { Toaster, toast, useSonner } from 'sonner';
-import { AppSidebar } from 'src/app/sidebar/AppSidebar';
-import { ConfirmDialog } from 'src/shared/ui/ConfirmDialog';
-import { LoadingOverlay } from 'src/shared/ui/LoadingOverlay';
-import { Breadcrumbs } from 'src/shared/ui/Breadcrumbs';
-import { ErrorFallback } from 'src/shared/ui/ErrorFallback';
-import { useLayoutStore } from 'src/shared/stores/layout.store';
-import { ANNOTATION_ROUTE } from 'src/app/routes';
-import { useOrgScope } from 'src/app/useOrgScope';
+import { AppSidebar } from '~/app/sidebar/AppSidebar';
+import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
+import { LoadingOverlay } from '~/shared/ui/LoadingOverlay';
+import { Breadcrumbs } from '~/shared/ui/Breadcrumbs';
+import { ErrorFallback } from '~/shared/ui/ErrorFallback';
+import { useLayoutStore } from '~/shared/stores/layout.store';
+import { ANNOTATION_ROUTE } from '~/app/routes';
+import { useOrgScope } from '~/app/useOrgScope';
 
 // Toasts start below the clear-all button so the two never overlap.
 const TOAST_TOP_OFFSET = 48;

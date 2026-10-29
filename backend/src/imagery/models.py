@@ -15,10 +15,10 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, declared_attr, mapped_column, relationship
 
 from src.database import Base
-from src.layers import LayerOwner
+from src.layers import OwnedLayer, one_owner_check
 from src.storage_access import StorageAccessOut, described
 
 if TYPE_CHECKING:
@@ -46,73 +46,20 @@ class ProviderKey:
     allowed_host: str | None
 
 
-class ImagerySource(Base):
-    """
-    Top-level imagery provider for a campaign.
-    Groups collections under a shared set of display settings and visualizations.
-    """
+class ProviderKeyed:
+    """A layer whose tile URL template takes a provider API key: its own, typed into
+    the layer, or one of the organization's shared keys. At most one is set."""
 
-    __tablename__ = "imagery_sources"
-    __table_args__ = (
-        CheckConstraint("default_zoom BETWEEN 0 AND 22", name="source_zoom_check"),
-        CheckConstraint(
-            "(campaign_id IS NULL) <> (visualizer_id IS NULL)",
-            name="imagery_sources_one_owner_check",
-        ),
-        Index("idx_imagery_sources_campaign_id", "campaign_id"),
-        Index("idx_imagery_sources_visualizer_id", "visualizer_id"),
-        {"schema": "data"},
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    # Exactly one owner. See LayerOwner for what that means for tile access.
-    campaign_id: Mapped[int | None] = mapped_column(
-        ForeignKey("data.campaigns.id", ondelete="CASCADE"),
-        nullable=True,
-    )
-    visualizer_id: Mapped[int | None] = mapped_column(
-        ForeignKey("data.visualizers.id", ondelete="CASCADE"),
-        nullable=True,
-    )
-    name: Mapped[str] = mapped_column(String, nullable=False)
-    crosshair_hex6: Mapped[str] = mapped_column(String(6), server_default="ff0000", nullable=False)
-    default_zoom: Mapped[int] = mapped_column(SmallInteger, server_default="15", nullable=False)
-    # Deepest zoom the provider serves real pixels for. Past it the client upscales
-    # instead of requesting tiles that cannot get any sharper. Null = no cap.
-    # Same contract as Basemap.max_native_zoom.
-    max_native_zoom: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
-    display_order: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
-    # AES-256-GCM ciphertext of the provider API key substituted into this source's
-    # {api_key} tile-URL templates. Decrypted only by the backend tile proxy.
+    # AES-256-GCM ciphertext of the key substituted into the layer's {api_key} URL
+    # template. Decrypted only by the backend tile proxy.
     encrypted_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # Set instead of `encrypted_api_key` when this source uses one of the
-    # organization's shared keys. Exactly one of the two is ever set.
     organization_api_key_id: Mapped[int | None] = mapped_column(
         ForeignKey("data.organization_api_keys.id", ondelete="SET NULL"), nullable=True
     )
 
-    campaign: Mapped["Campaign | None"] = relationship(back_populates="imagery_sources")
-    visualizer: Mapped["Visualizer | None"] = relationship(back_populates="imagery_sources")
-    organization_api_key: Mapped["OrganizationApiKey | None"] = relationship()
-    visualizations: Mapped[list["VisualizationTemplate"]] = relationship(
-        back_populates="source",
-        cascade="all, delete-orphan",
-        order_by="VisualizationTemplate.display_order",
-    )
-    collections: Mapped[list["ImageryCollection"]] = relationship(
-        back_populates="source",
-        cascade="all, delete-orphan",
-        order_by="ImageryCollection.display_order",
-    )
-    generation_series: Mapped[list["ImageryGenerationSeries"]] = relationship(
-        back_populates="source",
-        cascade="all, delete-orphan",
-        order_by="ImageryGenerationSeries.id",
-    )
-
-    @property
-    def owner(self) -> LayerOwner:
-        return LayerOwner(campaign_id=self.campaign_id, visualizer_id=self.visualizer_id)
+    @declared_attr
+    def organization_api_key(cls) -> Mapped["OrganizationApiKey | None"]:
+        return relationship()
 
     @property
     def has_api_key(self) -> bool:
@@ -134,36 +81,81 @@ class ImagerySource(Base):
             return None
         return ProviderKey(shared.encrypted_key, shared.allowed_tile_host)
 
-    # Registration state, per source rather than per campaign: one source can be
-    # fully registered while another is still missing tiles, and the campaign's
-    # single status cannot say which.
+
+class ImagerySource(Base, OwnedLayer, ProviderKeyed):
+    """Imagery an owner offers: visualizations of it, and its collections over time."""
+
+    __tablename__ = "imagery_sources"
+    __table_args__ = (
+        CheckConstraint("default_zoom BETWEEN 0 AND 22", name="source_zoom_check"),
+        one_owner_check("imagery_sources"),
+        Index("idx_imagery_sources_campaign_id", "campaign_id"),
+        Index("idx_imagery_sources_visualizer_id", "visualizer_id"),
+        {"schema": "data"},
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    crosshair_hex6: Mapped[str] = mapped_column(String(6), server_default="ff0000", nullable=False)
+    default_zoom: Mapped[int] = mapped_column(SmallInteger, server_default="15", nullable=False)
+    # Deepest zoom the provider serves real pixels for. Past it the client upscales
+    # instead of requesting tiles that cannot get any sharper. Null = no cap.
+    # Same contract as Basemap.max_native_zoom.
+    max_native_zoom: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    display_order: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
+
+    campaign: Mapped["Campaign | None"] = relationship(back_populates="imagery_sources")
+    visualizer: Mapped["Visualizer | None"] = relationship(back_populates="imagery_sources")
+
+    @property
+    def tile_layer(self) -> str:
+        return f"source:{self.id}"
+
+    visualizations: Mapped[list["Visualization"]] = relationship(
+        back_populates="source",
+        cascade="all, delete-orphan",
+        order_by="Visualization.display_order",
+    )
+    collections: Mapped[list["ImageryCollection"]] = relationship(
+        back_populates="source",
+        cascade="all, delete-orphan",
+        order_by="ImageryCollection.display_order",
+    )
+    generation_series: Mapped[list["ImageryGenerationSeries"]] = relationship(
+        back_populates="source",
+        cascade="all, delete-orphan",
+        order_by="ImageryGenerationSeries.id",
+    )
+
+    # Registration state, per source rather than per owner: one source can be fully
+    # registered while another is still missing tiles.
     @property
     def slice_count(self) -> int:
         return sum(len(c.slices) for c in self.collections)
 
     @property
     def registered_slice_count(self) -> int:
-        """Slices that actually have a tile URL, i.e. that an annotator can see."""
-        return sum(1 for c in self.collections for s in c.slices if s.tile_urls)
+        """Slices an annotator can see under every visualization."""
+        return sum(
+            1
+            for c in self.collections
+            for s in c.slices
+            if len(s.tiles) >= len(self.visualizations) > 0
+        )
 
     @property
     def refreshable(self) -> bool:
-        """Whether re-running the STAC search could pick up newer imagery -
-        true once any collection carries the search that produced it."""
-        return any(
-            c.stac_config is not None
-            and c.stac_config.catalog_url
-            and c.stac_config.stac_collection_id
-            for c in self.collections
-        )
+        """Whether re-running its searches could pick up newer imagery."""
+        return any(c.is_stac for c in self.collections)
 
 
-class VisualizationTemplate(Base):
-    """Named visualization option belonging to a source (e.g. 'True Color', 'NDVI')."""
+class Visualization(Base):
+    """One way a source is drawn ('True Color', 'NDVI'). The name is a label; every
+    collection's parameters and every slice's tiles refer to the visualization by id."""
 
-    __tablename__ = "visualization_templates"
+    __tablename__ = "visualizations"
     __table_args__ = (
-        UniqueConstraint("source_id", "name", name="uq_visualization_templates_source_name"),
+        UniqueConstraint("source_id", "name", name="uq_visualizations_source_name"),
         {"schema": "data"},
     )
 
@@ -179,12 +171,9 @@ class VisualizationTemplate(Base):
 
 
 class ImageryGenerationSeries(Base):
-    """Saved input for one temporal-generator run.
-
-    The normalized collection/slice rows remain authoritative for rendering.
-    This record owns the versioned authoring input needed to regenerate that
-    series; collections reference it instead of duplicating the snapshot.
-    """
+    """What the temporal generator was asked for when it produced a run of
+    collections, so it can be reopened: the period and how it was cut. The search
+    and visualizations live on the collections."""
 
     __tablename__ = "imagery_generation_series"
     __table_args__ = (
@@ -206,15 +195,23 @@ class ImageryGenerationSeries(Base):
 
 
 class ImageryCollection(Base):
-    """
-    Temporal grouping of slices within a source.
-    Represents one 'window' of imagery (e.g. Jan 2024, Q1 2024).
+    """One window of a source (e.g. Jan 2024) and its slices.
+
+    A STAC collection carries the search its slices are mosaicked from and the
+    parameters of each visualization; a manual one carries neither, its slices hold
+    tile templates instead. The slice at ``cover_slice_index`` is the one the window
+    opens on; with ``has_dedicated_cover`` it is a whole-window composite searched
+    and rendered with the cover overrides rather than one of the regular slices.
     """
 
     __tablename__ = "imagery_collections"
     __table_args__ = (
         Index("idx_imagery_collections_source_id", "source_id"),
         Index("idx_imagery_collections_generation_series_id", "generation_series_id"),
+        CheckConstraint(
+            "(catalog_url IS NULL) = (stac_collection_id IS NULL)",
+            name="imagery_collections_search_whole",
+        ),
         {"schema": "data"},
     )
 
@@ -225,9 +222,6 @@ class ImageryCollection(Base):
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
     cover_slice_index: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
-    # True when the slice at cover_slice_index is an out-of-band cover with
-    # override viz params / search query. False for a regular slice promoted
-    # to cover (which renders with the normal viz_params).
     has_dedicated_cover: Mapped[bool] = mapped_column(
         Boolean, server_default="false", nullable=False
     )
@@ -235,6 +229,27 @@ class ImageryCollection(Base):
     generation_series_id: Mapped[int | None] = mapped_column(
         ForeignKey("data.imagery_generation_series.id", ondelete="SET NULL"),
         nullable=True,
+    )
+
+    # --- The STAC search, NULL for a manual collection ---
+    catalog_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    stac_collection_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    # The hosted tiler that serves what MPC cannot (a Settings.TILERS key).
+    tiler: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # CQL2-JSON; slice dates are filled in at registration.
+    search_query: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    cover_search_query: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # The editor's cloud ceiling: 100 is "no filter", null a collection without cloud cover.
+    # What is searched is the filter it writes into search_query, which is also what caps a
+    # hosted tiler's ingest (tiles.cloud_cover_ceiling).
+    max_cloud_cover: Mapped[float | None] = mapped_column(nullable=True)
+    # Assets live in internal storage the tiler reads with its managed identity.
+    internal_storage: Mapped[bool] = mapped_column(Boolean, server_default="false", nullable=False)
+    # A private catalog's own access, provided by the customer (see src/storage_access.py).
+    storage_auth: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    encrypted_storage_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
+    storage_secret_expires_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
     )
 
     source: Mapped["ImagerySource"] = relationship(back_populates="collections")
@@ -246,88 +261,57 @@ class ImageryCollection(Base):
         cascade="all, delete-orphan",
         order_by="ImagerySlice.display_order",
     )
-    stac_config: Mapped["CollectionStacConfig | None"] = relationship(
-        back_populates="collection",
-        uselist=False,
-        cascade="all, delete-orphan",
-    )
-    viz_configs: Mapped[list["CollectionVizConfig"]] = relationship(
+    visualizations: Mapped[list["CollectionVisualization"]] = relationship(
         back_populates="collection",
         cascade="all, delete-orphan",
-        order_by="CollectionVizConfig.display_order",
     )
-
-
-class CollectionVizConfig(Base):
-    """Per-collection, per-visualization render params (canonical viz storage)."""
-
-    __tablename__ = "collection_viz_configs"
-    __table_args__ = (
-        UniqueConstraint("collection_id", "name", name="uq_collection_viz_configs_collection_name"),
-        {"schema": "data"},
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    collection_id: Mapped[int] = mapped_column(
-        ForeignKey("data.imagery_collections.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    name: Mapped[str] = mapped_column(String, nullable=False)
-    display_order: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
-    render_params: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    cover_render_params: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-
-    collection: Mapped["ImageryCollection"] = relationship(back_populates="viz_configs")
-
-
-class CollectionStacConfig(Base):
-    """STAC registration config for a collection (only for STAC-based collections)."""
-
-    __tablename__ = "collection_stac_configs"
-    __table_args__ = {"schema": "data"}
-
-    collection_id: Mapped[int] = mapped_column(
-        ForeignKey("data.imagery_collections.id", ondelete="CASCADE"),
-        primary_key=True,
-    )
-    # STAC catalog browser / TiTiler integration ──
-    catalog_url: Mapped[str | None] = mapped_column(Text, nullable=True)
-    stac_collection_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    # Hosted tiler name (a Settings.TILERS key); null => DEFAULT_TILER.
-    tile_provider: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    # Max cloud cover percentage for STAC search filtering
-    max_cloud_cover: Mapped[float | None] = mapped_column(nullable=True)
-    # Custom CQL2-JSON search query (when set, used instead of auto-generated query)
-    search_query: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    # Custom search query override for cover slice only
-    cover_search_query: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    # Assets live in internal storage the tiler reads with its managed identity. Only internal
-    # users may enable this (enforced in the router); drives the tiler's asset_signer marker.
-    internal_storage: Mapped[bool] = mapped_column(Boolean, server_default="false", nullable=False)
-    # A private catalog's own access, provided by the customer (see src/storage_access.py):
-    # its kind ("azure_sas"), the secret encrypted like a provider key, and when it expires.
-    storage_auth: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    encrypted_storage_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
-    storage_secret_expires_at: Mapped[datetime | None] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=True
-    )
-
-    collection: Mapped["ImageryCollection"] = relationship(back_populates="stac_config")
 
     @property
-    def viz_configs(self):
-        return self.collection.viz_configs if self.collection else []
+    def is_stac(self) -> bool:
+        return self.catalog_url is not None
+
+    @property
+    def search(self) -> "ImageryCollection | None":
+        """The search, which the API sends as one object; it lives on the collection."""
+        return self if self.is_stac else None
 
     @property
     def storage_access(self) -> StorageAccessOut | None:
         return described(self)
 
+    def is_cover(self, sl: "ImagerySlice") -> bool:
+        """Whether ``sl`` is this window's dedicated cover."""
+        return (
+            self.has_dedicated_cover
+            and 0 <= self.cover_slice_index < len(self.slices)
+            and self.slices[self.cover_slice_index] is sl
+        )
+
+
+class CollectionVisualization(Base):
+    """How a STAC collection draws one of its source's visualizations: the tiler
+    parameters, and the dedicated cover's own when it has them."""
+
+    __tablename__ = "collection_visualizations"
+    __table_args__ = {"schema": "data"}
+
+    collection_id: Mapped[int] = mapped_column(
+        ForeignKey("data.imagery_collections.id", ondelete="CASCADE"), primary_key=True
+    )
+    visualization_id: Mapped[int] = mapped_column(
+        ForeignKey("data.visualizations.id", ondelete="CASCADE"), primary_key=True
+    )
+    params: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    cover_params: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
+    collection: Mapped["ImageryCollection"] = relationship(back_populates="visualizations")
+    visualization: Mapped["Visualization"] = relationship()
+
 
 class ImagerySlice(Base):
-    """
-    A temporal slice within a collection.
-    Each slice has a start/end date and per-visualization resolved tile URLs.
-    """
+    """A period within a collection. A STAC slice is mosaicked by registration
+    (``mosaics``); a manual one is given a tile template per visualization
+    (``templates``). Its tiles follow from either - see ``imagery.tiles``."""
 
     __tablename__ = "imagery_slices"
     __table_args__ = (
@@ -346,111 +330,91 @@ class ImagerySlice(Base):
     display_order: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
 
     collection: Mapped["ImageryCollection"] = relationship(back_populates="slices")
-    tile_urls: Mapped[list["SliceTileUrl"]] = relationship(
-        back_populates="slice",
-        cascade="all, delete-orphan",
+    mosaics: Mapped[list["SliceMosaic"]] = relationship(
+        back_populates="slice", cascade="all, delete-orphan"
+    )
+    templates: Mapped[list["SliceTemplate"]] = relationship(
+        back_populates="slice", cascade="all, delete-orphan"
     )
 
+    @property
+    def tiles(self) -> list["SliceTile"]:
+        from src.imagery.tiles import slice_tiles
 
-class SliceTileUrl(Base):
-    """Resolved XYZ tile URL for a specific slice + visualization combination."""
+        return slice_tiles(self.collection, self)
 
-    __tablename__ = "slice_tile_urls"
-    __table_args__ = (
-        UniqueConstraint("slice_id", "visualization_name", name="uq_slice_tile_urls_slice_viz"),
-        {"schema": "data"},
-    )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+@dataclass(frozen=True)
+class SliceTile:
+    """Where one visualization of a slice is drawn from. ``tiler`` names the tiler that
+    serves it: "mpc", a hosted tiler, or None for a template a provider serves."""
+
+    visualization_id: int
+    url: str
+    tiler: str | None
+
+
+class SliceMosaic(Base):
+    """A slice's search, registered on one provider: MPC's searchid or a hosted
+    tiler's. A slice has one per provider its visualizations are drawn by."""
+
+    __tablename__ = "slice_mosaics"
+    __table_args__ = {"schema": "data"}
+
     slice_id: Mapped[int] = mapped_column(
-        ForeignKey("data.imagery_slices.id", ondelete="CASCADE"),
-        nullable=False,
+        ForeignKey("data.imagery_slices.id", ondelete="CASCADE"), primary_key=True
     )
-    visualization_name: Mapped[str] = mapped_column(String, nullable=False)
-    tile_url: Mapped[str] = mapped_column(Text, nullable=False)
-    # "mpc" or a configured tiler name (Settings.TILERS); null = direct/manual URL.
-    tile_provider: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    # The provider's id for the registered set of items this URL renders: an MPC
-    # searchid or a titiler-pgstac id. What is stored to reconstruct it is the
-    # generation config, never the item list.
-    mosaic_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # "mpc" or a hosted tiler's name (Settings.TILERS).
+    provider: Mapped[str] = mapped_column(String(64), primary_key=True)
+    mosaic_id: Mapped[str] = mapped_column(String(64), nullable=False)
 
-    slice: Mapped["ImagerySlice"] = relationship(back_populates="tile_urls")
+    slice: Mapped["ImagerySlice"] = relationship(back_populates="mosaics")
 
 
-class Basemap(Base):
+class SliceTemplate(Base):
+    """A manual slice's XYZ template for one visualization; ``{api_key}`` marks a
+    template the backend proxy completes with the source's key."""
+
+    __tablename__ = "slice_templates"
+    __table_args__ = {"schema": "data"}
+
+    slice_id: Mapped[int] = mapped_column(
+        ForeignKey("data.imagery_slices.id", ondelete="CASCADE"), primary_key=True
+    )
+    visualization_id: Mapped[int] = mapped_column(
+        ForeignKey("data.visualizations.id", ondelete="CASCADE"), primary_key=True
+    )
+    url: Mapped[str] = mapped_column(Text, nullable=False)
+
+    slice: Mapped["ImagerySlice"] = relationship(back_populates="templates")
+
+
+class Basemap(Base, OwnedLayer, ProviderKeyed):
     """Static XYZ basemap layer for a campaign (e.g. OSM, satellite)."""
 
     __tablename__ = "basemaps"
     __table_args__ = (
-        CheckConstraint(
-            "(campaign_id IS NULL) <> (visualizer_id IS NULL)",
-            name="basemaps_one_owner_check",
-        ),
+        one_owner_check("basemaps"),
         Index("idx_basemaps_campaign_id", "campaign_id"),
         Index("idx_basemaps_visualizer_id", "visualizer_id"),
         {"schema": "data"},
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    # Exactly one owner, as on ImagerySource.
-    campaign_id: Mapped[int | None] = mapped_column(
-        ForeignKey("data.campaigns.id", ondelete="CASCADE"),
-        nullable=True,
-    )
-    visualizer_id: Mapped[int | None] = mapped_column(
-        ForeignKey("data.visualizers.id", ondelete="CASCADE"),
-        nullable=True,
-    )
     name: Mapped[str] = mapped_column(String, nullable=False)
     url: Mapped[str] = mapped_column(Text, nullable=False)
     # Max zoom at which the provider serves real tiles. Past this, the client
     # upscales the deepest tile instead of requesting "no data" placeholders.
     # Null = unlimited (no cap on tile requests).
     max_native_zoom: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
-    # AES-256-GCM ciphertext of the provider API key substituted into this basemap's
-    # {api_key} URL template. Decrypted only by the backend tile proxy.
-    encrypted_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # As on ImagerySource: the org's shared key instead of this row's own.
-    organization_api_key_id: Mapped[int | None] = mapped_column(
-        ForeignKey("data.organization_api_keys.id", ondelete="SET NULL"), nullable=True
-    )
 
     campaign: Mapped["Campaign | None"] = relationship(back_populates="basemaps")
     visualizer: Mapped["Visualizer | None"] = relationship(back_populates="basemaps")
-    organization_api_key: Mapped["OrganizationApiKey | None"] = relationship()
-
-    @property
-    def owner(self) -> LayerOwner:
-        return LayerOwner(campaign_id=self.campaign_id, visualizer_id=self.visualizer_id)
-
-    @property
-    def has_api_key(self) -> bool:
-        return self.encrypted_api_key is not None or self.organization_api_key_id is not None
-
-    @property
-    def provider_key(self) -> ProviderKey | None:
-        """The key to decrypt for this layer's tiles: its own, or the shared one
-        it points at, with the host that one is bound to.
-
-        A shared key with no host bound is no key at all - it predates the
-        binding and an organization admin has to say where it may be sent before
-        anything will spend it.
-        """
-        if self.encrypted_api_key:
-            return ProviderKey(self.encrypted_api_key, None)
-        shared = self.organization_api_key
-        if shared is None or not shared.allowed_tile_host:
-            return None
-        return ProviderKey(shared.encrypted_key, shared.allowed_tile_host)
 
 
 class ImageryView(Base):
-    """
-    Named view over an ordered set of the campaign's imagery sources.
-    Which collections appear as canvas windows is expressed solely by
-    membership in the view's canvas layouts, not stored here.
-    """
+    """A named view over an ordered set of the campaign's imagery sources. Every
+    collection of those sources is a window of the view unless a layout hides it."""
 
     __tablename__ = "imagery_views"
     __table_args__ = (
@@ -466,13 +430,40 @@ class ImageryView(Base):
     name: Mapped[str] = mapped_column(String, nullable=False, server_default="")
     display_order: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
 
-    # Ordered source ids whose collections are browsable in this view.
-    source_ids: Mapped[list] = mapped_column(JSONB, server_default="[]", nullable=False)
-
     campaign: Mapped["Campaign"] = relationship(back_populates="imagery_views")
+    sources: Mapped[list["ViewSource"]] = relationship(
+        cascade="all, delete-orphan", order_by="ViewSource.position"
+    )
     canvas_layouts: Mapped[list["CanvasLayout"]] = relationship(
         "CanvasLayout",
         foreign_keys="[CanvasLayout.view_id]",
         back_populates="imagery_view",
         cascade="all, delete-orphan",
     )
+
+    @property
+    def source_ids(self) -> list[int]:
+        return [vs.source_id for vs in self.sources]
+
+    @source_ids.setter
+    def source_ids(self, ids: list[int]) -> None:
+        self.sources = [ViewSource(source_id=sid, position=i) for i, sid in enumerate(ids)]
+
+
+class ViewSource(Base):
+    """A source a view browses, at its place in the view's order. Goes with the
+    source when the source is deleted."""
+
+    __tablename__ = "view_sources"
+    __table_args__ = (
+        Index("idx_view_sources_source_id", "source_id"),
+        {"schema": "data"},
+    )
+
+    view_id: Mapped[int] = mapped_column(
+        ForeignKey("data.imagery_views.id", ondelete="CASCADE"), primary_key=True
+    )
+    source_id: Mapped[int] = mapped_column(
+        ForeignKey("data.imagery_sources.id", ondelete="CASCADE"), primary_key=True
+    )
+    position: Mapped[int] = mapped_column(SmallInteger, nullable=False)

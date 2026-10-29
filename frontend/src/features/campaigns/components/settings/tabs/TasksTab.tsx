@@ -3,7 +3,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import { TaskGenerationSection } from '~/features/campaigns/components/settings/TaskGenerationSection';
 import { Modal } from '~/shared/ui/Modal';
 import { TaskModeReview } from '~/features/campaigns/components/review/TaskModeReview';
-import Statistics from '~/features/campaigns/components/review/Statistics';
+import { Statistics } from '~/features/campaigns/components/review/Statistics';
 import { countTasksByStatus } from '~/shared/utils/taskStatus';
 import { TaskLocationsMap } from '~/features/campaigns/components/settings/TaskLocationsMap';
 import { TaskAssignmentsExportImport } from '~/features/campaigns/components/settings/TaskAssignmentsExportImport';
@@ -11,12 +11,7 @@ import {
   TaskScopeBar,
   type TaskScope,
 } from '~/features/campaigns/components/settings/TaskScopeBar';
-import type {
-  AnnotationTaskOut,
-  CampaignSummaryOut,
-  GenerateTasksResponse,
-  TaskSetOut,
-} from '~/api/client';
+import type { TaskOut, CampaignSummaryOut, GenerateTasksResponse, TaskSetOut } from '~/api/client';
 import { Button } from '~/shared/ui/forms';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import { FileInput } from '~/shared/ui/FileInput';
@@ -30,7 +25,7 @@ interface Props {
   /** Members may read the task list; changing what is in it is an admin's. */
   canManage: boolean;
   // Already filtered to the active scope by the page (single source of truth).
-  scopedTasks: AnnotationTaskOut[];
+  scopedTasks: TaskOut[];
   loadingTasks: boolean;
   totalTasks: number;
   taskFile: File | null;
@@ -92,6 +87,7 @@ export const TasksTab: React.FC<Props> = ({
   bbox,
 }) => {
   const { t } = useTranslation('campaigns');
+  const [addMethod, setAddMethod] = useState<'upload' | 'generate'>('upload');
   const campaignId = campaign.id;
   const sectionCls =
     'space-y-4 pt-6 mt-6 first:mt-0 first:pt-0 border-t border-neutral-100 first:border-t-0';
@@ -147,13 +143,9 @@ export const TasksTab: React.FC<Props> = ({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <button
-          onClick={() => {
-            if (taskFile === null) {
-              setTaskFile(new File([], ''));
-            }
-          }}
+          onClick={() => setAddMethod('upload')}
           className={`text-left px-4 py-3 rounded-lg border transition-colors ${
-            taskFile !== null
+            addMethod === 'upload'
               ? 'bg-brand-50 text-brand-800 border-brand-400'
               : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400'
           }`}
@@ -163,9 +155,9 @@ export const TasksTab: React.FC<Props> = ({
           <div className="text-xs text-neutral-500 mt-0.5">{t('tasksTab.uploadFileHint')}</div>
         </button>
         <button
-          onClick={() => setTaskFile(null)}
+          onClick={() => setAddMethod('generate')}
           className={`text-left px-4 py-3 rounded-lg border transition-colors ${
-            taskFile === null
+            addMethod === 'generate'
               ? 'bg-brand-50 text-brand-800 border-brand-400'
               : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400'
           }`}
@@ -176,7 +168,7 @@ export const TasksTab: React.FC<Props> = ({
         </button>
       </div>
 
-      {taskFile !== null && (
+      {addMethod === 'upload' && (
         <div className="space-y-3">
           <p className="text-xs text-neutral-500 leading-relaxed">
             <Trans
@@ -190,20 +182,17 @@ export const TasksTab: React.FC<Props> = ({
               accept=".csv,.geojson,.json"
               disabled={uploadingTasks}
               className="flex-1"
-              fileName={taskFile && taskFile.size > 0 ? taskFile.name : null}
+              fileName={taskFile?.name ?? null}
               onSelect={setTaskFile}
             />
-            <Button
-              onClick={uploadThenClose}
-              disabled={!taskFile || taskFile.size === 0 || uploadingTasks}
-            >
+            <Button onClick={uploadThenClose} disabled={!taskFile || uploadingTasks}>
               {t('tasksTab.upload')}
             </Button>
           </div>
         </div>
       )}
 
-      {taskFile === null && taskScope !== 'all' && (
+      {addMethod === 'generate' && taskScope !== 'all' && (
         <TaskGenerationSection
           campaignId={campaignId}
           taskSetId={taskScope}
@@ -266,7 +255,6 @@ export const TasksTab: React.FC<Props> = ({
           tasks={scopedTasks}
           taskSets={taskSets}
           hideSetFilter
-          embedded
           headerSlot={tasksTableHeading}
           headerActions={tasksTableActions}
           selectable={canManage}
@@ -403,5 +391,3 @@ export const TasksTab: React.FC<Props> = ({
     </div>
   );
 };
-
-export default TasksTab;

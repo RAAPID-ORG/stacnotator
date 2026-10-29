@@ -20,7 +20,7 @@ import {
   type FormField,
 } from '../campaign/annotation';
 import type { PolicyContext } from '~/features/campaigns/utils/labellingPolicy';
-import { viewWindows, type LayoutItem } from '../canvas/grid';
+import { viewLayout } from '../canvas/grid';
 import { useImageryStore } from './imagery';
 import { useLayoutStore } from './layout';
 import { usePrefsStore } from './prefs';
@@ -62,9 +62,9 @@ interface CampaignState {
   setTaskStartCollection: (collectionId: number) => void;
   /** What a viewport search found for a scene source: which dates hold imagery
    *  here, and the covers that are already drawable. */
-  applySceneSearch: (sourceId: number, vizName: string, found: PlanetSceneSliceOut[]) => void;
+  applySceneSearch: (sourceId: number, vizId: number, found: PlanetSceneSliceOut[]) => void;
   /** Layers minted for dates that were already found, as they are opened. */
-  applySceneLayers: (sourceId: number, vizName: string, minted: PlanetSceneSliceOut[]) => void;
+  applySceneLayers: (sourceId: number, vizId: number, minted: PlanetSceneSliceOut[]) => void;
   /** Make `view` the selected one. Its imagery nav state and its canvas
    *  windows both come with it, so the whole page belongs to one view. */
   selectView: (view: ImageryViewOut) => void;
@@ -77,10 +77,10 @@ interface CampaignState {
 export function startCollectionFor(
   catalog: ImageryCatalog,
   view: ImageryViewOut | null,
-  windows: Record<number, LayoutItem>
+  hidden: readonly number[]
 ): number | null {
   const entries = collectionsInView(catalog, view);
-  const windowed = entries.filter((c) => windows[c.id] !== undefined);
+  const windowed = entries.filter((c) => !hidden.includes(c.id));
   const pool = windowed.length > 0 ? windowed : entries;
   const pinned = view ? usePrefsStore.getState().pinnedStart[view.id] : undefined;
   if (pinned != null && pool.some((c) => c.id === pinned)) return pinned;
@@ -88,7 +88,7 @@ export function startCollectionFor(
     .map((id) => catalog.sources.get(id))
     .find((source) => source && source.collections.length > 0);
   const collections = firstSource?.collections ?? [];
-  const visible = collections.filter((c) => windows[c.id] !== undefined);
+  const visible = collections.filter((c) => !hidden.includes(c.id));
   return (
     [...(visible.length > 0 ? visible : collections)].sort((a, b) =>
       collectionStartDate(a).localeCompare(collectionStartDate(b))
@@ -122,7 +122,7 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
         taskStartCollectionId: startCollectionFor(
           catalog,
           kept,
-          useLayoutStore.getState().currentLayout.windows
+          useLayoutStore.getState().currentLayout.hidden
         ),
       });
     }
@@ -152,14 +152,14 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
     imagery.setEmptyScope(null);
   },
 
-  applySceneSearch: (sourceId, vizName, found) => {
+  applySceneSearch: (sourceId, vizId, found) => {
     const catalog = get().catalog;
-    if (catalog) set({ catalog: withSceneSearch(catalog, sourceId, vizName, found) });
+    if (catalog) set({ catalog: withSceneSearch(catalog, sourceId, vizId, found) });
   },
 
-  applySceneLayers: (sourceId, vizName, minted) => {
+  applySceneLayers: (sourceId, vizId, minted) => {
     const catalog = get().catalog;
-    if (catalog) set({ catalog: withSceneLayers(catalog, sourceId, vizName, minted) });
+    if (catalog) set({ catalog: withSceneLayers(catalog, sourceId, vizId, minted) });
   },
 
   setOriginTask: (originTask) => set({ originTask }),
@@ -170,7 +170,7 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
   selectView: (view) => {
     const { catalog, view: previous } = get();
     if (!catalog) return;
-    const start = startCollectionFor(catalog, view, viewWindows(view));
+    const start = startCollectionFor(catalog, view, viewLayout(view).hidden);
     useImageryStore.getState().switchView(catalog, previous?.id ?? null, view.id, start);
     useLayoutStore.getState().loadViewLayout(view);
     set({ view, taskStartCollectionId: start });
@@ -202,6 +202,15 @@ export function useCatalog(): ImageryCatalog {
   return catalog;
 }
 
+/** The slice the main window shows: what an annotation records it was drawn on.
+ *  None while the basemap is shown instead. */
+export function viewedSliceId(): number | null {
+  const { catalog } = useCampaignStore.getState();
+  const { address, showBasemap } = useImageryStore.getState();
+  if (!catalog || !address || showBasemap) return null;
+  return catalog.collections.get(address.collectionId)?.slices[address.sliceIndex]?.id ?? null;
+}
+
 /** Imperative twin of the hooks above, for hotkeys and event handlers. */
 export function campaignState() {
   const { campaign, catalog, view, workMode, isMobile } = useCampaignStore.getState();
@@ -220,7 +229,7 @@ export function useCanModifyAnnotation(): (
     canModifyAnnotation(
       annotation,
       toPolicyContext(campaign, userId),
-      campaign?.settings.labelling_policy?.modify_others
+      campaign?.settings.labelling_policy.modify_others
     );
 }
 
@@ -259,6 +268,6 @@ export function mayModifyAnnotation(
   return canModifyAnnotation(
     annotation,
     toPolicyContext(campaign, currentUserId),
-    campaign?.settings.labelling_policy?.modify_others
+    campaign?.settings.labelling_policy.modify_others
   );
 }

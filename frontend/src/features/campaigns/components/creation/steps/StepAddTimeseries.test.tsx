@@ -4,9 +4,9 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   CampaignCreate,
-  TimeSeriesCreate,
-  TimeSeriesOptionsOut,
-  TimeSeriesOut,
+  TimeseriesCreate,
+  TimeseriesOptionsOut,
+  TimeseriesOut,
 } from '~/api/client';
 import { renderWithQuery } from '~/shared/testing/renderWithQuery';
 import { DEFAULT_TIMESERIES_WINDOW_NAME } from '~/shared/utils/constants';
@@ -20,8 +20,7 @@ vi.mock('~/api/client/sdk.gen', async () => ({
 
 import { getTimeseriesCreationOptions } from '~/api/client/sdk.gen';
 
-const options: TimeSeriesOptionsOut = {
-  providers: ['gee'],
+const options: TimeseriesOptionsOut = {
   sources: [
     {
       key: 'sentinel',
@@ -69,26 +68,27 @@ const initialForm: CampaignCreate = {
 const onChange = vi.fn();
 const onRemoveExisting = vi.fn();
 const onRenameExistingPanel = vi.fn();
-const savedSeries: TimeSeriesOut = {
+const savedSeries: TimeseriesOut = {
   id: 5,
   campaign_id: 1,
   name: 'Saved NDVI',
+  window_id: 9,
   window_name: 'Vegetation',
   start_ym: '202001',
   end_ym: '202012',
   data_source: 'sentinel',
-  provider: 'gee',
   ts_type: 'ndvi',
   index: options.indices[0],
 };
 
-function Editor({ existingTimeseries = [] }: { existingTimeseries?: TimeSeriesOut[] }) {
+function Editor({ existingTimeseries = [] }: { existingTimeseries?: TimeseriesOut[] }) {
   const [form, setForm] = useState(initialForm);
   const [saved, setSaved] = useState(existingTimeseries);
   return (
     <StepAddTimeseries
-      form={form}
-      setForm={(next) => {
+      items={form.timeseries_configs ?? []}
+      onChange={(timeseries_configs) => {
+        const next = { ...form, timeseries_configs };
         onChange(next);
         setForm(next);
       }}
@@ -106,7 +106,7 @@ function Editor({ existingTimeseries = [] }: { existingTimeseries?: TimeSeriesOu
   );
 }
 
-async function openEditor(existingTimeseries: TimeSeriesOut[] = []) {
+async function openEditor(existingTimeseries: TimeseriesOut[] = []) {
   renderWithQuery(<Editor existingTimeseries={existingTimeseries} />);
   await waitFor(() =>
     expect(
@@ -150,7 +150,6 @@ describe('Panel-first timeseries setup', () => {
       expect.objectContaining({
         name: 'Vegetation',
         window_name: DEFAULT_TIMESERIES_WINDOW_NAME,
-        provider: 'gee',
       }),
     ]);
     expect(screen.queryByRole('combobox', { name: 'Window' })).toBeNull();
@@ -174,12 +173,12 @@ describe('Panel-first timeseries setup', () => {
     await userEvent.type(within(water).getByRole('textbox', { name: 'Timeseries name' }), 'NDWI');
     expect(screen.getAllByRole('region')).toHaveLength(3);
     expect(
-      onChange.mock.lastCall?.[0].timeseries_configs.map((ts: TimeSeriesCreate) => ts.window_name)
+      onChange.mock.lastCall?.[0].timeseries_configs.map((ts: TimeseriesCreate) => ts.window_name)
     ).toEqual(['Vegetation', 'Vegetation', 'Water']);
     await userEvent.click(within(vegetation).getAllByRole('button', { name: 'Remove' })[0]);
     await userEvent.type(within(water).getByRole('textbox', { name: 'Timeseries name' }), ' water');
     expect(
-      onChange.mock.lastCall?.[0].timeseries_configs.map((ts: TimeSeriesCreate) => ts.name)
+      onChange.mock.lastCall?.[0].timeseries_configs.map((ts: TimeseriesCreate) => ts.name)
     ).toEqual(['Landsat NDVI', 'NDWI water']);
   });
 
@@ -227,7 +226,7 @@ describe('Panel-first timeseries setup', () => {
       within(renamed).getByRole('button', { name: '+ Add another timeseries' })
     );
     expect(
-      onChange.mock.lastCall?.[0].timeseries_configs.map((ts: TimeSeriesCreate) => ts.window_name)
+      onChange.mock.lastCall?.[0].timeseries_configs.map((ts: TimeseriesCreate) => ts.window_name)
     ).toEqual(['Greenness', 'Greenness', 'Greenness']);
     expect(screen.queryByRole('region', { name: 'Vegetation panel' })).toBeNull();
   });
@@ -321,7 +320,6 @@ describe('Panel-first timeseries setup', () => {
       window_name: 'Vegetation',
       data_source: 'landsat',
       ts_type: '',
-      provider: 'gee',
     });
     await userEvent.click(within(group).getAllByRole('button', { name: 'Remove' })[0]);
     expect(onRemoveExisting).toHaveBeenCalledWith(5);

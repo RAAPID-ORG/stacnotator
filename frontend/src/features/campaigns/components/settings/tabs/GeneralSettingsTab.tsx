@@ -1,26 +1,22 @@
 import React, { useMemo, useState } from 'react';
+import { Spinner } from '~/shared/ui/Spinner';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import type { CampaignOut, LabelBase, LabellingPolicy, ProjectUserOut } from '~/api/client';
+import { updateCampaignMutation } from '~/api/queries';
 import {
-  updateCampaignBboxMutation,
-  updateCampaignFormFieldsMutation,
-  updateCampaignGuideMutation,
-  updateCampaignLabelsMutation,
-  updateEmbeddingYearMutation,
-  updateLabellingPolicyMutation,
-  updateResearchSharingMutation,
-  updateSampleExtentMutation,
-  updateTaskOutputMutation,
-} from '~/api/queries';
-import { useRefreshCampaign } from '~/features/campaigns/hooks/campaignQueries';
+  useCampaignSettingsLocks,
+  useRefreshCampaign,
+} from '~/features/campaigns/hooks/campaignQueries';
 import { projectPath } from '~/app/routes';
-import { BoundingBoxEditor } from '~/features/campaigns/components/BoundingBoxEditor';
+import { BoundingBoxEditor } from '~/features/layers/BoundingBoxEditor';
 import { FormFieldsEditor } from '~/features/campaigns/components/FormFieldsEditor';
+import { labelNamesError } from '~/features/campaigns/utils/campaignValidation';
 import { LabelsEditor } from '~/features/campaigns/components/LabelsEditor';
 import {
   diffFormFields,
+  refusedReshapes,
   validateFormFields,
   type FormField,
 } from '~/features/campaigns/utils/formFields';
@@ -51,6 +47,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
   const showAlert = useLayoutStore((s) => s.showAlert);
   const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
   const refreshCampaign = useRefreshCampaign(campaign.id);
+  const { taskOutputLocked, answeredFieldIds } = useCampaignSettingsLocks(campaign.id);
 
   // Every editor below saves one slice of the campaign and then re-reads it,
   // which is also what keeps the page header and the sidebar honest.
@@ -69,17 +66,9 @@ export const GeneralSettingsTab: React.FC<Props> = ({
     campaign.settings.embedding_year ?? null
   );
   const saveEmbeddingYear = useMutation({
-    ...updateEmbeddingYearMutation(),
+    ...updateCampaignMutation(),
     meta: { errorMessage: t('generalTab.errors.embeddingYear') },
-    onSuccess: (result) => {
-      void refreshCampaign();
-      showAlert(
-        result.embeddings_recomputed
-          ? t('generalTab.toasts.embeddingsRecomputed', { year: embeddingYear })
-          : t('generalTab.toasts.embeddingYearUpdated'),
-        'success'
-      );
-    },
+    onSuccess: refreshCampaign,
   });
   const savingEmbeddingYear = saveEmbeddingYear.isPending;
 
@@ -87,7 +76,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
 
   const [guideMarkdown, setGuideMarkdown] = useState(campaign.settings.guide_markdown ?? '');
   const saveGuide = useMutation({
-    ...updateCampaignGuideMutation(),
+    ...updateCampaignMutation(),
     ...saved(t('generalTab.errors.guide'), t('generalTab.toasts.guideUpdated')),
   });
   const savingGuide = saveGuide.isPending;
@@ -97,14 +86,13 @@ export const GeneralSettingsTab: React.FC<Props> = ({
   // name) are allowed; deletes are blocked by the editor and the backend.
   const [labelsDraft, setLabelsDraft] = useState<LabelBase[]>(campaign.settings.labels);
   const saveLabels = useMutation({
-    ...updateCampaignLabelsMutation(),
+    ...updateCampaignMutation(),
     ...saved(t('generalTab.errors.labels'), t('generalTab.toasts.labelsUpdated')),
   });
   const savingLabels = saveLabels.isPending;
   const labelsChanged = JSON.stringify(labelsDraft) !== JSON.stringify(campaign.settings.labels);
-  const labelsAreValid =
-    labelsDraft.every((l) => l.name.trim().length > 0) &&
-    new Set(labelsDraft.map((l) => l.name.trim().toLowerCase())).size === labelsDraft.length;
+  const labelsError = labelNamesError(labelsDraft);
+  const labelsAreValid = labelsError === null;
   const renamedLabels = labelsDraft.filter((l) => {
     const original = campaign.settings.labels.find((o) => o.id === l.id);
     return original && original.name !== l.name;
@@ -129,15 +117,15 @@ export const GeneralSettingsTab: React.FC<Props> = ({
   // recorded for it, and the backend rejects reshaping a field that already
   // has stored answers.
   const [formFieldsDraft, setFormFieldsDraft] = useState<FormField[]>(
-    campaign.settings.form_fields ?? []
+    campaign.settings.form_fields
   );
   const saveFormFields = useMutation({
-    ...updateCampaignFormFieldsMutation(),
+    ...updateCampaignMutation(),
     ...saved(t('generalTab.errors.formFields'), t('generalTab.toasts.formFieldsUpdated')),
   });
   const savingFormFields = saveFormFields.isPending;
   const savedFormFields = useMemo(
-    () => campaign.settings.form_fields ?? [],
+    () => campaign.settings.form_fields,
     [campaign.settings.form_fields]
   );
   const formFieldsChanged = JSON.stringify(formFieldsDraft) !== JSON.stringify(savedFormFields);
@@ -149,6 +137,14 @@ export const GeneralSettingsTab: React.FC<Props> = ({
 
   const handleSaveFormFields = async () => {
     if (!formFieldsChanged || formFieldErrors.length > 0) return;
+    const refused = refusedReshapes(savedFormFields, formFieldsDraft, answeredFieldIds);
+    if (refused.length > 0) {
+      showAlert(
+        t('generalTab.answeredFields', { fields: refused.map((f) => `"${f.title}"`).join(', ') }),
+        'error'
+      );
+      return;
+    }
     const { edited: editedFormFields, deleted: deletedFormFields } = formFieldsDiff;
     // Deletion is the destructive case, so it owns the dialog when both apply.
     if (deletedFormFields.length > 0) {
@@ -187,11 +183,11 @@ export const GeneralSettingsTab: React.FC<Props> = ({
     campaign.settings.labelling_policy
   );
   const savePolicy = useMutation({
-    ...updateLabellingPolicyMutation(),
+    ...updateCampaignMutation(),
     meta: { errorMessage: t('generalTab.errors.policy') },
-    onSuccess: (policy) => {
+    onSuccess: (updated) => {
       // The server normalises the audiences, so the draft follows what it stored.
-      setPolicyDraft(policy);
+      setPolicyDraft(updated.settings.labelling_policy);
       void refreshCampaign();
       showAlert(t('generalTab.toasts.policyUpdated'), 'success');
     },
@@ -202,20 +198,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
 
   const handleSavePolicy = async () => {
     if (!policyChanged) return;
-    const noOne = { kinds: [], user_ids: [] };
-    savePolicy.mutate({
-      path,
-      // PATCH replaces the whole policy, so every axis must be present.
-      body: {
-        explore: policyDraft.explore ?? noOne,
-        unassigned_tasks: policyDraft.unassigned_tasks ?? noOne,
-        assigned_tasks: policyDraft.assigned_tasks ?? noOne,
-        complete_assigned: policyDraft.complete_assigned ?? noOne,
-        // Its own default is "campaign admins", not "no one", so an unset
-        // draft must not be sent as an empty audience.
-        ...(policyDraft.modify_others ? { modify_others: policyDraft.modify_others } : {}),
-      },
-    });
+    savePolicy.mutate({ path, body: { labelling_policy: policyDraft } });
   };
 
   // Sample extent local state
@@ -225,18 +208,18 @@ export const GeneralSettingsTab: React.FC<Props> = ({
       : ''
   );
   const saveExtent = useMutation({
-    ...updateSampleExtentMutation(),
+    ...updateCampaignMutation(),
     ...saved(t('generalTab.errors.extent'), t('generalTab.toasts.extentUpdated')),
   });
   const savingExtent = saveExtent.isPending;
   const saveResearchSharing = useMutation({
-    ...updateResearchSharingMutation(),
+    ...updateCampaignMutation(),
     meta: { errorMessage: t('generalTab.errors.researchSharing') },
     onSuccess: refreshCampaign,
   });
   const savingResearchSharing = saveResearchSharing.isPending;
   const saveTaskOutput = useMutation({
-    ...updateTaskOutputMutation(),
+    ...updateCampaignMutation(),
     ...saved(t('generalTab.errors.taskOutput'), t('generalTab.toasts.taskOutputUpdated')),
   });
   const parsedExtent = sampleExtent.trim() === '' ? null : Number(sampleExtent);
@@ -284,7 +267,20 @@ export const GeneralSettingsTab: React.FC<Props> = ({
       if (!confirmed) return;
     }
 
-    saveEmbeddingYear.mutate({ path, body: { embedding_year: embeddingYear } });
+    saveEmbeddingYear.mutate(
+      { path, body: { embedding_year: embeddingYear } },
+      {
+        // The saved campaign says whether a run started: a new year with tasks to
+        // fetch for does, clearing the year or a campaign without tasks does not.
+        onSuccess: (saved) =>
+          showAlert(
+            saved.embedding_status === 'registering'
+              ? t('generalTab.toasts.embeddingsRecomputed', { year: embeddingYear })
+              : t('generalTab.toasts.embeddingYearUpdated'),
+            'success'
+          ),
+      }
+    );
   };
 
   const [bboxDraft, setBboxDraft] = useState({
@@ -294,7 +290,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
     bbox_north: campaign.settings.bbox_north,
   });
   const saveBbox = useMutation({
-    ...updateCampaignBboxMutation(),
+    ...updateCampaignMutation(),
     ...saved(t('generalTab.errors.bbox'), t('generalTab.toasts.bboxUpdated')),
   });
   const savingBbox = saveBbox.isPending;
@@ -371,19 +367,22 @@ export const GeneralSettingsTab: React.FC<Props> = ({
         </div>
         <Field label={t('generalTab.taskOutput.label')} className="w-72">
           <Select
-            value={campaign.settings.task_output ?? 'classify'}
+            value={campaign.settings.task_output}
             onChange={(e) =>
               saveTaskOutput.mutate({
                 path,
                 body: { task_output: e.target.value === 'draw' ? 'draw' : 'classify' },
               })
             }
-            disabled={saveTaskOutput.isPending}
+            disabled={saveTaskOutput.isPending || taskOutputLocked}
           >
             <option value="classify">{t('generalTab.taskOutput.classify')}</option>
             <option value="draw">{t('generalTab.taskOutput.draw')}</option>
           </Select>
         </Field>
+        {taskOutputLocked && (
+          <p className="text-xs text-neutral-500">{t('generalTab.taskOutput.locked')}</p>
+        )}
       </section>
 
       <section className={sectionCls}>
@@ -456,9 +455,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
               {t('settingsPage.discard')}
             </button>
           )}
-          {!labelsAreValid && (
-            <span className="text-xs text-red-600">{t('generalTab.labels.invalid')}</span>
-          )}
+          {labelsError && <span className="text-xs text-red-600">{labelsError}</span>}
         </div>
       </section>
 
@@ -479,7 +476,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
           {formFieldsChanged && (
             <button
               type="button"
-              onClick={() => setFormFieldsDraft(campaign.settings.form_fields ?? [])}
+              onClick={() => setFormFieldsDraft(campaign.settings.form_fields)}
               disabled={savingFormFields}
               className="text-sm text-neutral-500 hover:text-neutral-700 underline underline-offset-4"
             >
@@ -571,25 +568,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
           <Button
             onClick={handleSaveEmbeddingYear}
             disabled={savingEmbeddingYear || !embeddingYearChanged}
-            leading={
-              savingEmbeddingYear ? (
-                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  />
-                </svg>
-              ) : undefined
-            }
+            leading={savingEmbeddingYear ? <Spinner size="xs" variant="white" /> : undefined}
           >
             {savingEmbeddingYear ? t('generalTab.embedding.recomputing') : t('common:actions.save')}
           </Button>
@@ -611,5 +590,3 @@ export const GeneralSettingsTab: React.FC<Props> = ({
     </div>
   );
 };
-
-export default GeneralSettingsTab;

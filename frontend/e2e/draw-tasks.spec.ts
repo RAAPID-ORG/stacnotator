@@ -37,7 +37,7 @@ test.describe('Draw tasks', () => {
         [0, 50],
       ]),
     ]);
-    const shape = lastPost(api.requests, '/create-annotation')!.body;
+    const shape = lastPost(api.requests, '/annotations')!.body;
     expect(shape.output_of_task_id).toBe(100);
     expect(shape.origin_task_id).toBeUndefined();
 

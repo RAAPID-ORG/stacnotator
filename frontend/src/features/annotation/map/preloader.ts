@@ -1,7 +1,7 @@
 import { createXYZ } from 'ol/tilegrid';
 import { transformExtent } from 'ol/proj';
 import type { Bbox } from '~/shared/map/types';
-import { crossOriginForTile, ensureSessionFor, type CrossOrigin } from '~/shared/map/tileLoading';
+import { ensureSessionFor, type CrossOrigin } from '~/shared/map/tileLoading';
 
 export interface PreloadJob {
   priority: number;
@@ -9,7 +9,8 @@ export interface PreloadJob {
   urlTemplate: string; // Fully-resolved XYZ tile URL template (contains {z}, {x}, {y}).
   extent: Bbox;
   zoom: number;
-  tileProvider?: string | null; // "mpc" / tiler name / null - drives crossOrigin + cookie.
+  /** Whether the tiles need the tiler cookie, as the layer that will show them decided. */
+  auth?: 'cookie' | 'none';
 }
 
 /** The slice of HTMLImageElement the preloader drives; injectable so tests stay headless. */
@@ -187,7 +188,7 @@ export class TilePreloader {
 
   private expandAndEnqueue(jobs: PreloadJob[]): void {
     for (const job of jobs) {
-      const crossOrigin = crossOriginForTile(job.urlTemplate, job.tileProvider);
+      const crossOrigin: CrossOrigin = job.auth === 'cookie' ? 'use-credentials' : 'anonymous';
       const counts = this.countsFor(job.groupId);
       for (const url of tileUrlsForExtent(job.urlTemplate, job.extent, job.zoom)) {
         counts.total++;

@@ -5,7 +5,13 @@ import type {
   TextFormField,
   DateFormField,
 } from '~/api/client';
-import { formFieldSlug, validateFormFields, diffFormFields, type FormField } from './formFields';
+import {
+  formFieldSlug,
+  validateFormFields,
+  diffFormFields,
+  refusedReshapes,
+  type FormField,
+} from './formFields';
 
 const CATEGORY: CategoryFormField = {
   id: 1,
@@ -46,6 +52,12 @@ describe('formFieldSlug', () => {
 
   it('strips leading and trailing separators', () => {
     expect(formFieldSlug('  Hello World!!  ')).toBe('hello_world');
+  });
+
+  it('keeps letters of any script and drops accents', () => {
+    expect(formFieldSlug('状態')).toBe('状態');
+    expect(formFieldSlug('Condición')).toBe('condicion');
+    expect(formFieldSlug('%%')).toBe('field');
   });
 });
 
@@ -160,5 +172,19 @@ describe('diffFormFields', () => {
   it('treats reordering alone as no change', () => {
     const diff = diffFormFields([CATEGORY, NUMBER], [NUMBER, CATEGORY]);
     expect(diff).toEqual({ added: [], edited: [], deleted: [] });
+  });
+});
+
+describe('refusedReshapes', () => {
+  const withoutBad: CategoryFormField = { ...CATEGORY, options: [{ id: 10, name: 'Good' }] };
+  const renamed: CategoryFormField = { ...CATEGORY, title: 'State' };
+
+  it('refuses dropping an option of an answered field', () => {
+    expect(refusedReshapes([CATEGORY], [withoutBad], [1])).toEqual([withoutBad]);
+  });
+
+  it('allows the same change on a field nobody answered, and renames of an answered one', () => {
+    expect(refusedReshapes([CATEGORY], [withoutBad], [])).toEqual([]);
+    expect(refusedReshapes([CATEGORY], [renamed], [1])).toEqual([]);
   });
 });

@@ -7,7 +7,12 @@ import { renderWithQuery } from '~/shared/testing/renderWithQuery';
 vi.mock('~/shared/stores/account.store', () => ({
   useAccountStore: (selector: (state: object) => unknown) =>
     selector({
-      account: { id: 'admin', display_name: 'Admin', email: 'admin@example.test', is_admin: true },
+      account: {
+        id: 'admin',
+        display_name: 'Admin',
+        email: 'admin@example.test',
+        is_platform_admin: true,
+      },
       fetchAccount: vi.fn(),
     }),
 }));

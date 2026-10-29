@@ -39,7 +39,7 @@ export interface ImageLimits {
 }
 
 export const DEFAULT_COLUMNS = 4;
-export const DEFAULT_CELL_PX = 320;
+const DEFAULT_CELL_PX = 320;
 export const DEFAULT_ZOOM = 15;
 const MIN_CELL_PX = 96;
 const MAX_CELLS = 36;
@@ -121,7 +121,7 @@ export function campaignContext(campaign: CampaignOutFull) {
       const collections = source.collections
         .map((collection) => {
           const cover = collection.slices[collection.cover_slice_index];
-          const usable = collection.slices.filter((s) => onDemand || s.tile_urls.length > 0);
+          const usable = collection.slices.filter((s) => onDemand || s.tiles.length > 0);
           return {
             collection_id: collection.id,
             name: collection.name,
@@ -155,7 +155,7 @@ export function campaignContext(campaign: CampaignOutFull) {
     sample_extent_meters: settings.sample_extent_meters ?? null,
     guide_markdown: settings.guide_markdown ?? null,
     labels: settings.labels,
-    form_fields: settings.form_fields ?? [],
+    form_fields: settings.form_fields,
     imagery,
     basemaps: campaign.basemaps.map((b) => ({
       basemap_id: b.id,

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AnnotationTaskOut, TaskSetOut } from '~/api/client';
+import type { TaskOut, TaskSetOut } from '~/api/client';
 import {
   apiSuccess,
   makeCampaign,
@@ -24,12 +24,12 @@ vi.mock('~/api/client', async (importActual) => {
   return {
     ...actual,
     getCampaignWithImageryWindows: vi.fn(),
-    getAllAnnotationTasks: vi.fn(),
+    listTasks: vi.fn(),
     listTaskSets: vi.fn(),
   };
 });
 
-import { getAllAnnotationTasks, getCampaignWithImageryWindows, listTaskSets } from '~/api/client';
+import { listTasks, getCampaignWithImageryWindows, listTaskSets } from '~/api/client';
 import { loadCampaign } from './loadCampaign';
 
 const source = makeSource({
@@ -42,35 +42,32 @@ const source = makeSource({
 });
 const view = makeView({ id: 100, name: 'V1', source_ids: [1] });
 
-const task = (overrides: Partial<AnnotationTaskOut> = {}): AnnotationTaskOut =>
-  makeTask({ id: 1, geometry: { id: 1, geometry: 'POINT(0 0)' }, ...overrides });
+const task = (overrides: Partial<TaskOut> = {}): TaskOut =>
+  makeTask({ id: 1, geometry_wkt: 'POINT(0 0)', ...overrides });
 
 function mockApi({
   tasks = [task()],
   taskSets = [] as TaskSetOut[],
-  mode = 'tasks' as 'tasks' | 'open',
   isPublic = false,
 }: {
-  tasks?: AnnotationTaskOut[];
+  tasks?: TaskOut[];
   taskSets?: TaskSetOut[];
-  mode?: 'tasks' | 'open';
   isPublic?: boolean;
 } = {}) {
   const campaign = makeCampaign({
-    mode,
     is_public: isPublic,
     imagery_sources: [source],
     imagery_views: [view],
   });
   vi.mocked(getCampaignWithImageryWindows).mockResolvedValue(apiSuccess(campaign));
-  vi.mocked(getAllAnnotationTasks).mockResolvedValue(apiSuccess(makeTaskList({ tasks })));
+  vi.mocked(listTasks).mockResolvedValue(apiSuccess(makeTaskList({ tasks })));
   vi.mocked(listTaskSets).mockResolvedValue(apiSuccess(taskSets));
   return campaign;
 }
 
 beforeEach(() => {
   vi.mocked(getCampaignWithImageryWindows).mockReset();
-  vi.mocked(getAllAnnotationTasks).mockReset();
+  vi.mocked(listTasks).mockReset();
   vi.mocked(listTaskSets).mockReset();
   usePrefsStore.setState({ pinnedStart: {} });
   useCampaignStore.setState({
@@ -134,14 +131,11 @@ describe('loadCampaign happy path', () => {
     });
     const source2 = { ...source, collections: [source.collections[0], second] };
     const campaign = makeCampaign({
-      mode: 'tasks',
       imagery_sources: [source2],
       imagery_views: [view],
     });
     vi.mocked(getCampaignWithImageryWindows).mockResolvedValue(apiSuccess(campaign));
-    vi.mocked(getAllAnnotationTasks).mockResolvedValue(
-      apiSuccess(makeTaskList({ tasks: [task()] }))
-    );
+    vi.mocked(listTasks).mockResolvedValue(apiSuccess(makeTaskList({ tasks: [task()] })));
     vi.mocked(listTaskSets).mockResolvedValue(apiSuccess([]));
 
     usePrefsStore.getState().setPinnedStart(100, 20);
@@ -151,7 +145,7 @@ describe('loadCampaign happy path', () => {
   });
 
   it('stages a deep-linked annotation id only in explore mode', async () => {
-    mockApi({ mode: 'open', tasks: [] });
+    mockApi({ tasks: [] });
     const result = await loadCampaign(5, {
       now: 1000,
       currentUserId: 'u1',
@@ -162,7 +156,7 @@ describe('loadCampaign happy path', () => {
   });
 
   it('does not stage a deep-linked annotation id in tasks mode', async () => {
-    mockApi({ mode: 'tasks', tasks: [task()] });
+    mockApi({ tasks: [task()] });
     const result = await loadCampaign(5, {
       now: 1000,
       currentUserId: 'u1',
@@ -172,16 +166,37 @@ describe('loadCampaign happy path', () => {
     expect(result.annotationId).toBeNull();
   });
 
-  it('lands a zero-task tasks-mode campaign in explore instead', async () => {
-    mockApi({ mode: 'tasks', tasks: [] });
+  it('opens a campaign with no tasks in explore', async () => {
+    mockApi({ tasks: [] });
     await loadCampaign(5, { now: 1000, currentUserId: 'u1' });
     expect(useCampaignStore.getState().workMode).toBe('explore');
     expect(useCampaignStore.getState().isReviewMode).toBe(false);
     expect(useTasksStore.getState().allTasks).toEqual([]);
   });
 
+  it('opens in explore when none of the tasks is the viewer’s to answer', async () => {
+    const campaign = mockApi({ tasks: [task()] });
+    campaign.settings = {
+      ...campaign.settings,
+      labelling_policy: {
+        ...campaign.settings.labelling_policy,
+        unassigned_tasks: { kinds: ['admins'] },
+      },
+    };
+    await loadCampaign(5, { now: 1000, currentUserId: 'u1' });
+    expect(useCampaignStore.getState().workMode).toBe('explore');
+  });
+
+  it('opens a linked task in tasks mode even when it has no work left', async () => {
+    mockApi({ tasks: [task({ task_status: 'done' })] });
+    await loadCampaign(5, { now: 1000, currentUserId: 'u1', preferTaskId: 1, isReviewMode: true });
+    expect(useCampaignStore.getState().workMode).toBe('tasks');
+    expect(useCampaignStore.getState().isReviewMode).toBe(true);
+    expect(useTasksStore.getState().visibleTasks.map((t) => t.id)).toContain(1);
+  });
+
   it('respects an explicit initialWorkMode even for a zero-task campaign', async () => {
-    mockApi({ mode: 'tasks', tasks: [] });
+    mockApi({ tasks: [] });
     await loadCampaign(5, { now: 1000, currentUserId: 'u1', workMode: 'tasks' });
     expect(useCampaignStore.getState().workMode).toBe('tasks');
   });

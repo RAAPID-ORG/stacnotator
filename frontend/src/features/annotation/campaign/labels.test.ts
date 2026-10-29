@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { CampaignOutFull } from '~/api/client';
-import { extendedLabels, labelsWithSameGeometry } from './annotation';
+import { extendedLabels, labelsForGeometry } from './annotation';
 
 function campaignWithLabels(
   labels: CampaignOutFull['settings']['labels']
@@ -9,11 +9,6 @@ function campaignWithLabels(
 }
 
 describe('extendedLabels', () => {
-  it('defaults a missing geometry_type to polygon', () => {
-    const [label] = extendedLabels(campaignWithLabels([{ id: 1, name: 'Tree' }]));
-    expect(label.geometry_type).toBe('polygon');
-  });
-
   it('keeps an explicit geometry_type', () => {
     const [label] = extendedLabels(
       campaignWithLabels([{ id: 1, name: 'Tree', geometry_type: 'point' }])
@@ -22,7 +17,11 @@ describe('extendedLabels', () => {
   });
 
   it('assigns colors from the palette by list position, cycling on overflow', () => {
-    const labels = Array.from({ length: 11 }, (_, i) => ({ id: i, name: `L${i}` }));
+    const labels = Array.from({ length: 11 }, (_, i) => ({
+      id: i,
+      name: `L${i}`,
+      geometry_type: 'polygon' as const,
+    }));
     const result = extendedLabels(campaignWithLabels(labels));
     expect(result[0].color).toBe(result[10].color);
     expect(result[0].color).not.toBe(result[1].color);
@@ -43,18 +42,14 @@ const LABELS = extendedLabels(
   ])
 );
 
-describe('labelsWithSameGeometry', () => {
-  it('keeps only labels whose geometry matches the given label', () => {
-    const result = labelsWithSameGeometry(LABELS, 2);
-    expect(result.map((l) => l.id)).toEqual([2, 4]);
+describe('labelsForGeometry', () => {
+  it('keeps only labels of the shape type, whatever label it carries now', () => {
+    const point: GeoJSON.Point = { type: 'Point', coordinates: [1, 2] };
+    expect(labelsForGeometry(LABELS, point).map((l) => l.id)).toEqual([1]);
   });
 
-  it('returns the sole matching label when nothing else shares its geometry', () => {
-    expect(labelsWithSameGeometry(LABELS, 1).map((l) => l.id)).toEqual([1]);
-  });
-
-  it('falls back to the full list for an unknown or null label id', () => {
-    expect(labelsWithSameGeometry(LABELS, 999).map((l) => l.id)).toEqual([1, 2, 3, 4]);
-    expect(labelsWithSameGeometry(LABELS, null).map((l) => l.id)).toEqual([1, 2, 3, 4]);
+  it('treats a multi geometry as its single type', () => {
+    const multi: GeoJSON.MultiPolygon = { type: 'MultiPolygon', coordinates: [] };
+    expect(labelsForGeometry(LABELS, multi).map((l) => l.id)).toEqual([2, 4]);
   });
 });

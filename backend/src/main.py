@@ -17,19 +17,21 @@ import src.models  # noqa: F401 -- side-effect import: ensures all ORM models ar
 
 from src import perf
 from src.agents.router import router as agents_router
-from src.annotation.embeddings_service import EMBEDDING_RUN
 from src.annotation.router import router as annotations_router
 from src.auth.router import router as auth_router
-from src.background import fail_stale_status_runs
+from src.background import fail_stale_status_runs, requeue_stale_runs
 from src.campaigns.router import router as campaigns_router
 from src.config import (
     DEV_APIKEY_ENCRYPTION_SECRET,
     DEV_TILER_TOKEN_SECRET,
     get_settings,
 )
+from src.custom_layers import service as custom_layers_service
 from src.custom_layers.router import router as custom_layers_router
+from src.custom_layers.service import CUSTOM_MAP_RUN
 from src.database import SessionLocal
 from src.earth_engine import initialize_earth_engine
+from src.imagery import registration
 from src.imagery.proxy_router import router as imagery_proxy_router
 from src.imagery.registration import REGISTRATION_RUN, VISUALIZER_REGISTRATION_RUN
 from src.imagery.router import router as imagery_router
@@ -40,6 +42,8 @@ from src.redact import install_log_redaction
 from src.routing import generate_unique_id
 from src.sampling_design.router import router as sampling_design_router
 from src.stac_browser.router import router as stac_browser_router
+from src.tasks.embeddings import EMBEDDING_RUN
+from src.tasks.router import router as tasks_router
 from src.tile_bulkhead import TileCapacityError
 from src.timeseries.router import router as timeseries_router
 from src.visualizers.router import router as visualizers_router
@@ -90,12 +94,13 @@ async def lifespan(app: FastAPI):
 
     to_thread.current_default_thread_limiter().total_tokens = settings.THREAD_POOL_MAX
     initialize_earth_engine()
-    _sweep_stale_background_runs()
+    _recover_background_runs()
     yield
 
 
-def _sweep_stale_background_runs() -> None:
-    """Recover campaigns whose background run died with a previous worker.
+def _recover_background_runs() -> None:
+    """Recover background runs that died with a previous worker, then start the
+    runs left owed.
 
     Guarded: a DB hiccup at boot must not keep the worker from serving - the
     sweep re-runs on every worker start and from the polled campaign read.
@@ -103,14 +108,17 @@ def _sweep_stale_background_runs() -> None:
     try:
         db = SessionLocal()
         try:
-            fail_stale_status_runs(
-                db, (REGISTRATION_RUN, EMBEDDING_RUN, VISUALIZER_REGISTRATION_RUN)
-            )
+            # A registration registers only what is still missing, so one cut off by
+            # a restart (a deploy during a long catch-up) is simply owed again.
+            requeue_stale_runs(db, (REGISTRATION_RUN, VISUALIZER_REGISTRATION_RUN))
+            fail_stale_status_runs(db, (EMBEDDING_RUN, CUSTOM_MAP_RUN))
             db.commit()
+            registration.resume_pending(db)
+            custom_layers_service.resume_pending(db)
         finally:
             db.close()
     except Exception:
-        logger.warning("Stale background-run sweep failed at startup", exc_info=True)
+        logger.warning("Background-run recovery failed at startup", exc_info=True)
 
 
 # Initialize the FastAPI app
@@ -180,6 +188,8 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             cls._inflight += 1
         try:
             response = await call_next(request)
+        except Exception as exc:
+            response = handle_uncaught_exception(request, exc)
         finally:
             if is_tile:
                 cls._tile_inflight -= 1
@@ -312,16 +322,16 @@ def handle_tile_capacity(request: Request, exc: TileCapacityError):
     )
 
 
-@app.exception_handler(Exception)
 def handle_uncaught_exception(request: Request, exc: Exception):
     """Catch-all for anything not raised as HTTPException. Logs the full
     traceback server-side with the request_id; returns a sanitized response
     with no exception details. Wire an observability sink (Sentry/Datadog)
-    where indicated below."""
+    where indicated below.
+
+    Called from RequestContextMiddleware rather than registered as the app's
+    Exception handler: Starlette runs that one in ServerErrorMiddleware, outside
+    CORS, so the browser would see a CORS failure instead of this response."""
     request_id = getattr(request.state, "request_id", None)
-    # exc_info=exc, not logger.exception(): this handler is sync, so Starlette
-    # dispatches it via run_in_threadpool, where thread-local sys.exc_info() is
-    # empty and the traceback would be logged as "NoneType: None".
     logger.error(
         "Unhandled exception | request_id=%s path=%s method=%s",
         request_id,
@@ -374,6 +384,7 @@ app.include_router(organizations_router, prefix="/api")
 app.include_router(projects_router, prefix="/api")
 app.include_router(campaigns_router, prefix="/api")
 app.include_router(annotations_router, prefix="/api")
+app.include_router(tasks_router, prefix="/api")
 app.include_router(timeseries_router, prefix="/api")
 app.include_router(sampling_design_router, prefix="/api")
 app.include_router(imagery_router, prefix="/api")

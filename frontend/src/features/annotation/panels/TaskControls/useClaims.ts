@@ -1,6 +1,6 @@
 import i18n from '~/shared/i18n';
 import { useEffect } from 'react';
-import { claimAnnotationTask, type AnnotationTaskOut } from '~/api/client';
+import { claimTask, type TaskOut } from '~/api/client';
 import { handleError } from '~/shared/utils/errorHandler';
 import { getActiveClaim, isClaimable } from '../../campaign/tasks';
 
@@ -10,7 +10,7 @@ export const CLAIM_RENEW_MS = 10 * 60 * 1000;
 
 export interface ClaimTaskParams {
   campaignId: number;
-  task: AnnotationTaskOut;
+  task: TaskOut;
   currentUserId: string;
   now: number;
 }
@@ -19,7 +19,7 @@ export interface ClaimTaskParams {
  *  the server says about its holder - which may be somebody else. Contention
  *  is not an error: the badge shows who is on it and labelling stays allowed.
  *  Returns null when there was nothing to do. */
-export async function claimTask(params: ClaimTaskParams): Promise<AnnotationTaskOut | null> {
+export async function requestClaim(params: ClaimTaskParams): Promise<TaskOut | null> {
   const { campaignId, task, currentUserId, now } = params;
   const claim = getActiveClaim(task, now);
   if (claim && claim.userId !== currentUserId) return null;
@@ -27,8 +27,8 @@ export async function claimTask(params: ClaimTaskParams): Promise<AnnotationTask
   if (claim && claim.heldForMs < CLAIM_RENEW_MS) return null;
   if (!claim && !isClaimable(task, now)) return null;
 
-  const { data } = await claimAnnotationTask({
-    path: { campaign_id: campaignId, annotation_task_id: task.id },
+  const { data } = await claimTask({
+    path: { campaign_id: campaignId, task_id: task.id },
   });
   if (!data) return null;
 
@@ -48,8 +48,8 @@ export interface UseClaimsOptions {
   /** Reads live task-list state; called at claim time, not effect-setup
    *  time, so a 10-minute-later renewal claims the current task even if the
    *  list changed since this effect last (re)ran. */
-  getTask: () => AnnotationTaskOut | null;
-  onClaimed: (task: AnnotationTaskOut) => void;
+  getTask: () => TaskOut | null;
+  onClaimed: (task: TaskOut) => void;
 }
 
 export function useClaims(options: UseClaimsOptions): void {
@@ -65,9 +65,9 @@ export function useClaims(options: UseClaimsOptions): void {
       // A claim is best-effort: the request can fail (offline, 500) and the
       // renewal timer must survive it, so the failure is reported once and
       // swallowed rather than escaping as an unhandled rejection.
-      let updated: AnnotationTaskOut | null;
+      let updated: TaskOut | null;
       try {
-        updated = await claimTask({ campaignId, task, currentUserId, now: Date.now() });
+        updated = await requestClaim({ campaignId, task, currentUserId, now: Date.now() });
       } catch (error) {
         if (!cancelled) handleError(error, t('task.claimFailed'));
         return;

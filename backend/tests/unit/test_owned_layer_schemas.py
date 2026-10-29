@@ -14,7 +14,7 @@ def _map(**owner):
         render_config=RENDER,
         max_native_zoom=14,
         status="ready",
-        status_error=None,
+        status_errors=None,
         tile_url=None,
         mosaic_id=None,
         display_order=0,

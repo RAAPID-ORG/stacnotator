@@ -3,8 +3,8 @@ export { apiSuccess } from '~/shared/testing/apiSuccess';
 import type {
   AnnotationFromTaskOut,
   AnnotationOut,
-  AnnotationTaskListOut,
-  AnnotationTaskOut,
+  TaskListOut,
+  TaskOut,
   CampaignOutFull,
   ClaimTaskResponse,
   CustomMapOut,
@@ -13,12 +13,12 @@ import type {
   ImageryGenerationSeriesOut,
   ImagerySourceOut,
   ImageryViewOut,
-  PlanetScenesGenerationConfigV1,
-  SliceTileUrlOut,
+  PlanetScenesGenerationConfig,
+  SliceTileOut,
   TaskSetOut,
-  TimeSeriesOut,
+  TimeseriesOut,
   VectorLayerOut,
-  VisualizationTemplateOut,
+  VisualizationOut,
 } from '~/api/client';
 
 /**
@@ -26,13 +26,38 @@ import type {
  * override only the fields their scenario cares about.
  * Not a `*.test.ts` file so vitest never collects it as a spec.
  */
+export function makeSettings(
+  overrides: Partial<CampaignOutFull['settings']> = {}
+): CampaignOutFull['settings'] {
+  return {
+    bbox_west: -10,
+    bbox_south: -20,
+    bbox_east: 10,
+    bbox_north: 20,
+    labelling_policy: {
+      explore: { kinds: ['anyone'] },
+      assigned_tasks: { kinds: ['anyone'] },
+      complete_assigned: { kinds: ['anyone'] },
+      modify_others: { kinds: ['admins'] },
+      unassigned_tasks: { kinds: ['anyone'] },
+    },
+    labels: [],
+    form_fields: [],
+    research_sharing: false,
+    task_output: 'classify',
+    embedding_year: null,
+    guide_markdown: null,
+    sample_extent_meters: null,
+    ...overrides,
+  };
+}
+
 export function makeCampaign(overrides: Partial<CampaignOutFull> = {}): CampaignOutFull {
   return {
     id: 7,
     project_id: 1,
     name: 'Test campaign',
     created_at: '2024-01-01T00:00:00Z',
-    mode: 'open',
     is_public: true,
     imagery_sources: [],
     imagery_views: [],
@@ -40,37 +65,17 @@ export function makeCampaign(overrides: Partial<CampaignOutFull> = {}): Campaign
     time_series: [],
     default_main_canvas_layout: null,
     personal_main_canvas_layout: null,
-    settings: {
-      bbox_west: -10,
-      bbox_south: -20,
-      bbox_east: 10,
-      bbox_north: 20,
-      labelling_policy: {
-        explore: { kinds: ['anyone'] },
-        assigned_tasks: { kinds: ['anyone'] },
-        complete_assigned: { kinds: ['anyone'] },
-        unassigned_tasks: { kinds: ['anyone'] },
-      },
-      labels: [],
-      research_sharing: false,
-    },
+    settings: makeSettings(),
     ...overrides,
   };
 }
 
-export function makeViz(
-  overrides: Partial<VisualizationTemplateOut> = {}
-): VisualizationTemplateOut {
+export function makeViz(overrides: Partial<VisualizationOut> = {}): VisualizationOut {
   return { id: 1, name: 'True Color', display_order: 0, ...overrides };
 }
 
-export function makeTileUrl(overrides: Partial<SliceTileUrlOut> = {}): SliceTileUrlOut {
-  return {
-    id: 1,
-    visualization_name: 'True Color',
-    tile_url: 'https://tiles/{z}/{x}/{y}',
-    ...overrides,
-  };
+export function makeTile(overrides: Partial<SliceTileOut> = {}): SliceTileOut {
+  return { visualization_id: 1, url: 'https://tiles/{z}/{x}/{y}', ...overrides };
 }
 
 export function makeSlice(overrides: Partial<ImagerySliceOut> = {}): ImagerySliceOut {
@@ -80,9 +85,9 @@ export function makeSlice(overrides: Partial<ImagerySliceOut> = {}): ImagerySlic
     start_date: '2024-01-01',
     end_date: '2024-01-31',
     display_order: 0,
-    // Resolved by default: a slice with no tile URL is one nothing can draw, which
-    // navigation now skips. Pass `tile_urls: []` to build that case on purpose.
-    tile_urls: [makeTileUrl()],
+    // Resolved by default: a slice with no tiles is one nothing can draw, which
+    // navigation skips. Pass `tiles: []` to build that case on purpose.
+    tiles: [makeTile()],
     ...overrides,
   };
 }
@@ -109,7 +114,7 @@ export function makeSource(overrides: Partial<ImagerySourceOut> = {}): ImagerySo
 /** A Planet scene series - the mark that makes a source one whose imagery is searched
  *  for at annotation time rather than registered up front. */
 export function makeSceneSeries(
-  overrides: Partial<PlanetScenesGenerationConfigV1> = {}
+  overrides: Partial<PlanetScenesGenerationConfig> = {}
 ): ImageryGenerationSeriesOut {
   return {
     id: 1,
@@ -148,7 +153,7 @@ export function makeCustomMap(overrides: Partial<CustomMapOut> = {}): CustomMapO
     render_config: { mode: 'continuous', colormap_name: 'viridis', rescale: [0, 1] },
     max_native_zoom: null,
     status: 'ready',
-    status_error: null,
+    status_errors: null,
     tile_url: 'https://tiles/cm/{z}/{x}/{y}',
     mosaic_id: null,
     display_order: 0,
@@ -173,7 +178,7 @@ const annotationDefaults = {
 } satisfies AnnotationFromTaskOut;
 
 export function makeAnnotation(overrides: Partial<AnnotationOut> = {}): AnnotationOut {
-  return { ...annotationDefaults, geometry: { id: 1, geometry: 'POINT (1 2)' }, ...overrides };
+  return { ...annotationDefaults, geometry_wkt: 'POINT (1 2)', ...overrides };
 }
 
 export function makeTaskAnnotation(
@@ -182,13 +187,13 @@ export function makeTaskAnnotation(
   return { ...annotationDefaults, ...overrides };
 }
 
-export function makeTask(overrides: Partial<AnnotationTaskOut> = {}): AnnotationTaskOut {
+export function makeTask(overrides: Partial<TaskOut> = {}): TaskOut {
   return {
     id: 1,
     annotation_number: 1,
     task_set_id: 1,
     task_status: 'pending',
-    geometry: { id: 1, geometry: 'POINT (1 2)' },
+    geometry_wkt: 'POINT (1 2)',
     assignments: [],
     annotations: [],
     ...overrides,
@@ -225,16 +230,16 @@ export function makeTaskSet(overrides: Partial<TaskSetOut> = {}): TaskSetOut {
   };
 }
 
-export function makeTimeSeries(overrides: Partial<TimeSeriesOut> = {}): TimeSeriesOut {
+export function makeTimeSeries(overrides: Partial<TimeseriesOut> = {}): TimeseriesOut {
   return {
     id: 1,
     campaign_id: 7,
     name: 'TS1',
+    window_id: 1,
     window_name: 'Time series',
     start_ym: '2024-01',
     end_ym: '2024-12',
     data_source: 'SENTINEL2',
-    provider: 'EE',
     ts_type: 'NDVI',
     index: {
       key: 'NDVI',
@@ -248,8 +253,6 @@ export function makeTimeSeries(overrides: Partial<TimeSeriesOut> = {}): TimeSeri
   };
 }
 
-export function makeTaskList(
-  overrides: Partial<AnnotationTaskListOut> = {}
-): AnnotationTaskListOut {
+export function makeTaskList(overrides: Partial<TaskListOut> = {}): TaskListOut {
   return { campaign_id: 7, tasks: [], ...overrides };
 }

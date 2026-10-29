@@ -18,10 +18,10 @@ beforeEach(() => {
 
 vi.mock('~/api/client', async () => {
   const actual = await vi.importActual<typeof import('~/api/client')>('~/api/client');
-  return { ...actual, createAnnotationOpenmode: vi.fn() };
+  return { ...actual, createAnnotation: vi.fn() };
 });
 
-import { createAnnotationOpenmode } from '~/api/client';
+import { createAnnotation } from '~/api/client';
 
 const NOTES: FormField = { id: 1, title: 'Notes', type: 'text', required: true };
 const GEOMETRY: GeoJSON.Geometry = { type: 'Point', coordinates: [1, 2] };
@@ -48,7 +48,7 @@ async function openDraft(campaign: CampaignOutFull): Promise<void> {
 }
 
 afterEach(() => {
-  vi.mocked(createAnnotationOpenmode).mockReset();
+  vi.mocked(createAnnotation).mockReset();
   useWorkStore.getState().resetAll();
   useCampaignStore.getState().setWorkMode('explore');
 });
@@ -75,7 +75,7 @@ describe('leaving Explore with a draft open', () => {
     // Nothing may still be open: in Tasks the same store fields collect the
     // task's answers, which would land on this shape.
     expect(useWorkStore.getState().draft.phase).toBe('idle');
-    expect(createAnnotationOpenmode).not.toHaveBeenCalled();
+    expect(createAnnotation).not.toHaveBeenCalled();
     expect(useCampaignStore.getState().workMode).toBe('tasks');
   });
 
@@ -83,12 +83,12 @@ describe('leaving Explore with a draft open', () => {
     const campaign = campaignWithFields();
     await openDraft(campaign);
     useWorkStore.getState().setFormValues({ '1': 'a note' });
-    vi.mocked(createAnnotationOpenmode).mockResolvedValue(apiSuccess(makeAnnotation({ id: 5 })));
+    vi.mocked(createAnnotation).mockResolvedValue(apiSuccess(makeAnnotation({ id: 5 })));
     renderSwitch(campaign);
 
     await clickTasks();
 
-    expect(createAnnotationOpenmode).toHaveBeenCalledTimes(1);
+    expect(createAnnotation).toHaveBeenCalledTimes(1);
     expect(useWorkStore.getState().draft.phase).toBe('idle');
     expect(useCampaignStore.getState().workMode).toBe('tasks');
   });
@@ -97,7 +97,7 @@ describe('leaving Explore with a draft open', () => {
     const campaign = campaignWithFields();
     await openDraft(campaign);
     useWorkStore.getState().setFormValues({ '1': 'a note' });
-    vi.mocked(createAnnotationOpenmode).mockRejectedValue(new Error('network error'));
+    vi.mocked(createAnnotation).mockRejectedValue(new Error('network error'));
     renderSwitch(campaign);
 
     await clickTasks();
@@ -107,6 +107,7 @@ describe('leaving Explore with a draft open', () => {
       labelId: 1,
       geometry: GEOMETRY,
       savedId: null,
+      sliceId: null,
     });
     expect(useCampaignStore.getState().workMode).toBe('explore');
     expect(alerts).toContainEqual(expect.stringContaining('Could not save'));

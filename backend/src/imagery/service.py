@@ -1,56 +1,36 @@
-import logging
-from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
-from datetime import date
-
 from fastapi import HTTPException, status
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
-from sqlalchemy.orm.attributes import flag_modified
 
 from src import storage_access
 from src.campaigns.models import Campaign
-from src.canvas.service import (
-    default_main_layout_data,
-    new_default_view_layout,
-    sync_view_layouts,
-)
+from src.canvas.service import new_default_view_layout
 from src.crypto import encrypt
 from src.imagery.models import (
     Basemap,
-    CollectionStacConfig,
-    CollectionVizConfig,
+    CollectionVisualization,
     ImageryCollection,
     ImageryGenerationSeries,
     ImagerySlice,
     ImagerySource,
     ImageryView,
-    SliceTileUrl,
-    VisualizationTemplate,
-)
-from src.imagery.registration import (
-    StacRegistrationSpec,
-    sanitize_error_message,
+    SliceTemplate,
+    Visualization,
 )
 from src.imagery.schemas import (
     BasemapCreate,
-    CollectionStacConfigCreate,
+    CollectionSearchCreate,
     ImageryCollectionCreate,
     ImageryEditorStateCreate,
     ImagerySourceCreate,
     ImageryViewCreate,
     ImageryViewUpdate,
-    PlanetSceneSearchOut,
-    PlanetSceneSliceOut,
     ProviderKeyCreate,
 )
-from src.imagery.tile_urls import update_collection_viz_params
 from src.layers import LayerOwner
 from src.organizations.models import Organization
-from src.planet import client as planet_client
-from src.planet import scenes as planet_scenes
-from src.planet.schemas import PlanetScenesGenerationConfigV1
 from src.tilers import providers, registry
+from src.visualizers.models import Visualizer
 
 
 def _apply_provider_key(target: Basemap | ImagerySource, incoming: ProviderKeyCreate) -> None:
@@ -65,16 +45,6 @@ def _apply_provider_key(target: Basemap | ImagerySource, incoming: ProviderKeyCr
         target.organization_api_key_id = None
 
 
-def _store_storage_access(row: CollectionStacConfig, incoming: CollectionStacConfigCreate) -> bool:
-    """Keep a newly provided private-catalog access on the row; returns whether it changed."""
-    if incoming.storage_access is not None:
-        try:
-            storage_access.check_catalog(incoming.catalog_url or row.catalog_url)
-        except storage_access.InvalidStorageAccess as e:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
-    return storage_access.store(row, incoming.storage_access)
-
-
 def _held_storage_access(source: ImagerySource) -> dict[str, storage_access.Held]:
     """The private-catalog access each of a source's catalogs is read with, by catalog URL.
 
@@ -84,111 +54,29 @@ def _held_storage_access(source: ImagerySource) -> dict[str, storage_access.Held
     """
     out: dict[str, storage_access.Held] = {}
     for collection in source.collections:
-        config = collection.stac_config
-        access = storage_access.held(config)
-        if config is not None and config.catalog_url and access is not None:
-            out[config.catalog_url] = access
+        access = storage_access.held(collection)
+        if collection.catalog_url and access is not None:
+            out[collection.catalog_url] = access
     return out
 
 
-def _registration_spec(
-    collection: ImageryCollection,
-    col_create: ImageryCollectionCreate,
-    src_create: ImagerySourceCreate,
-    stac_row: CollectionStacConfig,
-) -> StacRegistrationSpec:
-    """Snapshot the plain fields `_register_all_stac_browser_collections` needs
-    for one collection, decoupling the deferred registration from the ORM
-    objects and request session that produced it."""
-    assert col_create.stac_config is not None  # noqa: S101
-    return StacRegistrationSpec(
-        collection_id=collection.id,
-        collection_name=collection.name,
-        stac_config=col_create.stac_config,
-        has_dedicated_cover=col_create.has_dedicated_cover,
-        cover_slice_index=col_create.cover_slice_index,
-        source_viz_names=[v.name for v in src_create.visualizations],
-        storage_access=storage_access.stored(stac_row),
-    )
-
-
-def _upsert_viz_configs(
-    db: Session,
-    collection_id: int,
-    visualizations,
-    has_cover: bool,
-) -> None:
-    """Upsert CollectionVizConfig rows to match the given visualization list.
-
-    Inserts new rows, updates existing ones (matched by name), and deletes any
-    rows whose names are no longer present -leaving the table holding exactly
-    the supplied visualizations.
-    """
-    if not visualizations:
-        db.execute(
-            delete(CollectionVizConfig).where(CollectionVizConfig.collection_id == collection_id)
-        )
-        return
-
-    incoming_names = {v.name for v in visualizations}
-
-    db.execute(
-        delete(CollectionVizConfig).where(
-            CollectionVizConfig.collection_id == collection_id,
-            CollectionVizConfig.name.notin_(incoming_names),
-        )
-    )
-
-    existing = {
-        row.name: row
-        for row in db.execute(
-            select(CollectionVizConfig).where(CollectionVizConfig.collection_id == collection_id)
-        )
-        .scalars()
-        .all()
-    }
-
-    for i, v in enumerate(visualizations):
-        render = v.viz_params.model_dump(exclude_none=True)
-        cover_render = (
-            v.cover_viz_params.model_dump(exclude_none=True)
-            if has_cover and v.cover_viz_params
-            else None
-        )
-        if v.name in existing:
-            row = existing[v.name]
-            row.display_order = i
-            row.render_params = render
-            row.cover_render_params = cover_render
-        else:
-            db.add(
-                CollectionVizConfig(
-                    collection_id=collection_id,
-                    name=v.name,
-                    display_order=i,
-                    render_params=render,
-                    cover_render_params=cover_render,
-                )
-            )
-
-
 # ============================================================================
-# Imagery Creation
+# Validation, before any write
 # ============================================================================
 
 
-def _collection_providers(stac: CollectionStacConfigCreate) -> set[str]:
-    """Providers a collection's tiles will actually come from, decided exactly as
-    registration decides it (catalog URL + per-viz MPC eligibility). Cover overrides
-    count too: they render the cover slice. A collection without visualizations still
-    routes somewhere, so it is judged on empty params."""
-    viz_params = [
-        params.model_dump()
-        for viz in stac.visualizations
-        for params in (viz.viz_params, viz.cover_viz_params)
-        if params is not None
+def _collection_providers(col: ImageryCollectionCreate) -> set[str]:
+    """Providers a collection's tiles will come from, decided as ``tiles.provider_for``
+    decides it. Cover overrides count too: they draw the cover slice. A collection
+    without visualizations still routes somewhere, so it is judged on empty params."""
+    assert col.search is not None  # noqa: S101
+    params = [
+        p.model_dump()
+        for r in col.visualizations
+        for p in (r.params, r.cover_params)
+        if p is not None
     ] or [{}]
-    return {providers.select_provider(stac.catalog_url, p) for p in viz_params}
+    return {providers.select_provider(col.search.catalog_url, p) for p in params}
 
 
 def _forbidden(tiler_name: str, collection_name: str) -> HTTPException:
@@ -201,7 +89,7 @@ def _forbidden(tiler_name: str, collection_name: str) -> HTTPException:
     )
 
 
-def _resolve_tilers(org: Organization, editor_state: ImageryEditorStateCreate) -> None:
+def _resolve_tilers(org: Organization, sources: list[ImagerySourceCreate]) -> None:
     """Pin every collection that needs a hosted tiler to the one that will actually serve
     it, rejecting the whole save up front (before any writes) when there is none: unknown
     hosted tiler => 400, provider outside the organization's allowlist => 403, no tiler
@@ -213,13 +101,13 @@ def _resolve_tilers(org: Organization, editor_state: ImageryEditorStateCreate) -
     cannot ingest is not a candidate for it however the payload was pinned.
     """
     allowed = set(org.allowed_tiler_names)
-    for src in editor_state.sources:
+    for src in sources:
         for col in src.collections:
-            stac = col.stac_config
-            if not stac or not stac.catalog_url:
+            stac = col.search
+            if stac is None:
                 continue
 
-            routes = _collection_providers(stac)
+            routes = _collection_providers(col)
             if registry.MPC in routes and registry.MPC not in allowed:
                 raise _forbidden(registry.MPC, col.name)
             if registry.HOSTED not in routes:
@@ -248,768 +136,378 @@ def _resolve_tilers(org: Organization, editor_state: ImageryEditorStateCreate) -
             stac.tiler = tiler.name
 
 
-def _validate_organization_keys(org: Organization, editor_state: ImageryEditorStateCreate) -> None:
-    """Reject an unknown shared key before any writes, the way tiler pinning is checked.
+def _check_layers(
+    org: Organization,
+    sources: list[ImagerySourceCreate],
+    basemaps: list[BasemapCreate],
+) -> None:
+    """Everything a save is rejected for, checked before it writes anything.
 
-    Naming a key leaks nothing: it can never be read back through this payload.
+    Naming a shared key leaks nothing: it can never be read back through this payload.
+    Only organizations cleared for it may point a collection at internal
+    (managed-identity) storage.
     """
-    known = {key.id for key in org.api_keys}
-    for layer in [*editor_state.sources, *editor_state.basemaps]:
-        if layer.organization_api_key_id is not None and layer.organization_api_key_id not in known:
+    _resolve_tilers(org, sources)
+    known_keys = {key.id for key in org.api_keys}
+    for layer in [*sources, *basemaps]:
+        if layer.organization_api_key_id not in (None, *known_keys):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Organization API key not found"
             )
+    if not org.allows_internal_storage and any(
+        col.search and col.search.internal_storage for src in sources for col in src.collections
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This organization cannot mark imagery as internal storage",
+        )
 
 
-def create_imagery_from_editor_state(
-    db: Session,
-    *,
-    campaign: Campaign,
-    editor_state: ImageryEditorStateCreate,
-) -> dict:
-    """Persist the full imagery editor state (sources, collections, slices,
-    basemaps) for a freshly created campaign.
-
-    A campaign with no existing imagery reduces the save/reconcile flow to pure
-    creation, so this is a thin entry point over `save_imagery_editor_state`.
-    Returns the same dict (keys 'sources', 'views', 'basemaps',
-    'registrations', 'bbox'). Does NOT commit - caller commits and then
-    hands 'registrations' to spawn_background_registration.
-    """
-    return save_imagery_editor_state(db, campaign=campaign, editor_state=editor_state)
+# ============================================================================
+# Saving the editor state
+# ============================================================================
 
 
 def save_imagery_editor_state(
-    db: Session,
-    *,
-    campaign: Campaign,
-    editor_state: ImageryEditorStateCreate,
-) -> dict:
-    """Upsert the full imagery editor state in a single transaction.
+    db: Session, campaign: Campaign, editor_state: ImageryEditorStateCreate
+) -> None:
+    """Reconcile a campaign's imagery with the editor's full state: sources, collections,
+    slices and basemaps.
 
-    Reconciliation rules per entity (sources, collections, slices, basemaps):
-    payload entry with `id` set → update in place; without `id` →
-    create; in DB but missing from payload → delete. Views are managed through
-    the dedicated view endpoints; here they are only kept consistent (deleted
-    sources leave their views, layout windows follow collection changes). A collection only lands in
-    the returned `pending_registrations` when fields that affect its mosaic
-    (search_query, max_cloud_cover, viz_params, slice date list) actually
-    changed; pure metadata edits (rename, cover_slice_index) skip the expensive
-    re-search and rebake viz params into the existing URLs instead.
+    A deleted source leaves the views that showed it with it (``view_sources`` cascades).
 
-    Caller commits, then hands `registrations` to spawn_background_registration -
-    the actual provider calls run off the request path so this transaction isn't
-    held open across them.
+    Does not commit. The caller commits through ``registration.commit_and_register``,
+    which registers whatever mosaics the save left missing.
     """
-    if not campaign.settings:
-        raise HTTPException(status_code=404, detail="Campaign settings not found")
+    organization = campaign.project.organization
+    _check_layers(organization, editor_state.sources, editor_state.basemaps)
 
-    _resolve_tilers(campaign.project.organization, editor_state)
-    _validate_organization_keys(campaign.project.organization, editor_state)
-
-    bbox = [
-        campaign.settings.bbox_west,
-        campaign.settings.bbox_south,
-        campaign.settings.bbox_east,
-        campaign.settings.bbox_north,
-    ]
-
-    existing_sources: dict[int, ImagerySource] = {s.id: s for s in campaign.imagery_sources}
-    held_access = {s_id: _held_storage_access(s) for s_id, s in existing_sources.items()}
-
-    payload_source_ids = {s.id for s in editor_state.sources if s.id is not None}
-
-    # Window eligibility per view before any mutation, so newly-eligible
-    # collections can be placed into the view layouts afterwards.
-    prev_eligible: dict[int, set[int]] = {
-        view.id: _eligible_collection_ids(campaign.imagery_sources, view.source_ids)
-        for view in campaign.imagery_views
-    }
-
-    deleted_source_ids: set[int] = set()
-
-    # Delete sources missing from payload. Cascade handles their collections.
-    for s_id, s in list(existing_sources.items()):
-        if s_id not in payload_source_ids:
-            db.delete(s)
-            deleted_source_ids.add(s_id)
-            del existing_sources[s_id]
-
-    # Within each retained source, delete collections missing from payload.
-    for src_create in editor_state.sources:
-        if src_create.id is None or src_create.id not in existing_sources:
-            continue
-        existing_src = existing_sources[src_create.id]
-        payload_col_ids = {c.id for c in src_create.collections if c.id is not None}
-        for col in list(existing_src.collections):
-            if col.id not in payload_col_ids:
-                db.delete(col)
-
-    # Drop deleted sources from every view's membership.
-    if deleted_source_ids:
-        for view in campaign.imagery_views:
-            cleaned = [sid for sid in view.source_ids if sid not in deleted_source_ids]
-            if cleaned != view.source_ids:
-                view.source_ids = cleaned
-                flag_modified(view, "source_ids")
-
-    db.flush()
-
-    # Upsert sources. New ones go through the existing _create_source helper so
-    # the pending-registration list works identically to campaign create.
-    pending_registrations: list[StacRegistrationSpec] = []
-    current_sources: list[ImagerySource] = []
-
-    for src_idx, src_create in enumerate(editor_state.sources):
-        if src_create.id and src_create.id in existing_sources:
-            db_src = existing_sources[src_create.id]
-            pending = _update_source_in_place(
-                db, db_src, src_create, src_idx, bbox, held_access.get(db_src.id)
-            )
-        else:
-            db_src, pending = _create_source(
-                db, LayerOwner(campaign_id=campaign.id), src_create, src_idx, bbox
-            )
-        pending_registrations.extend(pending)
-        current_sources.append(db_src)
-
-    db.flush()
-
-    # Re-sync every view's layouts against its post-edit eligible set: windows
-    # of deleted collections are dropped, collections newly added to a source
-    # a view contains get windows placed (in the default and personal layouts
-    # alike - a user can hide them again).
-    for view in campaign.imagery_views:
-        new_eligible = _eligible_collection_ids(current_sources, view.source_ids)
-        sync_view_layouts(
-            db,
-            view.id,
-            campaign.id,
-            window_collection_ids=new_eligible,
-            added_collection_ids=sorted(new_eligible - prev_eligible.get(view.id, set())),
-        )
-
-    saved_basemaps = _save_basemaps(
+    _save_sources(
+        db,
+        LayerOwner(campaign_id=campaign.id),
+        campaign.imagery_sources,
+        editor_state.sources,
+    )
+    _save_basemaps(
         db, LayerOwner(campaign_id=campaign.id), campaign.basemaps, editor_state.basemaps
     )
-
     db.flush()
-
-    return {
-        "sources": campaign.imagery_sources,
-        "views": campaign.imagery_views,
-        "basemaps": saved_basemaps,
-        "registrations": pending_registrations,
-        "bbox": bbox,
-    }
-
-
-def _eligible_collection_ids(sources: list[ImagerySource], source_ids: list) -> set[int]:
-    """Collections a view can show as windows: every collection of its sources."""
-    by_id = {s.id: s for s in sources}
-    return {c.id for sid in source_ids if sid in by_id for c in by_id[sid].collections}
-
-
-def _validated_source_ids(campaign: Campaign, source_ids: list[int]) -> list[int]:
-    known = {s.id for s in campaign.imagery_sources}
-    unknown = [sid for sid in source_ids if sid not in known]
-    if unknown:
-        raise HTTPException(status_code=400, detail=f"Unknown source ids: {unknown}")
-    return list(dict.fromkeys(source_ids))
-
-
-def _campaign_view(db: Session, campaign: Campaign, view_id: int) -> ImageryView:
-    view = db.execute(
-        select(ImageryView).where(ImageryView.id == view_id, ImageryView.campaign_id == campaign.id)
-    ).scalar_one_or_none()
-    if view is None:
-        raise HTTPException(status_code=404, detail="View not found")
-    return view
-
-
-def create_view(db: Session, campaign: Campaign, payload: ImageryViewCreate) -> ImageryView:
-    """Create a view plus its default canvas layout with every eligible
-    collection placed as a window. Commits."""
-    view = ImageryView(
-        campaign_id=campaign.id,
-        name=payload.name,
-        display_order=len(campaign.imagery_views),
-        source_ids=_validated_source_ids(campaign, payload.source_ids),
-    )
-    db.add(view)
-    db.flush()
-    eligible = _eligible_collection_ids(campaign.imagery_sources, view.source_ids)
-    db.add(
-        new_default_view_layout(
-            campaign.id,
-            view.id,
-            sorted(eligible),
-            main_layout_data=default_main_layout_data(db, campaign.id),
-        )
-    )
-    db.commit()
-    db.refresh(view)
-    return view
-
-
-def update_view(
-    db: Session, campaign: Campaign, view_id: int, payload: ImageryViewUpdate
-) -> ImageryView:
-    """Rename a view and/or replace its source membership, keeping its canvas
-    layouts in sync with the new eligible set. Commits."""
-    view = _campaign_view(db, campaign, view_id)
-    if payload.name is not None:
-        view.name = payload.name
-    if payload.source_ids is not None:
-        prev = _eligible_collection_ids(campaign.imagery_sources, view.source_ids)
-        view.source_ids = _validated_source_ids(campaign, payload.source_ids)
-        flag_modified(view, "source_ids")
-        db.flush()
-        new = _eligible_collection_ids(campaign.imagery_sources, view.source_ids)
-        sync_view_layouts(
-            db,
-            view.id,
-            campaign.id,
-            window_collection_ids=new,
-            added_collection_ids=sorted(new - prev),
-        )
-    db.commit()
-    db.refresh(view)
-    return view
-
-
-def delete_view(db: Session, campaign: Campaign, view_id: int) -> None:
-    """Delete a view; its canvas layouts go with it via cascade. Commits."""
-    db.delete(_campaign_view(db, campaign, view_id))
-    db.commit()
-
-
-def reorder_views(db: Session, campaign: Campaign, view_ids: list[int]) -> None:
-    """Persist a full ordering of the campaign's views. Commits."""
-    if set(view_ids) != {v.id for v in campaign.imagery_views} or len(view_ids) != len(
-        campaign.imagery_views
-    ):
-        raise HTTPException(status_code=400, detail="view_ids must list every view exactly once")
-    order = {view_id: idx for idx, view_id in enumerate(view_ids)}
-    for view in campaign.imagery_views:
-        view.display_order = order[view.id]
-    db.commit()
-
-
-def _stac_config_changed(existing: CollectionStacConfig | None, incoming) -> bool:
-    """Cheap deep-compare of fields that require mosaic re-registration.
-
-    Compares the FULL set of viz configs (all names + render_params + cover_render_params)
-    so that changes to viz[1..n] correctly trigger re-registration (Quirk 3 fix).
-    """
-    if existing is None:
-        return True
-
-    existing_viz_configs = existing.collection.viz_configs if existing.collection else []
-    existing_set = {
-        vc.name: (vc.render_params, vc.cover_render_params) for vc in existing_viz_configs
-    }
-    incoming_set = {
-        v.name: (
-            v.viz_params.model_dump(exclude_none=True),
-            v.cover_viz_params.model_dump(exclude_none=True) if v.cover_viz_params else None,
-        )
-        for v in (incoming.visualizations or [])
-    }
-
-    return (
-        existing_set != incoming_set
-        or existing.max_cloud_cover != incoming.max_cloud_cover
-        or existing.search_query != incoming.search_query
-        or existing.cover_search_query != incoming.cover_search_query
-        or existing.tile_provider != incoming.tiler
-        or existing.internal_storage != incoming.internal_storage
-    )
 
 
 def save_visualizer_imagery(
-    db: Session,
-    *,
-    visualizer,
-    sources: list[ImagerySourceCreate],
-    bbox: list[float],
-) -> list[StacRegistrationSpec]:
-    """Reconcile a visualizer's own imagery, the way a campaign's is reconciled.
-
-    Same rules as ``save_imagery_editor_state``: an entry with an id updates in
-    place, one without is created, and anything in the database but missing from
-    the payload is deleted. A visualizer has no views and no canvas layouts, so
-    that reconciliation is absent here - which is the whole difference between
-    the two. Basemaps are saved separately, so naming one never implies
-    anything about the other.
-
-    Does not commit. The caller commits, then hands the returned work to
-    ``spawn_background_registration`` so the provider calls run off the request
-    path.
-    """
-    if any(
-        collection.stac_config and collection.stac_config.storage_access
-        for source in sources
-        for collection in source.collections
-    ):
+    db: Session, visualizer: Visualizer, sources: list[ImagerySourceCreate]
+) -> None:
+    """Reconcile a visualizer's own imagery, by the same rules as a campaign's. Does
+    not commit."""
+    if any(col.search and col.search.storage_access for src in sources for col in src.collections):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="A private catalog read with a SAS token can't be published in a visualizer",
         )
-    editor_state = ImageryEditorStateCreate(sources=sources, basemaps=[])
-    organization = visualizer.project.organization
-    _resolve_tilers(organization, editor_state)
-    _validate_organization_keys(organization, editor_state)
-
-    existing = {s.id: s for s in visualizer.imagery_sources}
-    payload_ids = {s.id for s in sources if s.id is not None}
-    for source_id, source in list(existing.items()):
-        if source_id not in payload_ids:
-            db.delete(source)
-            del existing[source_id]
-
-    for src_create in sources:
-        if src_create.id is None or src_create.id not in existing:
-            continue
-        keep = {c.id for c in src_create.collections if c.id is not None}
-        for collection in list(existing[src_create.id].collections):
-            if collection.id not in keep:
-                db.delete(collection)
-    db.flush()
-
-    pending: list[StacRegistrationSpec] = []
-    for index, src_create in enumerate(sources):
-        if src_create.id and src_create.id in existing:
-            pending.extend(
-                _update_source_in_place(db, existing[src_create.id], src_create, index, bbox)
-            )
-        else:
-            _, created = _create_source(
-                db, LayerOwner(visualizer_id=visualizer.id), src_create, index, bbox
-            )
-            pending.extend(created)
-    db.flush()
-    return pending
+    _check_layers(visualizer.project.organization, sources, [])
+    _save_sources(db, LayerOwner(visualizer_id=visualizer.id), visualizer.imagery_sources, sources)
 
 
-def save_visualizer_basemaps(db: Session, *, visualizer, basemaps: list[BasemapCreate]) -> None:
+def save_visualizer_basemaps(
+    db: Session, visualizer: Visualizer, basemaps: list[BasemapCreate]
+) -> None:
     """Reconcile a visualizer's backdrops, exactly as a campaign's are. Does not commit."""
-    _validate_organization_keys(
-        visualizer.project.organization,
-        ImageryEditorStateCreate(sources=[], basemaps=basemaps),
-    )
+    _check_layers(visualizer.project.organization, [], basemaps)
     _save_basemaps(db, LayerOwner(visualizer_id=visualizer.id), visualizer.basemaps, basemaps)
     db.flush()
 
 
-def _update_source_in_place(
+def _save_sources(
     db: Session,
-    db_src: ImagerySource,
-    src_create: ImagerySourceCreate,
-    src_idx: int,
-    bbox: list[float],
-    held_access: dict[str, storage_access.Held] | None = None,
-) -> list[StacRegistrationSpec]:
-    """Update source metadata + viz templates, then reconcile collections.
-    Returns pending STAC registrations from any new or re-registered collections."""
-    db_src.name = src_create.name
-    db_src.crosshair_hex6 = src_create.crosshair_hex6
-    db_src.default_zoom = src_create.default_zoom
-    db_src.max_native_zoom = src_create.max_native_zoom
-    db_src.display_order = src_idx
-    _apply_provider_key(db_src, src_create)
+    owner: LayerOwner,
+    existing: list[ImagerySource],
+    payload: list[ImagerySourceCreate],
+) -> None:
+    """An entry with a known id updates that source in place, any other is created, and
+    a stored source the payload leaves out is deleted - the same one level down for
+    visualizations, collections and slices.
+    """
+    by_id = {s.id: s for s in existing}
+    # Taken before anything is deleted: a series regenerated in the editor replaces its
+    # collections with new ones the browser never had the private-catalog access for,
+    # and those carry on with the access their catalog already has.
+    held_access = {s.id: _held_storage_access(s) for s in existing}
 
-    # Reconcile visualization templates by name.
-    existing_viz = {v.name: v for v in db_src.visualizations}
-    payload_names = [v.name for v in src_create.visualizations]
-    removed_viz_names = {name for name in existing_viz if name not in payload_names}
-    for name, viz in list(existing_viz.items()):
-        if name not in payload_names:
-            db.delete(viz)
-    for viz_idx, viz_create in enumerate(src_create.visualizations):
-        if viz_create.name in existing_viz:
-            existing_viz[viz_create.name].display_order = viz_idx
-        else:
-            db.add(
-                VisualizationTemplate(
-                    source_id=db_src.id, name=viz_create.name, display_order=viz_idx
-                )
-            )
-
-    # Remove CollectionVizConfig rows for viz names that disappeared from the source.
-    if removed_viz_names:
-        collection_ids = [col.id for col in db_src.collections]
-        if collection_ids:
-            db.execute(
-                delete(CollectionVizConfig).where(
-                    CollectionVizConfig.collection_id.in_(collection_ids),
-                    CollectionVizConfig.name.in_(removed_viz_names),
-                )
-            )
-
-    generation_series_by_key, stale_generation_series, pending = _reconcile_generation_series(
-        db, db_src, src_create
-    )
-    for col_idx, col_create in enumerate(src_create.collections):
-        existing_col = (
-            next((c for c in db_src.collections if c.id == col_create.id), None)
-            if col_create.id
-            else None
-        )
-        if existing_col:
-            pending_entry = _update_collection_in_place(
-                db,
-                existing_col,
-                col_create,
-                col_idx,
-                src_create,
-                bbox,
-                (
-                    generation_series_by_key.get(col_create.generation_series_key)
-                    if col_create.generation_series_key is not None
-                    else None
-                ),
-            )
-            if pending_entry:
-                pending.append(pending_entry)
-        else:
-            _, pending_entry = _create_collection_record(
-                db,
-                db_src,
-                src_create,
-                col_create,
-                col_idx,
-                bbox,
-                (
-                    generation_series_by_key.get(col_create.generation_series_key)
-                    if col_create.generation_series_key is not None
-                    else None
-                ),
-                held_access,
-            )
-            if pending_entry:
-                pending.append(pending_entry)
-
+    keep = {s.id for s in payload if s.id is not None}
+    deleted = {sid for sid in by_id if sid not in keep}
+    for sid in deleted:
+        db.delete(by_id.pop(sid))
+    for src in payload:
+        source = by_id.get(src.id) if src.id is not None else None
+        if source is None:
+            continue
+        keep_cols = {c.id for c in src.collections if c.id is not None}
+        for collection in list(source.collections):
+            if collection.id not in keep_cols:
+                db.delete(collection)
     db.flush()
-    for series in stale_generation_series:
+    for source in by_id.values():
+        db.expire(source, ["collections"])
+
+    for order, src in enumerate(payload):
+        source = by_id.get(src.id) if src.id is not None else None
+        held = held_access.get(source.id, {}) if source is not None else {}
+        _save_source(db, owner, source, src, order, held)
+    db.flush()
+
+
+def _save_source(
+    db: Session,
+    owner: LayerOwner,
+    source: ImagerySource | None,
+    src: ImagerySourceCreate,
+    order: int,
+    held_access: dict[str, storage_access.Held],
+) -> ImagerySource:
+    """Create or update one source with its visualizations and collections."""
+    if source is None:
+        source = ImagerySource(**owner.as_columns())
+        db.add(source)
+    source.name = src.name
+    source.crosshair_hex6 = src.crosshair_hex6
+    source.default_zoom = src.default_zoom
+    source.max_native_zoom = src.max_native_zoom
+    source.display_order = order
+    _apply_provider_key(source, src)
+    db.flush()
+
+    visualization_ids = _save_visualizations(db, source, src)
+    series_ids, stale_series = _save_generation_series(db, source, src)
+    collections = {c.id: c for c in source.collections}
+    for col_order, col in enumerate(src.collections):
+        _save_collection(
+            db,
+            source,
+            collections.get(col.id) if col.id is not None else None,
+            col,
+            col_order,
+            visualization_ids,
+            series_ids.get(col.generation_series_key or ""),
+            held_access,
+        )
+    db.flush()
+    for series in stale_series:
         db.delete(series)
     db.flush()
-    db.refresh(db_src)
-    return pending
+    db.refresh(source)
+    return source
 
 
-def _reconcile_generation_series(
-    db: Session, db_src: ImagerySource, src_create: ImagerySourceCreate
-) -> tuple[dict[str, int], list[ImageryGenerationSeries], list[StacRegistrationSpec]]:
-    """Upsert source-level generator inputs and resolve request keys to IDs.
+def _save_visualizations(
+    db: Session, source: ImagerySource, src: ImagerySourceCreate
+) -> dict[str, int]:
+    """Keep the visualizations the payload names - by id, else by name - delete the others
+    with every parameter and template drawn with them, and add the rest. Returns the
+    id each name in the payload refers to."""
+    by_id = {r.id: r for r in source.visualizations}
+    claimed = {r.id for r in src.visualizations if r.id is not None}
+    unclaimed = {r.name: r for r in source.visualizations if r.id not in claimed}
+    matched: list[Visualization | None] = []
+    for incoming in src.visualizations:
+        if incoming.id is None:
+            matched.append(unclaimed.get(incoming.name))
+        elif incoming.id in by_id:
+            matched.append(by_id[incoming.id])
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Visualization {incoming.id} does not belong to source {source.id}",
+            )
 
-    This is the persistence seam for generation provenance. Collection writes only
-    receive the resolved foreign key; config ownership stays here.
-    """
-    existing = {series.id: series for series in db_src.generation_series}
-    kept: set[int] = set()
+    kept = {r.id for r in matched if r is not None}
+    for dropped in [r for r in source.visualizations if r.id not in kept]:
+        for collection in source.collections:
+            collection.visualizations[:] = [
+                cr for cr in collection.visualizations if cr.visualization_id != dropped.id
+            ]
+            for sl in collection.slices:
+                sl.templates[:] = [t for t in sl.templates if t.visualization_id != dropped.id]
+        source.visualizations.remove(dropped)
+    db.flush()
+
+    ids: dict[str, int] = {}
+    for display_order, (incoming, visualization) in enumerate(
+        zip(src.visualizations, matched, strict=True)
+    ):
+        if visualization is None:
+            visualization = Visualization()
+            source.visualizations.append(visualization)
+        visualization.name = incoming.name
+        visualization.display_order = display_order
+        db.flush()
+        ids[incoming.name] = visualization.id
+    return ids
+
+
+def _save_generation_series(
+    db: Session, source: ImagerySource, src: ImagerySourceCreate
+) -> tuple[dict[str, int], list[ImageryGenerationSeries]]:
+    """Upsert the source's generator inputs; returns the series id each request key
+    names, and the stored series no longer referenced (deleted by the caller once no
+    collection points at them)."""
+    existing = {series.id: series for series in source.generation_series}
     by_key: dict[str, int] = {}
-    pending: list[StacRegistrationSpec] = []
-    for incoming in src_create.generation_series:
+    for incoming in src.generation_series:
         config = incoming.config.model_dump(mode="json")
         if incoming.id is not None:
             series = existing.get(incoming.id)
             if series is None:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Generation series {incoming.id} does not belong to source {db_src.id}",
+                    detail=f"Generation series {incoming.id} does not belong to source {source.id}",
                 )
             if series.config != config:
                 series.config = config
-                flag_modified(series, "config")
         else:
-            series = ImageryGenerationSeries(source_id=db_src.id, config=config)
+            series = ImageryGenerationSeries(source_id=source.id, config=config)
             db.add(series)
             db.flush()
-        kept.add(series.id)
         by_key[incoming.key] = series.id
-    stale = [series for series_id, series in existing.items() if series_id not in kept]
-    return by_key, stale, pending
+    stale = [series for sid, series in existing.items() if sid not in by_key.values()]
+    return by_key, stale
 
 
-def _update_collection_in_place(
-    db: Session,
-    db_col: ImageryCollection,
-    col_create: ImageryCollectionCreate,
-    col_idx: int,
-    src_create: ImagerySourceCreate,
-    bbox: list[float],
-    generation_series_id: int | None,
-) -> StacRegistrationSpec | None:
-    """Update a collection's metadata, slices, and stac_config. Returns a
-    StacRegistrationSpec if mosaic re-search is required."""
-    db_col.name = col_create.name
-    db_col.cover_slice_index = col_create.cover_slice_index
-    db_col.has_dedicated_cover = col_create.has_dedicated_cover
-    db_col.display_order = col_idx
-    db_col.generation_series_id = generation_series_id
-
-    needs_reregistration = False
-    has_cover = bool(col_create.has_dedicated_cover)
-
-    if col_create.stac_config:
-        if db_col.stac_config is None:
-            # Collection just gained a stac_config (unusual).
-            stac_row = CollectionStacConfig(
-                collection_id=db_col.id,
-                catalog_url=col_create.stac_config.catalog_url,
-                stac_collection_id=col_create.stac_config.stac_collection_id,
-                tile_provider=col_create.stac_config.tiler,
-                max_cloud_cover=col_create.stac_config.max_cloud_cover,
-                search_query=col_create.stac_config.search_query,
-                cover_search_query=(
-                    col_create.stac_config.cover_search_query if has_cover else None
-                ),
-                internal_storage=col_create.stac_config.internal_storage,
-            )
-            _store_storage_access(stac_row, col_create.stac_config)
-            db.add(stac_row)
-            needs_reregistration = True
-        else:
-            if _stac_config_changed(db_col.stac_config, col_create.stac_config):
-                needs_reregistration = True
-            # Searches carry the access they were registered with, so a new one means
-            # registering them again.
-            if _store_storage_access(db_col.stac_config, col_create.stac_config):
-                needs_reregistration = True
-            db_col.stac_config.tile_provider = col_create.stac_config.tiler
-            db_col.stac_config.max_cloud_cover = col_create.stac_config.max_cloud_cover
-            db_col.stac_config.internal_storage = col_create.stac_config.internal_storage
-            db_col.stac_config.search_query = col_create.stac_config.search_query
-            db_col.stac_config.cover_search_query = (
-                col_create.stac_config.cover_search_query if has_cover else None
-            )
-            flag_modified(db_col.stac_config, "search_query")
-            flag_modified(db_col.stac_config, "cover_search_query")
-        _upsert_viz_configs(db, db_col.id, col_create.stac_config.visualizations, has_cover)
-
-    # Reconcile slices.
-    payload_slice_ids = {s.id for s in col_create.slices if s.id is not None}
-    existing_slices = {s.id: s for s in db_col.slices}
-    for sl_id, sl in list(existing_slices.items()):
-        if sl_id not in payload_slice_ids:
-            db.delete(sl)
-            needs_reregistration = True
-
-    for sl_idx, sl_create in enumerate(col_create.slices):
-        if sl_create.id and sl_create.id in existing_slices:
-            db_sl = existing_slices[sl_create.id]
-            if db_sl.start_date != sl_create.start_date or db_sl.end_date != sl_create.end_date:
-                needs_reregistration = True
-            db_sl.name = sl_create.name
-            db_sl.start_date = sl_create.start_date
-            db_sl.end_date = sl_create.end_date
-            db_sl.display_order = sl_idx
-            # Replace tile_urls only for manual collections; STAC ones get
-            # rebuilt by the re-registration / viz-params rebake below.
-            if col_create.stac_config is None:
-                for tu in list(db_sl.tile_urls):
-                    db.delete(tu)
-                # Flush the deletes first: the unit of work emits same-table
-                # INSERTs before DELETEs, which would trip the (slice_id,
-                # visualization_name) unique constraint on unchanged names.
-                db.flush()
-                for t in sl_create.tile_urls:
-                    db.add(
-                        SliceTileUrl(
-                            slice_id=db_sl.id,
-                            visualization_name=t.visualization_name,
-                            tile_url=t.tile_url,
-                        )
-                    )
-        else:
-            new_sl = ImagerySlice(
-                collection_id=db_col.id,
-                name=sl_create.name,
-                start_date=sl_create.start_date,
-                end_date=sl_create.end_date,
-                display_order=sl_idx,
-            )
-            db.add(new_sl)
-            db.flush()
-            for t in sl_create.tile_urls:
-                db.add(
-                    SliceTileUrl(
-                        slice_id=new_sl.id,
-                        visualization_name=t.visualization_name,
-                        tile_url=t.tile_url,
-                    )
-                )
-            needs_reregistration = True
-
-    db.flush()
-    db.refresh(db_col)
-
-    if not col_create.stac_config:
-        return None
-
-    # A newly added (or removed) visualization name has no tile URLs yet, and the
-    # cheap viz-params compare above only inspects the first viz - so reconcile the
-    # full set here to force a rebuild when the visualization names change.
-    incoming_viz_names = {v.name for v in col_create.stac_config.visualizations}
-    existing_viz_names = {tu.visualization_name for sl in db_col.slices for tu in sl.tile_urls}
-    if incoming_viz_names != existing_viz_names:
-        needs_reregistration = True
-
-    if needs_reregistration and col_create.stac_config.catalog_url:
-        # Drop existing tile URLs so the registration step rebuilds them fresh.
-        for sl in db_col.slices:
-            for tu in list(sl.tile_urls):
-                db.delete(tu)
-        db.flush()
-        assert db_col.stac_config is not None  # noqa: S101
-        return _registration_spec(db_col, col_create, src_create, db_col.stac_config)
-
-    # No search/slice changes - just rebake viz params into existing URLs.
-    viz_by_name = {
-        v.name: v.viz_params.model_dump(exclude_none=True)
-        for v in col_create.stac_config.visualizations
-    }
-    cover_viz_by_name = {
-        v.name: v.cover_viz_params.model_dump(exclude_none=True)
-        for v in col_create.stac_config.visualizations
-        if v.cover_viz_params
-    }
-    update_collection_viz_params(db, db_col.id, viz_by_name, cover_viz_by_name or None)
-    return None
-
-
-def _create_source(
-    db: Session,
-    owner: LayerOwner,
-    src: ImagerySourceCreate,
-    src_idx: int,
-    bbox: list[float],
-) -> tuple[ImagerySource, list[StacRegistrationSpec]]:
-    """Create a single ImagerySource with all its children.
-    Returns (source, pending_registrations)."""
-    source = ImagerySource(
-        **owner.as_columns(),
-        name=src.name,
-        crosshair_hex6=src.crosshair_hex6,
-        default_zoom=src.default_zoom,
-        max_native_zoom=src.max_native_zoom,
-        display_order=src_idx,
-    )
-    _apply_provider_key(source, src)
-    db.add(source)
-    db.flush()
-
-    generation_series_by_key, _, pending = _reconcile_generation_series(db, source, src)
-
-    # Visualization templates
-    for viz_idx, viz in enumerate(src.visualizations):
-        db.add(
-            VisualizationTemplate(
-                source_id=source.id,
-                name=viz.name,
-                display_order=viz_idx,
-            )
-        )
-
-    # Collections
-    for col_idx, col_create in enumerate(src.collections):
-        _, pending_entry = _create_collection_record(
-            db,
-            source,
-            src,
-            col_create,
-            col_idx,
-            bbox,
-            (
-                generation_series_by_key.get(col_create.generation_series_key)
-                if col_create.generation_series_key is not None
-                else None
-            ),
-        )
-        if pending_entry:
-            pending.append(pending_entry)
-
-    db.flush()
-    db.refresh(source)
-    return source, pending
-
-
-def _create_collection_record(
+def _save_collection(
     db: Session,
     source: ImagerySource,
-    src_create: ImagerySourceCreate,
-    col_create: ImageryCollectionCreate,
-    col_idx: int,
-    bbox: list[float],
+    collection: ImageryCollection | None,
+    col: ImageryCollectionCreate,
+    order: int,
+    visualization_ids: dict[str, int],
     generation_series_id: int | None,
-    held_access: dict[str, storage_access.Held] | None = None,
-) -> tuple[ImageryCollection, StacRegistrationSpec | None]:
-    """Persist a single collection (stac_config, slices, tile_urls) for a source.
+    held_access: dict[str, storage_access.Held],
+) -> None:
+    """Create or update one collection with its search, visualizations and slices.
 
-    Returns (collection, pending_registration_spec). The second item is a
-    StacRegistrationSpec for `registration._register_all_stac_browser_collections`,
-    or None if the collection doesn't need deferred registration.
+    Mosaics are what a search registered, so a change to what is searched - the query,
+    the catalog, where the cover sits - drops them; the next registration run replaces
+    them. Visualization parameters are not searched and drop nothing.
     """
-    collection = ImageryCollection(
-        source_id=source.id,
-        name=col_create.name,
-        cover_slice_index=col_create.cover_slice_index,
-        has_dedicated_cover=col_create.has_dedicated_cover,
-        display_order=col_idx,
-        generation_series_id=generation_series_id,
-    )
-    db.add(collection)
+    if collection is None:
+        collection = ImageryCollection(source_id=source.id)
+        db.add(collection)
+    searched_before = _searched(collection)
+    collection.name = col.name
+    collection.cover_slice_index = col.cover_slice_index
+    collection.has_dedicated_cover = col.has_dedicated_cover
+    collection.display_order = order
+    collection.generation_series_id = generation_series_id
+    access_changed = _save_search(collection, col.search, held_access)
     db.flush()
 
-    has_cover = bool(col_create.has_dedicated_cover)
-
-    stac_row: CollectionStacConfig | None = None
-    if col_create.stac_config:
-        stac_row = CollectionStacConfig(
-            collection_id=collection.id,
-            catalog_url=col_create.stac_config.catalog_url,
-            stac_collection_id=col_create.stac_config.stac_collection_id,
-            tile_provider=col_create.stac_config.tiler,
-            max_cloud_cover=col_create.stac_config.max_cloud_cover,
-            search_query=col_create.stac_config.search_query,
-            cover_search_query=(col_create.stac_config.cover_search_query if has_cover else None),
-            internal_storage=col_create.stac_config.internal_storage,
+    by_rendering = {r.visualization_id: r for r in collection.visualizations}
+    wanted = {visualization_ids[r.visualization]: r for r in col.visualizations}
+    for visualization_id, row in by_rendering.items():
+        if visualization_id not in wanted:
+            db.delete(row)
+    for visualization_id, incoming in wanted.items():
+        row = by_rendering.get(visualization_id) or CollectionVisualization(
+            collection_id=collection.id, visualization_id=visualization_id
         )
-        _store_storage_access(stac_row, col_create.stac_config)
-        storage_access.inherit(stac_row, (held_access or {}).get(stac_row.catalog_url or ""))
-        db.add(stac_row)
-        _upsert_viz_configs(db, collection.id, col_create.stac_config.visualizations, has_cover)
-
-    for sl_idx, sl_create in enumerate(col_create.slices):
-        slice_obj = ImagerySlice(
-            collection_id=collection.id,
-            name=sl_create.name,
-            start_date=sl_create.start_date,
-            end_date=sl_create.end_date,
-            display_order=sl_idx,
+        db.add(row)
+        row.params = incoming.params.model_dump(exclude_none=True)
+        row.cover_params = (
+            incoming.cover_params.model_dump(exclude_none=True)
+            if col.has_dedicated_cover and incoming.cover_params
+            else None
         )
-        db.add(slice_obj)
-        db.flush()
-        for tile in sl_create.tile_urls:
-            db.add(
-                SliceTileUrl(
-                    slice_id=slice_obj.id,
-                    visualization_name=tile.visualization_name,
-                    tile_url=tile.tile_url,
-                )
-            )
 
-    pending_entry: StacRegistrationSpec | None = None
-    if (
-        stac_row is not None
-        and col_create.stac_config
-        and col_create.stac_config.catalog_url
-        and col_create.stac_config.stac_collection_id
-        and col_create.slices
-    ):
-        pending_entry = _registration_spec(collection, col_create, src_create, stac_row)
-    return collection, pending_entry
+    _save_slices(db, collection, col, visualization_ids)
+    db.flush()
+    db.refresh(collection)
+    if access_changed or _searched(collection) != searched_before:
+        for sl in collection.slices:
+            sl.mosaics.clear()
+
+
+def _searched(collection: ImageryCollection) -> tuple:
+    """Everything a collection's mosaics were registered from, apart from slice dates."""
+    return (
+        collection.catalog_url,
+        collection.stac_collection_id,
+        collection.tiler,
+        collection.search_query,
+        collection.cover_search_query,
+        collection.internal_storage,
+        collection.has_dedicated_cover,
+        collection.cover_slice_index,
+    )
+
+
+def _save_search(
+    collection: ImageryCollection,
+    incoming: CollectionSearchCreate | None,
+    held_access: dict[str, storage_access.Held],
+) -> bool:
+    """Write the collection's STAC search, or clear it; returns whether the private
+    catalog's access changed (searches carry the access they were registered with)."""
+    if incoming is None:
+        collection.catalog_url = collection.stac_collection_id = collection.tiler = None
+        collection.search_query = collection.cover_search_query = None
+        collection.max_cloud_cover = None
+        collection.internal_storage = False
+        storage_access.clear(collection)
+        return False
+    is_new = collection.catalog_url is None
+    collection.catalog_url = incoming.catalog_url
+    collection.stac_collection_id = incoming.stac_collection_id
+    collection.tiler = incoming.tiler
+    collection.max_cloud_cover = incoming.max_cloud_cover
+    collection.search_query = incoming.search_query
+    collection.cover_search_query = (
+        incoming.cover_search_query if collection.has_dedicated_cover else None
+    )
+    collection.internal_storage = incoming.internal_storage
+    if incoming.storage_access is not None:
+        try:
+            storage_access.check_catalog(incoming.catalog_url)
+        except storage_access.InvalidStorageAccess as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    changed = storage_access.store(collection, incoming.storage_access)
+    if is_new:
+        storage_access.inherit(collection, held_access.get(incoming.catalog_url))
+    return changed
+
+
+def _save_slices(
+    db: Session,
+    collection: ImageryCollection,
+    col: ImageryCollectionCreate,
+    visualization_ids: dict[str, int],
+) -> None:
+    """Reconcile the collection's slices. A slice whose dates moved loses its mosaics;
+    a manual slice's templates are the payload's."""
+    existing = {sl.id: sl for sl in collection.slices}
+    keep = {sl.id for sl in col.slices if sl.id is not None}
+    for sid, dropped in existing.items():
+        if sid not in keep:
+            db.delete(dropped)
+    for order, incoming in enumerate(col.slices):
+        sl = existing.get(incoming.id) if incoming.id is not None else None
+        if sl is None:
+            sl = ImagerySlice(collection_id=collection.id)
+            db.add(sl)
+        elif (sl.start_date, sl.end_date) != (incoming.start_date, incoming.end_date):
+            sl.mosaics.clear()
+        sl.name = incoming.name
+        sl.start_date = incoming.start_date
+        sl.end_date = incoming.end_date
+        sl.display_order = order
+        templates = {t.visualization_id: t for t in sl.templates}
+        wanted = {visualization_ids[t.visualization]: t.url for t in incoming.templates}
+        for visualization_id, template in templates.items():
+            if visualization_id not in wanted:
+                sl.templates.remove(template)
+        for visualization_id, url in wanted.items():
+            if visualization_id in templates:
+                templates[visualization_id].url = url
+            else:
+                sl.templates.append(SliceTemplate(visualization_id=visualization_id, url=url))
 
 
 def _save_basemaps(
@@ -1040,160 +538,71 @@ def _save_basemaps(
     return saved
 
 
-logger = logging.getLogger(__name__)
-
-
 # ============================================================================
-# Planet scene search, at annotation time
+# Views
 # ============================================================================
 
 
-@dataclass(frozen=True)
-class PlanetSceneSeries:
-    """One scene series of a source, ready to search: what it asks Planet for, and the
-    slices its dates already own."""
-
-    config: PlanetScenesGenerationConfigV1
-    slice_ids: dict[tuple[str, str], int]
-
-
-def planet_scene_series(db: Session, source: ImagerySource) -> list[PlanetSceneSeries]:
-    """Read what a search needs before any network call, so no connection is held
-    across one."""
-    series: list[PlanetSceneSeries] = []
-    for stored in source.generation_series:
-        if (stored.config or {}).get("kind") != "planet_scenes":
-            continue
-        rows = db.execute(
-            select(ImagerySlice.id, ImagerySlice.start_date, ImagerySlice.end_date)
-            .join(ImageryCollection, ImagerySlice.collection_id == ImageryCollection.id)
-            .where(ImageryCollection.generation_series_id == stored.id)
-        ).all()
-        series.append(
-            PlanetSceneSeries(
-                config=PlanetScenesGenerationConfigV1.model_validate(stored.config),
-                slice_ids={(row[1], row[2]): row[0] for row in rows},
-            )
-        )
-    return series
+def _validated_source_ids(campaign: Campaign, source_ids: list[int]) -> list[int]:
+    known = {s.id for s in campaign.imagery_sources}
+    unknown = [sid for sid in source_ids if sid not in known]
+    if unknown:
+        raise HTTPException(status_code=400, detail=f"Unknown source ids: {unknown}")
+    return list(dict.fromkeys(source_ids))
 
 
-def search_planet_scenes_in_view(
-    api_key: str, series: list[PlanetSceneSeries], bbox: list[float]
-) -> PlanetSceneSearchOut:
-    """Which of the source's dates hold imagery here, with the covers ready to draw.
-
-    Nothing is written. A minted layer belongs to the search that asked for it, so two
-    annotators standing in different places never overwrite each other's imagery, and
-    what a country-sized campaign area could never produce - a layer that actually
-    covers where you are looking - falls out of bounding the search by the viewport.
-
-    Only the covers are minted: a source can hold hundreds of slices, minting is one
-    request each, and what the annotator sees on arrival is the cover of each window.
-    The rest come back as found, so the dates are navigable straight away, and their
-    layers are minted by ``mint_planet_scene_layers`` when a date is actually opened.
-    """
-    geometry = planet_scenes.bbox_polygon(bbox)
-    found: list[PlanetSceneSliceOut] = []
-    errors: list[str] = []
-
-    for one in series:
-        try:
-            features = planet_client.search_config(api_key, one.config, geometry)
-        except Exception as e:
-            errors.append(sanitize_error_message(e, fallback="Planet scene search failed"))
-            continue
-
-        wanted = planet_scenes.matched(features, one.config, one.slice_ids)
-        found.extend(
-            PlanetSceneSliceOut(
-                slice_id=match.slice_id, scene_count=len(match.group.scene_ids), layer_id=None
-            )
-            for match in wanted
-            if not match.is_cover
-        )
-        minted, failures = _mint_layers(api_key, [m for m in wanted if m.is_cover])
-        found.extend(minted)
-        errors.extend(failures)
-
-    _report(errors, bbox)
-    return PlanetSceneSearchOut(slices=found, errors=errors)
+def _campaign_view(db: Session, campaign: Campaign, view_id: int) -> ImageryView:
+    view = db.execute(
+        select(ImageryView).where(ImageryView.id == view_id, ImageryView.campaign_id == campaign.id)
+    ).scalar_one_or_none()
+    if view is None:
+        raise HTTPException(status_code=404, detail="View not found")
+    return view
 
 
-def mint_planet_scene_layers(
-    api_key: str, series: list[PlanetSceneSeries], bbox: list[float], slice_ids: list[int]
-) -> PlanetSceneSearchOut:
-    """Tile URLs for the dates being looked at now, over this same extent.
-
-    Searched again rather than remembered: the search is bounded to the dates asked
-    for, which is one request for a handful of neighbouring slices, and a stateless
-    answer survives the worker recycling a cached one would not.
-    """
-    geometry = planet_scenes.bbox_polygon(bbox)
-    wanted_ids = set(slice_ids)
-    found: list[PlanetSceneSliceOut] = []
-    errors: list[str] = []
-
-    for one in series:
-        dates = [d for d, sid in one.slice_ids.items() if sid in wanted_ids]
-        if not dates:
-            continue
-        try:
-            features = planet_client.search_range(
-                api_key,
-                one.config,
-                geometry,
-                date.fromisoformat(min(start for start, _ in dates)),
-                date.fromisoformat(max(end for _, end in dates)),
-            )
-        except Exception as e:
-            errors.append(sanitize_error_message(e, fallback="Planet scene search failed"))
-            continue
-
-        matches = planet_scenes.matched(features, one.config, one.slice_ids)
-        minted, failures = _mint_layers(api_key, [m for m in matches if m.slice_id in wanted_ids])
-        found.extend(minted)
-        errors.extend(failures)
-
-    _report(errors, bbox)
-    return PlanetSceneSearchOut(slices=found, errors=errors)
-
-
-def _mint_layers(
-    api_key: str, wanted: list["planet_scenes.MatchedSlice"]
-) -> tuple[list[PlanetSceneSliceOut], list[str]]:
-    """One layer per slice, all of them at once; the failures come back as messages.
-
-    A thread each because minting is a blocking POST that spends its time waiting, and
-    how fast they actually leave is not this pool's business - the client paces every
-    call to Planet, so the pool is sized to the work rather than to a limit of its own.
-    """
-    if not wanted:
-        return [], []
-    with ThreadPoolExecutor(max_workers=len(wanted)) as pool:
-        results = list(pool.map(lambda m: _mint_view_layer(api_key, m.slice_id, m.group), wanted))
-    return (
-        [r for r in results if isinstance(r, PlanetSceneSliceOut)],
-        [r for r in results if isinstance(r, str)],
+def create_view(db: Session, campaign: Campaign, payload: ImageryViewCreate) -> ImageryView:
+    """Create a view and its default canvas layout. Commits."""
+    view = ImageryView(
+        campaign_id=campaign.id, name=payload.name, display_order=len(campaign.imagery_views)
     )
+    view.source_ids = _validated_source_ids(campaign, payload.source_ids)
+    db.add(view)
+    db.flush()
+    db.add(new_default_view_layout(campaign.id, view.id))
+    db.commit()
+    db.refresh(view)
+    return view
 
 
-def _report(errors: list[str], bbox: list[float]) -> None:
-    for message in errors:
-        # Reported to the annotator and to us: a search that half worked still answers
-        # 200, so without this the only record of why is a toast someone dismissed.
-        logger.warning("Planet scene search over %s: %s", bbox, message)
+def update_view(
+    db: Session, campaign: Campaign, view_id: int, payload: ImageryViewUpdate
+) -> ImageryView:
+    """Rename a view and/or replace its sources. Commits."""
+    view = _campaign_view(db, campaign, view_id)
+    if payload.name is not None:
+        view.name = payload.name
+    if payload.source_ids is not None:
+        if not payload.source_ids:
+            raise HTTPException(status_code=400, detail="A view needs at least one source")
+        view.source_ids = _validated_source_ids(campaign, payload.source_ids)
+    db.commit()
+    db.refresh(view)
+    return view
 
 
-def _mint_view_layer(
-    api_key: str, slice_id: int, group: "planet_scenes.SliceGroup"
-) -> PlanetSceneSliceOut | str:
-    """One slice's layer, or the message saying why it has none."""
-    try:
-        return PlanetSceneSliceOut(
-            slice_id=slice_id,
-            scene_count=len(group.scene_ids),
-            layer_id=planet_client.create_layer(api_key, list(group.scene_ids)),
-        )
-    except Exception as e:
-        return sanitize_error_message(e, fallback="Minting the tile layer failed")
+def delete_view(db: Session, campaign: Campaign, view_id: int) -> None:
+    """Delete a view; its canvas layouts go with it via cascade. Commits."""
+    db.delete(_campaign_view(db, campaign, view_id))
+    db.commit()
+
+
+def reorder_views(db: Session, campaign: Campaign, view_ids: list[int]) -> None:
+    """Persist a full ordering of the campaign's views. Commits."""
+    if set(view_ids) != {v.id for v in campaign.imagery_views} or len(view_ids) != len(
+        campaign.imagery_views
+    ):
+        raise HTTPException(status_code=400, detail="view_ids must list every view exactly once")
+    order = {view_id: idx for idx, view_id in enumerate(view_ids)}
+    for view in campaign.imagery_views:
+        view.display_order = order[view.id]
+    db.commit()

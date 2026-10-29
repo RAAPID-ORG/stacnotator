@@ -3,7 +3,7 @@
 How a campaign's saved annotations get on screen, stay editable, and stay in
 step with the other people annotating the same campaign.
 
-An open-mode campaign can hold hundreds of thousands of annotations, and the
+A campaign can hold hundreds of thousands of annotations, and the
 workspace draws them on the main map plus every imagery window at once. Sending
 that as GeoJSON does not scale, so saved annotations are rendered by Postgres as
 vector tiles. Everything the tiles cannot show yet - the shape being edited,
@@ -112,7 +112,7 @@ that.
 
 ## Multiple annotators on one campaign
 
-While an explore-mode campaign is open, the page polls
+While the annotation page is in Explore, the page polls
 `GET /api/campaigns/{id}/annotations/changes?since=<cursor>` every 5 seconds
 (paused while the tab is hidden; the cursor stays put, so the poll that resumes
 covers the whole gap). What comes back is merged into the same delta as local

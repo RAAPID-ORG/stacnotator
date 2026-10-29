@@ -1,22 +1,21 @@
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import 'leaflet/dist/leaflet.css';
-import { getTaskDensity, type TaskDensityCell } from '~/api/client';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { getTaskDensityOptions } from '~/api/queries';
 import {
   formatTaskStatus,
   TASK_STATUS_CONFIG,
   TASK_STATUSES,
   type TaskStatus,
 } from '~/shared/utils/taskStatus';
-import { handleError } from '~/shared/utils/errorHandler';
 import { DensityLegend } from '../review/DensityLegend';
 import {
-  drawDensityCells,
+  DensityMap,
   TARGET_CELLS,
-  useDensityViewport,
+  useDensityMap,
   useHiddenKeys,
+  type AreaBounds,
 } from '../review/densityMap';
-import { useLeafletMap } from '../review/useLeafletMap';
 
 /**
  * Where a campaign's tasks are, by status.
@@ -33,7 +32,7 @@ interface TaskLocationsMapProps {
   /** Restricts the grid to one task set, matching the scope bar above. */
   taskSetId?: number;
   campaignId: number;
-  bbox: { west: number; south: number; east: number; north: number };
+  bbox: AreaBounds;
 }
 
 const UNKNOWN_STATUS_COLOR = '#6B7280';
@@ -41,49 +40,21 @@ const UNKNOWN_STATUS_COLOR = '#6B7280';
 export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = memo(
   ({ statusCounts, totalTasks, taskSetId, campaignId, bbox }) => {
     const { t } = useTranslation('campaigns');
-    const containerRef = useRef<HTMLDivElement>(null);
-    const { mapRef, markersLayerRef, mapReady } = useLeafletMap(containerRef, bbox);
-    const view = useDensityViewport(mapRef, mapReady);
-    const [cells, setCells] = useState<TaskDensityCell[]>([]);
+    const { camera, view } = useDensityMap(bbox);
     const { hidden, toggle } = useHiddenKeys<TaskStatus>();
-
-    useEffect(() => {
-      if (!view) return;
-      let cancelled = false;
-      getTaskDensity({
+    const { data: cells = [] } = useQuery({
+      ...getTaskDensityOptions({
         path: { campaign_id: campaignId },
-        query: { bbox: view, target_cells: TARGET_CELLS, task_set_id: taskSetId },
-      })
-        .then((res) => {
-          if (!cancelled) setCells(res.data ?? []);
-        })
-        .catch((err) => {
-          if (!cancelled) handleError(err, t('errors.loadTaskLocations'));
-        });
-      return () => {
-        cancelled = true;
-      };
-    }, [campaignId, taskSetId, view, t]);
-
-    useEffect(() => {
-      if (!markersLayerRef.current || !mapReady) return;
-      // One dot per cell per status, so a cell holding both shows both.
-      const points = cells
-        .filter((cell) => !hidden.has(cell.task_status))
-        .map((cell) => ({
-          lon: cell.lon,
-          lat: cell.lat,
-          count: cell.count,
-          key: cell.task_status,
-        }));
-      drawDensityCells(
-        markersLayerRef.current,
-        points,
-        (status) => TASK_STATUS_CONFIG[status]?.color ?? UNKNOWN_STATUS_COLOR,
-        formatTaskStatus
-      );
-      // eslint-disable-next-line react-hooks/exhaustive-deps -- map refs are stable, from useLeafletMap
-    }, [cells, hidden, mapReady]);
+        query: { bbox: view ?? '', target_cells: TARGET_CELLS, task_set_id: taskSetId },
+      }),
+      enabled: view !== null,
+      placeholderData: keepPreviousData,
+      meta: { errorMessage: t('errors.loadTaskLocations') },
+    });
+    // One dot per cell per status, so a cell holding both shows both.
+    const points = cells
+      .filter((cell) => !hidden.has(cell.task_status))
+      .map((cell) => ({ lon: cell.lon, lat: cell.lat, count: cell.count, key: cell.task_status }));
 
     const legend = TASK_STATUSES.map((status) => ({
       key: status,
@@ -100,7 +71,14 @@ export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = memo(
 
         <DensityLegend entries={legend} hidden={hidden} onToggle={toggle} />
 
-        <div ref={containerRef} className="w-full h-80 rounded-lg border border-neutral-200" />
+        <DensityMap
+          camera={camera}
+          area={bbox}
+          points={points}
+          colorOf={(status) => TASK_STATUS_CONFIG[status]?.color ?? UNKNOWN_STATUS_COLOR}
+          nameOf={formatTaskStatus}
+          className="w-full h-80 rounded-lg border border-neutral-200"
+        />
       </div>
     );
   }

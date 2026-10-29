@@ -6,13 +6,12 @@ stubs. ``fetch_annotations_with_context`` is the single DB touch, and the
 ``build_annotations_*`` composers wire the two together for the router.
 
 Never imports annotation/service.py: the shared helpers it needs live in
-annotation/forms.py (form-field parsing) and annotation/completion.py
+annotation/forms.py (form-field parsing) and tasks/completion.py
 (counts-toward-completion attachment).
 """
 
 from uuid import UUID
 
-import numpy as np
 import pandas as pd
 from fastapi import HTTPException
 from geoalchemy2.shape import to_shape
@@ -20,28 +19,26 @@ from shapely.geometry import mapping
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from src.annotation.completion import attach_counts_toward_completion_flat
 from src.annotation.forms import campaign_form_fields
-from src.annotation.models import (
-    Annotation,
-    AnnotationTask,
-)
-from src.annotation.schemas import compute_task_status_value, task_answer, task_status_inputs
+from src.annotation.models import Annotation
 from src.auth.models import User
 from src.campaigns.form_fields import CategoryFormField, DateFormField, FormField, form_field_slug
 from src.campaigns.models import Campaign
+from src.tasks.completion import attach_counts_toward_completion
+from src.tasks.models import Task
+from src.tasks.status import (
+    agreed_answers,
+    compute_task_status_value,
+    task_answer,
+    task_status_inputs,
+)
 
 
 def _resolve_label_name(campaign: Campaign, label_id: int | None) -> str | None:
     """Resolve a label ID to its name from campaign settings."""
     if label_id is None:
         return None
-    labels = campaign.settings.labels if campaign.settings else {}
-    label_id_str = str(label_id)
-    if label_id_str in labels:
-        name: str = labels[label_id_str]["name"]
-        return name
-    return None
+    return campaign.label_names.get(label_id)
 
 
 def form_export_columns(fields: list[FormField]) -> list[str]:
@@ -61,7 +58,7 @@ def format_form_value(field: FormField, value: object) -> object | None:
     "start/end", everything else (number/text/date) passes through as-is.
 
     Value shapes are guaranteed by write-path validation, the answered-field
-    change guard in update_campaign_form_fields, and migration aa7formnorm;
+    change guard in campaigns.service.update_campaign, and migration aa7formnorm;
     a mismatch is a bug and raises."""
     return _format_form_value(field, value, _option_names(field))
 
@@ -194,13 +191,13 @@ def _group_annotations_by_task(
 ) -> tuple[dict[int, list[Annotation]], list[Annotation]]:
     """Split annotations into (task-grouped, standalone).
 
-    Standalone = open-mode annotations with no task assignment.
+    Standalone = annotations with no task row of their own.
     """
     grouped: dict[int, list[Annotation]] = {}
     standalone: list[Annotation] = []
     for ann in annotations:
-        if ann.annotation_task_id:
-            grouped.setdefault(ann.annotation_task_id, []).append(ann)
+        if ann.task_id:
+            grouped.setdefault(ann.task_id, []).append(ann)
         else:
             standalone.append(ann)
     return grouped, standalone
@@ -209,34 +206,21 @@ def _group_annotations_by_task(
 def _conflicting_task_numbers(
     grouped: dict[int, list[Annotation]],
 ) -> list[int]:
-    """Return human-readable annotation_numbers of any task whose annotators
-    disagree (>= 2 distinct answers, see ``task_answer``).
-
-    Only annotations whose `counts_toward_completion` is True are considered,
-    mirroring `compute_task_status_value` - an extra label the labelling
-    policy allows but doesn't count must not manufacture a conflict on its
-    own. The flag is attached before export record building runs.
-    """
+    """Human-readable annotation_numbers of the tasks whose answers disagree."""
     conflicts: list[int] = []
     for task_id, task_anns in grouped.items():
-        counting = [a for a in task_anns if a.counts_toward_completion]
-        answered = [a for a in counting if task_answer(a) is not None]
-        if any(a.is_authoritative for a in answered):
-            continue
-        if len({task_answer(a) for a in answered}) > 1:
-            task = task_anns[0].annotation_task
+        if agreed_answers(task_anns) is None:
+            task = task_anns[0].task
             conflicts.append(task.annotation_number if task else task_id)
     return sorted(conflicts)
 
 
-def _compute_task_status_for_export(
-    task: AnnotationTask | None, task_anns: list[Annotation]
-) -> str | None:
+def _compute_task_status_for_export(task: Task | None, task_anns: list[Annotation]) -> str | None:
     """Compute task status using the shared rule on already-loaded data.
 
     Calls the same logic as the API (``compute_task_status_value`` in schemas.py)
     but feeds it in-memory annotations and the eager-loaded assignments, avoiding
-    ``AnnotationTaskOut.model_validate`` which would lazy-load creator/user/geometry
+    ``TaskOut.model_validate`` which would lazy-load creator/user/geometry
     relationships once per task and annotation (an N+1 storm during export).
     """
     if task is None:
@@ -272,15 +256,15 @@ def _build_export_record_for_annotation(
     the task's ``raw_source_data`` (user-provided ingest columns) are kept
     un-prefixed so the downstream consumer can tell our IDs apart from theirs.
 
-    ``task_annotator_count`` is the number of labeled annotations on the
+    ``task_annotator_count`` is the number of answering annotations on the
     annotation's parent task (matches the merged-path definition). All rows
     for the same task carry the same value so downstream agreement analyses
-    can be derived even when rows aren't collapsed. Standalone (open-mode)
+    can be derived even when rows aren't collapsed. Standalone
     annotations have no task grouping and default to 1.
     """
     record: dict = {}
 
-    task = annotation.annotation_task
+    task = annotation.task
     if task is not None:
         if task.raw_source_data:
             record.update(task.raw_source_data)
@@ -320,10 +304,19 @@ def _build_export_record_for_annotation(
     record["stacnotator_imagery_start_date"] = annotation.imagery_start_date
     record["stacnotator_imagery_end_date"] = annotation.imagery_end_date
     if include_geometry_wkt:
-        record["stacnotator_geometry_wkt"] = (
-            _geometry_to_wkt(annotation.geometry.geometry) if annotation.geometry else None
-        )
+        record["stacnotator_geometry_wkt"] = _geometry_to_wkt(annotation.geometry)
     return record
+
+
+def _answered(annotations: list[Annotation]) -> list[Annotation]:
+    """Task rows that answer their task: a label, or for a draw task whether
+    shapes were drawn. Skips answer nothing."""
+    return [a for a in annotations if task_answer(a) is not None]
+
+
+def _canonical(task_anns: list[Annotation]) -> Annotation:
+    """The row a merged task speaks for: one its agreed answer rests on."""
+    return (agreed_answers(task_anns) or _answered(task_anns))[0]
 
 
 def _build_export_record_merged(
@@ -336,16 +329,16 @@ def _build_export_record_merged(
 ) -> dict:
     """Collapse multiple annotations of the same task into one record.
 
-    Caller must have already ensured the labeled annotations agree (any
-    conflict is rejected up-front by ``_guard_merge_on_agreement``). The row
-    represents the task with the agreed label and aggregates per-annotator
+    Caller must have already ensured the answers agree (any conflict is
+    rejected up-front by ``_guard_merge_on_agreement``). The row represents the
+    task with the agreed answer and aggregates per-annotator
     detail (emails, comments, confidences). The DB ``stacnotator_annotation_id``
     field is intentionally **omitted** here - the row no longer corresponds
     to a single annotation row, and ``stacnotator_task_id`` is the stable
     join key in merged mode.
     """
-    labeled = [a for a in anns if a.label_id is not None]
-    canonical = next((a for a in labeled if a.is_authoritative), labeled[0])
+    labeled = _answered(anns)
+    canonical = _canonical(anns)
     agreed_label_id = canonical.label_id
 
     emails = sorted(
@@ -362,7 +355,7 @@ def _build_export_record_merged(
     latest_created_at = max((a.created_at for a in labeled if a.created_at), default=None)
 
     record: dict = {}
-    task = canonical.annotation_task
+    task = canonical.task
     if task is not None:
         if task.raw_source_data:
             record.update(task.raw_source_data)
@@ -375,6 +368,7 @@ def _build_export_record_merged(
         record["stacnotator_counts_toward_completion"] = any(
             a.counts_toward_completion for a in labeled
         )
+        record["stacnotator_outcome"] = canonical.outcome
 
     record["stacnotator_label_id"] = agreed_label_id
     record["stacnotator_label_name"] = _resolve_label_name(campaign, agreed_label_id)
@@ -403,8 +397,7 @@ def _build_export_record_merged(
     record["stacnotator_active_seconds"] = sum(measured) if measured else None
     record["stacnotator_annotator_count"] = len(labeled)
     if include_geometry_wkt:
-        geom = canonical.geometry.geometry if canonical.geometry else None
-        record["stacnotator_geometry_wkt"] = _geometry_to_wkt(geom) if geom is not None else None
+        record["stacnotator_geometry_wkt"] = _geometry_to_wkt(canonical.geometry)
     return record
 
 
@@ -432,9 +425,9 @@ def _build_annotation_records(
 
     for task_id in sorted(grouped.keys()):
         task_anns = grouped[task_id]
-        task = task_anns[0].annotation_task
+        task = task_anns[0].task
         task_status = _compute_task_status_for_export(task, task_anns)
-        labeled = [a for a in task_anns if a.label_id is not None]
+        labeled = _answered(task_anns)
 
         if merge_on_agreement and len(labeled) >= 2:
             records.append(
@@ -447,9 +440,7 @@ def _build_annotation_records(
                     form_schema,
                 )
             )
-            canonical_annotations.append(
-                next((a for a in labeled if a.is_authoritative), labeled[0])
-            )
+            canonical_annotations.append(_canonical(task_anns))
         else:
             labeled_count = len(labeled)
             for ann in task_anns:
@@ -546,8 +537,7 @@ def fetch_annotations_with_context(
             select(Annotation)
             .where(Annotation.campaign_id == campaign.id)
             .options(
-                joinedload(Annotation.geometry),
-                joinedload(Annotation.annotation_task).selectinload(AnnotationTask.assignments),
+                joinedload(Annotation.task).selectinload(Task.assignments),
                 joinedload(Annotation.origin_task),
                 joinedload(Annotation.output_of_task),
             )
@@ -561,7 +551,7 @@ def fetch_annotations_with_context(
     if user_ids:
         users = db.execute(select(User).where(User.id.in_(user_ids))).scalars().all()
         user_email_map = {user.id: user.email for user in users}
-    attach_counts_toward_completion_flat(db, campaign, list(annotations))
+    attach_counts_toward_completion(db, campaign, list(annotations))
     return list(annotations), user_email_map
 
 
@@ -590,11 +580,17 @@ def build_annotations_export(
         include_geometry_wkt=True,
     )
 
-    for record in records:
-        for col in columns:
-            record.setdefault(col, np.nan)
+    frame = pd.DataFrame(records, columns=list(columns))
+    # A gap would otherwise turn a whole integer column into floats (71460.0).
+    for col in columns:
+        values = [record.get(col) for record in records]
+        if any(_is_int(v) for v in values) and all(v is None or _is_int(v) for v in values):
+            frame[col] = pd.array(values, dtype="Int64")
+    return frame
 
-    return pd.DataFrame(records, columns=list(columns))
+
+def _is_int(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
 
 
 def build_annotations_geojson_export(
@@ -621,12 +617,10 @@ def build_annotations_geojson_export(
 
     features = []
     for record, canonical in zip(records, canonical_annotations, strict=True):
-        geojson_geometry = None
-        if canonical.geometry:
-            try:
-                geojson_geometry = mapping(to_shape(canonical.geometry.geometry))
-            except Exception:
-                geojson_geometry = None
+        try:
+            geojson_geometry = mapping(to_shape(canonical.geometry))
+        except Exception:
+            geojson_geometry = None
 
         properties: dict = {}
         for col in columns:

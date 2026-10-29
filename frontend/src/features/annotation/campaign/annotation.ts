@@ -1,21 +1,19 @@
-import i18n from '~/shared/i18n';
 import { isDateRangeValue } from '~/shared/utils/formValues';
 import type {
+  AnnotationCreate,
   AnnotationOut,
-  AnnotationTaskOut,
   CampaignOutFull,
   CampaignSettingsOut,
   LabelBase,
   PolicyAudience,
+  SliceComment,
 } from '~/api/client';
+import { labelColor } from '~/features/campaigns/utils/labelColors';
 import { isAudienceMember, type PolicyContext } from '~/features/campaigns/utils/labellingPolicy';
-
-const t = i18n.getFixedT(null, 'annotation');
 
 export type FormField = NonNullable<CampaignSettingsOut['form_fields']>[number];
 export type FormValues = NonNullable<AnnotationOut['form_values']>;
 export type FormValue = FormValues[string];
-export type TaskStatus = NonNullable<AnnotationTaskOut['task_status']>;
 
 // ---------------------------------------------------------------------------
 // Labels
@@ -28,34 +26,31 @@ export interface ExtendedLabel extends LabelBase {
   color: string;
 }
 
-const LABEL_COLORS = [
-  '#10b981',
-  '#f59e0b',
-  '#3b82f6',
-  '#8b5cf6',
-  '#ef4444',
-  '#ec4899',
-  '#06b6d4',
-  '#a3883a',
-  '#6366f1',
-  '#14b8a6',
-];
-
 export function extendedLabels(
   campaign: Pick<CampaignOutFull, 'settings'> | null | undefined
 ): ExtendedLabel[] {
   return (campaign?.settings.labels ?? []).map((label, index) => ({
     ...label,
-    geometry_type: (label.geometry_type as GeometryType) || 'polygon',
-    color: LABEL_COLORS[index % LABEL_COLORS.length],
+    geometry_type: label.geometry_type,
+    color: labelColor(index),
   }));
 }
 
+const LABEL_GEOMETRY: Partial<Record<GeoJSON.Geometry['type'], GeometryType>> = {
+  Point: 'point',
+  MultiPoint: 'point',
+  LineString: 'line',
+  MultiLineString: 'line',
+  Polygon: 'polygon',
+  MultiPolygon: 'polygon',
+};
+
 /** Labels an annotation may be reassigned to on edit: the drawn geometry
- *  cannot change type, so only labels of the same type qualify. */
-export function labelsWithSameGeometry(labels: ExtendedLabel[], labelId: number | null) {
-  const current = labels.find((l) => l.id === labelId);
-  return current ? labels.filter((l) => l.geometry_type === current.geometry_type) : labels;
+ *  cannot change type, so only labels of its type qualify. Read from the shape
+ *  itself, since a task answer can carry a label of another type. */
+export function labelsForGeometry(labels: ExtendedLabel[], geometry: GeoJSON.Geometry) {
+  const type = LABEL_GEOMETRY[geometry.type];
+  return type ? labels.filter((l) => l.geometry_type === type) : labels;
 }
 
 // ---------------------------------------------------------------------------
@@ -117,12 +112,6 @@ export function missingRequiredFields(fields: FormField[], values: FormValues): 
   return fields.filter((f) => f.required && isEmptyValue(values[String(f.id)] ?? null));
 }
 
-export function formatMissingFieldsTitle(missing: FormField[]): string {
-  return t('missingRequired', {
-    fields: missing.map((f) => f.title).join(', '),
-  });
-}
-
 export { isDateRangeValue };
 
 function valueEqual(a: FormValue, b: FormValue): boolean {
@@ -142,17 +131,6 @@ export function formValuesEqual(a: FormValues, b: FormValues): boolean {
   const keys = Object.keys(a);
   if (keys.length !== Object.keys(b).length) return false;
   return keys.every((key) => key in b && valueEqual(a[key], b[key]));
-}
-
-/**
- * Wire payload for a PATCH-style update. The backend reads `null` as "keep the
- * stored answers", `{}` as "clear them" and a dict as "replace". `undefined`
- * means the caller is not touching answers at all (a geometry-only edit), and
- * an unchanged set is not worth a needless server-side required-field recheck.
- */
-export function patchFormValues(prev: FormValues, next: FormValues | undefined): FormValues | null {
-  if (next === undefined || formValuesEqual(prev, next)) return null;
-  return next;
 }
 
 export interface FormValidation {
@@ -290,7 +268,7 @@ export function maySubmitTask(state: SubmitReadiness): boolean {
 // Geometry
 // ---------------------------------------------------------------------------
 
-function extentOf(geometry: GeoJSON.Geometry): [number, number, number, number] {
+export function extentOf(geometry: GeoJSON.Geometry): [number, number, number, number] {
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
@@ -422,4 +400,46 @@ export function wktToGeometry(wkt: string): GeoJSON.Geometry {
   }
 
   throw new Error(`wktToGeometry: unsupported WKT "${wkt}"`);
+}
+
+/** What a new annotation carries besides its shape and label: the draft's details. */
+export interface AnnotationDetails {
+  formValues: FormValues;
+  comment?: string;
+  confidence?: number | null;
+  flagged?: boolean;
+  flagComment?: string;
+  sliceComments?: SliceComment[];
+  imagerySliceId?: number | null;
+}
+
+/** The body that stores one drawn or picked shape. */
+export function newAnnotationBody(
+  geometry: GeoJSON.Geometry,
+  labelId: number,
+  details: AnnotationDetails,
+  link: Pick<AnnotationCreate, 'origin_task_id' | 'output_of_task_id'>
+): AnnotationCreate {
+  const {
+    formValues,
+    comment,
+    confidence,
+    flagged = false,
+    flagComment,
+    sliceComments,
+    imagerySliceId,
+  } = details;
+  return {
+    label_id: labelId,
+    geometry_wkt: geometryToWkt(geometry),
+    comment: comment || null,
+    confidence: confidence ?? null,
+    // An empty answer set is "no answers given", not "all answers cleared".
+    form_values: Object.keys(formValues).length ? formValues : null,
+    flagged_for_review: flagged,
+    flag_comment: flagged ? flagComment || null : null,
+    slice_comments: sliceComments,
+    imagery_slice_id: imagerySliceId ?? null,
+    ...link,
+  };
 }

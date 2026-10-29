@@ -1,13 +1,13 @@
 """Unit tests for the labelling-policy model layer: schema validation, the
 pure policy.py evaluation core, and the admin update service call.
 
-DB-free per repo convention: CampaignSettings/Campaign are plain SQLAlchemy
+DB-free per repo convention: Campaign is a plain SQLAlchemy
 model instances (no session), and the DB session in service tests is a
 MagicMock.
 """
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -15,31 +15,30 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 
 from src.campaigns import service
-from src.campaigns.models import Campaign, CampaignSettings
+from src.campaigns.models import Campaign
 from src.campaigns.policy import (
+    CampaignStanding,
     PolicyContext,
     build_policy_context,
-    context_from_role_map,
     counts_toward_completion,
-    get_campaign_role_map,
     get_labelling_policy,
-    get_org_public_member_ids,
-    get_platform_admin_ids,
     is_allowed,
+    load_standing,
 )
 from src.campaigns.schemas import (
+    CampaignUpdate,
     LabellingPolicy,
     PolicyAudience,
-    UpdateLabellingPolicyRequest,
     default_labelling_policy,
 )
 from src.projects.models import Project
+from tests.conftest import make_policy
 
 
 def _campaign(visibility: str = "private") -> Campaign:
-    campaign = Campaign(id=1, name="x", mode="tasks")
+    campaign = Campaign(id=1, name="x")
     campaign.project = Project(id=1, visibility=visibility, organization_id=5)
-    campaign.settings = CampaignSettings(campaign_id=1, labelling_policy={})
+    campaign.labelling_policy = {}
     return campaign
 
 
@@ -62,31 +61,31 @@ def _ctx(**overrides) -> PolicyContext:
 
 def test_assignees_rejected_on_explore():
     with pytest.raises(ValidationError):
-        LabellingPolicy(explore=PolicyAudience(kinds=["assignees"]))
+        make_policy(explore=PolicyAudience(kinds=["assignees"]))
 
 
 def test_assignees_rejected_on_unassigned_tasks():
     with pytest.raises(ValidationError):
-        LabellingPolicy(unassigned_tasks=PolicyAudience(kinds=["assignees"]))
+        make_policy(unassigned_tasks=PolicyAudience(kinds=["assignees"]))
 
 
 def test_assignees_accepted_on_assigned_tasks():
-    policy = LabellingPolicy(assigned_tasks=PolicyAudience(kinds=["assignees"]))
+    policy = make_policy(assigned_tasks=PolicyAudience(kinds=["assignees"]))
     assert policy.assigned_tasks.kinds == ["assignees"]
 
 
 def test_assignees_accepted_on_complete_assigned():
-    policy = LabellingPolicy(complete_assigned=PolicyAudience(kinds=["assignees"]))
+    policy = make_policy(complete_assigned=PolicyAudience(kinds=["assignees"]))
     assert policy.complete_assigned.kinds == ["assignees"]
 
 
 def test_anyone_rejected_on_complete_assigned():
     with pytest.raises(ValidationError):
-        LabellingPolicy(complete_assigned=PolicyAudience(kinds=["anyone"]))
+        make_policy(complete_assigned=PolicyAudience(kinds=["anyone"]))
 
 
 def test_anyone_accepted_on_explore_unassigned_and_assigned():
-    policy = LabellingPolicy(
+    policy = make_policy(
         explore=PolicyAudience(kinds=["anyone"]),
         unassigned_tasks=PolicyAudience(kinds=["anyone"]),
         assigned_tasks=PolicyAudience(kinds=["anyone"]),
@@ -99,12 +98,12 @@ def test_anyone_accepted_on_explore_unassigned_and_assigned():
 def test_authoritative_accepted_on_explore():
     """Running a campaign should not mean being locked out of its free-form
     labelling, so the explore axis takes reviewers like every other axis."""
-    policy = LabellingPolicy(explore=PolicyAudience(kinds=["authoritative"]))
+    policy = make_policy(explore=PolicyAudience(kinds=["authoritative"]))
     assert policy.explore.kinds == ["authoritative"]
 
 
 def test_admins_accepted_on_every_axis():
-    policy = LabellingPolicy(
+    policy = make_policy(
         explore=PolicyAudience(kinds=["admins"]),
         unassigned_tasks=PolicyAudience(kinds=["admins"]),
         assigned_tasks=PolicyAudience(kinds=["admins"]),
@@ -128,25 +127,16 @@ def test_default_policy_shape():
     assert set(policy.complete_assigned.kinds) == {"assignees", "admins", "authoritative"}
 
 
-def test_update_request_rejects_missing_axis():
+def test_a_policy_missing_an_axis_is_rejected():
     """PATCH is a full-replace of the stored policy: omitting an axis must be
-    a 422, not a silent default to 'no one' for that axis."""
+    a 422, not a silent default for that axis."""
     with pytest.raises(ValidationError):
-        UpdateLabellingPolicyRequest(
+        LabellingPolicy(
             unassigned_tasks=PolicyAudience(kinds=["members"]),
             assigned_tasks=PolicyAudience(kinds=["members"]),
             complete_assigned=PolicyAudience(kinds=["admins"]),
+            modify_others=PolicyAudience(kinds=["admins"]),
         )
-
-
-def test_update_request_accepts_full_body():
-    req = UpdateLabellingPolicyRequest(
-        explore=PolicyAudience(kinds=["members"]),
-        unassigned_tasks=PolicyAudience(kinds=["members"]),
-        assigned_tasks=PolicyAudience(kinds=["members"]),
-        complete_assigned=PolicyAudience(kinds=["admins"]),
-    )
-    assert req.explore.kinds == ["members"]
 
 
 def test_default_policy_is_itself_valid():
@@ -177,7 +167,7 @@ def test_public_default_policy_leaves_complete_assigned_unchanged():
 
 
 def test_public_default_policy_is_itself_valid():
-    LabellingPolicy(**default_labelling_policy(is_public=True).model_dump())
+    make_policy(**default_labelling_policy(is_public=True).model_dump())
 
 
 # ============================================================================
@@ -258,8 +248,14 @@ def test_counts_toward_completion_uses_unassigned_tasks_axis_for_unassigned_task
 
 
 # ============================================================================
-# PATCH /campaigns/{id}/labelling-policy service call (mocked db)
+# Updating the labelling policy (mocked db)
 # ============================================================================
+
+
+def _update_policy(db, campaign, policy):
+    with patch.object(service, "get_campaign_full", return_value=campaign):
+        updated = service.update_campaign(db, campaign, CampaignUpdate(labelling_policy=policy))
+    return LabellingPolicy.model_validate(updated.labelling_policy)
 
 
 def test_update_labelling_policy_rejects_anyone_for_private_campaign():
@@ -267,13 +263,13 @@ def test_update_labelling_policy_rejects_anyone_for_private_campaign():
     db = MagicMock()
     db.get.return_value = campaign
 
-    req = LabellingPolicy(
+    req = make_policy(
         explore=PolicyAudience(kinds=["anyone"]),
         complete_assigned=PolicyAudience(kinds=["admins"]),
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        service.update_labelling_policy(db, 1, req)
+        _update_policy(db, campaign, req)
 
     assert exc_info.value.status_code == 400
     db.commit.assert_not_called()
@@ -284,12 +280,12 @@ def test_update_labelling_policy_allows_anyone_for_public_campaign():
     db = MagicMock()
     db.get.return_value = campaign
 
-    req = LabellingPolicy(
+    req = make_policy(
         explore=PolicyAudience(kinds=["anyone"]),
         complete_assigned=PolicyAudience(kinds=["admins"]),
     )
 
-    result = service.update_labelling_policy(db, 1, req)
+    result = _update_policy(db, campaign, req)
 
     assert result.explore.kinds == ["anyone"]
     db.commit.assert_called_once()
@@ -300,26 +296,16 @@ def test_update_labelling_policy_persists_without_anyone_on_private_campaign():
     db = MagicMock()
     db.get.return_value = campaign
 
-    req = LabellingPolicy(
+    req = make_policy(
         explore=PolicyAudience(kinds=["members"]),
         complete_assigned=PolicyAudience(kinds=["admins"]),
     )
 
-    result = service.update_labelling_policy(db, 1, req)
+    result = _update_policy(db, campaign, req)
 
     assert result.explore.kinds == ["members"]
-    assert campaign.settings.labelling_policy["explore"]["kinds"] == ["members"]
+    assert campaign.labelling_policy["explore"]["kinds"] == ["members"]
     db.commit.assert_called_once()
-
-
-def test_update_labelling_policy_missing_campaign_raises_404():
-    db = MagicMock()
-    db.get.return_value = None
-
-    with pytest.raises(HTTPException) as exc_info:
-        service.update_labelling_policy(db, 1, default_labelling_policy())
-
-    assert exc_info.value.status_code == 404
 
 
 # ============================================================================
@@ -329,11 +315,12 @@ def test_update_labelling_policy_missing_campaign_raises_404():
 
 def test_get_labelling_policy_reads_stored_policy():
     campaign = _campaign()
-    campaign.settings.labelling_policy = {
+    campaign.labelling_policy = {
         "explore": {"kinds": ["anyone"], "user_ids": []},
         "unassigned_tasks": {"kinds": ["members"], "user_ids": []},
         "assigned_tasks": {"kinds": ["members"], "user_ids": []},
         "complete_assigned": {"kinds": ["admins"], "user_ids": []},
+        "modify_others": {"kinds": ["admins"], "user_ids": []},
     }
     policy = get_labelling_policy(campaign)
     assert policy.explore.kinds == ["anyone"]
@@ -341,252 +328,78 @@ def test_get_labelling_policy_reads_stored_policy():
 
 
 # ============================================================================
-# context_from_role_map: pure PolicyContext construction from pre-fetched maps
+# CampaignStanding: who is what in a campaign, through the one access rule
 # ============================================================================
 
 
-def test_context_from_role_map_non_member_defaults_false():
+def _standing(visibility="private", **kwargs) -> CampaignStanding:
+    return CampaignStanding(visibility=visibility, **{"roles": {}, **kwargs})
+
+
+def test_stranger_has_no_standing():
     user_id = uuid4()
-    ctx = context_from_role_map(user_id, role_map={}, platform_admin_ids=set())
-    assert ctx == PolicyContext(
-        user_id=user_id, is_admin=False, is_authoritative=False, is_member=False, is_assigned=False
+    assert _standing().context(user_id) == PolicyContext(
+        user_id=user_id, is_admin=False, is_authoritative=False, is_member=False
     )
 
 
-def test_context_from_role_map_reads_campaign_admin_and_authoritative_flags():
+def test_membership_row_carries_its_roles():
     user_id = uuid4()
-    ctx = context_from_role_map(user_id, role_map={user_id: (True, True)}, platform_admin_ids=set())
-    assert ctx.is_member is True
-    assert ctx.is_admin is True
-    assert ctx.is_authoritative is True
+    ctx = _standing(roles={user_id: (True, True)}).context(user_id)
+    assert (ctx.is_member, ctx.is_admin, ctx.is_authoritative) == (True, True, True)
 
 
-def test_context_from_role_map_platform_admin_without_campaign_admin_flag():
-    """A platform admin who isn't flagged is_admin on the CampaignUser row
-    still resolves as an admin."""
-    user_id = uuid4()
-    ctx = context_from_role_map(
-        user_id, role_map={user_id: (False, False)}, platform_admin_ids={user_id}
-    )
-    assert ctx.is_admin is True
-
-
-def test_context_from_role_map_platform_admin_is_a_member_without_a_row():
+def test_platform_admin_is_an_admin_member_without_a_row():
     """Platform admins are members everywhere, matching the viewer_is_member flag
     the campaign endpoints report - a members-only axis must let them through."""
     user_id = uuid4()
-    ctx = context_from_role_map(user_id, role_map={}, platform_admin_ids={user_id})
-
-    assert ctx.is_member is True
+    ctx = _standing(platform_admins={user_id}).context(user_id)
+    assert (ctx.is_member, ctx.is_admin, ctx.is_authoritative) == (True, True, False)
     assert is_allowed(PolicyAudience(kinds=["members"]), ctx) is True
 
 
-def test_context_from_role_map_passes_through_is_assigned():
+def test_org_members_are_members_of_org_public_campaigns_only():
     user_id = uuid4()
-    ctx = context_from_role_map(user_id, role_map={}, platform_admin_ids=set(), is_assigned=True)
-    assert ctx.is_assigned is True
+    org_public = _standing("organization", org_members={user_id}).context(user_id)
+    assert (org_public.is_member, org_public.is_admin) == (True, False)
+    assert _standing("private", org_members={user_id}).context(user_id).is_member is False
 
 
-def test_context_from_role_map_org_member_ids_grant_member_standing_only():
+def test_is_assigned_passes_through():
     user_id = uuid4()
-    ctx = context_from_role_map(
-        user_id, role_map={}, platform_admin_ids=set(), org_member_ids={user_id}
-    )
-    assert ctx.is_member is True
-    assert ctx.is_admin is False
-    assert ctx.is_authoritative is False
+    assert _standing().context(user_id, is_assigned=True).is_assigned is True
 
 
-def test_context_from_role_map_defaults_to_no_org_standing():
-    user_id = uuid4()
-    ctx = context_from_role_map(user_id, role_map={}, platform_admin_ids=set())
-    assert ctx.is_member is False
-
-
-# ============================================================================
-# get_org_public_member_ids: the amortized org-public standing lookup
-# ============================================================================
-
-
-def test_get_org_public_member_ids_empty_without_org_public_visibility():
+def test_load_standing_without_users_skips_queries():
     db = MagicMock()
-    for visibility in ("private", "public"):
-        assert get_org_public_member_ids(db, _campaign(visibility)) == set()
+    assert load_standing(db, _campaign(), []).roles == {}
+    db.execute.assert_not_called()
     db.scalars.assert_not_called()
 
 
-def test_get_org_public_member_ids_reads_active_members_of_the_approved_org():
-    member_id = uuid4()
-    db = MagicMock()
-    db.scalars.return_value.all.return_value = [member_id]
-
-    assert get_org_public_member_ids(db, _campaign("organization")) == {member_id}
-
-    stmt = db.scalars.call_args.args[0]
-    text = str(stmt)
-    params = list(stmt.compile().params.values())
-    assert "JOIN data.organizations" in text
-    assert "active" in params and "approved" in params
-
-
-# ============================================================================
-# get_campaign_role_map / get_platform_admin_ids: single-query batch lookups
-# ============================================================================
-
-
-def test_get_campaign_role_map_builds_dict_from_rows():
-    user_a, user_b = uuid4(), uuid4()
-    db = MagicMock()
-    db.execute.return_value.all.return_value = [(user_a, True, False), (user_b, False, True)]
-
-    role_map = get_campaign_role_map(db, campaign_id=1)
-
-    assert role_map == {user_a: (True, False), user_b: (False, True)}
-
-
-def test_get_platform_admin_ids_empty_input_skips_query():
-    db = MagicMock()
-    assert get_platform_admin_ids(db, []) == set()
-    db.scalars.assert_not_called()
-
-
-def test_get_platform_admin_ids_returns_matching_set():
-    admin_id, other_id = uuid4(), uuid4()
-    db = MagicMock()
-    db.scalars.return_value.all.return_value = [admin_id]
-
-    result = get_platform_admin_ids(db, [admin_id, other_id])
-
-    assert result == {admin_id}
-
-
-# ============================================================================
-# build_policy_context: real-time, single-user PolicyContext for enforcement
-# ============================================================================
-
-
-def _db_with_campaign_user(cu=None, is_platform_admin=False):
-    """A MagicMock db wired so the CampaignUser lookup (`db.scalars(...).first()`)
-    and auth.service.is_admin's role check (`db.execute(...).first()`) - two
-    different mock chains - can be configured independently. Both default to
-    "no" so tests only need to name what they're asserting."""
-    db = MagicMock()
-    db.scalars.return_value.first.return_value = cu
-    db.execute.return_value.first.return_value = ("admin",) if is_platform_admin else None
-    return db
-
-
-def test_build_policy_context_non_member_non_admin():
-    campaign = _campaign()
+def test_load_standing_reads_org_members_only_for_org_public_projects():
     user_id = uuid4()
-    db = _db_with_campaign_user(cu=None)
+    db = MagicMock()
+    db.execute.return_value.all.return_value = [(user_id, False, True)]
+    db.scalars.return_value.all.return_value = []
 
-    ctx = build_policy_context(db, campaign, user_id)
+    standing = load_standing(db, _campaign("private"), [user_id])
 
-    assert ctx == PolicyContext(
-        user_id=user_id, is_admin=False, is_authoritative=False, is_member=False, is_assigned=False
-    )
-
-
-def test_build_policy_context_campaign_admin():
-    campaign = _campaign()
-    user_id = uuid4()
-    cu = SimpleNamespace(is_admin=True, is_authoritative_reviewer=False)
-    db = _db_with_campaign_user(cu=cu)
-
-    ctx = build_policy_context(db, campaign, user_id)
-
-    assert ctx.is_member is True
-    assert ctx.is_admin is True
-    assert ctx.is_authoritative is False
-
-
-def test_build_policy_context_authoritative_reviewer():
-    campaign = _campaign()
-    user_id = uuid4()
-    cu = SimpleNamespace(is_admin=False, is_authoritative_reviewer=True)
-    db = _db_with_campaign_user(cu=cu)
-
-    ctx = build_policy_context(db, campaign, user_id)
-
-    assert ctx.is_authoritative is True
-    assert ctx.is_admin is False
-
-
-def test_build_policy_context_platform_admin_without_campaign_membership():
-    """Platform admins are members everywhere, matching the viewer_is_member flag
-    the campaign endpoints report - a members-only axis must let them through."""
-    campaign = _campaign()
-    user_id = uuid4()
-    db = _db_with_campaign_user(cu=None, is_platform_admin=True)
-
-    ctx = build_policy_context(db, campaign, user_id)
-
-    assert ctx.is_admin is True
-    assert ctx.is_member is True
-    assert is_allowed(PolicyAudience(kinds=["members"]), ctx) is True
-
-
-def test_build_policy_context_no_task_is_never_assigned():
-    campaign = _campaign()
-    user_id = uuid4()
-    db = _db_with_campaign_user(cu=None)
-
-    ctx = build_policy_context(db, campaign, user_id, task=None)
-
-    assert ctx.is_assigned is False
+    assert standing.roles == {user_id: (False, True)}
+    assert db.scalars.call_count == 1  # platform admins only
 
 
 def test_build_policy_context_assigned_when_user_holds_any_assignment():
-    campaign = _campaign()
-    user_id = uuid4()
-    db = _db_with_campaign_user(cu=None)
-    task = SimpleNamespace(assignments=[SimpleNamespace(user_id=user_id)])
-
-    ctx = build_policy_context(db, campaign, user_id, task=task)
-
-    assert ctx.is_assigned is True
-
-
-def test_build_policy_context_not_assigned_when_task_assigned_to_others():
-    campaign = _campaign()
-    user_id = uuid4()
-    db = _db_with_campaign_user(cu=None)
-    task = SimpleNamespace(assignments=[SimpleNamespace(user_id=uuid4())])
-
-    ctx = build_policy_context(db, campaign, user_id, task=task)
-
-    assert ctx.is_assigned is False
-
-
-def test_build_policy_context_org_member_on_org_public_campaign_is_member():
-    """Org-public projects grant active org members the same member standing
-    enforcement advertises via viewer_is_member - no roles attached."""
-    campaign = _campaign(visibility="organization")
     user_id = uuid4()
     db = MagicMock()
-    lookups = iter([None, SimpleNamespace()])  # no ProjectUser row, active org membership
+    db.execute.return_value.all.return_value = []
+    db.scalars.return_value.all.return_value = []
+    mine = SimpleNamespace(assignments=[SimpleNamespace(user_id=user_id)])
+    theirs = SimpleNamespace(assignments=[SimpleNamespace(user_id=uuid4())])
 
-    db.scalars.side_effect = lambda *_a, **_k: MagicMock(
-        first=MagicMock(return_value=next(lookups))
-    )
-    db.execute.return_value.first.return_value = None  # not a platform admin
-
-    ctx = build_policy_context(db, campaign, user_id)
-
-    assert ctx.is_member is True
-    assert ctx.is_admin is False
-    assert ctx.is_authoritative is False
-    assert is_allowed(PolicyAudience(kinds=["members"]), ctx) is True
-
-
-def test_build_policy_context_non_org_member_on_org_public_campaign_is_not_member():
-    campaign = _campaign(visibility="organization")
-    db = _db_with_campaign_user(cu=None)  # both lookups come back empty
-
-    ctx = build_policy_context(db, campaign, uuid4())
-
-    assert ctx.is_member is False
+    assert build_policy_context(db, _campaign(), user_id, task=mine).is_assigned is True
+    assert build_policy_context(db, _campaign(), user_id, task=theirs).is_assigned is False
+    assert build_policy_context(db, _campaign(), user_id).is_assigned is False
 
 
 # ============================================================================
@@ -602,36 +415,25 @@ def _campaign_settings_create() -> "service.CampaignSettingsCreate":
     )
 
 
-def _db_capturing_campaign_settings() -> MagicMock:
-    """A MagicMock db that mimics just enough of a real flush's relationship
-    back-population for create_campaign to run past `campaign.settings.
-    embedding_year`: when the CampaignSettings row is added, wire it onto the
-    just-added Campaign's `.settings` the way a real flush/refresh would.
-    """
+def _db_capturing_campaign() -> MagicMock:
     db = MagicMock()
-    captured: dict = {}
-
-    def _capture_add(obj):
-        if isinstance(obj, Campaign):
-            captured["campaign"] = obj
-        elif isinstance(obj, CampaignSettings):
-            captured["settings"] = obj
-            captured["campaign"].settings = obj
-
-    db.add.side_effect = _capture_add
+    db.get.return_value = MagicMock(visibility="private")
     return db
+
+
+def _added_campaign(db) -> Campaign:
+    return next(c.args[0] for c in db.add.call_args_list if isinstance(c.args[0], Campaign))
 
 
 def test_create_campaign_rejects_anyone_for_private_campaign():
     db = MagicMock()
     db.get.return_value = MagicMock(visibility="private")  # db.get(Project, project_id)
-    policy = LabellingPolicy(explore=PolicyAudience(kinds=["anyone"]))
+    policy = make_policy(explore=PolicyAudience(kinds=["anyone"]))
 
     with pytest.raises(HTTPException) as exc_info:
         service.create_campaign(
             db,
             name="x",
-            mode="tasks",
             project_id=1,
             settings=_campaign_settings_create(),
             user_id=uuid4(),
@@ -643,14 +445,13 @@ def test_create_campaign_rejects_anyone_for_private_campaign():
 
 
 def test_create_campaign_allows_anyone_for_public_campaign():
-    db = _db_capturing_campaign_settings()
+    db = _db_capturing_campaign()
     db.get.return_value = MagicMock(visibility="public")  # db.get(Project, project_id)
-    policy = LabellingPolicy(explore=PolicyAudience(kinds=["anyone"]))
+    policy = make_policy(explore=PolicyAudience(kinds=["anyone"]))
 
     service.create_campaign(
         db,
         name="x",
-        mode="tasks",
         project_id=1,
         settings=_campaign_settings_create(),
         user_id=uuid4(),
@@ -665,62 +466,39 @@ def test_create_campaign_no_explicit_policy_public_gets_anyone_default():
     thread is_public into the default, granting 'anyone' on the three
     labellable axes - not the private default, which would immediately be
     inconsistent with a public project."""
-    db = _db_capturing_campaign_settings()
+    db = _db_capturing_campaign()
     db.get.return_value = MagicMock(visibility="public")  # db.get(Project, project_id)
 
     service.create_campaign(
         db,
         name="x",
-        mode="tasks",
         project_id=1,
         settings=_campaign_settings_create(),
         user_id=uuid4(),
     )
 
-    settings_call = next(
-        call for call in db.add.call_args_list if isinstance(call.args[0], CampaignSettings)
-    )
-    stored_policy = settings_call.args[0].labelling_policy
+    stored_policy = _added_campaign(db).labelling_policy
     assert "anyone" in stored_policy["explore"]["kinds"]
 
 
 def test_create_campaign_no_explicit_policy_private_gets_private_default():
-    db = _db_capturing_campaign_settings()
+    db = _db_capturing_campaign()
     db.get.return_value = MagicMock(visibility="private")  # db.get(Project, project_id)
 
     service.create_campaign(
         db,
         name="x",
-        mode="tasks",
         project_id=1,
         settings=_campaign_settings_create(),
         user_id=uuid4(),
     )
 
-    settings_call = next(
-        call for call in db.add.call_args_list if isinstance(call.args[0], CampaignSettings)
-    )
-    stored_policy = settings_call.args[0].labelling_policy
+    stored_policy = _added_campaign(db).labelling_policy
     assert "anyone" not in stored_policy["explore"]["kinds"]
-
-
-def test_modify_others_defaults_to_admins_for_a_policy_stored_before_it_existed():
-    """Every campaign predating the axis behaved as "its author, or an admin",
-    and reading one back must not quietly widen or close that."""
-    stored = {
-        "explore": {"kinds": ["members"], "user_ids": []},
-        "unassigned_tasks": {"kinds": ["members"], "user_ids": []},
-        "assigned_tasks": {"kinds": ["members"], "user_ids": []},
-        "complete_assigned": {"kinds": ["admins"], "user_ids": []},
-    }
-
-    policy = LabellingPolicy.model_validate(stored)
-
-    assert policy.modify_others.kinds == ["admins"]
 
 
 def test_modify_others_cannot_be_opened_to_anyone():
     """Undoing other people's work is not something a campaign opens to the
     public, however public its labelling is."""
     with pytest.raises(ValidationError):
-        LabellingPolicy(modify_others=PolicyAudience(kinds=["anyone"]))
+        make_policy(modify_others=PolicyAudience(kinds=["anyone"]))

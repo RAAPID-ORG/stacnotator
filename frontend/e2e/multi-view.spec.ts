@@ -106,7 +106,7 @@ for (const readyAtCreation of [false, true]) {
                   ...COLLECTION_S2,
                   slices: COLLECTION_S2.slices.map((slice) => ({
                     ...slice,
-                    tile_urls: ready ? slice.tile_urls : [],
+                    tiles: ready ? slice.tiles : [],
                   })),
                 },
               ],
@@ -115,11 +115,13 @@ for (const readyAtCreation of [false, true]) {
         },
       })
     );
-    await page.route('**/api/*/imagery/views', (route) => {
+    await page.route('**/api/campaigns/*/views', (route) => {
       created = true;
       return route.fulfill({ status: 201, json: view });
     });
-    await page.route('**/api/*/new-layout', (route) => route.fulfill({ status: 201, json: {} }));
+    await page.route('**/api/campaigns/*/layouts', (route) =>
+      route.fulfill({ status: 201, json: {} })
+    );
     await mockVisibleImagery(page);
 
     await page.reload();
@@ -137,7 +139,7 @@ for (const readyAtCreation of [false, true]) {
     await page.getByTestId('save-required-default').click();
     await expect(page.getByTestId('edit-layout-trigger')).toBeVisible();
     if (!readyAtCreation) {
-      await expect(mainNotice).toContainText('Imagery will appear automatically');
+      await expect(mainNotice).toContainText('Preparing imagery');
       await expect(windowNotice).toBeVisible();
       await expect(
         windowPanel(page, COLLECTION_S2.id).getByText('No imagery', { exact: true })
@@ -153,6 +155,45 @@ for (const readyAtCreation of [false, true]) {
     await expectImageryPainted(windowMap);
   });
 }
+
+test('a set-up campaign opens its workspace while its imagery is registered again', async ({
+  annotationPage: page,
+}) => {
+  let ready = false;
+  const source = MOCK_CAMPAIGN.imagery_sources[0];
+  await page.route('**/api/campaigns/*/detailed', (route) =>
+    route.fulfill({
+      json: {
+        ...MOCK_CAMPAIGN,
+        registration_status: ready ? 'ready' : 'registering',
+        imagery_sources: [
+          {
+            ...source,
+            collections: source.collections.map((collection) => ({
+              ...collection,
+              slices: collection.slices.map((slice) => ({
+                ...slice,
+                tiles: ready ? slice.tiles : [],
+              })),
+            })),
+          },
+        ],
+      },
+    })
+  );
+  await mockVisibleImagery(page);
+
+  await page.reload();
+  const mainMap = page.locator('[data-panel-role="main-map"]');
+  const notice = mainMap.getByTestId('imagery-registration-notice');
+  await expect(notice).toContainText('Preparing imagery');
+  await expect(page.getByTestId('registering-gate')).toHaveCount(0);
+
+  ready = true;
+  await page.waitForResponse('**/api/campaigns/*/detailed');
+  await expect(notice).toHaveCount(0);
+  await expectImageryPainted(mainMap);
+});
 
 test('layout dragging stops if the mouse button was released outside the window', async ({
   annotationPage: page,
@@ -201,12 +242,16 @@ test('dragging a panel body scrolls both canvas edges and saves its new position
         },
         imagery_views: MOCK_CAMPAIGN.imagery_views.map((view) => ({
           ...view,
-          default_canvas_layout: { ...view.default_canvas_layout, layout_data: [] },
+          default_canvas_layout: {
+            ...view.default_canvas_layout,
+            layout_data: [],
+            hidden: ['10', '20'],
+          },
         })),
       },
     })
   );
-  await page.route('**/api/*/new-layout', async (route) => {
+  await page.route('**/api/campaigns/*/layouts', async (route) => {
     saved = route.request().postDataJSON().layout;
     await route.fulfill({ status: 201, json: {} });
   });
@@ -258,7 +303,7 @@ test('dragging a panel body scrolls both canvas edges and saves its new position
 
   await page.getByRole('button', { name: 'Show edit layout', exact: true }).click();
   await page.getByTestId('save-menu-trigger').click();
-  const saving = page.waitForResponse('**/api/*/new-layout');
+  const saving = page.waitForResponse('**/api/campaigns/*/layouts');
   await page.getByTestId('save-personal').click();
   await saving;
   expect(saved?.main_layout_data?.find((item) => item.i === 'minimap')?.y).toBeGreaterThan(0);
@@ -398,11 +443,13 @@ test('a registration response started before first-view creation does not discar
     }
     await route.fulfill({ json: snapshot });
   });
-  await page.route('**/api/*/imagery/views', (route) => {
+  await page.route('**/api/campaigns/*/views', (route) => {
     created = true;
     return route.fulfill({ status: 201, json: view });
   });
-  await page.route('**/api/*/new-layout', (route) => route.fulfill({ status: 201, json: {} }));
+  await page.route('**/api/campaigns/*/layouts', (route) =>
+    route.fulfill({ status: 201, json: {} })
+  );
   await mockVisibleImagery(page);
 
   await page.reload();
@@ -526,8 +573,11 @@ test.describe('View switching via toolbar dropdown', () => {
 
   test('dropdown lists both views', async ({ annotationPage }) => {
     await viewSelector(annotationPage).locator('button').first().click();
-    await expect(annotationPage.getByText('Sentinel-2 View').first()).toBeVisible();
-    await expect(annotationPage.getByText('VHR View').first()).toBeVisible();
+    for (const name of ['Sentinel-2 View', 'VHR View']) {
+      await expect(
+        viewSelector(annotationPage).getByRole('button', { name, exact: true })
+      ).toBeVisible();
+    }
   });
 
   test('selecting VHR View from dropdown activates VHR source', async ({ annotationPage }) => {

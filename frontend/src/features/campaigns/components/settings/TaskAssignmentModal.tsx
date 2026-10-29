@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
+import { Modal } from '~/shared/ui/Modal';
 import { Trans, useTranslation } from 'react-i18next';
-import type { AnnotationTaskOut, ProjectUserOut } from '~/api/client';
+import type { TaskOut, ProjectUserOut } from '~/api/client';
 import { handleError } from '~/shared/utils/errorHandler';
 
 export type BulkAssignIntent =
@@ -10,7 +11,7 @@ export type BulkAssignIntent =
 interface TaskAssignmentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  tasks: AnnotationTaskOut[];
+  tasks: TaskOut[];
   projectUsers: ProjectUserOut[];
   onAssign: (intent: BulkAssignIntent) => Promise<void>;
 }
@@ -108,141 +109,12 @@ export const TaskAssignmentModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-neutral-900/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="px-6 py-4 border-b border-neutral-300">
-          <h2 className="text-xl font-semibold text-neutral-900">{t('assignAll.title')}</h2>
-          <p className="text-sm text-neutral-500 mt-1">
-            {t('assignAll.available', { count: unassignedTasks.length })}
-          </p>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-6 py-4">
-          {/* Mode Selection */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-neutral-700 mb-2">
-              {t('assignAll.mode')}
-            </label>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setMode('distribute-evenly')}
-                className={`px-4 py-2 rounded-lg border transition-colors ${
-                  mode === 'distribute-evenly'
-                    ? 'bg-brand-600 text-white border-brand-600'
-                    : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'
-                }`}
-              >
-                {t('assignAll.distributeEvenly')}
-              </button>
-              <button
-                onClick={() => setMode('fixed-count')}
-                className={`px-4 py-2 rounded-lg border transition-colors ${
-                  mode === 'fixed-count'
-                    ? 'bg-brand-600 text-white border-brand-600'
-                    : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'
-                }`}
-              >
-                {t('assignAll.fixedCount')}
-              </button>
-            </div>
-            {mode === 'distribute-evenly' && (
-              <p className="text-sm text-neutral-500 mt-2">{t('assignAll.evenlyHelp')}</p>
-            )}
-            {mode === 'fixed-count' && (
-              <p className="text-sm text-neutral-500 mt-2">{t('assignAll.fixedHelp')}</p>
-            )}
-          </div>
-
-          {/* Distribute Evenly / Fixed Count Mode */}
-          {(mode === 'distribute-evenly' || mode === 'fixed-count') && (
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-neutral-700 mb-2">
-                {mode === 'fixed-count'
-                  ? t('assignAll.selectUsersAndCounts')
-                  : t('assignAll.selectUsers')}
-              </label>
-              <button
-                onClick={handleSelectAllUsers}
-                className="text-sm text-brand-700 hover:text-brand-600 mb-3"
-              >
-                {selectedUsers.length === projectUsers.length
-                  ? t('assignAll.deselectAll')
-                  : t('assignAll.selectAll')}
-              </button>
-
-              <div className="space-y-2 max-h-96 overflow-y-auto border border-neutral-300 rounded-lg p-3">
-                {projectUsers.map((user) => (
-                  <div
-                    key={user.user.id}
-                    className="flex items-center justify-between p-3 bg-neutral-50 rounded-lg"
-                  >
-                    <label className="flex items-center cursor-pointer flex-1">
-                      <input
-                        type="checkbox"
-                        checked={selectedUsers.includes(user.user.id)}
-                        onChange={() => handleToggleUser(user.user.id)}
-                        className="mr-3"
-                      />
-                      <div>
-                        <div className="font-medium text-neutral-900">{user.user.display_name}</div>
-                        {user.user.email && (
-                          <div className="text-sm text-neutral-500">{user.user.email}</div>
-                        )}
-                        {user.is_admin && (
-                          <span className="text-xs text-brand-700 font-semibold">
-                            {t('assignAll.admin')}
-                          </span>
-                        )}
-                        {user.is_authoritative_reviewer && (
-                          <span className="text-xs text-purple-500 font-semibold ml-2">
-                            {t('assignAll.authoritativeReviewer')}
-                          </span>
-                        )}
-                      </div>
-                    </label>
-
-                    {mode === 'fixed-count' && selectedUsers.includes(user.user.id) && (
-                      <div className="flex items-center gap-2 ml-4">
-                        <label className="text-sm text-neutral-600 whitespace-nowrap">
-                          {t('assignAll.tasksLabel')}
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          max={unassignedTasks.length}
-                          value={tasksPerUser[user.user.id] || 10}
-                          onChange={(e) =>
-                            handleTasksPerUserChange(user.user.id, Number(e.target.value))
-                          }
-                          className="w-20 px-2 py-1 border border-neutral-300 rounded text-sm"
-                        />
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {previewAssignmentCount > 0 && (
-            <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-              <p className="text-sm text-blue-800">
-                <Trans
-                  t={t}
-                  i18nKey={
-                    mode === 'distribute-evenly'
-                      ? 'assignAll.previewEven'
-                      : 'assignAll.previewFixed'
-                  }
-                  values={{ count: previewAssignmentCount, users: selectedUsers.length }}
-                  components={{ strong: <strong /> }}
-                />
-              </p>
-            </div>
-          )}
-        </div>
-
-        <div className="px-6 py-4 border-t border-neutral-300 flex justify-end gap-3">
+    <Modal
+      title={t('assignAll.title')}
+      onClose={onClose}
+      maxWidth="max-w-4xl"
+      footer={
+        <div className="flex justify-end gap-3">
           <button
             onClick={onClose}
             disabled={assigning}
@@ -260,7 +132,133 @@ export const TaskAssignmentModal = ({
               : t('assignAll.submit', { count: previewAssignmentCount })}
           </button>
         </div>
+      }
+    >
+      <div className="px-6 py-4">
+        <p className="text-sm text-neutral-500 mb-3">
+          {t('assignAll.available', { count: unassignedTasks.length })}
+        </p>
+        {/* Mode Selection */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-neutral-700 mb-2">
+            {t('assignAll.mode')}
+          </label>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setMode('distribute-evenly')}
+              className={`px-4 py-2 rounded-lg border transition-colors ${
+                mode === 'distribute-evenly'
+                  ? 'bg-brand-600 text-white border-brand-600'
+                  : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'
+              }`}
+            >
+              {t('assignAll.distributeEvenly')}
+            </button>
+            <button
+              onClick={() => setMode('fixed-count')}
+              className={`px-4 py-2 rounded-lg border transition-colors ${
+                mode === 'fixed-count'
+                  ? 'bg-brand-600 text-white border-brand-600'
+                  : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'
+              }`}
+            >
+              {t('assignAll.fixedCount')}
+            </button>
+          </div>
+          {mode === 'distribute-evenly' && (
+            <p className="text-sm text-neutral-500 mt-2">{t('assignAll.evenlyHelp')}</p>
+          )}
+          {mode === 'fixed-count' && (
+            <p className="text-sm text-neutral-500 mt-2">{t('assignAll.fixedHelp')}</p>
+          )}
+        </div>
+
+        {/* Distribute Evenly / Fixed Count Mode */}
+        {(mode === 'distribute-evenly' || mode === 'fixed-count') && (
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-neutral-700 mb-2">
+              {mode === 'fixed-count'
+                ? t('assignAll.selectUsersAndCounts')
+                : t('assignAll.selectUsers')}
+            </label>
+            <button
+              onClick={handleSelectAllUsers}
+              className="text-sm text-brand-700 hover:text-brand-600 mb-3"
+            >
+              {selectedUsers.length === projectUsers.length
+                ? t('assignAll.deselectAll')
+                : t('assignAll.selectAll')}
+            </button>
+
+            <div className="space-y-2 max-h-96 overflow-y-auto border border-neutral-300 rounded-lg p-3">
+              {projectUsers.map((user) => (
+                <div
+                  key={user.user.id}
+                  className="flex items-center justify-between p-3 bg-neutral-50 rounded-lg"
+                >
+                  <label className="flex items-center cursor-pointer flex-1">
+                    <input
+                      type="checkbox"
+                      checked={selectedUsers.includes(user.user.id)}
+                      onChange={() => handleToggleUser(user.user.id)}
+                      className="mr-3"
+                    />
+                    <div>
+                      <div className="font-medium text-neutral-900">{user.user.display_name}</div>
+                      {user.user.email && (
+                        <div className="text-sm text-neutral-500">{user.user.email}</div>
+                      )}
+                      {user.is_admin && (
+                        <span className="text-xs text-brand-700 font-semibold">
+                          {t('assignAll.admin')}
+                        </span>
+                      )}
+                      {user.is_authoritative_reviewer && (
+                        <span className="text-xs text-purple-500 font-semibold ml-2">
+                          {t('assignAll.authoritativeReviewer')}
+                        </span>
+                      )}
+                    </div>
+                  </label>
+
+                  {mode === 'fixed-count' && selectedUsers.includes(user.user.id) && (
+                    <div className="flex items-center gap-2 ml-4">
+                      <label className="text-sm text-neutral-600 whitespace-nowrap">
+                        {t('assignAll.tasksLabel')}
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max={unassignedTasks.length}
+                        value={tasksPerUser[user.user.id] || 10}
+                        onChange={(e) =>
+                          handleTasksPerUserChange(user.user.id, Number(e.target.value))
+                        }
+                        className="w-20 px-2 py-1 border border-neutral-300 rounded text-sm"
+                      />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {previewAssignmentCount > 0 && (
+          <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+            <p className="text-sm text-blue-800">
+              <Trans
+                t={t}
+                i18nKey={
+                  mode === 'distribute-evenly' ? 'assignAll.previewEven' : 'assignAll.previewFixed'
+                }
+                values={{ count: previewAssignmentCount, users: selectedUsers.length }}
+                components={{ strong: <strong /> }}
+              />
+            </p>
+          </div>
+        )}
       </div>
-    </div>
+    </Modal>
   );
 };

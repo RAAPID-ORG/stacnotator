@@ -5,12 +5,13 @@ import {
   makeCustomMap,
   makeSlice,
   makeSource,
-  makeTileUrl,
+  makeTile,
   makeVectorLayer,
   makeViz,
 } from '../testing/fixtures';
 import { buildImageryCatalog } from './imagery';
-import { isProxiedTileUrl, resolveBasemapUrl } from '~/shared/imagery/tileUrls';
+import { basemapLayer } from '~/shared/imagery/layerSpecs';
+import { isProxiedTileUrl } from '~/shared/imagery/tileUrls';
 import { awaitingImageryRegistration, sliceLegend, sliceRaster } from './tileUrls';
 
 const source = makeSource({
@@ -25,16 +26,14 @@ const source = makeSource({
         makeSlice({
           id: 100,
           name: 'Slice A',
-          tile_urls: [
-            makeTileUrl({
-              id: 1,
-              visualization_name: 'True Color',
-              tile_url: 'https://tiler/1/{z}/{x}/{y}.png',
+          tiles: [
+            makeTile({
+              visualization_id: 1000,
+              url: 'https://tiler/1/{z}/{x}/{y}.png',
             }),
-            makeTileUrl({
-              id: 2,
-              visualization_name: 'Needs Key',
-              tile_url: 'https://p/{z}/{x}/{y}.png?api_key={api_key}',
+            makeTile({
+              visualization_id: 1001,
+              url: 'https://p/{z}/{x}/{y}.png?api_key={api_key}',
             }),
           ],
         }),
@@ -59,17 +58,7 @@ describe('single-band legends', () => {
               {
                 ...source.collections[0],
                 has_dedicated_cover: !!cover,
-                stac_config: {
-                  viz_configs: [
-                    {
-                      id: 1,
-                      name: 'True Color',
-                      display_order: 0,
-                      render_params: params,
-                      cover_render_params: cover,
-                    },
-                  ],
-                },
+                visualizations: [{ visualization_id: 1000, params, cover_params: cover }],
               },
             ],
           },
@@ -92,9 +81,6 @@ describe('single-band legends', () => {
     expect(
       sliceLegend(catalogFor(params, { ...params, rescale: '0,0.8' }), address)?.range
     ).toEqual([0, 0.8]);
-    expect(
-      sliceLegend(catalogFor(params), address, { rescale: [-0.5, 1], colormap_name: 'magma' })
-    ).toEqual({ name: 'True Color', colormap: 'magma', range: [-0.5, 1] });
   });
 
   it('shows grayscale ranges for single-band assets or selected bands, not RGB', () => {
@@ -114,10 +100,11 @@ describe('single-band legends', () => {
       expect(sliceLegend(catalogFor(params), address)).toBeNull();
   });
 
-  it('reads legacy tile parameters and does not invent bounds for automatic ranges', () => {
+  it("reads a template's own parameters and does not invent bounds for automatic ranges", () => {
     const cat = buildImageryCatalog(makeCampaign({ imagery_sources: [structuredClone(source)] }));
-    cat.collections.get(10)!.slices[0].tile_urls[0] = makeTileUrl({
-      tile_url: 'https://tiles/{z}/{x}/{y}?assets=data&colormap_name=viridis&rescale=-2000,10000',
+    cat.collections.get(10)!.slices[0].tiles[0] = makeTile({
+      visualization_id: 1000,
+      url: 'https://tiles/{z}/{x}/{y}?assets=data&colormap_name=viridis&rescale=-2000,10000',
     });
     expect(sliceLegend(cat, address)?.range).toEqual([-2000, 10000]);
     expect(
@@ -141,10 +128,14 @@ const campaign = makeCampaign({
   ],
 });
 
+const BASE = '/api/campaigns/7/imagery/basemaps';
+
 describe('tile url resolution', () => {
   it('recognises our own proxy routes, which need the tiler cookie', () => {
-    expect(isProxiedTileUrl('/api/7/imagery/basemaps/3/tiles/{z}/{x}/{y}')).toBe(true);
-    expect(isProxiedTileUrl('/api/7/imagery/slices/9/tiles/True%20Color/{z}/{x}/{y}')).toBe(true);
+    expect(isProxiedTileUrl('/api/campaigns/7/imagery/basemaps/3/tiles/{z}/{x}/{y}')).toBe(true);
+    expect(
+      isProxiedTileUrl('/api/campaigns/7/imagery/slices/9/tiles/True%20Color/{z}/{x}/{y}')
+    ).toBe(true);
     expect(isProxiedTileUrl('https://osm/{z}/{x}/{y}.png')).toBe(false);
   });
 
@@ -153,22 +144,27 @@ describe('tile url resolution', () => {
     // root-relative path reaches the dev server and returns index.html.
     vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
     try {
-      expect(resolveBasemapUrl(7, { id: 3, url: 'https://p/{z}/{x}/{y}?key={api_key}' })).toBe(
-        'http://localhost:8000/api/7/imagery/basemaps/3/tiles/{z}/{x}/{y}'
+      expect(basemapLayer({ id: 3, url: 'https://p/{z}/{x}/{y}?key={api_key}' }, BASE).url).toBe(
+        'http://localhost:8000/api/campaigns/7/imagery/basemaps/3/tiles/{z}/{x}/{y}'
       );
-      expect(isProxiedTileUrl('http://localhost:8000/api/7/imagery/slices/9/tiles/V/{z}/{x}/{y}')) //
+      expect(
+        isProxiedTileUrl(
+          'http://localhost:8000/api/campaigns/7/imagery/slices/9/tiles/V/{z}/{x}/{y}'
+        )
+      ) //
         .toBe(true);
     } finally {
       vi.unstubAllEnvs();
     }
   });
 
-  it('routes a basemap through the proxy only when its template needs a key', () => {
-    expect(resolveBasemapUrl(7, { id: 3, url: 'https://osm/{z}/{x}/{y}.png' })).toBe(
-      'https://osm/{z}/{x}/{y}.png'
-    );
-    expect(resolveBasemapUrl(7, { id: 3, url: 'https://p/{z}/{x}/{y}?key={api_key}' })).toBe(
-      '/api/7/imagery/basemaps/3/tiles/{z}/{x}/{y}'
+  it('routes a basemap through the proxy, with the cookie, only when its template needs a key', () => {
+    expect(basemapLayer({ id: 3, url: 'https://osm/{z}/{x}/{y}.png' }, BASE)).toMatchObject({
+      url: 'https://osm/{z}/{x}/{y}.png',
+      auth: 'none',
+    });
+    expect(basemapLayer({ id: 3, url: 'https://p/{z}/{x}/{y}?key={api_key}' }, BASE)).toMatchObject(
+      { url: '/api/campaigns/7/imagery/basemaps/3/tiles/{z}/{x}/{y}', auth: 'cookie' }
     );
   });
 });
@@ -191,7 +187,7 @@ describe('sliceRaster', () => {
           imagery_sources: [
             {
               ...source,
-              collections: [makeCollection({ id: 10, slices: [makeSlice({ tile_urls: [] })] })],
+              collections: [makeCollection({ id: 10, slices: [makeSlice({ tiles: [] })] })],
             },
           ],
         })
@@ -223,7 +219,7 @@ describe('sliceRaster', () => {
 
   it('sends the tiler cookie to our self-hosted tiler', () => {
     const hosted = structuredClone(source);
-    hosted.collections[0].slices[0].tile_urls[0].tile_provider = 'default';
+    hosted.collections[0].slices[0].tiles[0].tiler = 'default';
     const spec = sliceRaster(buildImageryCatalog(makeCampaign({ imagery_sources: [hosted] })), {
       sourceId: 1,
       collectionId: 10,
@@ -235,31 +231,8 @@ describe('sliceRaster', () => {
 
   it('rewrites an {api_key} template to a proxy path', () => {
     const spec = sliceRaster(cat, { sourceId: 1, collectionId: 10, sliceIndex: 0, vizId: '1001' });
-    expect(spec.url).toBe('/api/7/imagery/slices/100/tiles/Needs%20Key/{z}/{x}/{y}');
+    expect(spec.url).toBe('/api/campaigns/7/imagery/slices/100/tiles/1001/{z}/{x}/{y}');
     expect(spec.auth).toBe('cookie');
-  });
-
-  it('stamps legend overrides onto query params (continuous)', () => {
-    const spec = sliceRaster(
-      cat,
-      { sourceId: 1, collectionId: 10, sliceIndex: 0, vizId: '1000' },
-      { colormap_name: 'magma', rescale: [0.2, 0.8] }
-    );
-    const params = new URLSearchParams(spec.url.slice(spec.url.indexOf('?') + 1));
-    expect(params.get('colormap_name')).toBe('magma');
-    expect(params.get('rescale')).toBe('0.2,0.8');
-  });
-
-  it('stamps legend overrides onto a proxied {api_key} url as well', () => {
-    const spec = sliceRaster(
-      cat,
-      { sourceId: 1, collectionId: 10, sliceIndex: 0, vizId: '1001' },
-      { colormap_name: 'magma', rescale: [0, 1] }
-    );
-    expect(spec.url.startsWith('/api/7/imagery/slices/100/tiles/Needs%20Key/{z}/{x}/{y}?')).toBe(
-      true
-    );
-    expect(spec.url).toContain('colormap_name=magma');
   });
 
   it('throws for an unknown source/collection/slice/visualization', () => {

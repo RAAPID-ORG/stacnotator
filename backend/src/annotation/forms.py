@@ -22,10 +22,7 @@ FORM_FIELDS_ADAPTER: TypeAdapter[list[FormField]] = TypeAdapter(list[FormField])
 
 
 def campaign_form_fields(campaign: Campaign) -> list[FormField]:
-    """Parse a campaign's field definitions, guarding the case where the
-    campaign has no settings row at all (not just an empty form_fields)."""
-    raw = campaign.settings.form_fields if campaign.settings else []
-    return FORM_FIELDS_ADAPTER.validate_python(raw or [])
+    return FORM_FIELDS_ADAPTER.validate_python(campaign.form_fields)
 
 
 class FormValidationError(ValueError):

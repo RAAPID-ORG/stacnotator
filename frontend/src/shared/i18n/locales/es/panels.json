@@ -79,6 +79,7 @@
     "width": "Grosor"
   },
   "editDetails": {
+    "finishReshapeFirst": "Confirma (Enter) o cancela (Esc) el cambio de forma antes de cambiar la etiqueta.",
     "missingRequired": "Faltan campos obligatorios: {{fields}}",
     "updated": "Anotación actualizada correctamente",
     "updateFailed": "No se pudo actualizar la anotación",
@@ -90,13 +91,13 @@
     "save": "Guardar cambios"
   },
   "draft": {
-    "title": "{{label}} - responde las preguntas",
     "annotation": "Anotación",
     "closeSaved": "Cerrar (la anotación está guardada, las respuestas se conservan)",
     "closeUnsaved": "Cerrar (los campos obligatorios sin responder descartan la anotación)",
-    "retry": "Reintentar guardado (Enter)",
-    "saveAnswers": "Guardar respuestas (Enter)",
-    "save": "Guardar anotación (Enter)",
+    "retry": "Reintentar guardado",
+    "saveAnswers": "Guardar respuestas",
+    "saveKey": "Enter",
+    "save": "Guardar anotación",
     "savedHint": {
       "point": "El punto está guardado. Las respuestas se añaden al guardar.",
       "line": "La línea está guardada. Las respuestas se añaden al guardar.",
@@ -255,8 +256,10 @@
     "authoritativeUnassignedTitle": "Enviar como autoritativa: esta tarea no está asignada a ti, pero tu etiqueta se registrará como la respuesta canónica y la tarea se marcará como completada sin necesidad de consenso entre los asignados.",
     "submitAuthoritative": "Enviar autoritativa",
     "done": "Listo",
+    "doneTitle": "Terminar esta tarea con las formas dibujadas (Shift+Enter)",
     "nothingHere": "Nada aquí",
     "drewHereTitle": "Dibujaste formas para esta tarea - pulsa Listo",
+    "answeredElsewhere": "Otra persona acaba de responder esta tarea.",
     "authoritativeToggle": "Enviar como autoritativa",
     "authoritativeToggleTitle": "Enviar como autoritativa: tu etiqueta prevalece sobre los demás anotadores y completa la tarea.",
     "authoritativeShort": "Aut.",
@@ -265,6 +268,11 @@
     "currentPoint": "Punto actual",
     "currentPointTitle": "Punto actual. Escribe un número y pulsa Enter para ir a él; Esc cancela.",
     "prev": "Anterior",
+    "historyBack_one": "1 tarea atrás",
+    "historyBack_many": "{{count}} tareas atrás",
+    "historyBack_other": "{{count}} tareas atrás",
+    "historyBackTitle": "Anterior y Siguiente recorren las tareas abiertas en esta sesión",
+    "historyLatest": "Última →",
     "claimFailed": "No se pudo reclamar esta tarea"
   },
   "review": {

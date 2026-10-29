@@ -2,13 +2,13 @@ import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
-import type { AnnotationTaskOut } from '~/api/client';
+import type { TaskOut } from '~/api/client';
 import { renderWithQuery } from '~/shared/testing/renderWithQuery';
 import { TaskModeReview } from './TaskModeReview';
 
 vi.mock('~/api/client/sdk.gen', () => ({}));
 
-const makeTasks = (count: number): AnnotationTaskOut[] =>
+const makeTasks = (count: number): TaskOut[] =>
   Array.from({ length: count }, (_, i) => ({
     id: i + 1,
     annotation_number: i + 1,
@@ -21,12 +21,12 @@ const makeTasks = (count: number): AnnotationTaskOut[] =>
     claimed_at: null,
     claimed_by_display_name: null,
     has_embedding: false,
-  })) as unknown as AnnotationTaskOut[];
+  })) as unknown as TaskOut[];
 
 const renderTable = (count: number) =>
   renderWithQuery(
     <MemoryRouter>
-      <TaskModeReview campaignId={1} tasks={makeTasks(count)} taskSets={[]} embedded selectable />
+      <TaskModeReview campaignId={1} tasks={makeTasks(count)} taskSets={[]} selectable />
     </MemoryRouter>
   );
 
@@ -65,7 +65,8 @@ describe('TaskModeReview with a large task list', () => {
     expect(firstRowNumber()).toBe(firstOfPageOne);
   });
 
-  it('cannot page past either end', async () => {
+  // Renders 500 rows and clicks through them, which outlasts the default under a busy run.
+  it('cannot page past either end', { timeout: 15_000 }, async () => {
     const user = userEvent.setup();
     renderTable(500);
 

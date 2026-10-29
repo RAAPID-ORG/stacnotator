@@ -1,0 +1,122 @@
+import { useTranslation } from 'react-i18next';
+import type { NamedVizParams, VizParams } from './types';
+import { emptyVizParams } from './types';
+import type { AssetInfo } from '~/api/client';
+import { IconPlus, IconTrash } from '~/shared/ui/Icons';
+import { Input } from '~/shared/ui/forms';
+import { VizConfigPanel } from './VizConfigPanel';
+
+interface VizTabsProps {
+  visualizations: NamedVizParams[];
+  activeIndex: number;
+  onActiveIndexChange: (index: number) => void;
+  collectionId: string;
+  availableAssets: Record<string, AssetInfo>;
+  showCompositing: boolean;
+  /** Compositing methods the tiler serving this catalog can actually produce. */
+  compositingMethods?: string[];
+  onParamsChange: (index: number, params: VizParams) => void;
+  /** When provided, a "Visualization Name" input is shown and tab names are editable. */
+  onNameChange?: (index: number, name: string) => void;
+  /** When provided, a "+" tab adds a new visualization. */
+  onAdd?: () => void;
+  /** When provided (and more than one viz), per-tab trash buttons remove a visualization. */
+  onRemove?: (index: number) => void;
+  /** Tabs that may be renamed and removed; all of them when omitted. */
+  isEditable?: (index: number) => boolean;
+}
+
+export const VizTabs = ({
+  visualizations,
+  activeIndex,
+  onActiveIndexChange,
+  collectionId,
+  availableAssets,
+  showCompositing,
+  compositingMethods,
+  onParamsChange,
+  onNameChange,
+  onAdd,
+  onRemove,
+  isEditable = () => true,
+}: VizTabsProps) => {
+  const { t } = useTranslation('imagery');
+  if (visualizations.length === 0) return null;
+  const active = Math.min(activeIndex, visualizations.length - 1);
+
+  return (
+    <div className="rounded-lg border border-neutral-200 overflow-hidden">
+      <div className="flex items-center bg-neutral-50 border-b border-neutral-200 px-2 pt-2 gap-1">
+        {visualizations.map((viz, i) => (
+          <div
+            key={i}
+            className={`text-xs rounded-t-md transition-colors flex items-center ${
+              i === active
+                ? 'bg-white border border-neutral-200 border-b-white -mb-px text-brand-700 font-medium'
+                : 'text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100'
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => onActiveIndexChange(i)}
+              className="px-3 py-1.5 cursor-pointer"
+            >
+              {viz.name || t('vizTabs.fallbackName', { n: i + 1 })}
+            </button>
+            {onRemove && visualizations.length > 1 && isEditable(i) && (
+              <button
+                type="button"
+                onClick={() => onRemove(i)}
+                aria-label={t('vizTabs.remove', {
+                  name: viz.name || t('vizTabs.fallbackName', { n: i + 1 }),
+                })}
+                className="pr-2 text-neutral-400 hover:text-red-500 cursor-pointer"
+              >
+                <IconTrash className="w-2.5 h-2.5" />
+              </button>
+            )}
+          </div>
+        ))}
+        {onAdd && (
+          <button
+            type="button"
+            onClick={onAdd}
+            className="text-xs text-neutral-400 hover:text-brand-700 transition-colors cursor-pointer px-2 py-1.5 flex items-center gap-0.5"
+            title={t('vizTabs.add')}
+            aria-label={t('vizTabs.add')}
+          >
+            <IconPlus className="w-3 h-3" />
+          </button>
+        )}
+      </div>
+
+      <div className="p-3 space-y-3 bg-white">
+        {onNameChange && isEditable(active) && (
+          <div className="space-y-1">
+            <label className="text-xs text-neutral-700">{t('vizTabs.name')}</label>
+            <Input
+              type="text"
+              size="sm"
+              value={visualizations[active]?.name || ''}
+              onChange={(e) => onNameChange(active, e.target.value)}
+              placeholder={t('vizTabs.namePlaceholder')}
+            />
+          </div>
+        )}
+        <VizConfigPanel
+          key={`${collectionId}-${active}-${visualizations.length}`}
+          collectionId={collectionId}
+          availableAssets={availableAssets}
+          vizParams={visualizations[active]?.vizParams || emptyVizParams()}
+          onChange={(params) => onParamsChange(active, params)}
+          name={visualizations[active]?.name}
+          onNameChange={
+            onNameChange && isEditable(active) ? (n) => onNameChange(active, n) : undefined
+          }
+          showCompositing={showCompositing}
+          compositingMethods={compositingMethods}
+        />
+      </div>
+    </div>
+  );
+};

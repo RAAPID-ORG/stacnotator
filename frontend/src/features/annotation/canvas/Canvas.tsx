@@ -51,7 +51,7 @@ export function Canvas({
   outerRef,
   mobileLayout,
 }: CanvasProps) {
-  const { containerRef, width, isMounted } = useContainerSize();
+  const { containerRef, width } = useContainerSize();
 
   const setContainer = (node: HTMLDivElement | null) => {
     containerRef.current = node;
@@ -88,7 +88,9 @@ export function Canvas({
         isStatic ? 'p-0' : fullscreen ? 'p-3' : 'p-1'
       } ${editingActive ? 'is-editing' : ''}`}
     >
-      {isMounted && (
+      {/* Laid out first at its measured width: at any other, every panel would
+          slide into place on the grid's transitions as the width arrives. */}
+      {width > 0 && (
         <ReactGridLayout
           width={width}
           layout={effectiveLayout}

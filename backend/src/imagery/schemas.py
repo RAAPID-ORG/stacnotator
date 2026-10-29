@@ -1,18 +1,17 @@
-from typing import Literal
-from uuid import UUID
+from datetime import date
+from typing import Annotated, Any, Literal
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    PrivateAttr,
-    computed_field,
-    field_validator,
+    ValidationInfo,
     model_validator,
 )
 
-from src.canvas.schemas import CanvasLayoutOut
-from src.planet.schemas import PlanetScenesGenerationConfigV1
+from src.canvas.schemas import CanvasLayoutOut, viewer_layouts
+from src.layers import HttpUrl
+from src.planet.schemas import PlanetScenesGenerationConfig
 from src.storage_access import StorageAccessCreate, StorageAccessOut
 
 # ============================================================================
@@ -20,12 +19,11 @@ from src.storage_access import StorageAccessCreate, StorageAccessOut
 # ============================================================================
 
 
-class SliceTileUrlOut(BaseModel):
-    id: int
-    visualization_name: str
-    tile_url: str
-    tile_provider: str | None = None
-    mosaic_id: str | None = None
+class SliceTileOut(BaseModel):
+    visualization_id: int
+    url: str
+    # "mpc", a hosted tiler's name, or None for a template a provider serves.
+    tiler: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -36,29 +34,17 @@ class ImagerySliceOut(BaseModel):
     start_date: str
     end_date: str
     display_order: int
-    tile_urls: list[SliceTileUrlOut]
+    # The visualizations that can be drawn now; one still registering is absent.
+    tiles: list[SliceTileOut]
 
     model_config = ConfigDict(from_attributes=True)
 
 
-class CollectionVizConfigOut(BaseModel):
-    """Per-collection, per-visualization render params (new authoritative representation)."""
-
-    id: int
-    name: str
-    display_order: int
-    render_params: dict
-    cover_render_params: dict | None = None
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class CollectionStacConfigOut(BaseModel):
-    catalog_url: str | None = None
-    stac_collection_id: str | None = None
-    # API name `tiler`, ORM column `tile_provider`. null => default tiler.
-    tiler: str | None = Field(default=None, validation_alias="tile_provider")
-    viz_configs: list[CollectionVizConfigOut] = []
+class CollectionSearchOut(BaseModel):
+    catalog_url: str
+    stac_collection_id: str
+    # null => default tiler.
+    tiler: str | None = None
     max_cloud_cover: float | None = None
     search_query: dict | None = None
     cover_search_query: dict | None = None
@@ -66,7 +52,15 @@ class CollectionStacConfigOut(BaseModel):
     # The private catalog's access, as its kind and expiry only - never the secret.
     storage_access: StorageAccessOut | None = None
 
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CollectionVisualizationOut(BaseModel):
+    visualization_id: int
+    params: dict
+    cover_params: dict | None = None
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ImageryCollectionOut(BaseModel):
@@ -77,12 +71,14 @@ class ImageryCollectionOut(BaseModel):
     display_order: int
     generation_series_id: int | None = None
     slices: list[ImagerySliceOut]
-    stac_config: CollectionStacConfigOut | None = None
+    # Null for a collection whose slices are given by URL templates.
+    search: CollectionSearchOut | None = None
+    visualizations: list[CollectionVisualizationOut] = []
 
     model_config = ConfigDict(from_attributes=True)
 
 
-class VisualizationTemplateOut(BaseModel):
+class VisualizationOut(BaseModel):
     id: int
     name: str
     display_order: int
@@ -90,19 +86,17 @@ class VisualizationTemplateOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ImageryGenerationConfigV1(BaseModel):
-    """Lossless, versioned input for the temporal imagery generator."""
+class StacGenerationConfig(BaseModel):
+    """What the temporal generator was asked for: the period it covers and how it
+    cut that period into windows and slices. Only what nothing else stores - the
+    search and the visualizations live on each generated collection, where they can
+    be edited one window at a time."""
 
-    # Defaulted rather than required: series saved before Planet scenes existed carry
-    # no tag, and they are all STAC ones.
-    kind: Literal["stac"] = "stac"
-    version: Literal[1] = 1
-    catalog_url: str
-    stac_collection_id: str
+    kind: Literal["stac"]
     collection_title: str
-    is_mpc: bool
+    # Whether the catalog's items carry eo:cloud_cover, which decides whether the
+    # generator offers a cloud filter at all.
     has_cloud_cover: bool
-    tiler: str | None = None
     start_date: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
     end_date: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
     collection_period_interval: int = Field(ge=1)
@@ -111,22 +105,13 @@ class ImageryGenerationConfigV1(BaseModel):
     slice_period_unit: Literal["days", "weeks", "months", "years"]
     cover_mode: Literal["nth", "custom"]
     cover_slice_nth: int = Field(ge=1)
-    max_cloud_cover: float = Field(ge=0, le=100)
-    item_sort: Literal["date_desc", "date_asc", "cloud_cover_asc"]
-    cover_max_cloud_cover: float = Field(ge=0, le=100)
-    cover_item_sort: Literal["date_desc", "date_asc", "cloud_cover_asc"]
-    visualizations: list["NamedVizParamsCreate"]
-    cover_visualizations: list["NamedVizParamsCreate"] = []
-    search_query: dict | None = None
-    cover_search_query: dict | None = None
-    internal_storage: bool = False
 
     model_config = ConfigDict(extra="forbid")
 
 
-# Deliberately not a discriminated union: the STAC tag is a default, so stored configs
-# written before it existed still parse.
-GenerationConfig = ImageryGenerationConfigV1 | PlanetScenesGenerationConfigV1
+GenerationConfig = Annotated[
+    StacGenerationConfig | PlanetScenesGenerationConfig, Field(discriminator="kind")
+]
 
 
 class ImageryGenerationSeriesOut(BaseModel):
@@ -143,7 +128,7 @@ class ImagerySourceOut(BaseModel):
     default_zoom: int
     max_native_zoom: int | None = None
     display_order: int
-    visualizations: list[VisualizationTemplateOut]
+    visualizations: list[VisualizationOut]
     collections: list[ImageryCollectionOut]
     generation_series: list[ImageryGenerationSeriesOut] = []
     # Whether a provider API key is configured (drives the admin UI), and which
@@ -194,31 +179,19 @@ class ImageryViewOut(BaseModel):
     display_order: int
     source_ids: list[int]
 
-    # Populated by from_orm; stay None on any other construction path (e.g. a
-    # plain ImageryViewOut(**kwargs) in a test). Read-only computed fields so
-    # they don't reappear as writable input fields on this output-only schema.
-    _default_canvas_layout: CanvasLayoutOut | None = PrivateAttr(default=None)
-    _personal_canvas_layout: CanvasLayoutOut | None = PrivateAttr(default=None)
+    # The view's default layout and the viewer's own (validation context user_id).
+    default_canvas_layout: CanvasLayoutOut | None = None
+    personal_canvas_layout: CanvasLayoutOut | None = None
 
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def default_canvas_layout(self) -> CanvasLayoutOut | None:
-        return self._default_canvas_layout
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def personal_canvas_layout(self) -> CanvasLayoutOut | None:
-        return self._personal_canvas_layout
-
+    @model_validator(mode="wrap")
     @classmethod
-    def from_orm(cls, obj, user_id: UUID | None = None) -> "ImageryViewOut":
-        instance = cls.model_validate(obj)
-        for layout in getattr(obj, "canvas_layouts", []):
-            if layout.is_default and layout.user_id is None:
-                instance._default_canvas_layout = CanvasLayoutOut.model_validate(layout)
-            elif user_id and layout.user_id == user_id:
-                instance._personal_canvas_layout = CanvasLayoutOut.model_validate(layout)
-        return instance
+    def _layouts(cls, data: Any, handler, info: ValidationInfo) -> "ImageryViewOut":
+        out: ImageryViewOut = handler(data)
+        if hasattr(data, "canvas_layouts"):
+            out.default_canvas_layout, out.personal_canvas_layout = viewer_layouts(
+                data.canvas_layouts, info
+            )
+        return out
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -228,21 +201,33 @@ class ImageryViewOut(BaseModel):
 # ============================================================================
 
 
-class SliceTileUrlCreate(BaseModel):
-    visualization_name: str
-    tile_url: str
+class SliceTemplateCreate(BaseModel):
+    # A visualization of the same source, by name.
+    visualization: str
+    url: str
 
 
 class ImagerySliceCreate(BaseModel):
     id: int | None = None
-    name: str = ""
-    start_date: str
-    end_date: str
-    tile_urls: list[SliceTileUrlCreate] = []
+    name: str = Field(min_length=1, pattern=r"\S")
+    start_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    end_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    # A manual slice's tile template per visualization; a STAC slice has none.
+    templates: list[SliceTemplateCreate] = []
+
+    @model_validator(mode="after")
+    def dates_are_real_and_ordered(self) -> "ImagerySliceCreate":
+        try:
+            start, end = date.fromisoformat(self.start_date), date.fromisoformat(self.end_date)
+        except ValueError as exc:
+            raise ValueError(f"slice '{self.name}' has a date that does not exist") from exc
+        if end < start:
+            raise ValueError(f"slice '{self.name}' ends before it starts")
+        return self
 
 
-class VizParamsCreate(BaseModel):
-    """Structured visualization parameters for TiTiler tile rendering."""
+class RenderParams(BaseModel):
+    """How a tiler draws a visualization of a STAC search."""
 
     assets: list[str] = []
     asset_as_band: bool = False
@@ -264,17 +249,17 @@ class VizParamsCreate(BaseModel):
     max_items: int | None = None
 
 
-class NamedVizParamsCreate(BaseModel):
-    name: str
-    viz_params: VizParamsCreate
-    cover_viz_params: VizParamsCreate | None = None
+class CollectionVisualizationCreate(BaseModel):
+    # A visualization of the same source, by name.
+    visualization: str
+    params: RenderParams
+    cover_params: RenderParams | None = None
 
 
-class CollectionStacConfigCreate(BaseModel):
-    catalog_url: str | None = None
-    stac_collection_id: str | None = None
+class CollectionSearchCreate(BaseModel):
+    catalog_url: str
+    stac_collection_id: str
     tiler: str | None = None  # hosted tiler name; null => DEFAULT_TILER
-    visualizations: list[NamedVizParamsCreate] = []
     max_cloud_cover: float | None = None
     search_query: dict | None = None
     cover_search_query: dict | None = None
@@ -290,7 +275,9 @@ class ImageryCollectionCreate(BaseModel):
     has_dedicated_cover: bool = False
     generation_series_key: str | None = None
     slices: list[ImagerySliceCreate]
-    stac_config: CollectionStacConfigCreate | None = None
+    search: CollectionSearchCreate | None = None
+    # A STAC collection's parameters for every visualization of its source.
+    visualizations: list[CollectionVisualizationCreate] = []
 
 
 class ImageryGenerationSeriesCreate(BaseModel):
@@ -305,8 +292,12 @@ class ImageryGenerationSeriesCreate(BaseModel):
     config: GenerationConfig
 
 
-class VisualizationTemplateCreate(BaseModel):
-    name: str
+class VisualizationCreate(BaseModel):
+    """A visualization of the source. ``id`` keeps a stored one, so renaming it keeps its
+    parameters; the name is what the rest of the payload refers to it by."""
+
+    id: int | None = None
+    name: str = Field(min_length=1)
 
 
 class ImagerySourceCreate(ProviderKeyCreate):
@@ -316,19 +307,40 @@ class ImagerySourceCreate(ProviderKeyCreate):
     crosshair_hex6: str = Field(default="ff0000", pattern=r"^[0-9a-fA-F]{6}$")
     default_zoom: int = 15
     max_native_zoom: int | None = Field(default=None, ge=0, le=22)
-    visualizations: list[VisualizationTemplateCreate]
+    visualizations: list[VisualizationCreate]
     generation_series: list[ImageryGenerationSeriesCreate] = []
     collections: list[ImageryCollectionCreate]
 
-    @field_validator("visualizations")
-    @classmethod
-    def visualization_names_unique(
-        cls, v: list[VisualizationTemplateCreate]
-    ) -> list[VisualizationTemplateCreate]:
-        names = [viz.name for viz in v]
+    @model_validator(mode="after")
+    def visualizations_are_consistent(self) -> "ImagerySourceCreate":
+        names = [r.name for r in self.visualizations]
         if len(names) != len(set(names)):
             raise ValueError("visualization names must be unique per source")
-        return v
+        ids = [r.id for r in self.visualizations if r.id is not None]
+        if len(ids) != len(set(ids)):
+            raise ValueError("visualization ids must be unique per source")
+        for col in self.collections:
+            drawn = [r.visualization for r in col.visualizations]
+            if col.search is not None and sorted(drawn) != sorted(names):
+                raise ValueError(
+                    f"collection '{col.name}' must give parameters for each visualization once"
+                )
+            if col.search is None and drawn:
+                raise ValueError(f"collection '{col.name}' has no search to render")
+            for viz in col.visualizations:
+                drawn_params = [viz.params, viz.cover_params if col.has_dedicated_cover else None]
+                if any(p is not None and not (p.assets or p.expression) for p in drawn_params):
+                    raise ValueError(
+                        f"visualization '{viz.visualization}' of collection '{col.name}' "
+                        f"in source '{self.name}' has no bands selected"
+                    )
+            for sl in col.slices:
+                templated = [t.visualization for t in sl.templates]
+                if col.search is not None and templated:
+                    raise ValueError(f"STAC collection '{col.name}' takes no tile templates")
+                if len(templated) != len(set(templated)) or not set(templated) <= set(names):
+                    raise ValueError(f"slice templates of '{col.name}' name unknown visualizations")
+        return self
 
     @model_validator(mode="after")
     def generation_series_references_are_valid(self) -> "ImagerySourceCreate":
@@ -361,7 +373,7 @@ class ImagerySourceCreate(ProviderKeyCreate):
 class BasemapCreate(ProviderKeyCreate):
     id: int | None = None
     name: str
-    url: str
+    url: HttpUrl
     max_native_zoom: int | None = None
 
 
@@ -393,41 +405,3 @@ class ImageryViewOrderUpdate(BaseModel):
     """Full campaign view ordering; must list every view id exactly once."""
 
     view_ids: list[int]
-
-
-# ============================================================================
-# Planet scene search (at annotation time, not at setup)
-# ============================================================================
-
-
-class PlanetSceneSearchIn(BaseModel):
-    """The extent to search, west/south/east/north: whatever is on screen."""
-
-    bbox: list[float] = Field(min_length=4, max_length=4)
-
-
-class PlanetSceneLayersIn(BaseModel):
-    """The dates to mint tile layers for, over the extent they were found on."""
-
-    bbox: list[float] = Field(min_length=4, max_length=4)
-    slice_ids: list[int] = Field(min_length=1, max_length=64)
-
-
-class PlanetSceneSliceOut(BaseModel):
-    """One of the source's slices, and what this extent has for it.
-
-    ``layer_id`` is null for a date that holds imagery but has no tile layer yet: a
-    search mints the covers only, and the rest are minted when they are opened."""
-
-    slice_id: int
-    scene_count: int
-    layer_id: str | None = None
-
-
-class PlanetSceneSearchOut(BaseModel):
-    """What this extent has. Slices missing from ``slices`` hold no imagery here, which
-    is the answer the search exists to give - a date with nothing over you is a date
-    not worth stepping to."""
-
-    slices: list[PlanetSceneSliceOut]
-    errors: list[str] = []

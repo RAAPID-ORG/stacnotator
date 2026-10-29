@@ -1,33 +1,23 @@
 """Tests for campaign service layer (campaigns/service.py)."""
 
 from datetime import datetime
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 
-from src.annotation.models import Annotation, AnnotationTaskAssignment
-from src.campaigns.assignments import (
-    _distribute_evenly,
-    _distribute_fixed,
-    assign_reviewers_fixed,
-    assign_reviewers_manual,
-    assign_reviewers_percentage,
-    assign_tasks_to_users,
-)
+from src.annotation.models import Annotation
 from src.campaigns.form_fields import CategoryFormField, TextFormField
-from src.campaigns.schemas import AssignTasksToUsersRequest
+from src.campaigns.models import Campaign
+from src.campaigns.schemas import CampaignUpdate
 from src.campaigns.service import (
-    delete_annotation_tasks,
-    delete_campaign,
     list_campaigns_with_user_roles,
-    update_campaign_bbox,
-    update_campaign_form_fields,
-    update_campaign_name,
-    update_research_sharing,
+    update_campaign,
     visible_campaign_ids,
 )
 from src.campaigns.statistics import (
@@ -36,12 +26,47 @@ from src.campaigns.statistics import (
     _scoped_to_set,
 )
 from src.layers import LayerOwner
+from src.tasks import service as tasks_service
+from src.tasks.assignments import (
+    _distribute_evenly,
+    _distribute_fixed,
+    assign_reviewers,
+    assign_tasks_to_users,
+)
+from src.tasks.models import TaskAssignment
+from src.tasks.schemas import AssignTasksToUsersRequest, ReviewNumberOfTasks, ReviewShareOfTasks
 
 
 def _mock_db():
     db = MagicMock()
     db.scalars.return_value.all.return_value = []
     return db
+
+
+def assign_reviewers_percentage(
+    db, campaign_id, percentage, num_reviewers, reviewer_ids, task_set_id=None
+):
+    req = ReviewShareOfTasks(
+        pattern="percentage",
+        percentage=percentage,
+        reviewers_per_task=num_reviewers,
+        reviewer_ids=reviewer_ids,
+        task_set_id=task_set_id,
+    )
+    return assign_reviewers(db, campaign_id, req)
+
+
+def assign_reviewers_fixed(
+    db, campaign_id, num_tasks, num_reviewers, reviewer_ids, task_set_id=None
+):
+    req = ReviewNumberOfTasks(
+        pattern="fixed",
+        num_tasks=num_tasks,
+        reviewers_per_task=num_reviewers,
+        reviewer_ids=reviewer_ids,
+        task_set_id=task_set_id,
+    )
+    return assign_reviewers(db, campaign_id, req)
 
 
 def _compile(statement) -> str:
@@ -60,12 +85,12 @@ class TestScopedToSet:
 
     def test_no_set_leaves_the_campaign_wide_query_alone(self):
         sql = _compile(_scoped_to_set(self._statement(), None))
-        assert "annotation_tasks" not in sql
+        assert "data.tasks" not in sql
 
     def test_a_set_joins_its_tasks_and_filters_on_it(self):
         sql = _compile(_scoped_to_set(self._statement(), 7))
-        assert "JOIN data.annotation_tasks" in sql
-        assert "data.annotation_tasks.task_set_id = 7" in sql
+        assert "JOIN data.tasks" in sql
+        assert "data.tasks.task_set_id = 7" in sql
 
 
 class TestKrippendorffAlpha:
@@ -128,6 +153,14 @@ class TestKrippendorffAlpha:
         assert alpha is not None
         assert alpha == pytest.approx(1.0)
 
+    def test_draw_task_outcomes_are_compared_like_labels(self):
+        u1, u2 = uuid4(), uuid4()
+        data = {
+            1: [(u1, "drawn"), (u2, "drawn")],
+            2: [(u1, "none_found"), (u2, "none_found")],
+        }
+        assert _calculate_krippendorff_alpha(data) == pytest.approx(1.0)
+
 
 class TestPairwiseAgreement:
     """Pure-logic: no DB needed."""
@@ -180,50 +213,60 @@ class TestPairwiseAgreement:
         assert pct == 100.0
 
 
-class TestUpdateCampaignName:
-    def test_updates_name(self):
+class TestUpdateCampaign:
+    def test_changes_only_the_fields_sent(self):
         db = _mock_db()
         campaign = MagicMock()
         campaign.name = "Old"
-        db.get.return_value = campaign
+        campaign.guide_markdown = "keep"
 
-        update_campaign_name(db, 1, "New")
+        with patch("src.campaigns.service.get_campaign_full"):
+            update_campaign(db, campaign, CampaignUpdate(name="New", research_sharing=True))
+
         assert campaign.name == "New"
+        assert campaign.research_sharing is True
+        assert campaign.guide_markdown == "keep"
         db.commit.assert_called_once()
 
-    def test_not_found_raises_404(self):
-        db = _mock_db()
-        db.get.return_value = None
-
-        with pytest.raises(HTTPException) as exc_info:
-            update_campaign_name(db, 999, "New")
-        assert exc_info.value.status_code == 404
-
-
-class TestUpdateCampaignBbox:
-    def test_updates_bbox_fields(self):
-        db = _mock_db()
-        settings = MagicMock()
+    def test_null_clears_a_nullable_field(self):
         campaign = MagicMock()
-        campaign.settings = settings
-        db.get.return_value = campaign
+        with patch("src.campaigns.service.get_campaign_full"):
+            update_campaign(_mock_db(), campaign, CampaignUpdate(guide_markdown=None))
+        assert campaign.guide_markdown is None
 
-        update_campaign_bbox(db, 1, -10, -20, 10, 20)
+    def test_null_is_refused_for_a_required_field(self):
+        with pytest.raises(ValidationError):
+            CampaignUpdate(name=None)
 
-        assert settings.bbox_west == -10
-        assert settings.bbox_south == -20
-        assert settings.bbox_east == 10
-        assert settings.bbox_north == 20
-        db.commit.assert_called_once()
 
-    def test_commits_registration_status_before_spawning_for_new_roi(self):
+def _move_area(db, campaign):
+    with patch("src.campaigns.service.get_campaign_full"):
+        update_campaign(
+            db,
+            campaign,
+            CampaignUpdate(bbox_west=-10, bbox_south=-20, bbox_east=10, bbox_north=20),
+        )
+
+
+def _campaign_row(**kwargs) -> Campaign:
+    return Campaign(
+        id=1,
+        registration_status="ready",
+        bbox_west=0,
+        bbox_south=0,
+        bbox_east=1,
+        bbox_north=1,
+        **kwargs,
+    )
+
+
+class TestUpdateCampaignArea:
+    def test_commits_registration_status_before_spawning_for_new_area(self):
         db = _mock_db()
-        campaign = MagicMock(registration_status="ready", registration_errors=[{"error": "old"}])
-        db.get.return_value = campaign
-        pending = [MagicMock()]
+        campaign = _campaign_row(registration_errors=[{"error": "old"}])
 
         def committed():
-            assert campaign.settings.bbox_west == -10
+            assert campaign.bbox_west == -10
             assert campaign.registration_status == "registering"
             assert campaign.registration_heartbeat_at is not None
             assert campaign.registration_errors is None
@@ -234,63 +277,42 @@ class TestUpdateCampaignBbox:
             db.commit.assert_called_once()
 
         with (
+            patch("src.campaigns.service.drop_mosaics") as drop,
+            patch("src.imagery.registration.missing_mosaics", return_value=[MagicMock()]),
             patch(
-                "src.campaigns.service.prepare_stac_reregistration", return_value=pending
-            ) as prepare,
-            patch(
-                "src.campaigns.service.spawn_background_registration", side_effect=spawned
+                "src.imagery.registration.spawn_background_registration", side_effect=spawned
             ) as spawn,
         ):
-            update_campaign_bbox(db, 1, -10, -20, 10, 20)
+            _move_area(db, campaign)
 
-        prepare.assert_called_once_with(db, 1)
-        spawn.assert_called_once_with(LayerOwner(campaign_id=1), pending, [-10, -20, 10, 20])
+        drop.assert_called_once_with(campaign.imagery_sources)
+        spawn.assert_called_once_with(LayerOwner(campaign_id=1), [-10, -20, 10, 20])
 
     def test_without_stac_imagery_does_not_start_registration(self):
         db = _mock_db()
-        campaign = MagicMock(registration_status="ready")
-        db.get.return_value = campaign
+        campaign = _campaign_row()
         with (
-            patch("src.campaigns.service.prepare_stac_reregistration", return_value=[]),
-            patch("src.campaigns.service.spawn_background_registration") as spawn,
+            patch("src.campaigns.service.drop_mosaics"),
+            patch("src.imagery.registration.missing_mosaics", return_value=[]),
+            patch("src.imagery.registration.spawn_background_registration") as spawn,
         ):
-            update_campaign_bbox(db, 1, -10, -20, 10, 20)
+            _move_area(db, campaign)
 
+        assert campaign.bbox == (-10, -20, 10, 20)
         assert campaign.registration_status == "ready"
         spawn.assert_not_called()
 
-    def test_cannot_change_roi_during_registration(self):
+    def test_cannot_change_area_during_registration(self):
         db = _mock_db()
-        campaign = MagicMock(registration_status="registering")
-        campaign.settings.bbox_west = 0
-        db.get.return_value = campaign
+        campaign = _campaign_row()
+        campaign.registration_status = "registering"
 
         with pytest.raises(HTTPException) as exc_info:
-            update_campaign_bbox(db, 1, -10, -20, 10, 20)
+            _move_area(db, campaign)
 
         assert exc_info.value.status_code == 409
-        assert campaign.settings.bbox_west == 0
+        assert campaign.bbox_west == 0
         db.commit.assert_not_called()
-
-    def test_no_settings_raises_404(self):
-        db = _mock_db()
-        campaign = MagicMock()
-        campaign.settings = None
-        db.get.return_value = campaign
-
-        with pytest.raises(HTTPException) as exc_info:
-            update_campaign_bbox(db, 1, -10, -20, 10, 20)
-        assert exc_info.value.status_code == 404
-
-
-class TestDeleteCampaign:
-    def test_not_found_raises_404(self):
-        db = _mock_db()
-        db.get.return_value = None
-
-        with pytest.raises(HTTPException) as exc_info:
-            delete_campaign(db, 999)
-        assert exc_info.value.status_code == 404
 
 
 def _stub_scalars(db, results_in_order):
@@ -312,17 +334,13 @@ def _make_tasks(task_ids):
 
 
 def _make_assignment(task_id, user_id, is_review=False):
-    return MagicMock(
-        spec=AnnotationTaskAssignment, task_id=task_id, user_id=user_id, is_review=is_review
-    )
+    return MagicMock(spec=TaskAssignment, task_id=task_id, user_id=user_id, is_review=is_review)
 
 
 class TestAssignReviewersPercentage:
-    def test_invalid_percentage_raises_400(self):
-        db = _mock_db()
-        with pytest.raises(HTTPException) as exc_info:
-            assign_reviewers_percentage(db, 1, 0, 1, [uuid4()])
-        assert exc_info.value.status_code == 400
+    def test_invalid_percentage_is_rejected(self):
+        with pytest.raises(ValidationError):
+            assign_reviewers_percentage(_mock_db(), 1, 0, 1, [uuid4()])
 
     def test_too_few_reviewers_raises_400(self):
         db = _mock_db()
@@ -330,11 +348,9 @@ class TestAssignReviewersPercentage:
             assign_reviewers_percentage(db, 1, 50, 3, [uuid4()])
         assert exc_info.value.status_code == 400
 
-    def test_zero_reviewers_raises_400(self):
-        db = _mock_db()
-        with pytest.raises(HTTPException) as exc_info:
-            assign_reviewers_percentage(db, 1, 50, 0, [uuid4()])
-        assert exc_info.value.status_code == 400
+    def test_zero_reviewers_is_rejected(self):
+        with pytest.raises(ValidationError):
+            assign_reviewers_percentage(_mock_db(), 1, 50, 0, [uuid4()])
 
     def test_no_tasks_in_campaign_raises_404(self):
         db = _mock_db()
@@ -381,7 +397,7 @@ class TestAssignReviewersPercentage:
         assign_reviewers_percentage(db, 1, percentage=100, num_reviewers=1, reviewer_ids=[u1])
 
         added = [c.args[0] for c in db.add.call_args_list]
-        assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+        assignments = [a for a in added if isinstance(a, TaskAssignment)]
         assert {a.task_id for a in assignments} == {10, 20, 30}
         assert all(a.user_id == u1 for a in assignments)
         assert all(a.is_review is True for a in assignments)
@@ -404,7 +420,7 @@ class TestAssignReviewersPercentage:
         assign_reviewers_percentage(db, 1, percentage=100, num_reviewers=1, reviewer_ids=[u1])
 
         added = [c.args[0] for c in db.add.call_args_list]
-        assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+        assignments = [a for a in added if isinstance(a, TaskAssignment)]
         assert assignments == []
         db.commit.assert_called_once()
 
@@ -431,7 +447,7 @@ class TestAssignReviewersPercentage:
         )
 
         added = [c.args[0] for c in db.add.call_args_list]
-        assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+        assignments = [a for a in added if isinstance(a, TaskAssignment)]
         assert all(a.user_id != annotator for a in assignments), (
             "Original annotator was assigned as a reviewer for their own task"
         )
@@ -463,7 +479,7 @@ class TestAssignReviewersPercentage:
         )
 
         added = [c.args[0] for c in db.add.call_args_list]
-        new_assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+        new_assignments = [a for a in added if isinstance(a, TaskAssignment)]
 
         # Each task should get exactly 2 new reviewers (r1 and r2)
         from collections import Counter
@@ -478,11 +494,9 @@ class TestAssignReviewersPercentage:
 
 
 class TestAssignReviewersFixed:
-    def test_zero_tasks_raises_400(self):
-        db = _mock_db()
-        with pytest.raises(HTTPException) as exc_info:
-            assign_reviewers_fixed(db, 1, 0, 1, [uuid4()])
-        assert exc_info.value.status_code == 400
+    def test_zero_tasks_is_rejected(self):
+        with pytest.raises(ValidationError):
+            assign_reviewers_fixed(_mock_db(), 1, 0, 1, [uuid4()])
 
     def test_too_few_reviewers_raises_400(self):
         db = _mock_db()
@@ -520,7 +534,7 @@ class TestAssignReviewersFixed:
         assign_reviewers_fixed(db, 1, num_tasks=2, num_reviewers=1, reviewer_ids=[u1])
 
         added = [c.args[0] for c in db.add.call_args_list]
-        assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+        assignments = [a for a in added if isinstance(a, TaskAssignment)]
         assert len(assignments) == 2
         assert len({a.task_id for a in assignments}) == 2
         assert all(a.task_id in {10, 20, 30} for a in assignments)
@@ -550,7 +564,7 @@ class TestAssignReviewersFixed:
         )
 
         added = [c.args[0] for c in db.add.call_args_list]
-        assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+        assignments = [a for a in added if isinstance(a, TaskAssignment)]
         assert all(a.user_id != annotator for a in assignments), (
             "Original annotator was assigned as a reviewer for their own task"
         )
@@ -581,7 +595,7 @@ class TestAssignReviewersFixed:
         )
 
         added = [c.args[0] for c in db.add.call_args_list]
-        new_assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+        new_assignments = [a for a in added if isinstance(a, TaskAssignment)]
 
         from collections import Counter
 
@@ -616,7 +630,7 @@ class TestReviewerTopUp:
         )
 
         added = [c.args[0] for c in db.add.call_args_list]
-        new_assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+        new_assignments = [a for a in added if isinstance(a, TaskAssignment)]
         assert len(new_assignments) == 1
         assert new_assignments[0].task_id == 10
         assert new_assignments[0].user_id in {r2, r3}
@@ -645,7 +659,7 @@ class TestReviewerTopUp:
         )
 
         added = [c.args[0] for c in db.add.call_args_list]
-        new_assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+        new_assignments = [a for a in added if isinstance(a, TaskAssignment)]
         assert new_assignments == []
 
     def test_no_reviewable_tasks_raises_404(self):
@@ -665,45 +679,6 @@ class TestReviewerTopUp:
         assert exc_info.value.status_code == 404
 
 
-class TestAssignReviewersManual:
-    def test_assigns_reviewers_with_is_review_flag(self):
-        db = _mock_db()
-        u1, u2 = uuid4(), uuid4()
-        _stub_scalars(
-            db,
-            [
-                [u1, u2],  # _verify_campaign_members: found user_ids
-                [10, 20],  # _verify_tasks_in_campaign: found task ids
-                _make_tasks([10, 20]),  # _reviewable_tasks
-            ],
-        )
-        db.execute.return_value.all.return_value = []  # _filter_new_pairs: no existing pairs
-
-        created = assign_reviewers_manual(db, 1, {10: [u1], 20: [u2]})
-
-        added = [c.args[0] for c in db.add.call_args_list]
-        assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
-        assert created == 2
-        assert {(a.task_id, a.user_id) for a in assignments} == {(10, u1), (20, u2)}
-        assert all(a.is_review is True for a in assignments)
-
-    def test_task_without_primary_assignment_raises_400(self):
-        db = _mock_db()
-        u1 = uuid4()
-        _stub_scalars(
-            db,
-            [
-                [u1],  # members found
-                [10, 20],  # tasks in campaign
-                _make_tasks([10]),  # only task 10 has a primary assignment
-            ],
-        )
-
-        with pytest.raises(HTTPException) as exc_info:
-            assign_reviewers_manual(db, 1, {10: [u1], 20: [u1]})
-        assert exc_info.value.status_code == 400
-
-
 class TestListCampaignsVisibility:
     """Verify list_campaigns_with_user_roles respects visibility scopes,
     resolving membership through the owning project's ProjectUser rows and
@@ -715,7 +690,9 @@ class TestListCampaignsVisibility:
         campaign.name = f"Campaign {cid}"
         campaign.created_at = datetime(2024, 1, 1)
         campaign.project_id = project_id
-        campaign.project = MagicMock(visibility=visibility, organization_id=organization_id)
+        campaign.project = MagicMock(
+            id=project_id, visibility=visibility, organization_id=organization_id
+        )
         campaign.registration_status = "ready"
         campaign.embedding_status = "ready"
         return campaign
@@ -727,9 +704,9 @@ class TestListCampaignsVisibility:
         return pu
 
     def _stub(self, db, campaigns, memberships, org_ids=()):
-        """First db.scalars(...) call is the Campaign query (chained
-        .unique().all()); the second is the ProjectUser query and the third
-        the active-org-ids query, both iterated directly."""
+        """First db.scalars(...) call is the Campaign query (.all()); the second is
+        the ProjectUser query and the third the active-org-ids query, both
+        iterated directly."""
         calls = {"i": 0}
 
         def side_effect(*_args, **_kwargs):
@@ -737,7 +714,7 @@ class TestListCampaignsVisibility:
             calls["i"] += 1
             if i == 0:
                 chain = MagicMock()
-                chain.unique.return_value.all.return_value = campaigns
+                chain.all.return_value = campaigns
                 return chain
             if i == 1:
                 return memberships
@@ -745,15 +722,9 @@ class TestListCampaignsVisibility:
 
         db.scalars.side_effect = side_effect
 
-    def _list(self, db, user_id, *, is_global_admin=False):
-        import src.campaigns.service as svc
-
-        original = svc.is_global_admin
-        svc.is_global_admin = lambda db, uid: is_global_admin
-        try:
-            return list_campaigns_with_user_roles(db, user_id)
-        finally:
-            svc.is_global_admin = original
+    def _list(self, db, user_id, *, is_platform_admin=False):
+        user = SimpleNamespace(id=user_id, is_platform_admin=is_platform_admin)
+        return list_campaigns_with_user_roles(db, user)
 
     def test_regular_user_sees_public_and_member_campaigns(self):
         db = _mock_db()
@@ -817,7 +788,7 @@ class TestListCampaignsVisibility:
         public_campaign = self._make_campaign(2, project_id=2, visibility="public")
         self._stub(db, campaigns=[private_campaign, public_campaign], memberships=[])
 
-        results = self._list(db, user_id, is_global_admin=True)
+        results = self._list(db, user_id, is_platform_admin=True)
 
         assert len(results) == 2
 
@@ -829,17 +800,15 @@ class TestVisibleCampaignIds:
 
     def _statement(self):
         db = _mock_db()
-        db.execute.return_value.first.return_value = None  # not a platform admin
 
-        visible_campaign_ids(db, uuid4())
+        visible_campaign_ids(db, SimpleNamespace(id=uuid4(), is_platform_admin=False))
 
         return db.scalars.call_args.args[0]
 
     def test_platform_admin_gets_every_campaign_unfiltered(self):
         db = _mock_db()
-        db.execute.return_value.first.return_value = ("admin",)
 
-        visible_campaign_ids(db, uuid4())
+        visible_campaign_ids(db, SimpleNamespace(id=uuid4(), is_platform_admin=True))
 
         assert "WHERE" not in str(db.scalars.call_args.args[0])
 
@@ -926,25 +895,17 @@ def test_create_campaign_creates_default_task_set(sample_settings_data, sample_u
     from unittest.mock import MagicMock, patch
 
     from src.campaigns import service
-    from src.campaigns.models import TaskSet
     from src.campaigns.schemas import CampaignSettingsCreate
-    from src.campaigns.task_sets import DEFAULT_TASK_SET_NAME
+    from src.tasks.models import TaskSet
+    from src.tasks.task_sets import DEFAULT_TASK_SET_NAME
 
     db = MagicMock()
-    mock_settings = MagicMock()
-    mock_settings.embedding_year = None
     db.get.return_value = MagicMock(visibility="private")  # db.get(Project, project_id)
-
-    def mock_refresh(obj):
-        obj.settings = mock_settings
-
-    db.refresh.side_effect = mock_refresh
 
     with patch("src.campaigns.service.get_campaign_full"):
         service.create_campaign(
             db,
             name="c",
-            mode="tasks",
             project_id=1,
             settings=CampaignSettingsCreate(**sample_settings_data),
             user_id=sample_user_id,
@@ -957,6 +918,10 @@ def test_create_campaign_creates_default_task_set(sample_settings_data, sample_u
     assert added_task_sets[0].name == DEFAULT_TASK_SET_NAME
 
 
+def _save_form_fields(db, campaign, fields):
+    return update_campaign(db, campaign, CampaignUpdate(form_fields=fields))
+
+
 class TestUpdateCampaignFormFields:
     CATEGORY_FIELD = {
         "id": 1,
@@ -967,10 +932,8 @@ class TestUpdateCampaignFormFields:
     }
 
     def _campaign(self, db, fields):
-        settings = MagicMock()
-        settings.form_fields = fields
         campaign = MagicMock()
-        campaign.settings = settings
+        campaign.form_fields = fields
         db.get.return_value = campaign
         return campaign
 
@@ -987,16 +950,16 @@ class TestUpdateCampaignFormFields:
         campaign = self._campaign(db, [dict(self.CATEGORY_FIELD)])
 
         with patch("src.campaigns.service.get_campaign_full"):
-            update_campaign_form_fields(
+            _save_form_fields(
                 db,
-                1,
+                campaign,
                 [
                     self._category(title="Crop type"),
                     TextFormField(id=2, type="text", title="Notes"),
                 ],
             )
 
-        stored = campaign.settings.form_fields
+        stored = campaign.form_fields
         assert [f["id"] for f in stored] == [1, 2]
         assert stored[0]["title"] == "Crop type"
         db.commit.assert_called_once()
@@ -1008,9 +971,9 @@ class TestUpdateCampaignFormFields:
         self._answered(db, "1")
 
         with patch("src.campaigns.service.get_campaign_full"):
-            update_campaign_form_fields(db, 1, [TextFormField(id=2, type="text", title="Notes")])
+            _save_form_fields(db, campaign, [TextFormField(id=2, type="text", title="Notes")])
 
-        assert [f["id"] for f in campaign.settings.form_fields] == [2]
+        assert [f["id"] for f in campaign.form_fields] == [2]
         db.execute.assert_called_once()
         sql = _compile(db.execute.call_args[0][0])
         # Discards only the removed field's key (leaving answers to surviving
@@ -1023,28 +986,28 @@ class TestUpdateCampaignFormFields:
         campaign = self._campaign(db, [dict(self.CATEGORY_FIELD)])
 
         with patch("src.campaigns.service.get_campaign_full"):
-            update_campaign_form_fields(db, 1, [TextFormField(id=2, type="text", title="Notes")])
+            _save_form_fields(db, campaign, [TextFormField(id=2, type="text", title="Notes")])
 
-        assert [f["id"] for f in campaign.settings.form_fields] == [2]
+        assert [f["id"] for f in campaign.form_fields] == [2]
         db.execute.assert_not_called()
 
     def test_keeping_every_field_touches_no_annotation(self):
         db = _mock_db()
-        self._campaign(db, [dict(self.CATEGORY_FIELD)])
+        campaign = self._campaign(db, [dict(self.CATEGORY_FIELD)])
 
         with patch("src.campaigns.service.get_campaign_full"):
-            update_campaign_form_fields(db, 1, [self._category(title="Crop type")])
+            _save_form_fields(db, campaign, [self._category(title="Crop type")])
 
         db.execute.assert_not_called()
 
     def test_removing_several_fields_strips_them_in_one_statement(self):
         db = _mock_db()
         second = {**self.CATEGORY_FIELD, "id": 7, "title": "Notes"}
-        self._campaign(db, [dict(self.CATEGORY_FIELD), second])
+        campaign = self._campaign(db, [dict(self.CATEGORY_FIELD), second])
         self._answered(db, "1", "7")
 
         with patch("src.campaigns.service.get_campaign_full"):
-            update_campaign_form_fields(db, 1, [])
+            _save_form_fields(db, campaign, [])
 
         db.execute.assert_called_once()
         assert "form_values - CAST(ARRAY['1', '7'] AS TEXT[])" in _compile(
@@ -1054,22 +1017,22 @@ class TestUpdateCampaignFormFields:
     def test_a_rejected_reshape_strips_nothing(self):
         # The 409 must abort before any answer is discarded.
         db = _mock_db()
-        self._campaign(db, [dict(self.CATEGORY_FIELD)])
+        campaign = self._campaign(db, [dict(self.CATEGORY_FIELD)])
         self._answered(db, "1")
 
         with pytest.raises(HTTPException):
-            update_campaign_form_fields(db, 1, [TextFormField(id=1, type="text", title="Crop")])
+            _save_form_fields(db, campaign, [TextFormField(id=1, type="text", title="Crop")])
 
         db.execute.assert_not_called()
         db.commit.assert_not_called()
 
     def test_type_change_with_answers_is_rejected(self):
         db = _mock_db()
-        self._campaign(db, [dict(self.CATEGORY_FIELD)])
+        campaign = self._campaign(db, [dict(self.CATEGORY_FIELD)])
         self._answered(db, "1")
 
         with pytest.raises(HTTPException) as exc_info:
-            update_campaign_form_fields(db, 1, [TextFormField(id=1, type="text", title="Crop")])
+            _save_form_fields(db, campaign, [TextFormField(id=1, type="text", title="Crop")])
         assert exc_info.value.status_code == 409
 
     def test_type_change_without_answers_succeeds(self):
@@ -1078,19 +1041,17 @@ class TestUpdateCampaignFormFields:
         self._answered(db)
 
         with patch("src.campaigns.service.get_campaign_full"):
-            update_campaign_form_fields(db, 1, [TextFormField(id=1, type="text", title="Crop")])
+            _save_form_fields(db, campaign, [TextFormField(id=1, type="text", title="Crop")])
 
-        assert campaign.settings.form_fields[0]["type"] == "text"
+        assert campaign.form_fields[0]["type"] == "text"
 
     def test_removing_an_option_with_answers_is_rejected(self):
         db = _mock_db()
-        self._campaign(db, [dict(self.CATEGORY_FIELD)])
+        campaign = self._campaign(db, [dict(self.CATEGORY_FIELD)])
         self._answered(db, "1")
 
         with pytest.raises(HTTPException) as exc_info:
-            update_campaign_form_fields(
-                db, 1, [self._category(options=[{"id": 1, "name": "Maize"}])]
-            )
+            _save_form_fields(db, campaign, [self._category(options=[{"id": 1, "name": "Maize"}])])
         assert exc_info.value.status_code == 409
 
     def test_renaming_and_adding_options_succeeds(self):
@@ -1103,63 +1064,44 @@ class TestUpdateCampaignFormFields:
         ]
 
         with patch("src.campaigns.service.get_campaign_full"):
-            update_campaign_form_fields(db, 1, [self._category(options=new_options)])
+            _save_form_fields(db, campaign, [self._category(options=new_options)])
 
-        assert [o["id"] for o in campaign.settings.form_fields[0]["options"]] == [1, 2, 3]
+        assert [o["id"] for o in campaign.form_fields[0]["options"]] == [1, 2, 3]
         db.scalars.assert_not_called()
 
 
-class TestResearchSharing:
-    def test_turning_it_on_writes_the_campaign_setting(self):
-        db = _mock_db()
-        campaign = MagicMock()
-        db.get.return_value = campaign
+class TestDeleteTasks:
+    """A task's rows go with it; a labelled answer stays as a shape of its own
+    unless the admin asks for the annotations to go too."""
 
-        with patch("src.campaigns.service.get_campaign_full"):
-            update_research_sharing(db, 1, True)
-
-        assert campaign.settings.research_sharing is True
-        db.commit.assert_called_once()
-
-    def test_a_campaign_without_settings_is_a_404(self):
-        db = _mock_db()
-        campaign = MagicMock()
-        campaign.settings = None
-        db.get.return_value = campaign
-
-        with pytest.raises(HTTPException) as exc_info:
-            update_research_sharing(db, 1, True)
-
-        assert exc_info.value.status_code == 404
-
-
-class TestDeleteAnnotationTasks:
-    """Deleting tasks keeps their annotations unless the admin asks otherwise."""
-
-    def _db(self, tasks, annotations):
+    def _db(self, *selects):
         db = MagicMock()
-        db.scalars.return_value.all.side_effect = [tasks, annotations]
+        db.scalars.return_value.all.side_effect = list(selects)
         return db
 
-    @patch("src.campaigns.service.assignments._verify_tasks_in_campaign")
-    def test_keeps_annotations_by_default(self, _verify):
-        task = MagicMock(id=1, geometry_id=11)
-        db = self._db([task], [])
+    @patch("src.tasks.service.bump_campaign_annotations_version")
+    @patch("src.tasks.service.record_annotation_deletions")
+    def test_labelled_answers_become_shapes(self, record_deletions, _bump):
+        task = MagicMock(id=1)
+        labelled = MagicMock(id=7, outcome="labelled", task_id=1)
+        skipped = MagicMock(id=8, outcome="skipped", task_id=1)
+        db = self._db([labelled, skipped])
 
-        assert delete_annotation_tasks(db, 1, [1]) == 1
+        tasks_service.delete_tasks(db, 1, [task], delete_annotations=False)
 
-        db.delete.assert_called_once_with(task)
-        assert db.scalars.call_count == 1
+        assert (labelled.task_id, labelled.outcome) == (None, None)
+        assert [c.args[0] for c in db.delete.call_args_list] == [skipped, task]
+        record_deletions.assert_called_once_with(db, 1, [8])
 
-    @patch("src.campaigns.service.annotation_service.record_annotation_deletions")
-    @patch("src.campaigns.service.assignments._verify_tasks_in_campaign")
-    def test_deletes_annotations_when_asked(self, _verify, record_deletions):
-        task = MagicMock(id=1, geometry_id=11)
-        annotation = MagicMock(id=7, geometry_id=11)
-        db = self._db([task], [annotation])
+    @patch("src.tasks.service.bump_campaign_annotations_version")
+    @patch("src.tasks.service.record_annotation_deletions")
+    def test_deletes_answers_and_drawn_shapes_when_asked(self, record_deletions, _bump):
+        task = MagicMock(id=1)
+        answer = MagicMock(id=7, outcome="drawn")
+        shape = MagicMock(id=9, outcome=None)
+        db = self._db([answer], [shape])
 
-        delete_annotation_tasks(db, 1, [1], delete_annotations=True)
+        tasks_service.delete_tasks(db, 1, [task], delete_annotations=True)
 
-        assert [c.args[0] for c in db.delete.call_args_list] == [annotation, task]
-        record_deletions.assert_called_once_with(db, 1, [7])
-        db.commit.assert_called_once()
+        assert [c.args[0] for c in db.delete.call_args_list] == [answer, shape, task]
+        record_deletions.assert_called_once_with(db, 1, [7, 9])

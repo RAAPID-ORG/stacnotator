@@ -259,9 +259,7 @@
     "saveBeforeReregister": "Guarda tus cambios antes de volver a registrar esta fuente.",
     "cannotReregister": "No se puede volver a registrar",
     "reregisterFailed": "No se pudo volver a registrar la fuente",
-    "saveBeforeRefresh": "Guarda tus cambios antes de actualizar esta colección.",
-    "cannotRefresh": "No se puede actualizar",
-    "refreshFailed": "No se pudo actualizar la colección"
+    "reregisterStarted": "Volviendo a registrar las imágenes. El recuento de cortes registrados se actualiza al terminar."
   },
   "tiler": {
     "methods": {
@@ -326,7 +324,6 @@
     "customizeCover": "Personalizar la portada por separado",
     "stacConfig": "Configuración STAC",
     "singleItem": "Ítem único",
-    "mosaic": "Mosaico",
     "catalogUrl": "URL del catálogo",
     "stacCollectionId": "ID de la colección STAC",
     "internalStorage": "Alojado en el almacenamiento interno",
@@ -351,17 +348,20 @@
     "registered": "{{registered}} de {{total}} cortes registrados ({{percent}} %)",
     "working": "Procesando…",
     "reregister": "Volver a registrar imágenes",
-    "confirmDelete": "¿Eliminar la fuente de imágenes \"{{name}}\"?\n\nEsta acción no se puede deshacer.",
+    "confirmDeleteTitle": "¿Eliminar la fuente de imágenes \"{{name}}\"?",
+    "confirmDeleteDescription": "No se elimina nada hasta que guardes los cambios.",
+    "confirmDeleteCollectionTitle": "¿Eliminar la colección \"{{name}}\"?",
+    "confirmDeleteCollectionDescription": "No se elimina nada hasta que guardes. Al guardar, las anotaciones hechas sobre los cortes de esta colección se conservan, pero pierden el vínculo con las imágenes en las que se dibujaron.",
     "outsideSeries": {
       "title": "Colecciones fuera de esta serie generada",
       "continue": "Continuar",
-      "description_one": "{{count}} colección de esta fuente no forma parte de la serie generada que estás editando. Elige qué debe hacer la regeneración con ella.",
-      "description_many": "{{count}} colecciones de esta fuente no forman parte de la serie generada que estás editando. Elige qué debe hacer la regeneración con ellas.",
-      "description_other": "{{count}} colecciones de esta fuente no forman parte de la serie generada que estás editando. Elige qué debe hacer la regeneración con ellas.",
+      "description_one": "{{count}} colección de esta fuente no forma parte de la serie generada que estás editando. Elige qué hacer con ella al aplicar tus cambios.",
+      "description_many": "{{count}} colecciones de esta fuente no forman parte de la serie generada que estás editando. Elige qué hacer con ellas al aplicar tus cambios.",
+      "description_other": "{{count}} colecciones de esta fuente no forman parte de la serie generada que estás editando. Elige qué hacer con ellas al aplicar tus cambios.",
       "keep_one": "Conservarla",
       "keep_many": "Conservarlas",
       "keep_other": "Conservarlas",
-      "keepHelp": "Recomendado. Reemplaza solo esta serie generada y deja las demás colecciones como están.",
+      "keepHelp": "Recomendado. Aplica tus cambios solo a esta serie generada y deja las demás colecciones como están.",
       "remove_one": "Eliminarla",
       "remove_many": "Eliminarlas",
       "remove_other": "Eliminarlas",
@@ -396,7 +396,10 @@
     "removeViz": "Eliminar visualización",
     "collections": "Colecciones",
     "collectionsTooltip": "Una colección es una ventana de tiempo de imágenes. Cada colección contiene cortes entre los que los anotadores pueden cambiar.",
-    "editSeries": "Editar serie {{name}}",
+    "editSeries": "Editar todas las colecciones",
+    "editSeriesNamed": "Editar todo {{name}}",
+    "editSeriesTitle": "Cambiar la búsqueda, las fechas y las visualizaciones de cada colección de {{name}}",
+    "collectionsHint": "Haz clic en una colección para cambiar solo esa.",
     "deleteCollectionTitle": "Eliminar colección \"{{name}}\"",
     "deleteCollectionAria": "Eliminar colección {{name}}"
   },
@@ -537,10 +540,9 @@
     "selectTitle": "Seleccionar catálogo STAC",
     "collectionsTitle": "Colecciones",
     "configureTitle": "Configurar",
-    "regenerate_one": "Regenerar {{count}} colección",
-    "regenerate_many": "Regenerar {{count}} colecciones",
-    "regenerate_other": "Regenerar {{count}} colecciones",
-    "addCollection": "Añadir colección",
+    "apply_one": "Aplicar a {{count}} colección",
+    "apply_many": "Aplicar a {{count}} colecciones",
+    "apply_other": "Aplicar a {{count}} colecciones",
     "generate_one": "Generar {{count}} colección",
     "generate_many": "Generar {{count}} colecciones",
     "generate_other": "Generar {{count}} colecciones",
@@ -596,7 +598,7 @@
     "which": {
       "title": "Qué imágenes usar",
       "tooltip": "Limita qué imágenes de este catálogo usa la campaña. Las opciones avanzadas añaden el orden, una consulta CQL personalizada y la opción de usar una sola escena en lugar de un mosaico.",
-      "description": "Elige el periodo que se cubre y cuánta nubosidad puede tener una imagen. Todas las imágenes que muestra la campaña se buscan dentro de estos límites."
+      "description": "Elige el periodo que se cubre y cuánta nubosidad puede tener una imagen. Los cortes que exploran los anotadores se buscan dentro de estos límites. Un corte de portada personalizado tiene su propio límite de nubosidad."
     },
     "pull": {
       "title": "Qué obtener del catálogo",
@@ -612,7 +614,6 @@
     "groups": {
       "title": "Grupos de mosaicos y periodos de tiempo",
       "tooltip": "Los grupos son colecciones de imágenes, no la colección STAC de origen. Cada grupo contiene mosaicos de periodos más cortos, llamados cortes.",
-      "descriptionSingle": "Todo el rango de fechas forma un grupo (colección de imágenes). Elige los periodos de las imágenes detalladas dentro de él; cada periodo se convierte en un corte de mosaico.",
       "description": "Organiza los mosaicos en grupos por tiempo (colecciones de imágenes), con periodos de imágenes detalladas (cortes) dentro de cada grupo. Por ejemplo: grupos mensuales con mosaicos semanales. Estos periodos organizan las escenas disponibles; no cambian la frecuencia con la que el satélite capta nuevas imágenes.",
       "pattern": "Patrón de agrupación",
       "patternTooltip": "Elige los periodos de grupo y de imágenes detalladas, o selecciona Personalizado para definir tus propios intervalos.",
@@ -623,7 +624,6 @@
       "sliceEvery": "Imágenes detalladas cada",
       "sliceEveryTooltip": "Cada periodo se convierte en un corte de mosaico dentro de su grupo (colección). Por ejemplo, 1 semana crea imágenes detalladas semanales.",
       "sliceUnit": "Unidad de tiempo de las imágenes detalladas",
-      "summarySingle": "Un grupo (colección de imágenes) cubre todo el rango de fechas, con un mosaico detallado (corte) cada {{slice}}.",
       "summary": "Cada grupo (colección de imágenes) abarca {{window}}, con un mosaico detallado (corte) cada {{slice}}."
     },
     "units": {

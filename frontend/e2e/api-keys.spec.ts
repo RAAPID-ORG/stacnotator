@@ -34,9 +34,9 @@ const KEYED_COLLECTION = {
   ...COLLECTION_S2,
   slices: COLLECTION_S2.slices.map((sl) => ({
     ...sl,
-    tile_urls: sl.tile_urls.map((tu) => ({
-      ...tu,
-      tile_url: `https://tiles.example.com/keyed-imagery/{z}/{x}/{y}?viz=${tu.visualization_name}&api_key={api_key}`,
+    tiles: sl.tiles.map((tile) => ({
+      ...tile,
+      url: `https://tiles.example.com/keyed-imagery/{z}/{x}/{y}?viz=${tile.visualization_id}&api_key={api_key}`,
     })),
   })),
 };
@@ -75,7 +75,9 @@ test.describe('Keyed tile templates go through the backend proxy', () => {
     const urls = recordRequests(annotationPage);
     const proxyTile = annotationPage.waitForRequest(
       (req) =>
-        req.url().includes(`/api/${CAMPAIGN_ID}/imagery/basemaps/${KEYED_BASEMAP_ID}/tiles/`),
+        req
+          .url()
+          .includes(`/api/campaigns/${CAMPAIGN_ID}/imagery/basemaps/${KEYED_BASEMAP_ID}/tiles/`),
       { timeout: 15_000 }
     );
 
@@ -91,7 +93,9 @@ test.describe('Keyed tile templates go through the backend proxy', () => {
     const urls = recordRequests(annotationPage);
     const proxyTile = annotationPage.waitForRequest(
       (req) =>
-        req.url().includes(`/api/${CAMPAIGN_ID}/imagery/slices/${KEYED_COVER_SLICE_ID}/tiles/`),
+        req
+          .url()
+          .includes(`/api/campaigns/${CAMPAIGN_ID}/imagery/slices/${KEYED_COVER_SLICE_ID}/tiles/`),
       { timeout: 15_000 }
     );
 
@@ -101,7 +105,7 @@ test.describe('Keyed tile templates go through the backend proxy', () => {
     });
 
     const req = await proxyTile;
-    expect(req.url()).toContain(encodeURIComponent('True Color'));
+    expect(req.url()).toContain(`/slices/${KEYED_COVER_SLICE_ID}/tiles/1/`);
     expect(urls.some((url) => url.includes('/keyed-imagery/'))).toBe(false);
   });
 

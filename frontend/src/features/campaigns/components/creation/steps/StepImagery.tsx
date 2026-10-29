@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
 import type { CampaignCreate } from '~/api/client';
-import type { ImageryStepState } from '../../imagery/types';
-import { DEFAULT_BASEMAPS } from '../../imagery/types';
-import { ImagerySetup } from '../../imagery/ImagerySetup';
-import { useDraftController } from '../../imagery/controller';
-import { syncToForm } from '../../imagery/draftSync';
+import type { ImageryStepState } from '~/features/layers/imagery/types';
+import { DEFAULT_BASEMAPS } from '~/features/layers/imagery/types';
+import { ImagerySetup } from '~/features/layers/imagery/ImagerySetup';
+import { useDraftController } from '~/features/layers/imagery/controller';
+import { syncToForm } from '~/features/layers/imagery/draftSync';
 
 export const createInitialImageryState = (): ImageryStepState => ({
   sources: [],

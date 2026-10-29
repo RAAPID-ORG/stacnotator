@@ -53,7 +53,7 @@ def _update(monkeypatch, cm, **payload):
     monkeypatch.setattr(service, "_get_custom_map", lambda *a: cm)
     monkeypatch.setattr(service, "_name_taken", lambda *a, **kw: False)
     spawned = []
-    monkeypatch.setattr(service, "_spawn_registration", spawned.append)
+    monkeypatch.setattr(service, "spawn_registration", spawned.append)
     db = MagicMock()
     db.scalar.return_value = None
     service.update_custom_map(db, OWNER, cm.id, CustomMapUpdate(**payload))
@@ -62,7 +62,7 @@ def _update(monkeypatch, cm, **payload):
 
 def test_create_stores_encrypted_and_returns_only_kind_and_expiry(monkeypatch):
     monkeypatch.setattr(service, "_name_taken", lambda *a: False)
-    monkeypatch.setattr(service, "_spawn_registration", lambda *a: None)
+    monkeypatch.setattr(service, "spawn_registration", lambda *a: None)
     cm = service.create_custom_map(
         MagicMock(),
         OWNER,
@@ -166,15 +166,14 @@ def test_registration_hands_off_sealed_access_not_a_signed_url(monkeypatch):
     cm = _map()
     seen = {}
     monkeypatch.setattr(service, "resolve_tiler", lambda *a: object())
-    monkeypatch.setattr(service, "build_tile_url", lambda *a, **kw: "https://tiler/tiles")
 
-    def register(tiler, url, scope, **kw):
-        seen.update(url=url, scope=scope, **kw)
+    def register(tiler, url, owner, layer, **kw):
+        seen.update(url=url, owner=owner, layer=layer, **kw)
         return "search-1"
 
     monkeypatch.setattr(service, "register_cog_on_tiler", register)
     service.run_registration(MagicMock(), cm)
-    assert seen["url"] == URL and seen["scope"] == "5"
+    assert (seen["url"], seen["owner"], seen["layer"]) == (URL, "5", "custom_map:1")
     assert seen["sealed_storage_access"]["host"] == "acct.blob.core.windows.net"
     assert "SECRET" not in str(seen)
     assert cm.status == "ready"
@@ -199,7 +198,7 @@ def test_stale_registration_cannot_overwrite_a_token_replacement(monkeypatch):
 
 
 def _registered(cm, search_id="sas-search"):
-    cm.mosaic_id, cm.tile_url = search_id, f"https://tiler/searches/{search_id}/tiles"
+    cm.mosaic_id, cm.tiler = search_id, "hosted"
     return cm
 
 
@@ -223,11 +222,10 @@ def test_retiring_a_sas_revokes_its_tiler_search_first(monkeypatch, revoked, pay
     cm = _registered(_map())
     assert _update(monkeypatch, cm, **payload) == [1]
     assert revoked == ["sas-search"]
-    assert cm.mosaic_id is None and cm.tile_url is None
+    assert cm.mosaic_id is None and cm.tiler is None
 
 
 def test_render_edits_and_public_maps_revoke_nothing(monkeypatch, revoked):
-    monkeypatch.setattr(service, "build_tile_url", lambda *a, **kw: "https://tiler/tiles")
     _update(monkeypatch, _registered(_map()), render_config={**RENDER, "colormap_name": "magma"})
     _update(monkeypatch, _registered(_map(private=False)), cog_url=URL.replace("pred", "other"))
     assert revoked == []
@@ -246,18 +244,13 @@ def test_a_failed_revocation_fails_the_edit(monkeypatch):
     assert exc.value.status_code == 502
 
 
-def test_deleting_a_private_map_revokes_its_search_unless_a_copy_still_uses_it(
-    monkeypatch, revoked
-):
-    for shared, expected in ((None, ["sas-search"]), (True, [])):
-        revoked.clear()
-        cm = _registered(_map())
-        monkeypatch.setattr(service, "_get_custom_map", lambda *a, cm=cm: cm)
-        db = MagicMock()
-        db.scalar.return_value = shared
-        assert service.delete_custom_map(db, OWNER, cm.id)
-        assert revoked == expected
-        db.delete.assert_called_once_with(cm)
+def test_deleting_a_private_map_revokes_its_search(monkeypatch, revoked):
+    cm = _registered(_map())
+    monkeypatch.setattr(service, "_get_custom_map", lambda *a: cm)
+    db = MagicMock()
+    assert service.delete_custom_map(db, OWNER, cm.id)
+    assert revoked == ["sas-search"]
+    db.delete.assert_called_once_with(cm)
 
 
 def test_registration_errors_do_not_persist_signed_urls(monkeypatch):
@@ -270,7 +263,7 @@ def test_registration_errors_do_not_persist_signed_urls(monkeypatch):
     monkeypatch.setattr(service, "register_cog_on_tiler", fail)
     service.run_registration(MagicMock(), cm)
     assert cm.status == "failed"
-    assert "SECRET" not in str(cm.status_error)
+    assert "SECRET" not in str(cm.status_errors)
 
 
 def test_private_map_access_blocks_copying_to_another_organization():

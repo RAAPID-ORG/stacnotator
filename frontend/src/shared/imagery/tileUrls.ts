@@ -10,39 +10,40 @@ export function isProxiedTileUrl(url: string): boolean {
 }
 
 /** True for one of our titiler-pgstac tilers, which need cookie auth.
- *  `provider` is "mpc" for MPC-direct, null for a direct URL, or a configured
+ *  `tiler` is "mpc" for MPC-direct, null for a direct URL, or a configured
  *  tiler name for ours. */
-export function isSelfHostedTiler(provider?: string | null): boolean {
-  return !!provider && provider !== 'mpc';
+export function isSelfHostedTiler(tiler?: string | null): boolean {
+  return !!tiler && tiler !== 'mpc';
 }
 
-/** Where a key-protected basemap's tiles are fetched from: the provider
- *  directly, or our proxy when the template needs a key we hold. */
-export function resolveBasemapUrl(campaignId: number, basemap: { id: number; url: string }) {
-  return needsKeyProxy(basemap.url)
-    ? apiUrl(`/api/${campaignId}/imagery/basemaps/${basemap.id}/tiles/{z}/{x}/{y}`)
-    : basemap.url;
+/** Whether a tile request must carry the tiler cookie: our proxy routes and our
+ *  own tilers do; MPC and any direct third-party URL must not. */
+export function tileAuth(url: string, tiler?: string | null): 'cookie' | 'none' {
+  return isProxiedTileUrl(url) || isSelfHostedTiler(tiler) ? 'cookie' : 'none';
 }
 
 /** A Planet layer minted for one viewport, which no slice row knows about:
  *  the search that made it lives only in the page that ran it. */
 export function planetLayerProxyUrl(campaignId: number, sourceId: number, layerId: string): string {
   return apiUrl(
-    `/api/${campaignId}/imagery/sources/${sourceId}/planet-layers/${encodeURIComponent(layerId)}/tiles/{z}/{x}/{y}`
+    `/api/campaigns/${campaignId}/imagery/sources/${sourceId}/planet-layers/${encodeURIComponent(layerId)}/tiles/{z}/{x}/{y}`
   );
 }
 
 /** One slice's tiles under a named visualization, off the proxy route its
  *  owner is served from (a campaign's and a visualizer's differ). */
-export function sliceProxyUrl(base: string, sliceId: number, vizName: string): string {
-  return apiUrl(`${base}/${sliceId}/tiles/${encodeURIComponent(vizName)}/{z}/{x}/{y}`);
+export function sliceProxyUrl(base: string, sliceId: number, visualizationId: number): string {
+  return apiUrl(`${base}/${sliceId}/tiles/${visualizationId}/{z}/{x}/{y}`);
 }
 
-/** Where a campaign's key-proxied slice tiles are fetched from. */
-export const campaignProxyBase = (campaignId: number) => `/api/${campaignId}/imagery/slices`;
+/** Where a campaign's key-proxied slice and basemap tiles are fetched from. */
+export const campaignProxyBase = (campaignId: number) =>
+  `/api/campaigns/${campaignId}/imagery/slices`;
+export const campaignBasemapProxyBase = (campaignId: number) =>
+  `/api/campaigns/${campaignId}/imagery/basemaps`;
 
 /** The backdrop the app draws where no basemap is configured: the minimap, the
- *  Leaflet admin maps, and a visualizer that ships none of its own. OpenFreeMap
+ *  admin maps, and a visualizer that ships none of its own. OpenFreeMap
  *  serves this MapLibre style and its tiles without an API key, which CARTO's
  *  raster tiles no longer are. Attribution comes from the style's TileJSON. */
 export const BASEMAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/positron';

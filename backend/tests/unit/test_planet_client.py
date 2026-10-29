@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from src.planet import client
-from src.planet.schemas import PlanetScenesGenerationConfigV1
+from src.planet.schemas import PlanetScenesGenerationConfig
 
 
 def _mock(handler) -> httpx.Client:
@@ -197,10 +197,9 @@ def test_an_empty_layer_is_refused_rather_than_posted(planet):
     assert seen == []
 
 
-def scene_config(**overrides) -> PlanetScenesGenerationConfigV1:
+def scene_config(**overrides) -> PlanetScenesGenerationConfig:
     defaults = dict(
         kind="planet_scenes",
-        aoi=AOI,
         start_date="2026-08-01",
         end_date="2026-08-29",
         collection_period_interval=1,
@@ -209,7 +208,7 @@ def scene_config(**overrides) -> PlanetScenesGenerationConfigV1:
         slice_period_unit="days",
         whole_window_cover=True,
     )
-    return PlanetScenesGenerationConfigV1(**{**defaults, **overrides})
+    return PlanetScenesGenerationConfig(**{**defaults, **overrides})
 
 
 def _ranges(requests: list[httpx.Request]) -> list[tuple[str, str]]:

@@ -17,7 +17,7 @@ import { capitalizeFirst } from '~/shared/utils/utility';
 import { answeredFields } from '~/shared/utils/formValues';
 import { FormAnswers } from './FormAnswers';
 import { ClassDistributionMap } from './ClassDistributionMap';
-import { ExportDropdown } from './ExportDropdown';
+import { ExportMenu } from './ExportMenu';
 import { Button } from '~/shared/ui/forms';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import { UserFilterDropdown } from './UserFilterDropdown';
@@ -72,7 +72,7 @@ export const AnnotationsReview = ({
   const [selectedAnnotationIds, setSelectedAnnotationIds] = useState<Set<number>>(new Set());
   // Answers are long enough to swamp the table, so one row opens at a time.
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const formFields = campaign.settings.form_fields ?? [];
+  const formFields = campaign.settings.form_fields;
   const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
 
   useEffect(() => {
@@ -220,8 +220,8 @@ export const AnnotationsReview = ({
   // annotation. Without an explicit mode the annotator would seed from
   // campaign.mode and open the first task regardless of origin.
   const handleNavigateToAnnotation = (ann: AnnotationListItemOut) => {
-    if (ann.annotation_task_id != null) {
-      navigate(`${annotatePath}?task=${ann.annotation_task_id}&review=true`);
+    if (ann.task_id != null) {
+      navigate(`${annotatePath}?task=${ann.task_id}&review=true`);
       return;
     }
     // The centroid comes from the database now; the row never carries a geometry.
@@ -265,9 +265,9 @@ export const AnnotationsReview = ({
             )}
           </div>
           <div className="flex items-center gap-3">
-            <ExportDropdown
+            <ExportMenu
               campaignId={campaignId}
-              campaign={campaign}
+              campaignName={campaign.name}
               disabled={stats.total === 0}
               showMergeToggle={false}
             />

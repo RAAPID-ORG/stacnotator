@@ -1,10 +1,12 @@
 from datetime import timedelta
 from typing import Literal
 
-# Per-user statuses on a task, derived from that user's annotation
-ANNOTATION_TASK_STATUS_PENDING = "pending"
-ANNOTATION_TASK_STATUS_DONE = "done"
-ANNOTATION_TASK_STATUS_SKIPPED = "skipped"
+# One assignee's state on a task, read off their annotation.
+AssignmentStatus = Literal["pending", "done", "skipped"]
+
+ANNOTATION_TASK_STATUS_PENDING: AssignmentStatus = "pending"
+ANNOTATION_TASK_STATUS_DONE: AssignmentStatus = "done"
+ANNOTATION_TASK_STATUS_SKIPPED: AssignmentStatus = "skipped"
 
 # What one annotator's task row says about the task. `labelled` belongs to
 # classify campaigns, `drawn` and `none_found` to draw campaigns.

@@ -78,6 +78,7 @@
     "width": "Width"
   },
   "editDetails": {
+    "finishReshapeFirst": "Confirm (Enter) or cancel (Esc) the reshape before changing the label.",
     "missingRequired": "Missing required: {{fields}}",
     "updated": "Annotation updated successfully",
     "updateFailed": "Could not update the annotation",
@@ -89,13 +90,13 @@
     "save": "Save changes"
   },
   "draft": {
-    "title": "{{label}} - answer questions",
     "annotation": "Annotation",
     "closeSaved": "Close (the annotation is saved, answers are kept)",
     "closeUnsaved": "Close (unanswered required fields discard the annotation)",
-    "retry": "Retry save (Enter)",
-    "saveAnswers": "Save answers (Enter)",
-    "save": "Save annotation (Enter)",
+    "retry": "Retry save",
+    "saveAnswers": "Save answers",
+    "saveKey": "Enter",
+    "save": "Save annotation",
     "savedHint": {
       "point": "The point is saved. Answers are added when you save.",
       "line": "The line is saved. Answers are added when you save.",
@@ -253,8 +254,10 @@
     "authoritativeUnassignedTitle": "Submit as authoritative: this task isn't assigned to you, but your label will be recorded as the canonical answer and the task will be marked completed without needing consensus from assignees.",
     "submitAuthoritative": "Submit authoritative",
     "done": "Done",
+    "doneTitle": "Finish this task with the shapes you drew (Shift+Enter)",
     "nothingHere": "Nothing here",
     "drewHereTitle": "You drew shapes for this task - press Done",
+    "answeredElsewhere": "Someone else just answered this task.",
     "authoritativeToggle": "Submit as authoritative",
     "authoritativeToggleTitle": "Submit as authoritative: your label overrides other annotators and completes the task.",
     "authoritativeShort": "Auth.",
@@ -263,6 +266,10 @@
     "currentPoint": "Current point",
     "currentPointTitle": "Current point. Type a number and press Enter to jump to it; Esc cancels.",
     "prev": "Prev",
+    "historyBack_one": "1 task back",
+    "historyBack_other": "{{count}} tasks back",
+    "historyBackTitle": "Prev and Next walk the tasks opened this session",
+    "historyLatest": "Latest →",
     "claimFailed": "Could not claim this task"
   },
   "review": {

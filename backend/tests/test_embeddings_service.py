@@ -1,8 +1,8 @@
-"""Tests for embeddings service logic (annotation/embeddings_service.py)."""
+"""Tests for embeddings service logic (annotation/embeddings.py)."""
 
 from unittest.mock import MagicMock, patch
 
-from src.annotation.embeddings_service import (
+from src.tasks.embeddings import (
     knn_label_agrees,
     validate_label_submission,
 )
@@ -38,7 +38,7 @@ class TestKnnLabelAgrees:
 
 
 class TestValidateLabelSubmission:
-    @patch("src.annotation.embeddings_service.get_embedding_by_task")
+    @patch("src.tasks.embeddings.task_embedding")
     def test_embedding_lookup_is_scoped_to_the_campaign(self, mock_get_emb):
         """The route proves the caller may see the campaign, never that the task
         is in it. If the campaign stops reaching the lookup, a task id from any
@@ -46,35 +46,35 @@ class TestValidateLabelSubmission:
         mock_get_emb.return_value = None
         db = MagicMock()
 
-        validate_label_submission(db, campaign_id=7, annotation_task_id=42, label_id=1)
+        validate_label_submission(db, campaign_id=7, task_id=42, label_id=1)
 
         assert mock_get_emb.call_args.args == (db, 7, 42)
 
-    @patch("src.annotation.embeddings_service.get_embedding_by_task")
+    @patch("src.tasks.embeddings.task_embedding")
     def test_no_embedding_returns_skipped(self, mock_get_emb):
         mock_get_emb.return_value = None
         db = MagicMock()
 
-        result = validate_label_submission(db, campaign_id=1, annotation_task_id=1, label_id=1)
+        result = validate_label_submission(db, campaign_id=1, task_id=1, label_id=1)
         assert result.status == "skipped_no_embedding"
         assert result.agrees is None
 
-    @patch("src.annotation.embeddings_service.has_sufficient_validation_data")
-    @patch("src.annotation.embeddings_service.get_embedding_by_task")
+    @patch("src.tasks.embeddings.has_sufficient_validation_data")
+    @patch("src.tasks.embeddings.task_embedding")
     def test_insufficient_data_returns_skipped(self, mock_get_emb, mock_sufficient):
-        mock_get_emb.return_value = MagicMock(vector=[0.0] * 64)
+        mock_get_emb.return_value = [0.0] * 64
         mock_sufficient.return_value = False
         db = MagicMock()
 
-        result = validate_label_submission(db, campaign_id=1, annotation_task_id=1, label_id=1)
+        result = validate_label_submission(db, campaign_id=1, task_id=1, label_id=1)
         assert result.status == "skipped_insufficient_data"
         assert result.agrees is None
 
-    @patch("src.annotation.embeddings_service.find_nearest_labeled_embeddings")
-    @patch("src.annotation.embeddings_service.has_sufficient_validation_data")
-    @patch("src.annotation.embeddings_service.get_embedding_by_task")
+    @patch("src.tasks.embeddings.find_nearest_labeled_embeddings")
+    @patch("src.tasks.embeddings.has_sufficient_validation_data")
+    @patch("src.tasks.embeddings.task_embedding")
     def test_label_agrees_returns_ok(self, mock_get_emb, mock_sufficient, mock_find_nearest):
-        mock_get_emb.return_value = MagicMock(vector=[0.0] * 64)
+        mock_get_emb.return_value = [0.0] * 64
         mock_sufficient.return_value = True
         mock_find_nearest.return_value = [
             (MagicMock(), 1, 0.1),
@@ -83,17 +83,17 @@ class TestValidateLabelSubmission:
         ]
         db = MagicMock()
 
-        result = validate_label_submission(db, campaign_id=1, annotation_task_id=1, label_id=1)
+        result = validate_label_submission(db, campaign_id=1, task_id=1, label_id=1)
         assert result.status == "ok"
         assert result.agrees is True
 
-    @patch("src.annotation.embeddings_service.find_nearest_labeled_embeddings")
-    @patch("src.annotation.embeddings_service.has_sufficient_validation_data")
-    @patch("src.annotation.embeddings_service.get_embedding_by_task")
+    @patch("src.tasks.embeddings.find_nearest_labeled_embeddings")
+    @patch("src.tasks.embeddings.has_sufficient_validation_data")
+    @patch("src.tasks.embeddings.task_embedding")
     def test_label_disagrees_returns_mismatch(
         self, mock_get_emb, mock_sufficient, mock_find_nearest
     ):
-        mock_get_emb.return_value = MagicMock(vector=[0.0] * 64)
+        mock_get_emb.return_value = [0.0] * 64
         mock_sufficient.return_value = True
         mock_find_nearest.return_value = [
             (MagicMock(), 2, 0.1),
@@ -102,6 +102,6 @@ class TestValidateLabelSubmission:
         ]
         db = MagicMock()
 
-        result = validate_label_submission(db, campaign_id=1, annotation_task_id=1, label_id=1)
+        result = validate_label_submission(db, campaign_id=1, task_id=1, label_id=1)
         assert result.status == "mismatch"
         assert result.agrees is False

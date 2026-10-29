@@ -150,7 +150,7 @@ def get_project_users(
     project_users = service.get_project_users(db, project_id)
     users = [
         ProjectUserOut(
-            user=UserOut.for_viewer(pu.user, with_email=user.is_admin),
+            user=UserOut.for_viewer(pu.user, with_email=user.is_platform_admin),
             is_admin=pu.is_admin,
             is_authoritative_reviewer=pu.is_authoritative_reviewer,
         )

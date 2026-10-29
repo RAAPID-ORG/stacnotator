@@ -27,7 +27,7 @@ from src.annotation.export import build_export_records
 
 
 def _campaign():
-    return SimpleNamespace(settings=SimpleNamespace(labels={}, form_fields=[]))
+    return SimpleNamespace(label_names={}, form_fields=[])
 
 
 def _task(*, task_id=1, annotation_number=1, assignments=None):
@@ -42,6 +42,7 @@ def _task(*, task_id=1, annotation_number=1, assignments=None):
 def _annotation(
     *,
     label_id=None,
+    outcome=None,
     created_by_user_id=None,
     is_authoritative=False,
     counts_toward_completion=None,
@@ -55,7 +56,7 @@ def _annotation(
         active_seconds=active_seconds,
         source_id=None,
         label_id=label_id,
-        outcome=("labelled" if label_id is not None else "skipped") if task else None,
+        outcome=outcome or (("labelled" if label_id is not None else "skipped") if task else None),
         created_by_user_id=created_by_user_id or uuid4(),
         is_authoritative=is_authoritative,
         counts_toward_completion=counts_toward_completion,
@@ -70,8 +71,8 @@ def _annotation(
         imagery_start_date=None,
         imagery_end_date=None,
         geometry=None,
-        annotation_task=task,
-        annotation_task_id=task.id if task else None,
+        task=task,
+        task_id=task.id if task else None,
         origin_task=origin_task,
         output_of_task=None,
     )
@@ -240,3 +241,47 @@ class TestMergeOnAgreementConflictGuard:
 
         # Authoritative label resolves the task -> no conflict, merge allowed.
         assert _records(anns, merge_on_agreement=True)
+
+    def test_merged_row_speaks_for_the_counting_answer(self):
+        """A non-counting answer listed first must not become the task's label."""
+        task = _task(annotation_number=5)
+        anns = [
+            _annotation(label_id=2, counts_toward_completion=False, task=task),
+            _annotation(label_id=1, counts_toward_completion=True, task=task),
+        ]
+
+        [record] = _records(anns, merge_on_agreement=True)
+        assert record["stacnotator_label_id"] == 1
+
+    def test_merged_row_takes_the_authoritative_answer(self):
+        task = _task(annotation_number=6)
+        anns = [
+            _annotation(label_id=2, counts_toward_completion=True, task=task),
+            _annotation(
+                label_id=1, counts_toward_completion=True, is_authoritative=True, task=task
+            ),
+        ]
+
+        [record] = _records(anns, merge_on_agreement=True)
+        assert record["stacnotator_label_id"] == 1
+
+
+class TestDrawTaskAnswers:
+    """A draw task is answered by its outcome, not a label."""
+
+    def _drawn_pair(self):
+        task = _task()
+        return [
+            _annotation(outcome="drawn", counts_toward_completion=True, task=task),
+            _annotation(outcome="drawn", counts_toward_completion=True, task=task),
+        ]
+
+    def test_two_drawn_answers_merge_into_one_row(self):
+        records = _records(self._drawn_pair(), merge_on_agreement=True)
+        assert len(records) == 1
+        assert records[0]["stacnotator_annotator_count"] == 2
+        assert records[0]["stacnotator_outcome"] == "drawn"
+
+    def test_unmerged_rows_count_both_annotators(self):
+        records = _records(self._drawn_pair())
+        assert [r["stacnotator_annotator_count"] for r in records] == [2, 2]

@@ -4,21 +4,18 @@ from pydantic import ValidationError
 
 from src.imagery.models import ImageryCollection, ImageryGenerationSeries, ImagerySource
 from src.imagery.schemas import (
-    ImageryGenerationConfigV1,
     ImageryGenerationSeriesCreate,
     ImagerySourceCreate,
+    StacGenerationConfig,
 )
-from src.imagery.service import _reconcile_generation_series
-from src.planet.schemas import PlanetScenesGenerationConfigV1
+from src.imagery.service import _save_generation_series
+from src.planet.schemas import PlanetScenesGenerationConfig
 
 
 def generation_config(**overrides):
     value = {
-        "version": 1,
-        "catalog_url": "https://example.test/stac",
-        "stac_collection_id": "sentinel-2",
+        "kind": "stac",
         "collection_title": "Sentinel-2",
-        "is_mpc": False,
         "has_cloud_cover": True,
         "start_date": "2025-01",
         "end_date": "2025-12",
@@ -28,16 +25,6 @@ def generation_config(**overrides):
         "slice_period_unit": "weeks",
         "cover_mode": "nth",
         "cover_slice_nth": 1,
-        "max_cloud_cover": 90,
-        "item_sort": "date_desc",
-        "cover_max_cloud_cover": 90,
-        "cover_item_sort": "date_desc",
-        "visualizations": [
-            {
-                "name": "RGB",
-                "viz_params": {"assets": ["red", "green", "blue"]},
-            }
-        ],
     }
     value.update(overrides)
     return value
@@ -56,7 +43,7 @@ def source_payload(*, series_id=None):
                 {
                     "name": "January",
                     "generation_series_key": "series-a",
-                    "slices": [{"start_date": "2025-01-01", "end_date": "2025-01-31"}],
+                    "slices": [{"name": "s", "start_date": "2025-01-01", "end_date": "2025-01-31"}],
                 }
             ],
         }
@@ -78,13 +65,13 @@ class FakeSession:
         pass
 
 
-def test_generation_config_is_versioned_typed_and_strict():
-    assert ImageryGenerationConfigV1.model_validate(generation_config()).version == 1
-
+def test_generation_config_holds_only_the_generator_inputs():
+    """The search and visualizations live on the collections; repeating them here is
+    what let the two disagree."""
     with pytest.raises(ValidationError):
-        ImageryGenerationConfigV1.model_validate(generation_config(version=2))
+        StacGenerationConfig.model_validate(generation_config(catalog_url="https://x"))
     with pytest.raises(ValidationError):
-        ImageryGenerationConfigV1.model_validate(generation_config(accidental_field=True))
+        StacGenerationConfig.model_validate(generation_config(accidental_field=True))
 
 
 def test_source_requires_series_keys_to_be_valid_and_referenced():
@@ -105,7 +92,7 @@ def test_persistence_creates_one_config_owner_and_resolves_collection_key():
     db = FakeSession()
     source = ImagerySource(id=7, campaign_id=3, name="Source", generation_series=[])
 
-    by_key, stale, _ = _reconcile_generation_series(db, source, source_payload())
+    by_key, stale = _save_generation_series(db, source, source_payload())
 
     assert by_key == {"series-a": 100}
     assert stale == []
@@ -118,7 +105,7 @@ def test_persistence_rejects_a_series_id_from_another_source():
     source = ImagerySource(id=7, campaign_id=3, name="Source", generation_series=[])
 
     with pytest.raises(HTTPException, match="does not belong to source 7"):
-        _reconcile_generation_series(FakeSession(), source, source_payload(series_id=999))
+        _save_generation_series(FakeSession(), source, source_payload(series_id=999))
 
 
 def test_persistence_updates_kept_series_and_returns_stale_series_for_deletion():
@@ -137,7 +124,7 @@ def test_persistence_updates_kept_series_and_returns_stale_series_for_deletion()
     payload = source_payload(series_id=10)
     payload.generation_series[0].config.collection_title = "Updated series"
 
-    by_key, stale_series, _ = _reconcile_generation_series(FakeSession(), source, payload)
+    by_key, stale_series = _save_generation_series(FakeSession(), source, payload)
 
     assert by_key == {"series-a": 10}
     assert kept.config["collection_title"] == "Updated series"
@@ -159,17 +146,21 @@ class TestGenerationConfigKinds:
     def _series(self, config):
         return ImageryGenerationSeriesCreate(key="k", config=config)
 
-    def test_a_config_saved_before_planet_scenes_existed_still_parses_as_stac(self):
+    def test_a_stac_config_parses_as_stac(self):
         series = self._series(generation_config())
 
-        assert isinstance(series.config, ImageryGenerationConfigV1)
-        assert series.config.kind == "stac"
+        assert isinstance(series.config, StacGenerationConfig)
+
+    def test_a_config_without_a_kind_is_rejected(self):
+        config = generation_config()
+        del config["kind"]
+        with pytest.raises(ValidationError):
+            self._series(config)
 
     def test_a_planet_scene_config_is_not_mistaken_for_a_stac_one(self):
         series = self._series(
             {
                 "kind": "planet_scenes",
-                "aoi": {"type": "Point", "coordinates": [0, 0]},
                 "start_date": "2024-01-01",
                 "end_date": "2024-01-31",
                 "collection_period_interval": 1,
@@ -180,7 +171,7 @@ class TestGenerationConfigKinds:
             }
         )
 
-        assert isinstance(series.config, PlanetScenesGenerationConfigV1)
+        assert isinstance(series.config, PlanetScenesGenerationConfig)
         assert series.config.item_types == ["PSScene"]
 
     def test_a_config_matching_neither_shape_is_rejected(self):
@@ -190,7 +181,6 @@ class TestGenerationConfigKinds:
 
 PLANET_CONFIG = {
     "kind": "planet_scenes",
-    "aoi": {"type": "Point", "coordinates": [0, 0]},
     "start_date": "2024-01-01",
     "end_date": "2024-01-31",
     "collection_period_interval": 1,
@@ -218,42 +208,18 @@ def planet_payload(*, series_id=None, **config_overrides):
                 {
                     "name": "January",
                     "generation_series_key": "series-a",
-                    "slices": [{"start_date": "2024-01-05", "end_date": "2024-01-05"}],
+                    "slices": [{"name": "s", "start_date": "2024-01-05", "end_date": "2024-01-05"}],
                 }
             ],
         }
     )
 
 
-class TestPlanetSeriesAreNotRegisteredAtSetup:
-    """A scene search is bounded by an area, and at setup the only area on offer is
-    the whole campaign - which for a country is thousands of scenes and a layer that
-    covers a fraction of it. The search happens where an annotator is standing."""
+def test_a_planet_series_config_is_stored_so_the_dates_survive():
+    source = ImagerySource(id=7, campaign_id=3, name="PlanetScope", generation_series=[])
+    session = FakeSession()
 
-    def test_saving_a_planet_series_asks_for_no_registration(self):
-        source = ImagerySource(id=7, campaign_id=3, name="PlanetScope", generation_series=[])
+    _save_generation_series(session, source, planet_payload())
 
-        _, _, pending = _reconcile_generation_series(FakeSession(), source, planet_payload())
-
-        assert pending == []
-
-    def test_the_config_is_still_stored_so_the_dates_survive(self):
-        source = ImagerySource(id=7, campaign_id=3, name="PlanetScope", generation_series=[])
-        session = FakeSession()
-
-        _reconcile_generation_series(session, source, planet_payload())
-
-        stored = PlanetScenesGenerationConfigV1.model_validate(session.added[0].config)
-        assert (stored.start_date, stored.slice_period_unit) == ("2024-01-01", "days")
-
-
-class TestStacSeriesStillRegister:
-    def test_an_unchanged_stac_series_is_not_a_registration_of_its_own(self):
-        series = ImageryGenerationSeries(id=10, source_id=7, config=generation_config())
-        source = ImagerySource(id=7, campaign_id=3, name="Source", generation_series=[series])
-
-        _, _, pending = _reconcile_generation_series(
-            FakeSession(), source, source_payload(series_id=10)
-        )
-
-        assert pending == []
+    stored = PlanetScenesGenerationConfig.model_validate(session.added[0].config)
+    assert (stored.start_date, stored.slice_period_unit) == ("2024-01-01", "days")

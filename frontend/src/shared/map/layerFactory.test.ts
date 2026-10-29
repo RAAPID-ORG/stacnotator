@@ -71,7 +71,7 @@ describe('raster layers', () => {
   it('sends credentials for cookie auth and for the app-registered proxy URLs', () => {
     expect(crossOriginOf(createLayer(spec({ auth: 'cookie' })))).toBe('use-credentials');
 
-    const proxied = spec({ url: '/api/7/imagery/slices/9/tiles/NDVI/{z}/{x}/{y}' });
+    const proxied = spec({ url: '/api/campaigns/7/imagery/slices/9/tiles/NDVI/{z}/{x}/{y}' });
     expect(crossOriginOf(createLayer(proxied))).toBe('use-credentials');
 
     expect(crossOriginOf(createLayer(spec()))).toBe('anonymous');

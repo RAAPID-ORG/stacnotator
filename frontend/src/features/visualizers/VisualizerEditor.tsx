@@ -15,14 +15,14 @@ import {
   listVisualizerOptionsOptions,
   updateVisualizerMutation,
 } from '~/api/queries';
-import type { ImageryStepState } from '~/features/campaigns/components/imagery/types';
+import type { ImageryStepState } from '~/features/layers/imagery/types';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Button, Field, Input, Switch, Textarea } from '~/shared/ui/forms';
 import { IconGlobe, IconMap, IconWarning } from '~/shared/ui/Icons';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { Modal } from '~/shared/ui/Modal';
-import { CustomMapsEditor } from '~/features/campaigns/components/CustomMapsEditor';
-import { VectorLayersEditor } from '~/features/campaigns/components/VectorLayersEditor';
+import { CustomMapsEditor } from '~/features/layers/CustomMapsEditor';
+import { VectorLayersEditor } from '~/features/layers/VectorLayersEditor';
 import { AreaField } from './editor/AreaField';
 import {
   basemapsPayload,

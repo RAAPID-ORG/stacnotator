@@ -5,31 +5,21 @@ from uuid import UUID
 from fastapi import HTTPException
 from sqlalchemy import ARRAY, Text, and_, cast, delete, exists, func, or_, select, update
 from sqlalchemy.orm import Session, joinedload, selectinload
-from sqlalchemy.orm.attributes import flag_modified
 
-from src import background
-from src.annotation import embeddings_service
-from src.annotation import service as annotation_service
-from src.annotation.geometries import (
-    delete_orphan_geometries,
-    delete_rows_and_orphan_geometries,
-)
-from src.annotation.models import Annotation, AnnotationTask, Embedding
-from src.campaigns import assignments
-from src.campaigns.models import (
-    Campaign,
-    CampaignSettings,
-    TaskSet,
-)
+from src.agents.models import LabellingAgent
+from src.annotation.forms import campaign_form_fields
+from src.annotation.models import Annotation
+from src.auth.models import User
+from src.campaigns.models import Campaign
 from src.campaigns.policy import _reject_anyone_kind_if_private
-from src.campaigns.policy import is_platform_admin as is_global_admin
 from src.campaigns.schemas import (
     CampaignListItemOut,
     CampaignSettingsCreate,
+    CampaignUpdate,
+    LabelBase,
     LabellingPolicy,
     default_labelling_policy,
 )
-from src.campaigns.task_sets import DEFAULT_TASK_SET_NAME
 from src.canvas.service import new_default_main_layout
 from src.custom_layers.service import revoke_campaign_private_searches
 from src.imagery.models import (
@@ -38,29 +28,16 @@ from src.imagery.models import (
     ImagerySource,
     ImageryView,
 )
-from src.imagery.registration import (
-    REGISTRATION_RUN,
-    StacRegistrationSpec,
-    prepare_stac_reregistration,
-    spawn_background_registration,
-)
-from src.imagery.service import create_imagery_from_editor_state
-from src.layers import LayerOwner
-from src.organizations.models import (
-    MEMBER_STATUS_ACTIVE,
-    ORG_STATUS_APPROVED,
-    Organization,
-    OrganizationUser,
-)
-from src.projects.access import (
-    VISIBILITY_ORGANIZATION,
-    VISIBILITY_PUBLIC,
-    has_project_access,
-    is_policy_member,
-)
+from src.imagery.registration import commit_and_register, drop_mosaics
+from src.imagery.service import save_imagery_editor_state
+from src.organizations.service import active_organization_ids
+from src.projects.access import VISIBILITY_ORGANIZATION, VISIBILITY_PUBLIC
 from src.projects.models import Project, ProjectUser
-from src.timeseries.models import TimeSeries
-from src.timeseries.service import sync_campaign_timeseries_windows
+from src.projects.viewer import ViewerStanding
+from src.tasks import embeddings
+from src.tasks.models import Task, TaskSet
+from src.tasks.task_sets import DEFAULT_TASK_SET_NAME
+from src.timeseries.service import add_timeseries
 
 logger = logging.getLogger(__name__)
 
@@ -70,89 +47,32 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 
-def list_campaigns_with_user_roles(db: Session, user_id: UUID) -> list[CampaignListItemOut]:
-    """Campaigns visible to the user with role info, resolved through the
-    owning project. Platform admins see all; others see platform-public
-    projects' campaigns, campaigns of projects they belong to, and org-public
-    campaigns of orgs they are active members of."""
-    stmt = (
+def list_campaigns_with_user_roles(db: Session, user: User) -> list[CampaignListItemOut]:
+    """Every campaign the user can open, with their roles on its project."""
+    campaigns = db.scalars(
         select(Campaign).options(joinedload(Campaign.project)).order_by(Campaign.created_at.desc())
-    )
-    campaigns = db.scalars(stmt).unique().all()
-    memberships = {
-        pu.project_id: pu
-        for pu in db.scalars(select(ProjectUser).where(ProjectUser.user_id == user_id))
-    }
-    org_ids = set(
-        db.scalars(
-            select(OrganizationUser.organization_id)
-            .join(Organization, Organization.id == OrganizationUser.organization_id)
-            .where(
-                OrganizationUser.user_id == user_id,
-                OrganizationUser.status == MEMBER_STATUS_ACTIVE,
-                Organization.status == ORG_STATUS_APPROVED,
-            )
-        )
-    )
-    user_is_global_admin = is_global_admin(db, user_id)
-
-    results: list[CampaignListItemOut] = []
-    for campaign in campaigns:
-        membership = memberships.get(campaign.project_id)
-        is_active_org_member = campaign.project.organization_id in org_ids
-        if not has_project_access(
-            visibility=campaign.project.visibility,
-            is_active_org_member=is_active_org_member,
-            is_member=membership is not None,
-            is_platform_admin=user_is_global_admin,
-        ):
-            continue
-        is_member = is_policy_member(
-            visibility=campaign.project.visibility,
-            is_active_org_member=is_active_org_member,
-            is_member=membership is not None,
-            is_platform_admin=user_is_global_admin,
-        )
-        is_admin = user_is_global_admin or (membership is not None and membership.is_admin)
-        results.append(
-            CampaignListItemOut(
-                id=campaign.id,
-                name=campaign.name,
-                created_at=campaign.created_at,
-                project_id=campaign.project_id,
-                is_admin=is_admin,
-                is_member=is_member,
-                is_public=campaign.project.visibility == VISIBILITY_PUBLIC,
-                registration_status=campaign.registration_status,
-                embedding_status=campaign.embedding_status,
-            )
-        )
-    return results
+    ).all()
+    standing = ViewerStanding(db, user)
+    items = [(campaign, standing.flags(campaign.project)) for campaign in campaigns]
+    return [
+        CampaignListItemOut.for_viewer(campaign, campaign.project, flags)
+        for campaign, flags in items
+        if flags.has_access
+    ]
 
 
-def visible_campaign_ids(db: Session, user_id: UUID) -> list[int]:
-    """Campaign ids visible to the user (same visibility rules as
-    list_campaigns_with_user_roles), without the joinedload of campaign users
-    or role bookkeeping - for callers like tiler-token minting that only need
-    the ids to scope a token."""
-    if is_global_admin(db, user_id):
+def visible_campaign_ids(db: Session, user: User) -> list[int]:
+    """Ids of the campaigns list_campaigns_with_user_roles returns, in one query,
+    for scoping a tiler token."""
+    if user.is_platform_admin:
         return list(db.scalars(select(Campaign.id)).all())
 
-    active_org_ids = (
-        select(OrganizationUser.organization_id)
-        .join(Organization, Organization.id == OrganizationUser.organization_id)
-        .where(
-            OrganizationUser.user_id == user_id,
-            OrganizationUser.status == MEMBER_STATUS_ACTIVE,
-            Organization.status == ORG_STATUS_APPROVED,
-        )
-    )
     stmt = (
         select(Campaign.id)
         .join(Project, Project.id == Campaign.project_id)
         .outerjoin(
             ProjectUser,
-            and_(ProjectUser.project_id == Project.id, ProjectUser.user_id == user_id),
+            and_(ProjectUser.project_id == Project.id, ProjectUser.user_id == user.id),
         )
         .where(
             or_(
@@ -160,7 +80,7 @@ def visible_campaign_ids(db: Session, user_id: UUID) -> list[int]:
                 ProjectUser.user_id.is_not(None),
                 and_(
                     Project.visibility == VISIBILITY_ORGANIZATION,
-                    Project.organization_id.in_(active_org_ids),
+                    Project.organization_id.in_(active_organization_ids(user.id)),
                 ),
             )
         )
@@ -171,10 +91,9 @@ def visible_campaign_ids(db: Session, user_id: UUID) -> list[int]:
 
 # Eager-load options covering every relationship that CampaignOut(+Full) serializes.
 # Without these, Pydantic serialization lazy-loads each relationship one row at a
-# time - on large campaigns (thousands of slices/tile_urls) that turns a single
+# time - on large campaigns (thousands of slices) that turns a single
 # response into thousands of cross-region round-trips.
 _CAMPAIGN_FULL_LOAD_OPTIONS = (
-    joinedload(Campaign.settings),
     joinedload(Campaign.project),
     selectinload(Campaign.canvas_layouts),
     selectinload(Campaign.time_series),
@@ -186,22 +105,26 @@ _CAMPAIGN_FULL_LOAD_OPTIONS = (
     selectinload(Campaign.imagery_sources).options(
         selectinload(ImagerySource.visualizations),
         selectinload(ImagerySource.collections).options(
-            selectinload(ImageryCollection.slices).selectinload(ImagerySlice.tile_urls),
-            joinedload(ImageryCollection.stac_config),
+            selectinload(ImageryCollection.visualizations),
+            selectinload(ImageryCollection.slices).options(
+                selectinload(ImagerySlice.mosaics), selectinload(ImagerySlice.templates)
+            ),
         ),
     ),
-    selectinload(Campaign.imagery_views).selectinload(ImageryView.canvas_layouts),
+    selectinload(Campaign.imagery_views).options(
+        selectinload(ImageryView.canvas_layouts), selectinload(ImageryView.sources)
+    ),
 )
 
 
 def get_campaign_summary(db: Session, campaign_id: int) -> Campaign:
-    """Load only what `CampaignSummaryOut` serializes: the row and its settings.
+    """Load only what `CampaignSummaryOut` serializes: the row and its project.
 
     Deliberately not `_CAMPAIGN_FULL_LOAD_OPTIONS` - that chain walks the imagery tree
     in about a dozen sequential queries, which the pages using this never read.
     """
     campaign = db.execute(
-        select(Campaign).options(joinedload(Campaign.settings)).where(Campaign.id == campaign_id)
+        select(Campaign).options(joinedload(Campaign.project)).where(Campaign.id == campaign_id)
     ).scalar_one_or_none()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
@@ -226,7 +149,6 @@ def create_campaign(
     db: Session,
     *,
     name: str,
-    mode: str,
     project_id: int,
     settings: CampaignSettingsCreate,
     user_id: UUID,
@@ -241,7 +163,6 @@ def create_campaign(
     Args:
         db: Database session
         name: Campaign name
-        mode: Campaign mode ('tasks' or 'open')
         project_id: Owning project; its is_public flag governs the default
             labelling policy and the 'anyone' audience check
         settings: Campaign configuration settings
@@ -261,170 +182,141 @@ def create_campaign(
     resolved_policy = labelling_policy or default_labelling_policy(is_public=is_public)
     _reject_anyone_kind_if_private(resolved_policy, is_public)
 
-    campaign = Campaign(name=name, mode=mode, project_id=project_id)
-    db.add(campaign)
-    db.flush()  # Get campaign.id
-
-    db.add(TaskSet(campaign_id=campaign.id, name=DEFAULT_TASK_SET_NAME))
-
-    db.add(new_default_main_layout(campaign.id))
-
-    # Create campaign settings
-    campaign_settings = CampaignSettings(
-        campaign_id=campaign.id,
+    campaign = Campaign(
+        name=name,
+        project_id=project_id,
         guide_markdown="# Campaign Guide\n\nWelcome! This guide helps annotators understand the campaign goals and labeling conventions.\n",
         labelling_policy=resolved_policy.model_dump(mode="json"),
         **settings.to_orm(),
     )
-    db.add(campaign_settings)
+    db.add(campaign)
+    db.flush()  # Get campaign.id
 
-    # Flush to get relationships loaded
+    db.add(TaskSet(campaign_id=campaign.id, name=DEFAULT_TASK_SET_NAME))
+    db.add(new_default_main_layout(campaign.id))
     db.flush()
     db.refresh(campaign)
 
-    # Create timeseries if provided
     if timeseries_configs:
-        for ts_create in timeseries_configs:
-            ts_item = TimeSeries(
-                campaign_id=campaign.id,
-                name=ts_create.name,
-                window_name=ts_create.window_name,
-                start_ym=ts_create.start_ym,
-                end_ym=ts_create.end_ym,
-                data_source=ts_create.data_source,
-                provider=ts_create.provider,
-                ts_type=ts_create.ts_type,
-            )
-            db.add(ts_item)
-
-        # Add one window per distinct window_name to the default layout.
-        db.flush()
-        sync_campaign_timeseries_windows(campaign.id, db)
+        add_timeseries(db, campaign.id, timeseries_configs)
         db.refresh(campaign)
 
-    # Create imagery structure (sources, collections, slices, views - no STAC calls yet)
-    pending_registrations: list[StacRegistrationSpec] = []
-    registration_bbox: list[float] = []
     if imagery_editor_state:
-        imagery_result = create_imagery_from_editor_state(
-            db,
-            campaign=campaign,
-            editor_state=imagery_editor_state,
-        )
-        pending_registrations = imagery_result["registrations"]
-        registration_bbox = imagery_result["bbox"]
-
-    # Set initial statuses based on what background work is needed
-    embedding_year = campaign.settings.embedding_year
+        save_imagery_editor_state(db, campaign, imagery_editor_state)
     campaign.registration_status = "ready"
     campaign.embedding_status = "ready"
-    if pending_registrations:
-        background.begin_status_run(campaign, REGISTRATION_RUN)
-    if embedding_year is not None:
-        background.begin_status_run(campaign, embeddings_service.EMBEDDING_RUN)
-
-    db.commit()
-    db.refresh(campaign)
-
-    campaign_id = campaign.id
-
-    # Background thread: imagery registration (off the request path so the
-    # commit above isn't blocked on the slow parallel STAC calls).
-    if pending_registrations:
-        spawn_background_registration(
-            LayerOwner(campaign_id=campaign_id), pending_registrations, registration_bbox
-        )
-
-    # Background thread: embeddings
-    if embedding_year is not None:
-        embeddings_service.spawn_background_embedding_computation(campaign_id, embedding_year)
-
+    commit_and_register(db, campaign, campaign.bbox)
+    embeddings.start_embedding_run(db, campaign)
     return get_campaign_full(db, campaign.id)
 
 
-def update_campaign_name(db: Session, campaign_id: int, new_name: str) -> Campaign:
-    campaign = db.get(Campaign, campaign_id)
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    campaign.name = new_name
+def update_campaign(db: Session, campaign: Campaign, changes: CampaignUpdate) -> Campaign:
+    """Change what was sent and leave the rest. Labels, form fields and the task
+    output each guard the annotations already made against them; a new area
+    registers the imagery again, a new embedding year fetches embeddings again."""
+    sent = changes.model_fields_set
+    if "task_output" in sent and changes.task_output is not None:
+        _check_task_output_change(db, campaign, changes.task_output)
+    if "labels" in sent and changes.labels is not None:
+        _check_label_changes(db, campaign, changes.labels)
+        campaign.labels = [label.model_dump() for label in changes.labels]
+    if "form_fields" in sent and changes.form_fields is not None:
+        _apply_form_field_changes(db, campaign, changes.form_fields)
+        campaign.form_fields = [field.model_dump() for field in changes.form_fields]
+    if "labelling_policy" in sent and changes.labelling_policy is not None:
+        _reject_anyone_kind_if_private(changes.labelling_policy, campaign.is_public)
+        campaign.labelling_policy = changes.labelling_policy.model_dump(mode="json")
+    for field in (
+        "name",
+        "guide_markdown",
+        "sample_extent_meters",
+        "research_sharing",
+        "task_output",
+    ):
+        if field in sent:
+            setattr(campaign, field, getattr(changes, field))
+
+    recompute_embeddings = "embedding_year" in sent and changes.embedding_year not in (
+        None,
+        campaign.embedding_year,
+    )
+    if "embedding_year" in sent:
+        campaign.embedding_year = changes.embedding_year
+    if recompute_embeddings:
+        db.execute(update(Task).where(Task.campaign_id == campaign.id).values(embedding=None))
+
+    if changes.bbox is not None and changes.bbox != campaign.bbox:
+        if campaign.registration_status == "registering":
+            raise HTTPException(
+                status_code=409,
+                detail="Wait for imagery registration to finish before changing the area",
+            )
+        campaign.bbox_west, campaign.bbox_south, campaign.bbox_east, campaign.bbox_north = (
+            changes.bbox
+        )
+        drop_mosaics(campaign.imagery_sources)
+        commit_and_register(db, campaign, campaign.bbox)
     db.commit()
-    return get_campaign_full(db, campaign_id)
+    if recompute_embeddings:
+        embeddings.start_embedding_run(db, campaign)
+    return get_campaign_full(db, campaign.id)
 
 
-def update_campaign_guide(db: Session, campaign_id: int, guide_markdown: str | None) -> Campaign:
-    campaign = db.get(Campaign, campaign_id)
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    if not campaign.settings:
-        raise HTTPException(status_code=404, detail="Campaign settings not found")
-    campaign.settings.guide_markdown = guide_markdown
-    db.commit()
-    return get_campaign_full(db, campaign_id)
+def task_output_is_locked(db: Session, campaign: Campaign) -> bool:
+    worked = (Annotation.task_id.isnot(None)) | (Annotation.output_of_task_id.isnot(None))
+    return bool(db.scalar(select(exists().where(Annotation.campaign_id == campaign.id, worked))))
 
 
-def update_campaign_labels(db: Session, campaign_id: int, labels: list) -> Campaign:
-    """Replace the campaign's labels JSONB. Caller is expected to keep existing
-    label IDs stable so annotations referencing them continue to resolve;
-    rename = same id + new name, add = new id. Delete is not supported here."""
-    campaign = db.get(Campaign, campaign_id)
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    if not campaign.settings:
-        raise HTTPException(status_code=404, detail="Campaign settings not found")
+def answered_form_field_ids(db: Session, campaign: Campaign) -> list[int]:
+    answered = _answered_form_field_keys(db, campaign.id)
+    return [field.id for field in campaign_form_fields(campaign) if str(field.id) in answered]
 
-    existing_ids = set((campaign.settings.labels or {}).keys())
-    incoming_ids = {str(label.id) for label in labels}
-    removed = existing_ids - incoming_ids
+
+def _check_task_output_change(db: Session, campaign: Campaign, task_output: str) -> None:
+    """Labelling tasks and drawing around them are locked in once any task has
+    been worked, or a draw task has shapes drawn for it: the outcomes stored so far
+    would change meaning, and the shapes would answer nothing."""
+    if campaign.task_output != task_output and task_output_is_locked(db, campaign):
+        raise HTTPException(
+            status_code=409,
+            detail="The task output cannot change once tasks have been annotated",
+        )
+
+
+def _check_label_changes(db: Session, campaign: Campaign, labels: list[LabelBase]) -> None:
+    """Labels keep their ids for life, since annotations store them: renames and
+    additions are fine, removing a label or changing the geometry of one in use
+    is not."""
+    existing = {label["id"]: label for label in campaign.labels}
+    removed = set(existing) - {label.id for label in labels}
     if removed:
         raise HTTPException(
             status_code=400,
             detail=(
-                f"Removing labels is not supported (would orphan annotations). "
+                "Removing labels is not supported (would orphan annotations). "
                 f"Missing label id(s): {sorted(removed)}"
             ),
         )
-
-    existing_labels = campaign.settings.labels or {}
     for label in labels:
-        label_key = str(label.id)
-        if label_key not in existing_labels:
+        old_type = existing.get(label.id, {}).get("geometry_type", label.geometry_type)
+        if old_type == label.geometry_type:
             continue
-        existing_geom_type = existing_labels[label_key].get("geometry_type")
-        new_geom_type = label.geometry_type
-        if (
-            existing_geom_type is not None
-            and new_geom_type is not None
-            and existing_geom_type != new_geom_type
-        ):
-            annotation_count = db.scalar(
-                select(func.count())
-                .select_from(Annotation)
-                .where(
-                    Annotation.campaign_id == campaign_id,
-                    Annotation.label_id == label.id,
+        in_use = db.scalar(
+            select(
+                exists().where(
+                    Annotation.campaign_id == campaign.id, Annotation.label_id == label.id
                 )
             )
-            if annotation_count:
-                raise HTTPException(
-                    status_code=409,
-                    detail=(
-                        f"Cannot change geometry_type for label {label.id} from "
-                        f"'{existing_geom_type}' to '{new_geom_type}': "
-                        f"annotations using this label already exist"
-                    ),
-                )
-
-    labels_dict: dict = {}
-    for label in labels:
-        entry: dict = {"name": label.name}
-        if label.geometry_type is not None:
-            entry["geometry_type"] = label.geometry_type
-        labels_dict[str(label.id)] = entry
-    campaign.settings.labels = labels_dict
-
-    flag_modified(campaign.settings, "labels")
-    db.commit()
-    return get_campaign_full(db, campaign_id)
+        )
+        if in_use:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"Cannot change geometry_type for label {label.id} from "
+                    f"'{old_type}' to '{label.geometry_type}': "
+                    "annotations using this label already exist"
+                ),
+            )
 
 
 def _answered_form_field_keys(db: Session, campaign_id: int) -> set[str]:
@@ -441,40 +333,29 @@ def _answered_form_field_keys(db: Session, campaign_id: int) -> set[str]:
     )
 
 
-def update_campaign_form_fields(db: Session, campaign_id: int, form_fields: list) -> Campaign:
-    """Replace the campaign's custom form fields. Field IDs are the stability
-    anchor: stored annotation answers key off them, so edit = same id, add =
-    new id. A field missing from the list is deleted along with every answer
-    stored for it (the caller confirms that with the user). Shape changes
-    (type, number_type, removed category options) are still rejected once a
-    field has stored answers - they would make those answers unresolvable
-    rather than deliberately discarded."""
-    campaign = db.get(Campaign, campaign_id)
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    if not campaign.settings:
-        raise HTTPException(status_code=404, detail="Campaign settings not found")
-
-    existing = {str(f.get("id")): f for f in (campaign.settings.form_fields or [])}
-    incoming_ids = {str(field.id) for field in form_fields}
-    removed = set(existing) - incoming_ids
+def _apply_form_field_changes(db: Session, campaign: Campaign, form_fields: list) -> None:
+    """Field ids anchor the stored answers: edit = same id, add = new id. A field
+    missing from the list goes with every answer stored for it (the caller confirms
+    that with the user). Reshaping a field that has answers (type, number type,
+    removed options) is rejected: those answers would become unreadable rather
+    than deliberately discarded."""
+    existing = {str(f.id): f for f in campaign_form_fields(campaign)}
+    removed = set(existing) - {str(field.id) for field in form_fields}
 
     reshaped: list[tuple[Any, str]] = []
     for field in form_fields:
         old = existing.get(str(field.id))
         if not old:
             continue
-        shape_changed = old.get("type") != field.type or old.get("number_type") != getattr(
+        shape_changed = old.type != field.type or getattr(old, "number_type", None) != getattr(
             field, "number_type", None
         )
-        old_option_ids = {option["id"] for option in old.get("options") or []}
+        old_option_ids = {option.id for option in getattr(old, "options", [])}
         new_option_ids = {option.id for option in getattr(field, "options", [])}
-        removed_options = old_option_ids - new_option_ids
-        if shape_changed or removed_options:
+        if shape_changed or old_option_ids - new_option_ids:
             reshaped.append((field, "type" if shape_changed else "options"))
 
-    answered = _answered_form_field_keys(db, campaign_id) if (reshaped or removed) else set()
-
+    answered = _answered_form_field_keys(db, campaign.id) if (reshaped or removed) else set()
     for field, what in reshaped:
         if str(field.id) in answered:
             raise HTTPException(
@@ -485,240 +366,45 @@ def update_campaign_form_fields(db: Session, campaign_id: int, form_fields: list
                 ),
             )
 
-    # Runs only after every reshape is accepted: a 409 must leave stored
-    # answers untouched. Deleting a field discards the answers stored for it -
-    # `jsonb - text[]` drops just those keys, so answers to surviving fields
-    # are untouched.
+    # Only once every reshape is accepted, so a 409 leaves stored answers alone.
+    # `jsonb - text[]` drops just the removed keys.
     strip = removed & answered
     if strip:
         db.execute(
             update(Annotation)
-            .where(
-                Annotation.campaign_id == campaign_id,
-                Annotation.form_values.isnot(None),
-            )
+            .where(Annotation.campaign_id == campaign.id, Annotation.form_values.isnot(None))
             .values(form_values=Annotation.form_values.op("-")(cast(sorted(strip), ARRAY(Text))))
         )
 
-    campaign.settings.form_fields = [field.model_dump() for field in form_fields]
-    flag_modified(campaign.settings, "form_fields")
-    db.commit()
-    return get_campaign_full(db, campaign_id)
-
-
-def update_campaign_bbox(
-    db: Session,
-    campaign_id: int,
-    bbox_west: float,
-    bbox_south: float,
-    bbox_east: float,
-    bbox_north: float,
-) -> Campaign:
-    campaign = db.get(Campaign, campaign_id)
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    if not campaign.settings:
-        raise HTTPException(status_code=404, detail="Campaign settings not found")
-    if campaign.registration_status == "registering":
-        raise HTTPException(
-            status_code=409,
-            detail="Wait for imagery registration to finish before changing the ROI",
-        )
-    campaign.settings.bbox_west = bbox_west
-    campaign.settings.bbox_south = bbox_south
-    campaign.settings.bbox_east = bbox_east
-    campaign.settings.bbox_north = bbox_north
-
-    pending = prepare_stac_reregistration(db, campaign_id)
-    if pending:
-        background.begin_status_run(campaign, REGISTRATION_RUN)
-        campaign.registration_errors = None
-    db.commit()
-    new_bbox = [bbox_west, bbox_south, bbox_east, bbox_north]
-    if pending:
-        spawn_background_registration(LayerOwner(campaign_id=campaign_id), pending, new_bbox)
-
-    return get_campaign_full(db, campaign_id)
-
-
-def update_sample_extent(
-    db: Session, campaign_id: int, sample_extent_meters: float | None
-) -> Campaign:
-    campaign = db.get(Campaign, campaign_id)
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    if not campaign.settings:
-        raise HTTPException(status_code=404, detail="Campaign settings not found")
-    campaign.settings.sample_extent_meters = sample_extent_meters
-    db.commit()
-    return get_campaign_full(db, campaign_id)
-
-
-def update_labelling_policy(
-    db: Session, campaign_id: int, policy: LabellingPolicy
-) -> LabellingPolicy:
-    """Persist a new labelling policy. 'anyone' kinds are rejected for
-    non-public campaigns: an audience that lets any authenticated visitor
-    label only makes sense once the campaign itself is public."""
-    campaign = db.get(Campaign, campaign_id)
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    if not campaign.settings:
-        raise HTTPException(status_code=404, detail="Campaign settings not found")
-
-    _reject_anyone_kind_if_private(policy, campaign.is_public)
-
-    campaign.settings.labelling_policy = policy.model_dump(mode="json")
-    flag_modified(campaign.settings, "labelling_policy")
-    db.commit()
-    return LabellingPolicy.model_validate(campaign.settings.labelling_policy)
-
-
-def update_embedding_year(
-    db: Session,
-    campaign_id: int,
-    embedding_year: int | None,
-) -> dict:
-    """Set the embedding year on campaign settings and recompute embeddings if changed.
-
-    If *embedding_year* is ``None`` the column is cleared (embeddings disabled).
-    If it changes from the current value, all existing embeddings for the
-    campaign are deleted and re-fetched for the new year.
-    """
-    campaign = db.get(Campaign, campaign_id)
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    if not campaign.settings:
-        raise HTTPException(status_code=404, detail="Campaign settings not found")
-
-    old_year = campaign.settings.embedding_year
-    campaign.settings.embedding_year = embedding_year
-    db.flush()
-
-    recomputed = False
-
-    if embedding_year is not None and embedding_year != old_year:
-        task_ids_subq = (
-            select(AnnotationTask.id)
-            .where(AnnotationTask.campaign_id == campaign_id)
-            .scalar_subquery()
-        )
-        db.execute(delete(Embedding).where(Embedding.annotation_task_id.in_(task_ids_subq)))
-        recomputed = True
-        # Off the request path: populate_campaign_embeddings makes slow external
-        # calls, so the caller marks "registering" now and the spawned thread
-        # flips it to ready/failed once the recomputation finishes.
-        background.begin_status_run(campaign, embeddings_service.EMBEDDING_RUN)
-
-    db.commit()
-    db.refresh(campaign)
-
-    if recomputed and embedding_year is not None:
-        embeddings_service.spawn_background_embedding_computation(campaign_id, embedding_year)
-
-    return {
-        "embedding_year": campaign.settings.embedding_year,
-        "embeddings_recomputed": recomputed,
-    }
-
-
-def delete_annotation_tasks(
-    db: Session, campaign_id: int, task_ids: list[int], delete_annotations: bool = False
-) -> int:
-    """
-    Delete multiple annotation tasks from a campaign.
-
-    Their annotations are detached (annotation_task_id SET NULL) and kept, or
-    deleted with them when ``delete_annotations`` is set.
-
-    Args:
-        db: Database session
-        campaign_id: ID of the campaign
-        task_ids: List of task IDs to delete
-        delete_annotations: Also delete the annotations made on these tasks
-
-    Returns:
-        Number of tasks deleted
-
-    Raises:
-        HTTPException: If tasks don't exist or don't belong to campaign
-    """
-    if not task_ids:
-        return 0
-
-    assignments._verify_tasks_in_campaign(db, campaign_id, task_ids)
-    tasks = db.scalars(
-        select(AnnotationTask).where(
-            AnnotationTask.id.in_(task_ids), AnnotationTask.campaign_id == campaign_id
-        )
-    ).all()
-
-    if delete_annotations:
-        annotations = db.scalars(
-            select(Annotation).where(Annotation.annotation_task_id.in_(task_ids))
-        ).all()
-        if annotations:
-            delete_rows_and_orphan_geometries(db, annotations)
-            annotation_service.record_annotation_deletions(
-                db, campaign_id, [a.id for a in annotations]
-            )
-            annotation_service.bump_campaign_annotations_version(db, campaign_id)
-
-    delete_rows_and_orphan_geometries(db, tasks)
-
-    db.commit()
-
-    return len(tasks)
-
 
 def delete_campaign(db: Session, campaign_id: int) -> None:
-    """Delete a campaign and everything hanging off it - settings, canvas
+    delete_campaigns(db, [campaign_id])
+    db.commit()
+
+
+def delete_campaigns(db: Session, campaign_ids: list[int]) -> None:
+    """Delete campaigns and everything hanging off them - settings, canvas
     layouts, imagery, timeseries, tasks and annotations - through the database's
     own ON DELETE CASCADE. It is issued as a Core statement on purpose: deleting
     the ORM object cascades in Python instead, loading every task and annotation
-    into the session to delete them one statement at a time."""
-    if not db.get(Campaign, campaign_id):
-        raise HTTPException(status_code=404, detail="Campaign not found")
+    into the session to delete them one statement at a time.
 
-    revoke_campaign_private_searches(db, campaign_id)
-    db.execute(delete(Campaign).where(Campaign.id == campaign_id))
-    # Geometries have no campaign FK, so the cascade above cannot reach them.
-    delete_orphan_geometries(db)
-    db.commit()
-
-
-def update_task_output(db: Session, campaign_id: int, task_output: str) -> Campaign:
-    """Switch between labelling tasks and drawing around them. Locked once any
-    task has been worked: the outcomes stored so far would change meaning."""
-    campaign = db.get(Campaign, campaign_id)
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    if not campaign.settings:
-        raise HTTPException(status_code=404, detail="Campaign settings not found")
-    if campaign.settings.task_output != task_output and db.scalar(
-        select(
-            exists().where(
-                Annotation.campaign_id == campaign_id, Annotation.annotation_task_id.isnot(None)
+    A labelling agent is a user made for one campaign, so its user row (and with
+    it its project membership) goes too, unless a copy of the campaign holds its
+    annotations. Does not commit."""
+    agent_ids = list(
+        db.scalars(
+            select(LabellingAgent.user_id).where(LabellingAgent.campaign_id.in_(campaign_ids))
+        )
+    )
+    for campaign_id in campaign_ids:
+        revoke_campaign_private_searches(db, campaign_id)
+    db.execute(delete(Campaign).where(Campaign.id.in_(campaign_ids)))
+    if agent_ids:
+        # A copy of the campaign may hold the agent's annotations; then it stays.
+        db.execute(
+            delete(User).where(
+                User.id.in_(agent_ids),
+                ~exists().where(Annotation.created_by_user_id == User.id),
             )
         )
-    ):
-        raise HTTPException(
-            status_code=409,
-            detail="The task output cannot change once tasks have been annotated",
-        )
-    campaign.settings.task_output = task_output
-    db.commit()
-    return get_campaign_full(db, campaign_id)
-
-
-def update_research_sharing(db: Session, campaign_id: int, research_sharing: bool) -> Campaign:
-    """Turn open publication of this campaign's annotations on or off. Turning it
-    off stops future releases; anything already published cannot be recalled."""
-    campaign = db.get(Campaign, campaign_id)
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    if not campaign.settings:
-        raise HTTPException(status_code=404, detail="Campaign settings not found")
-    campaign.settings.research_sharing = research_sharing
-    db.commit()
-    return get_campaign_full(db, campaign_id)

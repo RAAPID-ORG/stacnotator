@@ -87,6 +87,8 @@ export interface FeatureLayerSpec {
   zIndex?: number;
   visible?: boolean;
   minZoom?: number;
+  /** Drawn only: a click on it reaches whatever lies underneath. */
+  decorative?: boolean;
 }
 
 export type LayerSpec = RasterLayerSpec | GlStyleLayerSpec | VectorTileLayerSpec | FeatureLayerSpec;
@@ -127,6 +129,9 @@ export interface InteractionSpec {
      *  mode where drawing a box IS the gesture asks for 'always'. */
     condition?: 'shift' | 'always';
   };
+  /** One rectangle to move by dragging it and resize by its corners and edges.
+   *  Shift+drag elsewhere draws a new one. */
+  box?: { bbox: Bbox; onChange: (bbox: Bbox) => void; style?: StyleSpec };
   snap?: boolean;
 }
 

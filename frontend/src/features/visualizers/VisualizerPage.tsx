@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQuery } from '@tanstack/react-query';
+import { getSharedVisualizerOptions } from '~/api/queries';
+import { RUN_POLL_MS } from '~/api/queryClient';
 import { Toaster } from 'sonner';
 import {
   deleteVisualizerFeedback,
-  getSharedVisualizer,
   getVisualizerTilerToken,
   listVisualizerFeedback,
   type VisualizerFeedbackOut,
@@ -62,8 +64,22 @@ const FEEDBACK_ZOOM_CAP = 17;
  */
 export function VisualizerPage({ slug }: { slug: string }) {
   const { t } = useTranslation('visualizers');
-  const [view, setView] = useState<VisualizerViewOut | null>(null);
-  const [failed, setFailed] = useState(false);
+  // The page renders its own failure, so the cache does not toast it too.
+  const { data: view = null, isError: loadFailed } = useQuery({
+    ...getSharedVisualizerOptions({ path: { slug } }),
+    meta: { errorMessage: t('viewer.notAvailable'), showUser: false },
+    // Imagery being registered arrives on its own, and MPC imagery is read again
+    // when it is due to expire, which renews it.
+    refetchInterval: ({ state: { data } }) => {
+      if (data?.registration_status === 'registering') return RUN_POLL_MS;
+      if (data?.imagery_renew_at)
+        return Math.max(1000, Date.parse(data.imagery_renew_at) - Date.now());
+      return false;
+    },
+  });
+  const [sessionFailed, setSessionFailed] = useState(false);
+  // A failed re-read while registration runs leaves the page as it was.
+  const failed = (loadFailed && !view) || sessionFailed;
   const [state, setState] = useState<ViewerState | null>(null);
   // On a touch device the panel covers the map, so it starts out of the way.
   // Same test the `desktop:` variant makes.
@@ -117,30 +133,29 @@ export function VisualizerPage({ slug }: { slug: string }) {
     return () => setTilerSessionMinter(null);
   }, [slug]);
 
+  // The page is set up once. A re-read while registration runs brings imagery in
+  // without undoing what the viewer has chosen or where they have moved since;
+  // only a page that had no imagery to choose from starts over with it.
+  const framed = useRef(false);
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const { data } = await getSharedVisualizer({ path: { slug } });
-        if (cancelled || !data) return;
-        setView(data);
-        setState(initialState(data));
-        if (data.area) {
-          const { west, south, east, north } = data.area;
-          camera.current?.fitBounds([west, south, east, north], {
-            paddingPx: AREA_PADDING_PX,
-            minZoom: workingZoom(data),
-          });
-        }
-        if (needsTilerSession(data)) await ensureTilerSession(slug);
-      } catch {
-        if (!cancelled) setFailed(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [slug]);
+    if (!view) return;
+    setState((current) =>
+      current === null || (current.sourceId === null && view.imagery.length > 0)
+        ? initialState(view)
+        : current
+    );
+    if (view.area && !framed.current) {
+      framed.current = true;
+      const { west, south, east, north } = view.area;
+      camera.current?.fitBounds([west, south, east, north], {
+        paddingPx: AREA_PADDING_PX,
+        minZoom: workingZoom(view),
+      });
+    }
+    if (needsTilerSession(view)) {
+      ensureTilerSession(slug).catch(() => setSessionFailed(true));
+    }
+  }, [view, slug]);
 
   useEffect(() => {
     if (view) document.title = `${view.name} - STACNotator`;

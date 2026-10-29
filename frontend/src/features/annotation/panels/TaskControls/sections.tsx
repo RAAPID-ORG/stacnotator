@@ -5,20 +5,21 @@ import { useLayoutStore as useAppLayoutStore } from '~/shared/stores/layout.stor
 import { isRemovingLabel, maySubmitTask } from '../../campaign/annotation';
 import { FormFields } from '../../components/FormFields';
 import { useCampaign, useCampaignStore, useCatalog } from '../../stores/campaign';
-import type { AnnotationTaskOut } from '~/api/client';
+import type { TaskOut } from '~/api/client';
 import { useTasksStore } from '../../stores/tasks';
-import { useWorkStore } from '../../stores/work';
+import { drewFor, useWorkStore } from '../../stores/work';
 import {
-  advance,
   DEFAULT_CONFIDENCE,
   finishDrawTask,
+  goToNextTask,
   skipCurrent,
   submitAnnotation,
   submitAuthoritative,
   taskLabellingPolicy,
 } from '../../taskActions';
 import { PointJumper } from './PointJumper';
-import { sectionCellClass, sectionHeaderClass } from './styles';
+import { sectionCellClass } from './styles';
+import { sectionHeaderClass } from '../../components/FormFields';
 
 const textareaClass =
   'w-full resize-none px-2.5 py-2 text-xs text-neutral-900 bg-white border border-neutral-300 rounded-md focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 disabled:bg-neutral-50 disabled:opacity-60 placeholder:text-neutral-400 transition-colors';
@@ -36,7 +37,7 @@ export function FieldsSection() {
   const setFormValues = useWorkStore((s) => s.setFormValues);
   return (
     <FormFields
-      fields={campaign.settings.form_fields ?? []}
+      fields={campaign.settings.form_fields}
       values={formValues}
       onChange={setFormValues}
       activeFieldIndex={activeFieldIndex}
@@ -139,14 +140,17 @@ export function ConfidenceSection() {
 /** Pinned under the scrolling sections, so submitting and moving on stay in
  *  reach however many fields a campaign asks for. The point navigation wraps
  *  onto a line of its own when the panel is too narrow for one row. */
-export function ActionBar({ task }: { task: AnnotationTaskOut }) {
-  const { t } = useTranslation(['panels', 'common']);
+export function ActionBar({ task }: { task: TaskOut }) {
+  const { t } = useTranslation(['panels', 'common', 'annotation']);
   const campaign = useCampaign();
   const catalog = useCatalog();
   const currentUserId = useCampaignStore((s) => s.currentUserId);
   const isBusy = useTasksStore((s) => s.isSubmitting);
   const previous = useTasksStore((s) => s.previous);
+  const latest = useTasksStore((s) => s.latest);
+  const stepsBack = useTasksStore((s) => Math.max(0, s.history.length - 1 - s.historyPos));
   const goToAnnotationNumber = useTasksStore((s) => s.goToAnnotationNumber);
+  const answeredElsewhere = useTasksStore((s) => s.answeredElsewhereId === task.id);
   const selectedLabelId = useWorkStore((s) => s.selectedLabelId);
   const showAlert = useAppLayoutStore((s) => s.showAlert);
   // Kept across tasks: a reviewer settling a batch of tasks settles them all.
@@ -158,15 +162,17 @@ export function ActionBar({ task }: { task: AnnotationTaskOut }) {
   const hasExistingLabel =
     task.annotations.find((a) => a.created_by_user_id === currentUserId)?.label_id != null;
   const { mayLabel, countsTowardCompletion, isAssignedToTask } = taskLabellingPolicy(task);
-  const taskHasAssignments = (task.assignments?.length ?? 0) > 0;
+  const taskHasAssignments = task.assignments.length > 0;
   const readiness = { selectedLabelId, hasExistingLabel, mayLabel, isSubmitting: isBusy };
   const isSubmitDisabled = !maySubmitTask(readiness);
   // Skipping is labelling with no label, so it is gated the same way. Keying
   // it on assignment would put it out of reach on the whole unassigned pool.
   const isSkipDisabled = isBusy || !mayLabel;
-  const drewHere =
-    useWorkStore((s) => s.drawnTaskIds.includes(task.id)) ||
-    (task.drawn_by_user_ids ?? []).some((id) => id === currentUserId);
+  const drewHere = drewFor(
+    task,
+    currentUserId,
+    useWorkStore((s) => s.drawnShapes)
+  );
   const submitLabel = isBusy
     ? t('task.submitting')
     : drawTask
@@ -187,6 +193,14 @@ export function ActionBar({ task }: { task: AnnotationTaskOut }) {
           className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1"
         >
           {t('task.notAllowed')}
+        </p>
+      )}
+      {answeredElsewhere && (
+        <p
+          data-testid="answered-elsewhere-notice"
+          className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1"
+        >
+          {t('task.answeredElsewhere')}
         </p>
       )}
       {mayLabel && taskHasAssignments && !countsTowardCompletion && (
@@ -240,7 +254,7 @@ export function ActionBar({ task }: { task: AnnotationTaskOut }) {
           )}
           <button
             type="button"
-            disabled={drawTask ? isSkipDisabled : isSubmitDisabled}
+            disabled={drawTask ? isSkipDisabled || !drewHere : isSubmitDisabled}
             onClick={() =>
               void (drawTask
                 ? finishDrawTask('drawn')
@@ -249,11 +263,15 @@ export function ActionBar({ task }: { task: AnnotationTaskOut }) {
                   : submitAnnotation())
             }
             title={
-              asAuthoritative
-                ? isAssignedToTask
-                  ? t('task.authoritativeAssignedTitle')
-                  : t('task.authoritativeUnassignedTitle')
-                : undefined
+              drawTask
+                ? drewHere
+                  ? t('task.doneTitle')
+                  : t('annotation:taskActions.drawFirst')
+                : asAuthoritative
+                  ? isAssignedToTask
+                    ? t('task.authoritativeAssignedTitle')
+                    : t('task.authoritativeUnassignedTitle')
+                  : undefined
             }
             className={`flex-1 min-w-[5rem] inline-flex items-center justify-center h-7 px-3 text-xs font-medium text-white rounded-md shadow-sm transition-colors whitespace-nowrap disabled:bg-neutral-300 disabled:text-neutral-500 disabled:shadow-none disabled:cursor-not-allowed ${
               asAuthoritative
@@ -286,7 +304,7 @@ export function ActionBar({ task }: { task: AnnotationTaskOut }) {
           <button
             type="button"
             disabled={isBusy}
-            onClick={() => void advance()}
+            onClick={() => void goToNextTask()}
             aria-label={t('task.nextPoint')}
             title={t('task.nextPoint')}
             className={navButtonClass}
@@ -296,6 +314,24 @@ export function ActionBar({ task }: { task: AnnotationTaskOut }) {
           </button>
         </div>
       </div>
+      {stepsBack > 0 && (
+        <div
+          data-testid="task-history"
+          className="flex items-center justify-between gap-2 whitespace-nowrap text-[11px] text-neutral-500"
+        >
+          <span title={t('task.historyBackTitle')}>
+            {t('task.historyBack', { count: stepsBack })}
+          </span>
+          <button
+            type="button"
+            disabled={isBusy}
+            onClick={() => latest(catalog)}
+            className="font-medium text-brand-700 hover:text-brand-800 disabled:opacity-40 cursor-pointer"
+          >
+            {t('task.historyLatest')}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

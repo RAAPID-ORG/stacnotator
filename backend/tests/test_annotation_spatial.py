@@ -21,6 +21,7 @@ def _session(rows):
     result.scalars.return_value = rows
     result.all.return_value = rows
     result.first.return_value = rows[0] if rows else None
+    result.one.return_value = rows[0] if rows else None
     return db
 
 
@@ -53,7 +54,7 @@ def _density(db, include_tasks):
 def test_spatial_reads_include_task_annotations_by_default(read, rows):
     db = _session(rows)
     read(db, True)
-    assert "annotation_task_id" not in _sql_of(db)
+    assert "task_id" not in _sql_of(db)
 
 
 @pytest.mark.parametrize(

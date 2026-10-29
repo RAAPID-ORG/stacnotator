@@ -55,7 +55,7 @@ test.describe('Authoritative submit', () => {
 
     const req = lastAnnotateRequest(api.requests);
     expect(req).toBeDefined();
-    expect(req!.pathParams.annotation_task_id).toBe('100');
+    expect(req!.pathParams.task_id).toBe('100');
     expect(req!.body.is_authoritative).toBe(true);
     expect(req!.body.label_id).toBe(1); // forest
   });

@@ -78,7 +78,7 @@ describe('setCampaign during registration', () => {
           collections: [
             {
               ...source.collections[0],
-              slices: [makeSlice({ id: 100, tile_urls: [] })],
+              slices: [makeSlice({ id: 100, tiles: [] })],
             },
           ],
         },
@@ -111,7 +111,7 @@ describe('setCampaign during registration', () => {
     useCampaignStore.getState().setCampaign(campaign);
     useImageryStore.getState().setShowBasemap(true);
     useLayoutStore.getState().startEditing();
-    useLayoutStore.getState().hideAllWindows();
+    useLayoutStore.getState().hideAllWindows([10]);
     const address = useImageryStore.getState().address;
     const layout = useLayoutStore.getState().currentLayout;
 
@@ -192,21 +192,20 @@ describe('startCollectionFor', () => {
     })
   );
   const view = makeView({ id: 7, source_ids: [1] });
-  const window = { i: '', x: 0, y: 0, w: 10, h: 9 };
 
-  it('takes the chronologically first collection when none has a window', () => {
-    expect(startCollectionFor(catalog, view, {})).toBe(10);
+  it('takes the chronologically first collection when nothing is hidden', () => {
+    expect(startCollectionFor(catalog, view, [])).toBe(10);
   });
 
-  it('prefers a windowed collection over an earlier one without a window', () => {
-    expect(startCollectionFor(catalog, view, { 20: window })).toBe(20);
+  it('prefers a shown collection over an earlier hidden one', () => {
+    expect(startCollectionFor(catalog, view, [10, 30])).toBe(20);
   });
 
   it('honours a pinned start that is still in the pool', () => {
     usePrefsStore.getState().setPinnedStart(7, 30);
-    expect(startCollectionFor(catalog, view, {})).toBe(30);
-    // Pinned to a collection the windows exclude: the pin does not apply.
-    expect(startCollectionFor(catalog, view, { 20: window })).toBe(20);
+    expect(startCollectionFor(catalog, view, [])).toBe(30);
+    // Pinned to a hidden collection: the pin does not apply.
+    expect(startCollectionFor(catalog, view, [10, 30])).toBe(20);
   });
 
   const multiSource = makeCampaign({
@@ -219,20 +218,20 @@ describe('startCollectionFor', () => {
   });
   const multiCatalog = buildImageryCatalog(multiSource);
 
-  it('uses source order before collection dates, even when only another source has windows', () => {
-    expect(startCollectionFor(multiCatalog, multiSource.imagery_views[0], { 40: window })).toBe(10);
-    expect(startCollectionFor(multiCatalog, makeView({ id: 7, source_ids: [2, 1] }), {})).toBe(40);
+  it('uses source order before collection dates, even when only another source is shown', () => {
+    expect(startCollectionFor(multiCatalog, multiSource.imagery_views[0], [10, 20, 30])).toBe(10);
+    expect(startCollectionFor(multiCatalog, makeView({ id: 7, source_ids: [2, 1] }), [])).toBe(40);
   });
 
   it('skips unknown and empty sources without losing the requested ordering', () => {
     expect(
-      startCollectionFor(multiCatalog, makeView({ id: 7, source_ids: [99, 3, 1, 2] }), {})
+      startCollectionFor(multiCatalog, makeView({ id: 7, source_ids: [99, 3, 1, 2] }), [])
     ).toBe(10);
   });
 
   it('keeps an explicitly pinned start ahead of the view default', () => {
     usePrefsStore.getState().setPinnedStart(7, 40);
-    expect(startCollectionFor(multiCatalog, multiSource.imagery_views[0], {})).toBe(40);
+    expect(startCollectionFor(multiCatalog, multiSource.imagery_views[0], [])).toBe(40);
   });
 
   it('updates the next-task default after a server order change without resetting navigation or layout edits', () => {

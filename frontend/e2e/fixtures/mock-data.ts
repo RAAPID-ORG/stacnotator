@@ -6,7 +6,7 @@ export const MOCK_USER = {
   id: TEST_USER_ID,
   email: 'test@example.com',
   display_name: 'Test User',
-  is_admin: false,
+  is_platform_admin: false,
   issuer: 'firebase',
   terms_version: 'test-terms',
   terms_accepted_version: 'test-terms',
@@ -14,9 +14,9 @@ export const MOCK_USER = {
 
 // Labels for the campaign
 export const LABELS = [
-  { id: 1, name: 'forest', geometry_type: null },
-  { id: 2, name: 'cropland', geometry_type: null },
-  { id: 3, name: 'urban', geometry_type: null },
+  { id: 1, name: 'forest', geometry_type: 'polygon' },
+  { id: 2, name: 'cropland', geometry_type: 'polygon' },
+  { id: 3, name: 'urban', geometry_type: 'polygon' },
 ];
 
 // Two slices with unique tile URLs (so we can verify the correct one loads)
@@ -26,16 +26,14 @@ const SLICE_2024_01 = {
   start_date: '2024-01-01',
   end_date: '2024-01-31',
   display_order: 0,
-  tile_urls: [
+  tiles: [
     {
-      visualization_name: 'True Color',
-      tile_url:
-        'https://tiles.example.com/mosaic/search-jan-2024/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=truecolor',
+      visualization_id: 1,
+      url: 'https://tiles.example.com/mosaic/search-jan-2024/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=truecolor',
     },
     {
-      visualization_name: 'False Color',
-      tile_url:
-        'https://tiles.example.com/mosaic/search-jan-2024/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=falsecolor',
+      visualization_id: 2,
+      url: 'https://tiles.example.com/mosaic/search-jan-2024/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=falsecolor',
     },
   ],
 };
@@ -46,16 +44,14 @@ const SLICE_2024_06 = {
   start_date: '2024-06-01',
   end_date: '2024-06-30',
   display_order: 1,
-  tile_urls: [
+  tiles: [
     {
-      visualization_name: 'True Color',
-      tile_url:
-        'https://tiles.example.com/mosaic/search-jun-2024/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=truecolor',
+      visualization_id: 1,
+      url: 'https://tiles.example.com/mosaic/search-jun-2024/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=truecolor',
     },
     {
-      visualization_name: 'False Color',
-      tile_url:
-        'https://tiles.example.com/mosaic/search-jun-2024/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=falsecolor',
+      visualization_id: 2,
+      url: 'https://tiles.example.com/mosaic/search-jun-2024/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=falsecolor',
     },
   ],
 };
@@ -66,7 +62,7 @@ const COLLECTION_S2 = {
   cover_slice_index: 0,
   display_order: 0,
   slices: [SLICE_2024_01, SLICE_2024_06],
-  stac_config: null,
+  search: null,
 };
 
 // A second collection for multi-window testing
@@ -82,11 +78,10 @@ const COLLECTION_NDVI = {
       start_date: '2024-01-01',
       end_date: '2024-01-31',
       display_order: 0,
-      tile_urls: [
+      tiles: [
         {
-          visualization_name: 'NDVI',
-          tile_url:
-            'https://tiles.example.com/mosaic/ndvi-jan-2024/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=ndvi',
+          visualization_id: 1,
+          url: 'https://tiles.example.com/mosaic/ndvi-jan-2024/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=ndvi',
         },
       ],
     },
@@ -105,11 +100,12 @@ const SOURCE = {
   collections: [COLLECTION_S2, COLLECTION_NDVI],
 };
 
-// A view's windows are exactly the collection keys in its canvas layout;
-// source_ids only says which sources are browsable in the view.
-const viewWindowLayout = (id: number, collectionIds: number[]) => ({
+// Every collection of a view's sources is a window; the layout places some and
+// hides the ones listed in `hidden`.
+const viewWindowLayout = (id: number, collectionIds: number[], hidden: number[] = []) => ({
   id,
   user_id: null,
+  hidden: hidden.map(String),
   layout_data: collectionIds.map((cid, idx) => ({
     i: String(cid),
     x: (idx % 6) * 10,
@@ -148,7 +144,6 @@ export const MOCK_CAMPAIGN = {
   project_id: 7,
   name: 'Test Campaign',
   created_at: '2024-01-01T00:00:00Z',
-  mode: 'tasks',
   // Viewer roles are stamped on the campaign response; the default user is a
   // plain project member. `elevateToAuthoritativeReviewer` overrides them.
   viewer_is_admin: false,
@@ -161,6 +156,10 @@ export const MOCK_CAMPAIGN = {
     bbox_east: 31.0,
     bbox_north: 51.0,
     embedding_year: null,
+    guide_markdown: null,
+    sample_extent_meters: null,
+    form_fields: [],
+    task_output: 'classify',
     // Mirrors DEFAULT_LABELLING_POLICY (campaigns/utils/labellingPolicy.ts) / backend
     // default_labelling_policy(): AnnotationPage/AnnotationToolbar read
     // campaign.settings.labelling_policy.explore unconditionally.
@@ -170,6 +169,7 @@ export const MOCK_CAMPAIGN = {
       unassigned_tasks: { kinds: ['members'], user_ids: [] },
       assigned_tasks: { kinds: ['members'], user_ids: [] },
       complete_assigned: { kinds: ['assignees', 'admins', 'authoritative'], user_ids: [] },
+      modify_others: { kinds: ['admins'], user_ids: [] },
     },
   },
   imagery_sources: [SOURCE],
@@ -196,10 +196,7 @@ function makeTask(
     id,
     annotation_number: annotationNumber,
     task_status: opts.status ?? 'pending',
-    geometry: {
-      id: id * 10,
-      geometry: `POINT(${lon} ${lat})`,
-    },
+    geometry_wkt: `POINT(${lon} ${lat})`,
     assignments: opts.assignments ?? [
       {
         user_id: TEST_USER_ID,
@@ -247,7 +244,7 @@ export const TASK_3 = makeTask(300, 3, 50.3, 30.9, {
       created_at: '2024-06-15T10:00:00Z',
       confidence: 8,
       is_authoritative: false,
-      geometry: { id: 3010, geometry: 'POINT(30.90 50.30)' },
+      geometry_wkt: 'POINT(30.90 50.30)',
     },
   ],
   assignments: [
@@ -291,7 +288,7 @@ export const TASK_5 = makeTask(500, 5, 50.55, 30.6, {
       is_authoritative: false,
       flagged_for_review: true,
       flag_comment: 'Unsure about this one',
-      geometry: { id: 5010, geometry: 'POINT(30.60 50.55)' },
+      geometry_wkt: 'POINT(30.60 50.55)',
     },
     {
       id: 5002,
@@ -301,7 +298,7 @@ export const TASK_5 = makeTask(500, 5, 50.55, 30.6, {
       created_at: '2024-06-16T11:00:00Z',
       confidence: 5,
       is_authoritative: true,
-      geometry: { id: 5020, geometry: 'POINT(30.60 50.55)' },
+      geometry_wkt: 'POINT(30.60 50.55)',
     },
   ],
   assignments: [
@@ -427,8 +424,6 @@ export const MOCK_PROJECT_USERS = {
         id: TEST_USER_ID,
         email: 'test@example.com',
         display_name: 'Test User',
-        is_admin: false,
-        issuer: 'firebase',
       },
       is_admin: false,
       is_authoritative_reviewer: false,
@@ -438,8 +433,6 @@ export const MOCK_PROJECT_USERS = {
         id: 'other-user-xyz',
         email: 'other@example.com',
         display_name: 'Other User',
-        is_admin: false,
-        issuer: 'firebase',
       },
       is_admin: false,
       is_authoritative_reviewer: false,
@@ -471,7 +464,7 @@ export function makeSubmitResponse(
             created_at: new Date().toISOString(),
             confidence,
             is_authoritative: false,
-            geometry: { id: taskId * 10 + 2, geometry: 'POINT(0 0)' },
+            geometry_wkt: 'POINT(0 0)',
           }
         : null,
     task_status:
@@ -500,7 +493,7 @@ export const COLLECTION_VHR = {
   name: 'VHR Image',
   cover_slice_index: 0,
   display_order: 0,
-  stac_config: null,
+  search: null,
   slices: [
     {
       id: 301,
@@ -508,11 +501,10 @@ export const COLLECTION_VHR = {
       start_date: '2023-01-01',
       end_date: '2023-12-31',
       display_order: 0,
-      tile_urls: [
+      tiles: [
         {
-          visualization_name: 'True Color',
-          tile_url:
-            'https://tiles.example.com/mosaic/vhr-2023/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=vhr-truecolor',
+          visualization_id: 3,
+          url: 'https://tiles.example.com/mosaic/vhr-2023/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=vhr-truecolor',
         },
       ],
     },
@@ -542,7 +534,7 @@ export const MOCK_CAMPAIGN_MULTI_SOURCE = {
       name: 'Default View',
       display_order: 0,
       source_ids: [2, 1],
-      default_canvas_layout: viewWindowLayout(11, [10, 30]),
+      default_canvas_layout: viewWindowLayout(11, [10, 30], [20]),
       personal_canvas_layout: null,
     },
   ],
@@ -556,10 +548,11 @@ export const MOCK_TIMESERIES_ENTRY = {
   id: 1,
   campaign_id: 42,
   name: 'NDVI',
+  window_id: 1,
+  window_name: 'Time series',
   start_ym: '202401',
   end_ym: '202406',
   data_source: 'Sentinel-2',
-  provider: 'planetary',
   ts_type: 'NDVI',
   index: {
     key: 'NDVI',
@@ -615,7 +608,7 @@ export const COLLECTION_VHR_MULTI = {
   name: 'VHR Sept',
   cover_slice_index: 0,
   display_order: 0,
-  stac_config: null,
+  search: null,
   slices: [
     {
       id: 401,
@@ -623,11 +616,10 @@ export const COLLECTION_VHR_MULTI = {
       start_date: '2024-09-01',
       end_date: '2024-09-07',
       display_order: 0,
-      tile_urls: [
+      tiles: [
         {
-          visualization_name: 'True Color',
-          tile_url:
-            'https://tiles.example.com/mosaic/vhr-sep-wk1/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=vhr-truecolor',
+          visualization_id: 3,
+          url: 'https://tiles.example.com/mosaic/vhr-sep-wk1/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=vhr-truecolor',
         },
       ],
     },
@@ -637,11 +629,10 @@ export const COLLECTION_VHR_MULTI = {
       start_date: '2024-09-08',
       end_date: '2024-09-14',
       display_order: 1,
-      tile_urls: [
+      tiles: [
         {
-          visualization_name: 'True Color',
-          tile_url:
-            'https://tiles.example.com/mosaic/vhr-sep-wk2/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=vhr-truecolor',
+          visualization_id: 3,
+          url: 'https://tiles.example.com/mosaic/vhr-sep-wk2/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=vhr-truecolor',
         },
       ],
     },
@@ -666,7 +657,7 @@ export const MOCK_CAMPAIGN_MULTI_SOURCE_WITH_TIMESERIES = {
       name: 'Default View',
       display_order: 0,
       source_ids: [1, 2],
-      default_canvas_layout: viewWindowLayout(11, [10, 40]),
+      default_canvas_layout: viewWindowLayout(11, [10, 40], [20]),
       personal_canvas_layout: null,
     },
   ],
@@ -690,10 +681,10 @@ const monthSlices = (collId: number, marker: string, ym: string, lastDay: string
     start_date: `${ym}-01`,
     end_date: `${ym}-${lastDay}`,
     display_order: 0,
-    tile_urls: [
+    tiles: [
       {
-        visualization_name: 'True Color',
-        tile_url: `https://tiles.example.com/mosaic/${marker}-cover/tiles/WebMercatorQuad/{z}/{x}/{y}`,
+        visualization_id: 1,
+        url: `https://tiles.example.com/mosaic/${marker}-cover/tiles/WebMercatorQuad/{z}/{x}/{y}`,
       },
     ],
   },
@@ -708,10 +699,10 @@ const monthSlices = (collId: number, marker: string, ym: string, lastDay: string
     start_date: `${ym}-${s}`,
     end_date: `${ym}-${e}`,
     display_order: idx + 1,
-    tile_urls: [
+    tiles: [
       {
-        visualization_name: 'True Color',
-        tile_url: `https://tiles.example.com/mosaic/${marker}-${wk.toLowerCase()}/tiles/WebMercatorQuad/{z}/{x}/{y}`,
+        visualization_id: 1,
+        url: `https://tiles.example.com/mosaic/${marker}-${wk.toLowerCase()}/tiles/WebMercatorQuad/{z}/{x}/{y}`,
       },
     ],
   })),
@@ -724,7 +715,7 @@ export const COLLECTION_MAR_2022 = {
   has_dedicated_cover: true,
   display_order: 0,
   slices: monthSlices(7001, 'mar2022', '2022-03', '31'),
-  stac_config: null,
+  search: null,
 };
 
 export const COLLECTION_SEP_2022 = {
@@ -734,7 +725,7 @@ export const COLLECTION_SEP_2022 = {
   has_dedicated_cover: true,
   display_order: 1,
   slices: monthSlices(7002, 'sep2022', '2022-09', '30'),
-  stac_config: null,
+  search: null,
 };
 
 const SOURCE_MONTHS = {
@@ -760,10 +751,11 @@ export const MONTHS_TIMESERIES_ENTRY = {
   id: 70,
   campaign_id: 42,
   name: 'NDVI',
+  window_id: 1,
+  window_name: 'Time series',
   start_ym: '202201',
   end_ym: '202212',
   data_source: 'Imagery',
-  provider: 'planetary',
   ts_type: 'NDVI',
   index: {
     key: 'NDVI',
@@ -819,39 +811,38 @@ export const MOCK_CAMPAIGN_MULTI_VIEW = {
 };
 
 // ---------------------------------------------------------------------------
-// Open mode campaign fixtures
+// Explore campaign fixtures
 // ---------------------------------------------------------------------------
 
-// Open-mode labels carry an explicit geometry_type so the drawing tool picks the
+// Explore labels carry an explicit geometry_type so the drawing tool picks the
 // right OL interaction (point = single-click, polygon/line = multi-click).
-export const OPEN_LABELS = [
+export const EXPLORE_LABELS = [
   { id: 1, name: 'tree', geometry_type: 'point' },
   { id: 2, name: 'field', geometry_type: 'polygon' },
   { id: 3, name: 'road', geometry_type: 'line' },
 ];
 
 // Center of the campaign bbox (30..31 lon, 50..51 lat) - the initial map center
-// in open mode. A canvas-center click lands here, so position assertions compare
+// in Explore. A canvas-center click lands here, so position assertions compare
 // the POSTed WKT against this.
-export const OPEN_MODE_CENTER = { lat: 50.5, lon: 30.5 };
+export const EXPLORE_CENTER = { lat: 50.5, lon: 30.5 };
 
-export const MOCK_CAMPAIGN_OPEN_MODE = {
+export const MOCK_CAMPAIGN_EXPLORE = {
   ...MOCK_CAMPAIGN,
-  name: 'Test Campaign (Open Mode)',
-  mode: 'open',
-  settings: { ...MOCK_CAMPAIGN.settings, labels: OPEN_LABELS },
+  name: 'Test Campaign (Explore)',
+  settings: { ...MOCK_CAMPAIGN.settings, labels: EXPLORE_LABELS },
   time_series: [MOCK_TIMESERIES_ENTRY],
 };
 
 /** Same campaign without timeseries, so the T tool is unavailable. */
-export const MOCK_CAMPAIGN_OPEN_MODE_NO_TS = {
-  ...MOCK_CAMPAIGN_OPEN_MODE,
+export const MOCK_CAMPAIGN_EXPLORE_NO_TS = {
+  ...MOCK_CAMPAIGN_EXPLORE,
   time_series: [],
 };
 
 // Custom form fields: one required category and one optional free-text field.
-// Drives the draw-then-answer catalog flow in open mode.
-export const OPEN_FORM_FIELDS = [
+// Drives the draw-then-answer catalog flow in Explore.
+export const EXPLORE_FORM_FIELDS = [
   {
     id: 100,
     title: 'Condition',
@@ -870,22 +861,21 @@ export const OPEN_FORM_FIELDS = [
   },
 ];
 
-/** Open-mode campaign that has custom form fields, so drawing opens the
+/** Explore campaign that has custom form fields, so drawing opens the
  *  questions catalog before the annotation is saved. */
-export const MOCK_CAMPAIGN_OPEN_MODE_FORMS = {
-  ...MOCK_CAMPAIGN_OPEN_MODE,
-  name: 'Test Campaign (Open Mode, forms)',
-  settings: { ...MOCK_CAMPAIGN.settings, labels: OPEN_LABELS, form_fields: OPEN_FORM_FIELDS },
+export const MOCK_CAMPAIGN_EXPLORE_FORMS = {
+  ...MOCK_CAMPAIGN_EXPLORE,
+  name: 'Test Campaign (Explore, forms)',
+  settings: { ...MOCK_CAMPAIGN.settings, labels: EXPLORE_LABELS, form_fields: EXPLORE_FORM_FIELDS },
 };
 
 /**
- * Open-mode campaign with two imagery sources (Sentinel-2 + VHR) so the I key
+ * Explore campaign with two imagery sources (Sentinel-2 + VHR) so the I key
  * can cycle sources, plus timeseries for the probe tool.
  */
-export const MOCK_CAMPAIGN_OPEN_MODE_MULTI = {
+export const MOCK_CAMPAIGN_EXPLORE_MULTI = {
   ...MOCK_CAMPAIGN_MULTI_SOURCE,
-  mode: 'open',
-  settings: { ...MOCK_CAMPAIGN.settings, labels: OPEN_LABELS },
+  settings: { ...MOCK_CAMPAIGN.settings, labels: EXPLORE_LABELS },
   time_series: [MOCK_TIMESERIES_ENTRY],
   // Layout that gives the minimap a real on-screen size so it is clickable.
   default_main_canvas_layout: {
@@ -920,7 +910,7 @@ function makeOpenAnnotation(
     is_authoritative: false,
     flagged_for_review: opts.flagged ?? false,
     flag_comment: opts.flagged ? (opts.flagComment ?? null) : null,
-    geometry: { id: id * 10, geometry: wkt },
+    geometry_wkt: wkt,
     // The annotations list returns a centroid instead of the geometry, so mocks carry
     // both: one shape for the annotation page, the other for the review table.
     ...wktCentroid(wkt),
@@ -944,29 +934,33 @@ function wktCentroid(wkt: string): { centroid_lat: number | null; centroid_lon: 
 //   B (newest) is off-centre (NE) - pressing S navigates here and re-centres the map.
 //   A is exactly at the view centre - a canvas-centre click selects it (edit/delete/flag).
 //   C (oldest) is a polygon to the SW.
-export const OPEN_ANN_CENTER = makeOpenAnnotation(
+export const EXPLORE_ANN_CENTER = makeOpenAnnotation(
   9001,
   1,
   'POINT(30.5 50.5)',
   '2024-06-10T10:00:00Z'
 );
-export const OPEN_ANN_NE_FLAGGED = makeOpenAnnotation(
+export const EXPLORE_ANN_NE_FLAGGED = makeOpenAnnotation(
   9002,
   1,
   'POINT(30.8 50.8)',
   '2024-06-20T10:00:00Z',
   { flagged: true, flagComment: 'please double-check' }
 );
-export const OPEN_ANN_SW_POLYGON = makeOpenAnnotation(
+export const EXPLORE_ANN_SW_POLYGON = makeOpenAnnotation(
   9003,
   2,
   'POLYGON((30.18 50.18, 30.22 50.18, 30.22 50.22, 30.18 50.22, 30.18 50.18))',
   '2024-06-01T10:00:00Z'
 );
 
-export const MOCK_OPEN_ANNOTATIONS = [OPEN_ANN_CENTER, OPEN_ANN_NE_FLAGGED, OPEN_ANN_SW_POLYGON];
+export const MOCK_EXPLORE_ANNOTATIONS = [
+  EXPLORE_ANN_CENTER,
+  EXPLORE_ANN_NE_FLAGGED,
+  EXPLORE_ANN_SW_POLYGON,
+];
 
-/** Build an AnnotationOut echoing back a create-annotation POST body. */
+/** Build an AnnotationOut echoing back a create POST body. */
 export function makeCreateAnnotationResponse(body: any, id: number) {
   return {
     id,
@@ -981,7 +975,7 @@ export function makeCreateAnnotationResponse(body: any, id: number) {
     is_authoritative: false,
     flagged_for_review: body?.flagged_for_review ?? false,
     flag_comment: body?.flag_comment ?? null,
-    geometry: { id: id * 10, geometry: body?.geometry_wkt ?? 'POINT(0 0)' },
+    geometry_wkt: body?.geometry_wkt ?? 'POINT(0 0)',
   };
 }
 
@@ -995,9 +989,7 @@ export function makeUpdateAnnotationResponse(existing: any, body: any) {
     flag_comment:
       body?.flagged_for_review === false ? null : (body?.flag_comment ?? existing.flag_comment),
     updated_at: '2024-07-02T10:00:00Z',
-    geometry: body?.geometry_wkt
-      ? { ...existing.geometry, geometry: body.geometry_wkt }
-      : existing.geometry,
+    geometry_wkt: body?.geometry_wkt ?? existing.geometry_wkt,
   };
 }
 

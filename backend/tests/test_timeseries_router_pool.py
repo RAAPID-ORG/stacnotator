@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.auth.dependencies import require_authenticated_user
+from src.campaigns.dependencies import require_campaign_access
 from src.database import get_db
 from src.main import app
 from src.timeseries import router as ts_router
@@ -42,11 +43,11 @@ def events(monkeypatch):
 
     monkeypatch.setattr(ts_router.service, "get_timeseries_by_id", fake_get_ts)
     monkeypatch.setattr(service, "get_timeseries_data", fake_ee)
-    monkeypatch.setattr(ts_router, "require_campaign_access", lambda **kw: None)
     monkeypatch.setattr(ts_router, "ensure_earth_engine", lambda: True)
 
     app.dependency_overrides[get_db] = lambda: fake_db
     app.dependency_overrides[require_authenticated_user] = lambda: SimpleNamespace(id=1)
+    app.dependency_overrides[require_campaign_access] = lambda: SimpleNamespace(id=CAMPAIGN_ID)
     yield log
     app.dependency_overrides.clear()
 
@@ -56,7 +57,10 @@ def test_connection_is_released_before_the_earth_engine_call(events):
     work; a few concurrent fetches then starve the app of connections entirely."""
     client = TestClient(app, headers={"Authorization": "Bearer t"})
 
-    resp = client.get(f"/api/timeseries/{TS_ID}/-0.9/36.9/data")
+    resp = client.get(
+        f"/api/campaigns/{CAMPAIGN_ID}/timeseries/{TS_ID}/data",
+        params={"latitude": -0.9, "longitude": 36.9},
+    )
 
     assert resp.status_code == 200
     assert events == ["close", "earth_engine"]

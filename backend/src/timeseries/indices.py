@@ -129,9 +129,8 @@ INDICES_BY_KEY: dict[str, SpectralIndex] = {index.key: index for index in INDICE
 
 
 def index_for(key: str) -> SpectralIndex | None:
-    """The index registered under `key`, or None. Matching is case- and
-    padding-insensitive so a stored value survives hand-editing."""
-    return INDICES_BY_KEY.get(key.strip().upper())
+    """The index registered under `key`, or None."""
+    return INDICES_BY_KEY.get(key)
 
 
 # ---------------------------------------------------------------------------

@@ -8,7 +8,7 @@ import {
   makeCollection,
   makeSlice,
   makeSource,
-  makeTileUrl,
+  makeTile,
   makeViz,
 } from '~/features/annotation/testing/fixtures';
 import {
@@ -190,10 +190,10 @@ describe('useEmptyHealing enabled gate', () => {
               makeSlice({
                 id: 1000,
                 name: 's0',
-                tile_urls: [
-                  makeTileUrl({
-                    visualization_name: 'rgb',
-                    tile_url: 'https://t.test/{z}/{x}/{y}.png',
+                tiles: [
+                  makeTile({
+                    visualization_id: 11,
+                    url: 'https://t.test/{z}/{x}/{y}.png',
                   }),
                 ],
               }),

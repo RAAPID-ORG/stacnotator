@@ -14,9 +14,10 @@ from fastapi import HTTPException
 from src.config import TilerCfg
 from src.imagery import service
 from src.imagery.schemas import (
-    CollectionStacConfigCreate,
-    NamedVizParamsCreate,
-    VizParamsCreate,
+    CollectionSearchCreate,
+    CollectionVisualizationCreate,
+    ImageryCollectionCreate,
+    RenderParams,
 )
 from src.organizations.service import set_org_tilers
 from src.projects.service import get_project_tilers
@@ -59,22 +60,22 @@ MPC_CATALOG = "https://planetarycomputer.microsoft.com/api/stac/v1"
 OTHER_CATALOG = "https://earth-search.example/v1"
 
 
-def _editor_state(tiler, catalog_url=OTHER_CATALOG, viz=None, cover_viz=None):
-    """One collection with one visualization. Default viz is first-valid compositing,
-    i.e. MPC-eligible - so the catalog URL alone decides the routing."""
-    stac = CollectionStacConfigCreate(
-        catalog_url=catalog_url,
-        tiler=tiler,
+def _sources(tiler, catalog_url=OTHER_CATALOG, viz=None, cover_viz=None):
+    """One collection with one visualization. Its default params are first-valid
+    compositing, i.e. MPC-eligible - so the catalog URL alone decides the routing."""
+    col = ImageryCollectionCreate(
+        name="c1",
+        slices=[],
+        search=CollectionSearchCreate(catalog_url=catalog_url, stac_collection_id="c", tiler=tiler),
         visualizations=[
-            NamedVizParamsCreate(
-                name="rgb",
-                viz_params=viz or VizParamsCreate(compositing="first"),
-                cover_viz_params=cover_viz,
+            CollectionVisualizationCreate(
+                visualization="rgb",
+                params=viz or RenderParams(compositing="first"),
+                cover_params=cover_viz,
             )
         ],
     )
-    col = SimpleNamespace(name="c1", stac_config=stac)
-    return SimpleNamespace(sources=[SimpleNamespace(collections=[col])])
+    return [SimpleNamespace(collections=[col])]
 
 
 # --- registry -------------------------------------------------------------------
@@ -170,39 +171,39 @@ def test_project_tilers_reports_internal_storage_and_extra_grants(settings):
 
 
 def test_authorize_allows_default_and_none(settings):
-    service._resolve_tilers(_org(), _editor_state(None))
-    service._resolve_tilers(_org(), _editor_state("azure"))
+    service._resolve_tilers(_org(), _sources(None))
+    service._resolve_tilers(_org(), _sources("azure"))
 
 
 def test_authorize_blocks_tiler_outside_org_allowlist(settings):
     with pytest.raises(HTTPException) as exc:
-        service._resolve_tilers(_org(), _editor_state("tiler-gcp"))
+        service._resolve_tilers(_org(), _sources("tiler-gcp"))
     assert exc.value.status_code == 403
 
 
 def test_authorize_allows_granted_extra(settings):
     # tiler-gcp can't ingest, so an external catalog pinned to it is served by azure instead.
-    state = _editor_state("tiler-gcp")
+    state = _sources("tiler-gcp")
     service._resolve_tilers(_org(("mpc", "azure", "tiler-gcp")), state)
-    assert state.sources[0].collections[0].stac_config.tiler == "azure"
+    assert state[0].collections[0].search.tiler == "azure"
 
 
 def test_authorize_keeps_a_platform_tiler_for_its_own_catalog(settings):
     # tiler-gcp's own STAC API needs no ingest: its items are already in its pgstac.
-    state = _editor_state("tiler-gcp", catalog_url="https://gcp/stac")
+    state = _sources("tiler-gcp", catalog_url="https://gcp/stac")
     service._resolve_tilers(_org(("mpc", "azure", "tiler-gcp")), state)
-    assert state.sources[0].collections[0].stac_config.tiler == "tiler-gcp"
+    assert state[0].collections[0].search.tiler == "tiler-gcp"
 
 
 def test_authorize_rejects_unknown_tiler(settings):
     with pytest.raises(HTTPException) as exc:
-        service._resolve_tilers(_org(), _editor_state("ghost"))
+        service._resolve_tilers(_org(), _sources("ghost"))
     assert exc.value.status_code == 400
 
 
 def test_authorize_blocks_default_tiler_when_org_has_none(settings):
     with pytest.raises(HTTPException) as exc:
-        service._resolve_tilers(_org(()), _editor_state(None))
+        service._resolve_tilers(_org(()), _sources(None))
     assert exc.value.status_code == 403
 
 
@@ -212,12 +213,12 @@ def test_authorize_blocks_default_tiler_when_org_has_none(settings):
 def test_authorize_allows_mpc_collection_for_mpc_only_org(settings):
     # Pure MPC imagery never touches a hosted tiler, so an org allowed only 'mpc' can
     # configure it - the resolved default hosted tiler is irrelevant here.
-    service._resolve_tilers(_org(("mpc",)), _editor_state(None, catalog_url=MPC_CATALOG))
+    service._resolve_tilers(_org(("mpc",)), _sources(None, catalog_url=MPC_CATALOG))
 
 
 def test_authorize_blocks_mpc_collection_when_org_lacks_mpc(settings):
     with pytest.raises(HTTPException) as exc:
-        service._resolve_tilers(_org(("azure",)), _editor_state(None, catalog_url=MPC_CATALOG))
+        service._resolve_tilers(_org(("azure",)), _sources(None, catalog_url=MPC_CATALOG))
     assert exc.value.status_code == 403
     assert "mpc" in exc.value.detail
 
@@ -225,22 +226,20 @@ def test_authorize_blocks_mpc_collection_when_org_lacks_mpc(settings):
 def test_authorize_checks_hosted_tiler_for_mpc_catalog_needing_compositing(settings):
     # Median compositing is not MPC-eligible: the collection routes to the hosted tiler,
     # so an MPC-only org is refused and the message names the hosted tiler.
-    state = _editor_state(None, catalog_url=MPC_CATALOG, viz=VizParamsCreate(compositing="median"))
+    state = _sources(None, catalog_url=MPC_CATALOG, viz=RenderParams(compositing="median"))
     with pytest.raises(HTTPException) as exc:
         service._resolve_tilers(_org(("mpc",)), state)
     assert exc.value.status_code == 403
     assert MPC_CATALOG in exc.value.detail
 
     service._resolve_tilers(_org(("mpc", "azure")), state)
-    assert state.sources[0].collections[0].stac_config.tiler == "azure"
+    assert state[0].collections[0].search.tiler == "azure"
 
 
 def test_authorize_checks_hosted_tiler_for_masked_cover_viz(settings):
-    # The cover slice renders with cover_viz_params; masking there forces the hosted path
+    # The cover slice renders with cover params; masking there forces the hosted path
     # even though the main viz is MPC-eligible.
-    state = _editor_state(
-        None, catalog_url=MPC_CATALOG, cover_viz=VizParamsCreate(mask_layer="scl")
-    )
+    state = _sources(None, catalog_url=MPC_CATALOG, cover_viz=RenderParams(mask_layer="scl"))
     with pytest.raises(HTTPException) as exc:
         service._resolve_tilers(_org(("mpc",)), state)
     assert exc.value.status_code == 403
@@ -250,13 +249,13 @@ def test_authorize_checks_hosted_tiler_for_masked_cover_viz(settings):
 def test_authorize_treats_explicit_mpc_tiler_as_no_hosted_pin(settings):
     # The wizard offers 'mpc' as a pickable tiler, so it can land in the tiler field.
     # It is not a hosted tiler name: MPC membership decides, and 'mpc' must not 400.
-    service._resolve_tilers(_org(("mpc",)), _editor_state("mpc", catalog_url=MPC_CATALOG))
+    service._resolve_tilers(_org(("mpc",)), _sources("mpc", catalog_url=MPC_CATALOG))
 
 
 def test_authorize_falls_back_to_default_tiler_when_mpc_pinned_but_hosted_routed(settings):
     # Median compositing forces the hosted path even with tiler='mpc' pinned, so the
     # default hosted tiler is what gets checked.
-    state = _editor_state("mpc", catalog_url=MPC_CATALOG, viz=VizParamsCreate(compositing="median"))
+    state = _sources("mpc", catalog_url=MPC_CATALOG, viz=RenderParams(compositing="median"))
     with pytest.raises(HTTPException) as exc:
         service._resolve_tilers(_org(("mpc",)), state)
     assert exc.value.status_code == 403
@@ -266,9 +265,8 @@ def test_authorize_falls_back_to_default_tiler_when_mpc_pinned_but_hosted_routed
 
 
 def test_authorize_ignores_non_stac_collections(settings):
-    col = SimpleNamespace(name="manual", stac_config=None)
-    es = SimpleNamespace(sources=[SimpleNamespace(collections=[col])])
-    service._resolve_tilers(_org(), es)  # no raise
+    col = SimpleNamespace(name="manual", search=None)
+    service._resolve_tilers(_org(), [SimpleNamespace(collections=[col])])  # no raise
 
 
 def test_mpc_only_deployment_serves_mpc_direct_but_refuses_other_catalogs(monkeypatch):
@@ -277,10 +275,10 @@ def test_mpc_only_deployment_serves_mpc_direct_but_refuses_other_catalogs(monkey
     # another catalog, and saying so beats a mosaic that registers into nowhere.
     s = SimpleNamespace(TILERS={}, DEFAULT_TILER=None)
     monkeypatch.setattr(registry, "get_settings", lambda: s)
-    service._resolve_tilers(_org(("mpc",)), _editor_state(None, catalog_url=MPC_CATALOG))
+    service._resolve_tilers(_org(("mpc",)), _sources(None, catalog_url=MPC_CATALOG))
 
     with pytest.raises(HTTPException) as exc:
-        service._resolve_tilers(_org(("mpc",)), _editor_state(None))
+        service._resolve_tilers(_org(("mpc",)), _sources(None))
     assert exc.value.status_code == 403
 
 

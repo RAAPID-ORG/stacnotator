@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { createImageryView, getCampaignWithImageryWindows } from '~/api/client';
+import { RUN_POLL_MS } from '~/api/queryClient';
 import { ensureTilerSession } from '~/api/tilerToken';
 import { campaignPath, type CampaignSubpage } from '~/app/routes';
 import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
@@ -22,6 +23,7 @@ import {
   NotFoundGate,
   RegisteringGate,
 } from './chrome/Gates';
+import { panelName } from './canvas/PanelHost';
 import { LayoutEditControls } from './canvas/LayoutEdit/LayoutEditControls';
 import { TrayContent } from './canvas/LayoutEdit/TrayContent';
 import { SliceNavigation } from './chrome/SliceNavigation';
@@ -31,6 +33,8 @@ import { ScreenWindow } from './canvas/Screens/ScreenWindow';
 import { Toolbar } from './chrome/Toolbar/Toolbar';
 import { TourOverlay } from './chrome/Tour/TourOverlay';
 import { useHotkeys } from './hotkeys';
+import { extentOf } from './campaign/annotation';
+import { windowsShown } from './campaign/imagery';
 import { groupTimeseriesIntoWindows } from './campaign/timeseries';
 import { isAudienceMember } from '~/features/campaigns/utils/labellingPolicy';
 import {
@@ -44,8 +48,14 @@ import {
   withoutKeys,
   type LayoutItem,
 } from './canvas/grid';
-import { ALL_TASK_STATUSES, reviewFilterPatch, type TaskFilter } from './campaign/tasks';
-import { applyCameraTarget, focusFirstViewSetup, loadCameraTarget } from './map/camera';
+import { reviewFilterPatch, type TaskFilter } from './campaign/tasks';
+import { TASK_STATUSES } from '~/shared/utils/taskStatus';
+import {
+  applyCameraTarget,
+  fitAnnotation,
+  focusFirstViewSetup,
+  loadCameraTarget,
+} from './map/camera';
 import { buildPanels, MAIN_MAP_PANEL, type PanelDef } from './panels/panels';
 import { loadCampaign } from './loadCampaign';
 import { usePolicy, useCampaignStore } from './stores/campaign';
@@ -206,14 +216,15 @@ export function AnnotationPage() {
         // would open on the whole world.
         const { catalog: cat, workMode: mode } = useCampaignStore.getState();
         const address = useImageryStore.getState().address;
+        const workingZoom = address
+          ? (cat?.sources.get(address.sourceId)?.default_zoom ?? null)
+          : null;
         applyCameraTarget(
           loadCameraTarget({
             mode,
             taskCenter: useTasksStore.getState().focus?.center ?? null,
             campaignBbox: cat?.bbox ?? null,
-            workingZoom: address
-              ? (cat?.sources.get(address.sourceId)?.default_zoom ?? null)
-              : null,
+            workingZoom,
             deepLinkCenter: link.center,
           })
         );
@@ -223,6 +234,12 @@ export function AnnotationPage() {
           // tool has to be armed before the annotation is opened.
           await useWorkStore.getState().selectTool('edit');
           await useWorkStore.getState().openEdit(annotationId);
+          // The link only carries a centre; a shape larger than the working
+          // view would show as a fill with no outline.
+          const opened = useWorkStore.getState().edit;
+          if (!cancelled && opened?.annotation.id === annotationId) {
+            fitAnnotation(extentOf(opened.geometry), workingZoom);
+          }
         }
       })
       .catch((error) => {
@@ -247,15 +264,27 @@ export function AnnotationPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaignId, currentUserId]);
 
+  // The task and its set stay in the address, read back by the load above, so
+  // a reload or a return through the browser's history lands where the user
+  // was. Replaced rather than pushed: every task is not a history entry.
+  useEffect(() => {
+    if (load !== 'ready') return;
+    const place = new URLSearchParams();
+    if (workMode === 'tasks' && timedTaskId !== null) place.set('task', String(timedTaskId));
+    if (taskFilter.taskSetId !== null) place.set('taskSet', String(taskFilter.taskSetId));
+    if (place.toString() !== searchParams.toString()) setSearchParams(place, { replace: true });
+  }, [load, workMode, timedTaskId, taskFilter.taskSetId, searchParams, setSearchParams]);
+
   // ------------------------------------------------------------------
   // Hotkeys
   // ------------------------------------------------------------------
   // pageKeymap() reads the stores directly, so the deps are what should
-  // rebuild the table rather than what the closure literally names.
+  // rebuild the table rather than what the closure literally names: the
+  // campaign's id and settings, not the object a status poll replaces.
   const bindings = useMemo(
     () => (campaign && catalog ? pageKeymap() : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [campaign, catalog, view, workMode, isMobile, i18n.language]
+    [campaign?.id, campaign?.settings, catalog, view, workMode, isMobile, i18n.language]
   );
   useHotkeys(bindings, [bindings]);
 
@@ -317,7 +346,7 @@ export function AnnotationPage() {
     if (catalog) useTasksStore.getState().setFilter(next, Date.now(), catalog);
   };
   const showAllTasks = () =>
-    applyFilter({ ...taskFilter, assignedTo: [], statuses: [...ALL_TASK_STATUSES] });
+    applyFilter({ ...taskFilter, assignedTo: [], statuses: [...TASK_STATUSES] });
   // Whatever the filter is scoped to stays scoped: finishing one task set
   // means reviewing that set, not the whole campaign.
   const reviewDoneTasks = () => {
@@ -341,6 +370,7 @@ export function AnnotationPage() {
       mode: workMode,
       layout: currentLayout,
       activeCollectionId,
+      onScreen: new Set(Object.keys(screens.assignment)),
     });
     // The main map is the leader every other camera follows and the page would
     // be left with no map at all, so it gets no send control.
@@ -355,7 +385,7 @@ export function AnnotationPage() {
                 {panel.header}
                 <SendToScreenButton
                   panelId={panel.id}
-                  label={panel.title ?? panel.id}
+                  label={panelName(panel)}
                   screenIds={screens.screens.map((s) => s.id)}
                   currentScreen={screens.assignment[panel.id]}
                   onSend={(target) => {
@@ -404,10 +434,11 @@ export function AnnotationPage() {
   // rows are sized off the viewport rather than the canvas box, which would
   // need the grid laid out before its own layout could be computed.
   const mobileLayout = useMemo(() => {
-    if (!isMobile || !campaign) return undefined;
+    if (!isMobile || !campaign || !catalog) return undefined;
     const keys = groupTimeseriesIntoWindows(campaign.time_series).map((w) => w.key);
-    return mobileStack(currentLayout.windows, keys, window.innerHeight);
-  }, [isMobile, campaign, currentLayout.windows]);
+    const windowIds = windowsShown(catalog, view, currentLayout.hidden).map((c) => c.id);
+    return mobileStack(windowIds, keys, window.innerHeight);
+  }, [isMobile, campaign, catalog, view, currentLayout.hidden]);
 
   // A sent-away panel keeps its slot in the stored layout (that is where it
   // returns to) but is withheld from the grid so it can use the space.
@@ -436,19 +467,26 @@ export function AnnotationPage() {
       .flatMap(([panelId]) => panelsById.get(panelId) ?? []);
 
   // ------------------------------------------------------------------
-  // Registration polling
+  // Registration polling and imagery renewal
   // ------------------------------------------------------------------
   const isRegistering =
     campaign?.registration_status === 'registering' || campaign?.embedding_status === 'registering';
+  // Only a campaign's first setup holds the page. Once it has a view, imagery
+  // registered again (a new source, expired MPC searches) loads in its panels.
+  const isSettingUp =
+    campaign?.embedding_status === 'registering' ||
+    (campaign?.registration_status === 'registering' && campaign.imagery_views.length === 0);
+  const renewAt = campaign?.imagery_renew_at;
 
-  // Campaign creation returns before mosaic registration finishes. Poll the
-  // same response the initial load used so completed tile URLs appear without
-  // the user having to refresh or wonder whether setup is stuck.
+  // Registration runs off the request path: poll the same response the initial
+  // load used until it is done. MPC tile URLs expire, so a long session reads
+  // them again when the backend says they are due, which renews them.
   useEffect(() => {
-    if (load !== 'ready' || campaign?.id !== campaignId || !isRegistering) return;
+    if (load !== 'ready' || campaign?.id !== campaignId) return;
+    if (!isRegistering && !renewAt) return;
     let cancelled = false;
     let refreshing = false;
-    const interval = window.setInterval(() => {
+    const refresh = () => {
       if (refreshing) return;
       refreshing = true;
       void getCampaignWithImageryWindows({
@@ -463,6 +501,7 @@ export function AnnotationPage() {
           useCampaignStore.getState().setCampaign({
             ...current,
             imagery_sources: data.imagery_sources,
+            imagery_renew_at: data.imagery_renew_at,
             registration_status: data.registration_status,
             registration_errors: data.registration_errors,
             embedding_status: data.embedding_status,
@@ -476,12 +515,17 @@ export function AnnotationPage() {
         .finally(() => {
           refreshing = false;
         });
-    }, 5000);
+    };
+    const timer =
+      renewAt && !isRegistering
+        ? window.setTimeout(refresh, Math.max(0, Date.parse(renewAt) - Date.now()))
+        : window.setInterval(refresh, RUN_POLL_MS);
     return () => {
       cancelled = true;
-      window.clearInterval(interval);
+      window.clearInterval(timer);
+      window.clearTimeout(timer);
     };
-  }, [campaignId, campaign?.id, load, isRegistering]);
+  }, [campaignId, campaign?.id, load, isRegistering, renewAt]);
 
   // ------------------------------------------------------------------
   // Gates
@@ -489,7 +533,7 @@ export function AnnotationPage() {
   if (load === 'loading') return <LoadingGate />;
   if (load === 'failed' || !campaign || !catalog) return <NotFoundGate />;
 
-  if (isRegistering && !bypassRegistering) {
+  if (isSettingUp && !bypassRegistering) {
     return (
       <RegisteringGate
         campaign={campaign}
@@ -546,7 +590,7 @@ export function AnnotationPage() {
     // out to another screen count too: they are React portals, so their events
     // still propagate up this tree even though they live in another document.
     <div
-      className="annotation-workspace flex min-h-0 flex-1 flex-col"
+      className="annotation-workspace motion-fade-in flex min-h-0 flex-1 flex-col"
       onPointerDownCapture={noteTaskActivity}
       onPointerMoveCapture={noteTaskActivity}
       onKeyDownCapture={noteTaskActivity}
@@ -639,7 +683,7 @@ export function AnnotationPage() {
         open={tourOpen && !settingUpFirstView}
         variant={workMode}
         hasTimeseries={campaign.time_series.length > 0}
-        hasFormFields={(campaign.settings.form_fields ?? []).length > 0}
+        hasFormFields={campaign.settings.form_fields.length > 0}
         needsBroaderFilter={workMode === 'tasks' && visibleTasks.length === 0}
         onBroadenFilter={() => {
           filterBeforeTour.current = taskFilter;

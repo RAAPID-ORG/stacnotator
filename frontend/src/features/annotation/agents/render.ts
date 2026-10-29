@@ -17,7 +17,8 @@ import TileLayer from 'ol/layer/Tile';
 import { fromLonLat } from 'ol/proj';
 import type TileSource from 'ol/source/Tile';
 import type { CampaignOutFull } from '~/api/client';
-import { basemapAttribution, resolveBasemapUrl } from '~/shared/imagery/tileUrls';
+import { basemapLayer } from '~/shared/imagery/layerSpecs';
+import { campaignBasemapProxyBase } from '~/shared/imagery/tileUrls';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import { createLayer, destroyLayer } from '~/shared/map/layers';
 import type { LayerSpec } from '~/shared/map/types';
@@ -232,14 +233,7 @@ async function drawCell(
   } else {
     const basemap = catalog.basemaps.get(cell.basemap_id!);
     if (!basemap) throw new Error(`unknown basemap ${cell.basemap_id}`);
-    layers.push({
-      kind: 'raster',
-      id: `basemap-${basemap.id}`,
-      url: resolveBasemapUrl(campaign.id, basemap),
-      auth: 'none',
-      maxZoom: basemap.max_native_zoom ?? undefined,
-      attribution: basemapAttribution(basemap.url),
-    });
+    layers.push(basemapLayer(basemap, campaignBasemapProxyBase(campaign.id)));
     kind = 'basemap';
     label = `${basemap.name}, date unknown`;
     details = { basemap_id: basemap.id, name: basemap.name, dates: 'unknown' };
@@ -437,7 +431,7 @@ async function drawChart(
   { task, campaign, stage }: RenderInput
 ): Promise<DrawnCell> {
   const { lat, lon } = task;
-  const data = (await timeSeriesCache.get(ids, { lat, lon })) ?? {};
+  const data = (await timeSeriesCache.get(campaign.id, ids, { lat, lon })) ?? {};
   const series = ids.map((id) => campaign.time_series.find((t) => t.id === id));
   const times = collectSeriesLabels(ids, data);
   const { smoothing } = DEFAULT_TIMESERIES_CHART;

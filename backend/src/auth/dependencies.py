@@ -2,9 +2,9 @@ from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from src.auth import service
-from src.auth.exceptions import ExternalAuthEmailNotVerified
 from src.auth.models import User
 from src.auth.providers import get_auth_provider
+from src.auth.providers.base import ExternalAuthEmailNotVerified
 from src.database import get_db
 
 
@@ -45,7 +45,9 @@ async def require_authenticated_user(
         )
 
     # Ensure user exists in DB (creates if first login)
-    user = service.register_user(db, auth_user, auth_provider.name, auth_provider.bootstrap_roles)
+    user = service.register_user(
+        db, auth_user, auth_provider.name, auth_provider.grants_platform_admin
+    )
     return user
 
 
@@ -64,26 +66,8 @@ async def optional_user(
         return None
 
 
-def require_admin(
-    user: User = Depends(require_authenticated_user),
-    db: Session = Depends(get_db),
-) -> User:
-    """
-    Verify user is authenticated and has admin privileges.
-
-    Ensures the user has admin role for platform administrative operations.
-
-    Args:
-        user: Authenticated user
-        db: Database session
-
-    Returns:
-        Admin user
-
-    Raises:
-        HTTPException: 403 if user is not an admin
-    """
-    if not user.is_admin:
+def require_platform_admin(user: User = Depends(require_authenticated_user)) -> User:
+    if not user.is_platform_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required",

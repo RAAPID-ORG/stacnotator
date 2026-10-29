@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { AnnotationTaskAssignmentOut, AnnotationTaskOut } from '~/api/client';
+import type { TaskAssignmentOut, TaskOut } from '~/api/client';
 import {
   applyTaskFilter,
   computeTaskProgress,
@@ -11,7 +11,7 @@ import {
 import { UNASSIGNED, UNLABELLED } from './tasks';
 import { makeTask, makeTaskAnnotation, makeTaskSet } from '../testing/fixtures';
 
-type TaskStatus = AnnotationTaskOut['task_status'];
+type TaskStatus = TaskOut['task_status'];
 
 // applyTaskFilter takes `now` explicitly - domain logic never reads
 // Date.now()/Math.random() - so every call below passes NOW.
@@ -21,11 +21,8 @@ const OTHER = 'user-2';
 const NOW = 1_700_000_000_000;
 const fresh = () => new Date(NOW - 60_000).toISOString(); // 1 min ago: an active claim
 
-const task = (
-  id: number,
-  assignments: AnnotationTaskAssignmentOut[],
-  task_status: TaskStatus = 'pending'
-) => makeTask({ id, task_status, assignments });
+const task = (id: number, assignments: TaskAssignmentOut[], task_status: TaskStatus = 'pending') =>
+  makeTask({ id, task_status, assignments });
 
 /** A claim is a lease on the task, never an assignment row. */
 const claimedTask = (
@@ -81,6 +78,26 @@ describe('applyTaskFilter - claims vs assignments', () => {
     const tasks = [claimedTask(1, USER), task(2, [])];
     expect(applyTaskFilter(tasks, mineFilter, USER, NOW).visibleTasks).toEqual([]);
     const poolFilter: TaskFilter = { ...mineFilter, assignedTo: [UNASSIGNED] };
+    expect(applyTaskFilter(tasks, poolFilter, USER, NOW).visibleTasks.map((t) => t.id)).toEqual([
+      1, 2,
+    ]);
+  });
+
+  it('shows answered unassigned tasks under Done and Skipped, whoever answered or holds them', () => {
+    const answered = (id: number, status: TaskStatus, by: string) =>
+      makeTask({
+        id,
+        task_status: status,
+        annotations: [makeTaskAnnotation({ created_by_user_id: by })],
+        claimed_by_user_id: by,
+        claimed_at: fresh(),
+      });
+    const tasks = [answered(1, 'done', OTHER), answered(2, 'skipped', USER), task(3, [])];
+    const poolFilter: TaskFilter = {
+      ...mineFilter,
+      assignedTo: [UNASSIGNED],
+      statuses: ['done', 'skipped'],
+    };
     expect(applyTaskFilter(tasks, poolFilter, USER, NOW).visibleTasks.map((t) => t.id)).toEqual([
       1, 2,
     ]);
@@ -206,10 +223,8 @@ describe('applyTaskFilter - labels', () => {
 });
 
 describe('computeTaskProgress', () => {
-  const progressTask = (
-    task_status: TaskStatus,
-    assignments: AnnotationTaskAssignmentOut[] | null
-  ) => makeTask({ id: 0, task_status, assignments });
+  const progressTask = (task_status: TaskStatus, assignments: TaskAssignmentOut[]) =>
+    makeTask({ id: 0, task_status, assignments });
 
   describe('unscoped (no assignedTo filter)', () => {
     it('counts all tasks and task-level resolution', () => {
@@ -229,7 +244,7 @@ describe('computeTaskProgress', () => {
       const tasks = [
         progressTask('pending', [{ user_id: USER, status: 'pending' }]),
         progressTask('pending', [{ user_id: OTHER, status: 'pending' }]),
-        progressTask('pending', null),
+        progressTask('pending', []),
       ];
       expect(computeTaskProgress(tasks, [USER])).toEqual({ total: 1, completed: 0 });
     });
@@ -307,11 +322,8 @@ describe('computeTaskProgress', () => {
 // so the chain lands exactly on the level under test (prior levels are empty
 // by construction).
 describe('seedFilter - 5-level fallback chain', () => {
-  const pendingTask = (
-    id: number,
-    assignments: AnnotationTaskAssignmentOut[] = [],
-    task_set_id = 1
-  ) => makeTask({ id, task_set_id, assignments });
+  const pendingTask = (id: number, assignments: TaskAssignmentOut[] = [], task_set_id = 1) =>
+    makeTask({ id, task_set_id, assignments });
 
   const taskSets = [makeTaskSet({ id: 10, name: 'Set A' })];
 
@@ -433,7 +445,7 @@ describe('seedFilter - 5-level fallback chain', () => {
 });
 
 describe('widenFilterForTask', () => {
-  const visible = (tasks: AnnotationTaskOut[], filter: TaskFilter) =>
+  const visible = (tasks: TaskOut[], filter: TaskFilter) =>
     applyTaskFilter(tasks, filter, USER, NOW).visibleTasks.map((t) => t.id);
 
   it('leaves a filter that already shows the task untouched', () => {
@@ -499,6 +511,10 @@ describe('usesClaimPool', () => {
 
   it('is not "everyone", which is a fixed list to step through', () => {
     expect(usesClaimPool({ ...mineFilter, assignedTo: [] })).toBe(false);
+  });
+
+  it('is not a look back through answered tasks, which is a fixed list too', () => {
+    expect(usesClaimPool({ ...pool, statuses: ['done', 'skipped'] })).toBe(false);
   });
 
   it('stays true with a task set, which the server filters on too', () => {

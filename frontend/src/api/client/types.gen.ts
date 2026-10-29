@@ -96,54 +96,6 @@ export type AddUsersByEmailResult = {
 };
 
 /**
- * AgentAnnotate
- */
-export type AgentAnnotate = {
-    /**
-     * Label Id
-     */
-    label_id: number | null;
-    /**
-     * Comment
-     */
-    comment?: string | null;
-    /**
-     * Confidence
-     */
-    confidence?: number | null;
-    /**
-     * Is Authoritative
-     */
-    is_authoritative?: boolean | null;
-    /**
-     * Flagged For Review
-     */
-    flagged_for_review?: boolean | null;
-    /**
-     * Flag Comment
-     */
-    flag_comment?: string | null;
-    /**
-     * Slice Comments
-     */
-    slice_comments?: Array<SliceComment> | null;
-    /**
-     * Form Values
-     */
-    form_values?: {
-        [key: string]: number | number | string | Array<number> | DateRangeValue;
-    } | null;
-    /**
-     * Outcome
-     */
-    outcome?: 'labelled' | 'skipped' | 'drawn' | 'none_found' | null;
-    /**
-     * Active Ms
-     */
-    active_ms?: number | null;
-};
-
-/**
  * AgentOut
  */
 export type AgentOut = {
@@ -342,17 +294,13 @@ export type AnnotationChangesOut = {
  */
 export type AnnotationCreate = {
     /**
-     * Label Id
+     * Imagery Slice Id
      */
-    label_id: number;
+    imagery_slice_id?: number | null;
     /**
      * Comment
      */
-    comment: string | null;
-    /**
-     * Geometry Wkt
-     */
-    geometry_wkt: string;
+    comment?: string | null;
     /**
      * Confidence
      */
@@ -366,22 +314,6 @@ export type AnnotationCreate = {
      */
     flag_comment?: string | null;
     /**
-     * Imagery Slice Id
-     */
-    imagery_slice_id?: number | null;
-    /**
-     * Imagery Source Name
-     */
-    imagery_source_name?: string | null;
-    /**
-     * Imagery Start Date
-     */
-    imagery_start_date?: string | null;
-    /**
-     * Imagery End Date
-     */
-    imagery_end_date?: string | null;
-    /**
      * Slice Comments
      */
     slice_comments?: Array<SliceComment> | null;
@@ -391,6 +323,14 @@ export type AnnotationCreate = {
     form_values?: {
         [key: string]: number | number | string | Array<number> | DateRangeValue;
     } | null;
+    /**
+     * Label Id
+     */
+    label_id: number;
+    /**
+     * Geometry Wkt
+     */
+    geometry_wkt: string;
     /**
      * Origin Task Id
      */
@@ -457,54 +397,6 @@ export type AnnotationFacetsOut = {
      * Confidences
      */
     confidences: Array<ConfidenceFacet>;
-};
-
-/**
- * AnnotationFromTaskCreate
- */
-export type AnnotationFromTaskCreate = {
-    /**
-     * Label Id
-     */
-    label_id: number | null;
-    /**
-     * Comment
-     */
-    comment: string | null;
-    /**
-     * Confidence
-     */
-    confidence?: number | null;
-    /**
-     * Is Authoritative
-     */
-    is_authoritative?: boolean | null;
-    /**
-     * Flagged For Review
-     */
-    flagged_for_review?: boolean | null;
-    /**
-     * Flag Comment
-     */
-    flag_comment?: string | null;
-    /**
-     * Slice Comments
-     */
-    slice_comments?: Array<SliceComment> | null;
-    /**
-     * Form Values
-     */
-    form_values?: {
-        [key: string]: number | number | string | Array<number> | DateRangeValue;
-    } | null;
-    /**
-     * Outcome
-     */
-    outcome?: 'labelled' | 'skipped' | 'drawn' | 'none_found' | null;
-    /**
-     * Active Ms
-     */
-    active_ms?: number | null;
 };
 
 /**
@@ -661,9 +553,9 @@ export type AnnotationListItemOut = {
      */
     comment?: string | null;
     /**
-     * Annotation Task Id
+     * Task Id
      */
-    annotation_task_id?: number | null;
+    task_id?: number | null;
     /**
      * Created At
      */
@@ -786,11 +678,14 @@ export type AnnotationOut = {
      * Counts Toward Completion
      */
     counts_toward_completion?: boolean | null;
-    geometry: GeometryOut;
     /**
-     * Annotation Task Id
+     * Geometry Wkt
      */
-    annotation_task_id?: number | null;
+    geometry_wkt: string;
+    /**
+     * Task Id
+     */
+    task_id?: number | null;
     /**
      * Origin Task Id
      */
@@ -802,161 +697,24 @@ export type AnnotationOut = {
 };
 
 /**
- * AnnotationTaskAssignmentOut
- */
-export type AnnotationTaskAssignmentOut = {
-    /**
-     * User Id
-     */
-    user_id: string;
-    /**
-     * Status
-     */
-    status: 'pending' | 'done' | 'skipped';
-    /**
-     * Is Review
-     */
-    is_review?: boolean;
-    /**
-     * User Email
-     */
-    user_email?: string | null;
-    /**
-     * User Display Name
-     */
-    user_display_name?: string | null;
-};
-
-/**
- * AnnotationTaskChangesOut
- *
- * Tasks somebody annotated since a cursor, re-read whole, plus the cursor
- * for the next poll. Same clock as :class:`AnnotationChangesOut`.
- */
-export type AnnotationTaskChangesOut = {
-    /**
-     * Server Time
-     */
-    server_time: string;
-    /**
-     * Tasks
-     */
-    tasks: Array<AnnotationTaskOut>;
-};
-
-/**
- * AnnotationTaskListOut
- */
-export type AnnotationTaskListOut = {
-    /**
-     * Campaign Id
-     */
-    campaign_id: number;
-    /**
-     * Tasks
-     */
-    tasks: Array<AnnotationTaskOut>;
-};
-
-/**
- * AnnotationTaskOut
- */
-export type AnnotationTaskOut = {
-    /**
-     * Id
-     */
-    id: number;
-    /**
-     * Annotation Number
-     */
-    annotation_number: number;
-    /**
-     * Task Set Id
-     */
-    task_set_id: number;
-    /**
-     * Task Status
-     */
-    task_status?: 'pending' | 'partial' | 'done' | 'skipped' | 'conflicting';
-    geometry: GeometryOut;
-    /**
-     * Assignments
-     */
-    assignments: Array<AnnotationTaskAssignmentOut> | null;
-    /**
-     * Annotations
-     */
-    annotations: Array<AnnotationFromTaskOut>;
-    /**
-     * Claimed By User Id
-     */
-    claimed_by_user_id?: string | null;
-    /**
-     * Claimed At
-     */
-    claimed_at?: string | null;
-    /**
-     * Claimed By Display Name
-     */
-    claimed_by_display_name?: string | null;
-    /**
-     * Has Embedding
-     */
-    has_embedding?: boolean;
-    /**
-     * Nearby Annotation Count
-     */
-    nearby_annotation_count?: number;
-    /**
-     * Drawn By User Ids
-     */
-    drawn_by_user_ids?: Array<string>;
-};
-
-/**
- * AnnotationTaskSubmitResponse
- *
- * Response from submitting or skipping an annotation task.
- *
- * The annotation is always there: a skip is stored with the outcome `skipped`,
- * so every submission leaves a record behind.
- */
-export type AnnotationTaskSubmitResponse = {
-    /**
-     * Task Status
-     */
-    task_status: string;
-    /**
-     * Assignment Status
-     */
-    assignment_status: string;
-    annotation: AnnotationFromTaskOut;
-};
-
-/**
  * AnnotationUpdate
+ *
+ * Fields left out stay as they are. The imagery viewed only changes
+ * together with the geometry.
  */
 export type AnnotationUpdate = {
     /**
-     * Label Id
+     * Imagery Slice Id
      */
-    label_id: number | null;
+    imagery_slice_id?: number | null;
     /**
      * Comment
      */
-    comment: string | null;
-    /**
-     * Geometry Wkt
-     */
-    geometry_wkt: string | null;
+    comment?: string | null;
     /**
      * Confidence
      */
     confidence?: number | null;
-    /**
-     * Is Authoritative
-     */
-    is_authoritative: boolean | null;
     /**
      * Flagged For Review
      */
@@ -965,22 +723,6 @@ export type AnnotationUpdate = {
      * Flag Comment
      */
     flag_comment?: string | null;
-    /**
-     * Imagery Slice Id
-     */
-    imagery_slice_id?: number | null;
-    /**
-     * Imagery Source Name
-     */
-    imagery_source_name?: string | null;
-    /**
-     * Imagery Start Date
-     */
-    imagery_start_date?: string | null;
-    /**
-     * Imagery End Date
-     */
-    imagery_end_date?: string | null;
     /**
      * Slice Comments
      */
@@ -991,6 +733,14 @@ export type AnnotationUpdate = {
     form_values?: {
         [key: string]: number | number | string | Array<number> | DateRangeValue;
     } | null;
+    /**
+     * Label Id
+     */
+    label_id?: number | null;
+    /**
+     * Geometry Wkt
+     */
+    geometry_wkt?: string | null;
 };
 
 /**
@@ -1120,53 +870,6 @@ export type AssetInfo = {
      * Bands
      */
     bands?: Array<BandInfo>;
-};
-
-/**
- * AssignReviewersRequest
- *
- * Request to assign reviewers to tasks based on different patterns.
- *
- * Reviewers may only be assigned to tasks that already have a primary
- * (non-review) assignment. Each selected task is topped up to the requested
- * number of reviewers, so re-running does not stack additional reviewers on
- * tasks that already meet the target.
- */
-export type AssignReviewersRequest = {
-    /**
-     * Pattern
-     */
-    pattern: 'percentage' | 'manual' | 'fixed';
-    /**
-     * Percentage
-     */
-    percentage?: number | null;
-    /**
-     * Num Reviewers
-     */
-    num_reviewers?: number | null;
-    /**
-     * Reviewer Ids
-     */
-    reviewer_ids?: Array<string> | null;
-    /**
-     * Manual Assignments
-     */
-    manual_assignments?: {
-        [key: string]: Array<string>;
-    } | null;
-    /**
-     * Num Tasks
-     */
-    num_tasks?: number | null;
-    /**
-     * Fixed Num Reviewers
-     */
-    fixed_num_reviewers?: number | null;
-    /**
-     * Task Set Id
-     */
-    task_set_id?: number | null;
 };
 
 /**
@@ -1368,7 +1071,7 @@ export type BodyGenerateTasksFromSampling = {
      *
      * Region boundary file (.zip shapefile or .geojson). Optional if using campaign bbox.
      */
-    region_file?: string | null;
+    region_file?: Blob | File | null;
 };
 
 /**
@@ -1378,17 +1081,17 @@ export type BodyImportTaskAssignments = {
     /**
      * File
      */
-    file: string;
+    file: Blob | File;
 };
 
 /**
- * Body_ingestAnnotationTasksFromCsv
+ * Body_importTasksFromCsv
  */
-export type BodyIngestAnnotationTasksFromCsv = {
+export type BodyImportTasksFromCsv = {
     /**
      * File
      */
-    file: string;
+    file: Blob | File;
     /**
      * Task Set Id
      */
@@ -1396,13 +1099,13 @@ export type BodyIngestAnnotationTasksFromCsv = {
 };
 
 /**
- * Body_ingestAnnotationTasksFromGeojson
+ * Body_importTasksFromGeojson
  */
-export type BodyIngestAnnotationTasksFromGeojson = {
+export type BodyImportTasksFromGeojson = {
     /**
      * File
      */
-    file: string;
+    file: Blob | File;
     /**
      * Task Set Id
      */
@@ -1416,7 +1119,7 @@ export type BodyIngestAnnotationsFromGeojson = {
     /**
      * File
      */
-    file: string;
+    file: Blob | File;
 };
 
 /**
@@ -1460,10 +1163,6 @@ export type CampaignCreate = {
      */
     name: string;
     /**
-     * Mode
-     */
-    mode?: 'tasks' | 'open';
-    /**
      * Project Id
      */
     project_id: number;
@@ -1472,7 +1171,7 @@ export type CampaignCreate = {
     /**
      * Timeseries Configs
      */
-    timeseries_configs?: Array<TimeSeriesCreate> | null;
+    timeseries_configs?: Array<TimeseriesCreate> | null;
     labelling_policy?: LabellingPolicy | null;
 };
 
@@ -1536,23 +1235,23 @@ export type CampaignListItemOut = {
     /**
      * Is Admin
      */
-    is_admin?: boolean;
+    is_admin: boolean;
     /**
      * Is Member
      */
-    is_member?: boolean;
+    is_member: boolean;
     /**
      * Is Public
      */
-    is_public?: boolean;
+    is_public: boolean;
     /**
      * Registration Status
      */
-    registration_status?: string;
+    registration_status: string;
     /**
      * Embedding Status
      */
-    embedding_status?: string;
+    embedding_status: string;
 };
 
 /**
@@ -1603,10 +1302,6 @@ export type CampaignOut = {
      */
     created_at: string;
     /**
-     * Mode
-     */
-    mode: 'tasks' | 'open';
-    /**
      * Is Public
      */
     is_public?: boolean;
@@ -1622,6 +1317,12 @@ export type CampaignOut = {
      * Registration Errors
      */
     registration_errors?: Array<{
+        [key: string]: unknown;
+    }> | null;
+    /**
+     * Embedding Errors
+     */
+    embedding_errors?: Array<{
         [key: string]: unknown;
     }> | null;
     /**
@@ -1664,13 +1365,14 @@ export type CampaignOut = {
     /**
      * Time Series
      */
-    time_series: Array<TimeSeriesOut>;
+    time_series: Array<TimeseriesOut>;
 };
 
 /**
  * CampaignOutFull
  *
- * Campaign with canvas layout information extracted.
+ * A campaign with its main canvas layouts, validated with the viewer's
+ * user_id in the context so their personal layouts come along.
  */
 export type CampaignOutFull = {
     /**
@@ -1690,10 +1392,6 @@ export type CampaignOutFull = {
      */
     created_at: string;
     /**
-     * Mode
-     */
-    mode: 'tasks' | 'open';
-    /**
      * Is Public
      */
     is_public?: boolean;
@@ -1709,6 +1407,12 @@ export type CampaignOutFull = {
      * Registration Errors
      */
     registration_errors?: Array<{
+        [key: string]: unknown;
+    }> | null;
+    /**
+     * Embedding Errors
+     */
+    embedding_errors?: Array<{
         [key: string]: unknown;
     }> | null;
     /**
@@ -1751,9 +1455,13 @@ export type CampaignOutFull = {
     /**
      * Time Series
      */
-    time_series: Array<TimeSeriesOut>;
-    readonly default_main_canvas_layout: CanvasLayoutOut | null;
-    readonly personal_main_canvas_layout: CanvasLayoutOut | null;
+    time_series: Array<TimeseriesOut>;
+    default_main_canvas_layout?: CanvasLayoutOut | null;
+    personal_main_canvas_layout?: CanvasLayoutOut | null;
+    /**
+     * Imagery Renew At
+     */
+    imagery_renew_at?: string | null;
 };
 
 /**
@@ -1807,13 +1515,29 @@ export type CampaignSettingsCreate = {
 };
 
 /**
+ * CampaignSettingsLocksOut
+ *
+ * What stored annotations no longer let the settings change.
+ */
+export type CampaignSettingsLocksOut = {
+    /**
+     * Task Output Locked
+     */
+    task_output_locked: boolean;
+    /**
+     * Answered Form Field Ids
+     */
+    answered_form_field_ids: Array<number>;
+};
+
+/**
  * CampaignSettingsOut
  */
 export type CampaignSettingsOut = {
     /**
      * Labels
      */
-    labels: Array<LabelBase>;
+    labels: Array<LabelOut>;
     /**
      * Bbox West
      */
@@ -1833,20 +1557,20 @@ export type CampaignSettingsOut = {
     /**
      * Embedding Year
      */
-    embedding_year?: number | null;
+    embedding_year: number | null;
     /**
      * Guide Markdown
      */
-    guide_markdown?: string | null;
+    guide_markdown: string | null;
     /**
      * Sample Extent Meters
      */
-    sample_extent_meters?: number | null;
+    sample_extent_meters: number | null;
     labelling_policy: LabellingPolicy;
     /**
      * Form Fields
      */
-    form_fields?: Array<({
+    form_fields: Array<({
         type: 'category' | 'multicategory';
     } & CategoryFormField) | ({
         type: 'number';
@@ -1862,7 +1586,7 @@ export type CampaignSettingsOut = {
     /**
      * Task Output
      */
-    task_output?: 'classify' | 'draw';
+    task_output: 'classify' | 'draw';
 };
 
 /**
@@ -1934,10 +1658,6 @@ export type CampaignSummaryOut = {
      */
     created_at: string;
     /**
-     * Mode
-     */
-    mode: 'tasks' | 'open';
-    /**
      * Is Public
      */
     is_public?: boolean;
@@ -1953,6 +1673,12 @@ export type CampaignSummaryOut = {
      * Registration Errors
      */
     registration_errors?: Array<{
+        [key: string]: unknown;
+    }> | null;
+    /**
+     * Embedding Errors
+     */
+    embedding_errors?: Array<{
         [key: string]: unknown;
     }> | null;
     /**
@@ -1972,6 +1698,72 @@ export type CampaignSummaryOut = {
      */
     viewer_is_authoritative_reviewer?: boolean;
     settings: CampaignSettingsOut;
+};
+
+/**
+ * CampaignUpdate
+ *
+ * A partial update: only the fields sent are changed, and sending null
+ * clears the nullable ones. The area is sent whole or not at all.
+ */
+export type CampaignUpdate = {
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Guide Markdown
+     */
+    guide_markdown?: string | null;
+    /**
+     * Sample Extent Meters
+     */
+    sample_extent_meters?: number | null;
+    /**
+     * Research Sharing
+     */
+    research_sharing?: boolean | null;
+    /**
+     * Task Output
+     */
+    task_output?: 'classify' | 'draw' | null;
+    /**
+     * Labels
+     */
+    labels?: Array<LabelBase> | null;
+    /**
+     * Form Fields
+     */
+    form_fields?: Array<({
+        type: 'category' | 'multicategory';
+    } & CategoryFormField) | ({
+        type: 'number';
+    } & NumberFormField) | ({
+        type: 'text';
+    } & TextFormField) | ({
+        type: 'date' | 'daterange';
+    } & DateFormField)> | null;
+    /**
+     * Embedding Year
+     */
+    embedding_year?: number | null;
+    labelling_policy?: LabellingPolicy | null;
+    /**
+     * Bbox West
+     */
+    bbox_west?: number | null;
+    /**
+     * Bbox South
+     */
+    bbox_south?: number | null;
+    /**
+     * Bbox East
+     */
+    bbox_east?: number | null;
+    /**
+     * Bbox North
+     */
+    bbox_north?: number | null;
 };
 
 /**
@@ -1996,6 +1788,10 @@ export type CanvasLayoutCreate = {
      * View Layout Data
      */
     view_layout_data?: Array<CanvasLayoutItem> | null;
+    /**
+     * View Hidden
+     */
+    view_hidden?: Array<string>;
 };
 
 /**
@@ -2069,6 +1865,10 @@ export type CanvasLayoutOut = {
      * Layout Data
      */
     layout_data: Array<CanvasLayoutItem>;
+    /**
+     * Hidden
+     */
+    hidden?: Array<string>;
 };
 
 /**
@@ -2125,7 +1925,7 @@ export type CategoryFormField = {
  * The task the server picked and claimed, or null once the pool is dry.
  */
 export type ClaimNextResponse = {
-    task: AnnotationTaskOut | null;
+    task: TaskOut | null;
 };
 
 /**
@@ -2161,25 +1961,21 @@ export type ClaimTaskResponse = {
 };
 
 /**
- * CollectionStacConfigCreate
+ * CollectionSearchCreate
  */
-export type CollectionStacConfigCreate = {
+export type CollectionSearchCreate = {
     /**
      * Catalog Url
      */
-    catalog_url?: string | null;
+    catalog_url: string;
     /**
      * Stac Collection Id
      */
-    stac_collection_id?: string | null;
+    stac_collection_id: string;
     /**
      * Tiler
      */
     tiler?: string | null;
-    /**
-     * Visualizations
-     */
-    visualizations?: Array<NamedVizParamsCreate>;
     /**
      * Max Cloud Cover
      */
@@ -2209,25 +2005,21 @@ export type CollectionStacConfigCreate = {
 };
 
 /**
- * CollectionStacConfigOut
+ * CollectionSearchOut
  */
-export type CollectionStacConfigOut = {
+export type CollectionSearchOut = {
     /**
      * Catalog Url
      */
-    catalog_url?: string | null;
+    catalog_url: string;
     /**
      * Stac Collection Id
      */
-    stac_collection_id?: string | null;
+    stac_collection_id: string;
     /**
      * Tiler
      */
     tiler?: string | null;
-    /**
-     * Viz Configs
-     */
-    viz_configs?: Array<CollectionVizConfigOut>;
     /**
      * Max Cloud Cover
      */
@@ -2252,33 +2044,35 @@ export type CollectionStacConfigOut = {
 };
 
 /**
- * CollectionVizConfigOut
- *
- * Per-collection, per-visualization render params (new authoritative representation).
+ * CollectionVisualizationCreate
  */
-export type CollectionVizConfigOut = {
+export type CollectionVisualizationCreate = {
     /**
-     * Id
+     * Visualization
      */
-    id: number;
+    visualization: string;
+    params: RenderParams;
+    cover_params?: RenderParams | null;
+};
+
+/**
+ * CollectionVisualizationOut
+ */
+export type CollectionVisualizationOut = {
     /**
-     * Name
+     * Visualization Id
      */
-    name: string;
+    visualization_id: number;
     /**
-     * Display Order
+     * Params
      */
-    display_order: number;
-    /**
-     * Render Params
-     */
-    render_params: {
+    params: {
         [key: string]: unknown;
     };
     /**
-     * Cover Render Params
+     * Cover Params
      */
-    cover_render_params?: {
+    cover_params?: {
         [key: string]: unknown;
     } | null;
 };
@@ -2364,11 +2158,11 @@ export type CustomMapOut = {
      */
     status: string;
     /**
-     * Status Error
+     * Status Errors
      */
-    status_error: {
+    status_errors: Array<{
         [key: string]: unknown;
-    } | null;
+    }> | null;
     /**
      * Tile Url
      */
@@ -2470,14 +2264,14 @@ export type DateRangeValue = {
 };
 
 /**
- * DeleteAnnotationTasksRequest
+ * DeleteTasksRequest
  *
  * Request to delete multiple annotation tasks.
  *
  * The tasks' annotations are kept, detached from their task, unless
  * ``delete_annotations`` asks for them to go too.
  */
-export type DeleteAnnotationTasksRequest = {
+export type DeleteTasksRequest = {
     /**
      * Task Ids
      */
@@ -2486,22 +2280,6 @@ export type DeleteAnnotationTasksRequest = {
      * Delete Annotations
      */
     delete_annotations?: boolean;
-};
-
-/**
- * EmbeddingYearUpdateResponse
- *
- * Response after updating the embedding year.
- */
-export type EmbeddingYearUpdateResponse = {
-    /**
-     * Embedding Year
-     */
-    embedding_year: number | null;
-    /**
-     * Embeddings Recomputed
-     */
-    embeddings_recomputed: boolean;
 };
 
 /**
@@ -2536,20 +2314,6 @@ export type GenerateTasksResponse = {
      * Message
      */
     message: string;
-};
-
-/**
- * GeometryOut
- */
-export type GeometryOut = {
-    /**
-     * Id
-     */
-    id: number;
-    /**
-     * Geometry
-     */
-    geometry: string;
 };
 
 /**
@@ -2614,7 +2378,11 @@ export type ImageryCollectionCreate = {
      * Slices
      */
     slices: Array<ImagerySliceCreate>;
-    stac_config?: CollectionStacConfigCreate | null;
+    search?: CollectionSearchCreate | null;
+    /**
+     * Visualizations
+     */
+    visualizations?: Array<CollectionVisualizationCreate>;
 };
 
 /**
@@ -2649,7 +2417,11 @@ export type ImageryCollectionOut = {
      * Slices
      */
     slices: Array<ImagerySliceOut>;
-    stac_config?: CollectionStacConfigOut | null;
+    search?: CollectionSearchOut | null;
+    /**
+     * Visualizations
+     */
+    visualizations?: Array<CollectionVisualizationOut>;
 };
 
 /**
@@ -2666,118 +2438,6 @@ export type ImageryEditorStateCreate = {
      * Basemaps
      */
     basemaps: Array<BasemapCreate>;
-};
-
-/**
- * ImageryGenerationConfigV1
- *
- * Lossless, versioned input for the temporal imagery generator.
- */
-export type ImageryGenerationConfigV1 = {
-    /**
-     * Kind
-     */
-    kind?: 'stac';
-    /**
-     * Version
-     */
-    version?: 1;
-    /**
-     * Catalog Url
-     */
-    catalog_url: string;
-    /**
-     * Stac Collection Id
-     */
-    stac_collection_id: string;
-    /**
-     * Collection Title
-     */
-    collection_title: string;
-    /**
-     * Is Mpc
-     */
-    is_mpc: boolean;
-    /**
-     * Has Cloud Cover
-     */
-    has_cloud_cover: boolean;
-    /**
-     * Tiler
-     */
-    tiler?: string | null;
-    /**
-     * Start Date
-     */
-    start_date: string;
-    /**
-     * End Date
-     */
-    end_date: string;
-    /**
-     * Collection Period Interval
-     */
-    collection_period_interval: number;
-    /**
-     * Collection Period Unit
-     */
-    collection_period_unit: 'weeks' | 'months' | 'years';
-    /**
-     * Slice Period Interval
-     */
-    slice_period_interval: number;
-    /**
-     * Slice Period Unit
-     */
-    slice_period_unit: 'days' | 'weeks' | 'months' | 'years';
-    /**
-     * Cover Mode
-     */
-    cover_mode: 'nth' | 'custom';
-    /**
-     * Cover Slice Nth
-     */
-    cover_slice_nth: number;
-    /**
-     * Max Cloud Cover
-     */
-    max_cloud_cover: number;
-    /**
-     * Item Sort
-     */
-    item_sort: 'date_desc' | 'date_asc' | 'cloud_cover_asc';
-    /**
-     * Cover Max Cloud Cover
-     */
-    cover_max_cloud_cover: number;
-    /**
-     * Cover Item Sort
-     */
-    cover_item_sort: 'date_desc' | 'date_asc' | 'cloud_cover_asc';
-    /**
-     * Visualizations
-     */
-    visualizations: Array<NamedVizParamsCreate>;
-    /**
-     * Cover Visualizations
-     */
-    cover_visualizations?: Array<NamedVizParamsCreate>;
-    /**
-     * Search Query
-     */
-    search_query?: {
-        [key: string]: unknown;
-    } | null;
-    /**
-     * Cover Search Query
-     */
-    cover_search_query?: {
-        [key: string]: unknown;
-    } | null;
-    /**
-     * Internal Storage
-     */
-    internal_storage?: boolean;
 };
 
 /**
@@ -2800,7 +2460,11 @@ export type ImageryGenerationSeriesCreate = {
     /**
      * Config
      */
-    config: ImageryGenerationConfigV1 | PlanetScenesGenerationConfigV1;
+    config: ({
+        kind: 'stac';
+    } & StacGenerationConfig) | ({
+        kind: 'planet_scenes';
+    } & PlanetScenesGenerationConfig);
 };
 
 /**
@@ -2814,7 +2478,11 @@ export type ImageryGenerationSeriesOut = {
     /**
      * Config
      */
-    config: ImageryGenerationConfigV1 | PlanetScenesGenerationConfigV1;
+    config: ({
+        kind: 'stac';
+    } & StacGenerationConfig) | ({
+        kind: 'planet_scenes';
+    } & PlanetScenesGenerationConfig);
 };
 
 /**
@@ -2828,7 +2496,7 @@ export type ImagerySliceCreate = {
     /**
      * Name
      */
-    name?: string;
+    name: string;
     /**
      * Start Date
      */
@@ -2838,9 +2506,9 @@ export type ImagerySliceCreate = {
      */
     end_date: string;
     /**
-     * Tile Urls
+     * Templates
      */
-    tile_urls?: Array<SliceTileUrlCreate>;
+    templates?: Array<SliceTemplateCreate>;
 };
 
 /**
@@ -2868,9 +2536,9 @@ export type ImagerySliceOut = {
      */
     display_order: number;
     /**
-     * Tile Urls
+     * Tiles
      */
-    tile_urls: Array<SliceTileUrlOut>;
+    tiles: Array<SliceTileOut>;
 };
 
 /**
@@ -2908,7 +2576,7 @@ export type ImagerySourceCreate = {
     /**
      * Visualizations
      */
-    visualizations: Array<VisualizationTemplateCreate>;
+    visualizations: Array<VisualizationCreate>;
     /**
      * Generation Series
      */
@@ -2950,7 +2618,7 @@ export type ImagerySourceOut = {
     /**
      * Visualizations
      */
-    visualizations: Array<VisualizationTemplateOut>;
+    visualizations: Array<VisualizationOut>;
     /**
      * Collections
      */
@@ -3027,8 +2695,8 @@ export type ImageryViewOut = {
      * Source Ids
      */
     source_ids: Array<number>;
-    readonly default_canvas_layout: CanvasLayoutOut | null;
-    readonly personal_canvas_layout: CanvasLayoutOut | null;
+    default_canvas_layout?: CanvasLayoutOut | null;
+    personal_canvas_layout?: CanvasLayoutOut | null;
 };
 
 /**
@@ -3106,39 +2774,6 @@ export type InvitesListResponse = {
 };
 
 /**
- * KnnValidationStatusOut
- *
- * Summary of what the KNN label validator has available.
- *
- * Used by the frontend to explain to annotators why validation may be
- * unavailable for a given task/label (e.g. not enough prior labels yet).
- */
-export type KnnValidationStatusOut = {
-    /**
-     * Enabled
-     */
-    enabled: boolean;
-    /**
-     * Required Per Label
-     */
-    required_per_label: number;
-    /**
-     * Required Total
-     */
-    required_total: number;
-    /**
-     * Total Labeled With Embedding
-     */
-    total_labeled_with_embedding: number;
-    /**
-     * Per Label Counts
-     */
-    per_label_counts: {
-        [key: string]: number;
-    };
-};
-
-/**
  * LabelBase
  *
  * A label that can be assigned to an annotation within a campaign.
@@ -3155,7 +2790,7 @@ export type LabelBase = {
     /**
      * Geometry Type
      */
-    geometry_type?: 'point' | 'polygon' | 'line' | null;
+    geometry_type?: 'point' | 'polygon' | 'line';
 };
 
 /**
@@ -3175,19 +2810,37 @@ export type LabelFacet = {
 };
 
 /**
+ * LabelOut
+ */
+export type LabelOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Geometry Type
+     */
+    geometry_type: 'point' | 'polygon' | 'line';
+};
+
+/**
  * LabellingPolicy
  *
  * Who may label what, and whose labels count toward task completion.
  *
- * See docs/labelling-policy.md for the
- * full rationale behind the four axes.
+ * See docs/labelling-policy.md for what each axis governs. An update replaces
+ * the whole policy, so every axis is required.
  */
 export type LabellingPolicy = {
-    explore?: PolicyAudience;
-    unassigned_tasks?: PolicyAudience;
-    assigned_tasks?: PolicyAudience;
-    complete_assigned?: PolicyAudience;
-    modify_others?: PolicyAudience;
+    explore: PolicyAudience;
+    unassigned_tasks: PolicyAudience;
+    assigned_tasks: PolicyAudience;
+    complete_assigned: PolicyAudience;
+    modify_others: PolicyAudience;
 };
 
 /**
@@ -3210,9 +2863,9 @@ export type MeOut = {
      */
     display_name?: string | null;
     /**
-     * Is Admin
+     * Is Platform Admin
      */
-    is_admin: boolean;
+    is_platform_admin: boolean;
     /**
      * Issuer
      */
@@ -3249,18 +2902,6 @@ export type MoveTasksToSetResult = {
      * Num Moved
      */
     num_moved: number;
-};
-
-/**
- * NamedVizParamsCreate
- */
-export type NamedVizParamsCreate = {
-    /**
-     * Name
-     */
-    name: string;
-    viz_params: VizParamsCreate;
-    cover_viz_params?: VizParamsCreate | null;
 };
 
 /**
@@ -3693,7 +3334,7 @@ export type PlanetScenePlan = {
      * Project Id
      */
     project_id: number;
-    config: PlanetScenesGenerationConfigV1;
+    config: PlanetScenesGenerationConfig;
 };
 
 /**
@@ -3774,28 +3415,18 @@ export type PlanetSceneWindowOut = {
 };
 
 /**
- * PlanetScenesGenerationConfigV1
+ * PlanetScenesGenerationConfig
  *
- * Lossless, versioned input for a Planet scene-stack source.
+ * The search a Planet scene-stack source was planned from.
  *
  * Saved on the source's generation series the way the STAC generator's config is, so
  * the source can be regenerated later without anyone remembering what was searched.
  */
-export type PlanetScenesGenerationConfigV1 = {
+export type PlanetScenesGenerationConfig = {
     /**
      * Kind
      */
     kind: 'planet_scenes';
-    /**
-     * Version
-     */
-    version?: 1;
-    /**
-     * Aoi
-     */
-    aoi?: {
-        [key: string]: unknown;
-    } | null;
     /**
      * Item Types
      */
@@ -4172,6 +3803,132 @@ export type RenderConfig = {
 };
 
 /**
+ * RenderParams
+ *
+ * How a tiler draws a visualization of a STAC search.
+ */
+export type RenderParams = {
+    /**
+     * Assets
+     */
+    assets?: Array<string>;
+    /**
+     * Asset As Band
+     */
+    asset_as_band?: boolean;
+    /**
+     * Bidx
+     */
+    bidx?: Array<number> | null;
+    /**
+     * Rescale
+     */
+    rescale?: string | null;
+    /**
+     * Colormap Name
+     */
+    colormap_name?: string | null;
+    /**
+     * Color Formula
+     */
+    color_formula?: string | null;
+    /**
+     * Expression
+     */
+    expression?: string | null;
+    /**
+     * Resampling
+     */
+    resampling?: string | null;
+    /**
+     * Compositing
+     */
+    compositing?: string | null;
+    /**
+     * Nodata
+     */
+    nodata?: number | null;
+    /**
+     * Extra Params
+     */
+    extra_params?: {
+        [key: string]: string;
+    } | null;
+    /**
+     * Mask Layer
+     */
+    mask_layer?: string | null;
+    /**
+     * Mask Values
+     */
+    mask_values?: Array<number> | null;
+    /**
+     * Nir Band
+     */
+    nir_band?: string | null;
+    /**
+     * Red Band
+     */
+    red_band?: string | null;
+    /**
+     * Max Items
+     */
+    max_items?: number | null;
+};
+
+/**
+ * ReviewNumberOfTasks
+ */
+export type ReviewNumberOfTasks = {
+    /**
+     * Reviewer Ids
+     */
+    reviewer_ids: Array<string>;
+    /**
+     * Reviewers Per Task
+     */
+    reviewers_per_task: number;
+    /**
+     * Task Set Id
+     */
+    task_set_id?: number | null;
+    /**
+     * Pattern
+     */
+    pattern: 'fixed';
+    /**
+     * Num Tasks
+     */
+    num_tasks: number;
+};
+
+/**
+ * ReviewShareOfTasks
+ */
+export type ReviewShareOfTasks = {
+    /**
+     * Reviewer Ids
+     */
+    reviewer_ids: Array<string>;
+    /**
+     * Reviewers Per Task
+     */
+    reviewers_per_task: number;
+    /**
+     * Task Set Id
+     */
+    task_set_id?: number | null;
+    /**
+     * Pattern
+     */
+    pattern: 'percentage';
+    /**
+     * Percentage
+     */
+    percentage: number;
+};
+
+/**
  * SamplingStrategy
  *
  * The strategy a client sends as a JSON string in the multipart form.
@@ -4278,43 +4035,35 @@ export type SliceComment = {
 };
 
 /**
- * SliceTileUrlCreate
+ * SliceTemplateCreate
  */
-export type SliceTileUrlCreate = {
+export type SliceTemplateCreate = {
     /**
-     * Visualization Name
+     * Visualization
      */
-    visualization_name: string;
+    visualization: string;
     /**
-     * Tile Url
+     * Url
      */
-    tile_url: string;
+    url: string;
 };
 
 /**
- * SliceTileUrlOut
+ * SliceTileOut
  */
-export type SliceTileUrlOut = {
+export type SliceTileOut = {
     /**
-     * Id
+     * Visualization Id
      */
-    id: number;
+    visualization_id: number;
     /**
-     * Visualization Name
+     * Url
      */
-    visualization_name: string;
+    url: string;
     /**
-     * Tile Url
+     * Tiler
      */
-    tile_url: string;
-    /**
-     * Tile Provider
-     */
-    tile_provider?: string | null;
-    /**
-     * Mosaic Id
-     */
-    mosaic_id?: string | null;
+    tiler?: string | null;
 };
 
 /**
@@ -4480,6 +4229,61 @@ export type StacCollectionOut = {
 };
 
 /**
+ * StacGenerationConfig
+ *
+ * What the temporal generator was asked for: the period it covers and how it
+ * cut that period into windows and slices. Only what nothing else stores - the
+ * search and the visualizations live on each generated collection, where they can
+ * be edited one window at a time.
+ */
+export type StacGenerationConfig = {
+    /**
+     * Kind
+     */
+    kind: 'stac';
+    /**
+     * Collection Title
+     */
+    collection_title: string;
+    /**
+     * Has Cloud Cover
+     */
+    has_cloud_cover: boolean;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Collection Period Interval
+     */
+    collection_period_interval: number;
+    /**
+     * Collection Period Unit
+     */
+    collection_period_unit: 'weeks' | 'months' | 'years';
+    /**
+     * Slice Period Interval
+     */
+    slice_period_interval: number;
+    /**
+     * Slice Period Unit
+     */
+    slice_period_unit: 'days' | 'weeks' | 'months' | 'years';
+    /**
+     * Cover Mode
+     */
+    cover_mode: 'nth' | 'custom';
+    /**
+     * Cover Slice Nth
+     */
+    cover_slice_nth: number;
+};
+
+/**
  * StacItemOut
  */
 export type StacItemOut = {
@@ -4538,6 +4342,101 @@ export type StorageAccessOut = {
 };
 
 /**
+ * TaskAnswerCreate
+ */
+export type TaskAnswerCreate = {
+    /**
+     * Imagery Slice Id
+     */
+    imagery_slice_id?: number | null;
+    /**
+     * Comment
+     */
+    comment?: string | null;
+    /**
+     * Confidence
+     */
+    confidence?: number | null;
+    /**
+     * Flagged For Review
+     */
+    flagged_for_review?: boolean | null;
+    /**
+     * Flag Comment
+     */
+    flag_comment?: string | null;
+    /**
+     * Slice Comments
+     */
+    slice_comments?: Array<SliceComment> | null;
+    /**
+     * Form Values
+     */
+    form_values?: {
+        [key: string]: number | number | string | Array<number> | DateRangeValue;
+    } | null;
+    /**
+     * Label Id
+     */
+    label_id?: number | null;
+    /**
+     * Is Authoritative
+     */
+    is_authoritative?: boolean | null;
+    /**
+     * Outcome
+     */
+    outcome?: 'labelled' | 'skipped' | 'drawn' | 'none_found' | null;
+    /**
+     * Active Ms
+     */
+    active_ms?: number | null;
+};
+
+/**
+ * TaskAssignmentOut
+ */
+export type TaskAssignmentOut = {
+    /**
+     * User Id
+     */
+    user_id: string;
+    /**
+     * Status
+     */
+    status: 'pending' | 'done' | 'skipped';
+    /**
+     * Is Review
+     */
+    is_review?: boolean;
+    /**
+     * User Email
+     */
+    user_email?: string | null;
+    /**
+     * User Display Name
+     */
+    user_display_name?: string | null;
+};
+
+/**
+ * TaskChangesOut
+ *
+ * Tasks that changed since a cursor, re-read whole, and the cursor for the
+ * next poll. Same clock as :class:`AnnotationChangesOut`.
+ */
+export type TaskChangesOut = {
+    /**
+     * Server Time
+     */
+    server_time: string;
+    /**
+     * Tasks
+     */
+    tasks: Array<TaskOut>;
+};
+
+/**
  * TaskDensityCell
  *
  * One grid cell's worth of tasks sharing a status and a label: where they sit and
@@ -4565,6 +4464,78 @@ export type TaskDensityCell = {
      * Count
      */
     count: number;
+};
+
+/**
+ * TaskListOut
+ */
+export type TaskListOut = {
+    /**
+     * Campaign Id
+     */
+    campaign_id: number;
+    /**
+     * Tasks
+     */
+    tasks: Array<TaskOut>;
+};
+
+/**
+ * TaskOut
+ */
+export type TaskOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Annotation Number
+     */
+    annotation_number: number;
+    /**
+     * Task Set Id
+     */
+    task_set_id: number;
+    /**
+     * Task Status
+     */
+    task_status: 'pending' | 'partial' | 'done' | 'skipped' | 'conflicting';
+    /**
+     * Geometry Wkt
+     */
+    geometry_wkt: string;
+    /**
+     * Assignments
+     */
+    assignments: Array<TaskAssignmentOut>;
+    /**
+     * Annotations
+     */
+    annotations: Array<AnnotationFromTaskOut>;
+    /**
+     * Claimed By User Id
+     */
+    claimed_by_user_id?: string | null;
+    /**
+     * Claimed At
+     */
+    claimed_at?: string | null;
+    /**
+     * Claimed By Display Name
+     */
+    claimed_by_display_name?: string | null;
+    /**
+     * Has Embedding
+     */
+    has_embedding?: boolean;
+    /**
+     * Nearby Annotation Count
+     */
+    nearby_annotation_count?: number;
+    /**
+     * Drawn By User Ids
+     */
+    drawn_by_user_ids?: Array<string>;
 };
 
 /**
@@ -4622,11 +4593,31 @@ export type TaskStatusOut = {
     /**
      * Task Status
      */
-    task_status: string;
+    task_status: 'pending' | 'partial' | 'done' | 'skipped' | 'conflicting';
     /**
      * Assignment Status
      */
-    assignment_status: string;
+    assignment_status: 'pending' | 'done' | 'skipped';
+};
+
+/**
+ * TaskSubmitResponse
+ *
+ * Response from submitting or skipping an annotation task.
+ *
+ * The annotation is always there: a skip is stored with the outcome `skipped`,
+ * so every submission leaves a record behind.
+ */
+export type TaskSubmitResponse = {
+    /**
+     * Task Status
+     */
+    task_status: 'pending' | 'partial' | 'done' | 'skipped' | 'conflicting';
+    /**
+     * Assignment Status
+     */
+    assignment_status: 'pending' | 'done' | 'skipped';
+    annotation: AnnotationFromTaskOut;
 };
 
 /**
@@ -4716,9 +4707,29 @@ export type TilerSessionOut = {
 };
 
 /**
- * TimeSeriesCreate
+ * TimeseriesBulkCreateRequest
  */
-export type TimeSeriesCreate = {
+export type TimeseriesBulkCreateRequest = {
+    /**
+     * Timeseries
+     */
+    timeseries: Array<TimeseriesCreate>;
+};
+
+/**
+ * TimeseriesBulkCreateResponse
+ */
+export type TimeseriesBulkCreateResponse = {
+    /**
+     * New Items
+     */
+    new_items: Array<TimeseriesOut>;
+};
+
+/**
+ * TimeseriesCreate
+ */
+export type TimeseriesCreate = {
     /**
      * Name
      */
@@ -4740,102 +4751,9 @@ export type TimeSeriesCreate = {
      */
     data_source: string;
     /**
-     * Provider
-     */
-    provider: string;
-    /**
      * Ts Type
      */
     ts_type: string;
-};
-
-/**
- * TimeSeriesOptionsOut
- */
-export type TimeSeriesOptionsOut = {
-    /**
-     * Sources
-     */
-    sources: Array<TimeseriesSourceOut>;
-    /**
-     * Indices
-     */
-    indices: Array<SpectralIndexOut>;
-    /**
-     * Providers
-     */
-    providers: Array<string>;
-};
-
-/**
- * TimeSeriesOut
- *
- * Deliberately not a subclass of the create schema: what comes back carries
- * the resolved index description, and a row written before an index was renamed
- * should still list rather than fail validation.
- */
-export type TimeSeriesOut = {
-    /**
-     * Id
-     */
-    id: number;
-    /**
-     * Campaign Id
-     */
-    campaign_id: number;
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Window Name
-     */
-    window_name: string;
-    /**
-     * Start Ym
-     */
-    start_ym: string;
-    /**
-     * End Ym
-     */
-    end_ym: string;
-    /**
-     * Data Source
-     */
-    data_source: string;
-    /**
-     * Provider
-     */
-    provider: string;
-    /**
-     * Ts Type
-     */
-    ts_type: string;
-    /**
-     * The index this series plots, so the chart can scale its axis and
-     * explain itself without a second request.
-     */
-    readonly index: SpectralIndexOut | null;
-};
-
-/**
- * TimeseriesBulkCreateRequest
- */
-export type TimeseriesBulkCreateRequest = {
-    /**
-     * Timeseries
-     */
-    timeseries: Array<TimeSeriesCreate>;
-};
-
-/**
- * TimeseriesBulkCreateResponse
- */
-export type TimeseriesBulkCreateResponse = {
-    /**
-     * New Items
-     */
-    new_items: Array<TimeSeriesOut>;
 };
 
 /**
@@ -4855,27 +4773,66 @@ export type TimeseriesDataResponse = {
 };
 
 /**
- * TimeseriesListResponse
+ * TimeseriesOptionsOut
  */
-export type TimeseriesListResponse = {
+export type TimeseriesOptionsOut = {
     /**
-     * Items
+     * Sources
      */
-    items: Array<TimeSeriesOut>;
+    sources: Array<TimeseriesSourceOut>;
+    /**
+     * Indices
+     */
+    indices: Array<SpectralIndexOut>;
 };
 
 /**
- * TimeseriesPanelRenameRequest
+ * TimeseriesOut
+ *
+ * What comes back carries the resolved index description besides the keys.
  */
-export type TimeseriesPanelRenameRequest = {
+export type TimeseriesOut = {
     /**
-     * Old Name
+     * Id
      */
-    old_name: string;
+    id: number;
     /**
-     * New Name
+     * Campaign Id
      */
-    new_name: string;
+    campaign_id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Window Id
+     */
+    window_id: number;
+    /**
+     * Window Name
+     */
+    window_name: string;
+    /**
+     * Start Ym
+     */
+    start_ym: string;
+    /**
+     * End Ym
+     */
+    end_ym: string;
+    /**
+     * Data Source
+     */
+    data_source: string;
+    /**
+     * Ts Type
+     */
+    ts_type: string;
+    /**
+     * The index this series plots, so the chart can scale its axis and
+     * explain itself without a second request.
+     */
+    readonly index: SpectralIndexOut;
 };
 
 /**
@@ -4909,6 +4866,16 @@ export type TimeseriesSourceOut = {
 };
 
 /**
+ * TimeseriesWindowRenameRequest
+ */
+export type TimeseriesWindowRenameRequest = {
+    /**
+     * Name
+     */
+    name: string;
+};
+
+/**
  * UnassignTasksRequest
  *
  * Request to batch-unassign users from annotation tasks.
@@ -4925,148 +4892,6 @@ export type UnassignTasksRequest = {
      * User Ids
      */
     user_ids?: Array<string> | null;
-};
-
-/**
- * UpdateCampaignBBoxRequest
- */
-export type UpdateCampaignBBoxRequest = {
-    /**
-     * Bbox West
-     */
-    bbox_west: number;
-    /**
-     * Bbox South
-     */
-    bbox_south: number;
-    /**
-     * Bbox East
-     */
-    bbox_east: number;
-    /**
-     * Bbox North
-     */
-    bbox_north: number;
-};
-
-/**
- * UpdateCampaignFormFieldsRequest
- *
- * Replace the campaign's custom form fields. Existing field IDs must be
- * preserved (stored annotation answers key off them); new fields get new ids.
- */
-export type UpdateCampaignFormFieldsRequest = {
-    /**
-     * Form Fields
-     */
-    form_fields: Array<({
-        type: 'category' | 'multicategory';
-    } & CategoryFormField) | ({
-        type: 'number';
-    } & NumberFormField) | ({
-        type: 'text';
-    } & TextFormField) | ({
-        type: 'date' | 'daterange';
-    } & DateFormField)>;
-};
-
-/**
- * UpdateCampaignGuideRequest
- */
-export type UpdateCampaignGuideRequest = {
-    /**
-     * Guide Markdown
-     */
-    guide_markdown?: string | null;
-};
-
-/**
- * UpdateCampaignLabelsRequest
- *
- * Replace the campaign's label set. Existing label IDs are preserved (so
- * annotations referencing them continue to resolve); new labels get appended.
- */
-export type UpdateCampaignLabelsRequest = {
-    /**
-     * Labels
-     */
-    labels: Array<LabelBase>;
-};
-
-/**
- * UpdateCampaignNameRequest
- */
-export type UpdateCampaignNameRequest = {
-    /**
-     * Name
-     */
-    name: string;
-};
-
-/**
- * UpdateEmbeddingYearRequest
- *
- * Set or change the year from which satellite embeddings are sourced.
- */
-export type UpdateEmbeddingYearRequest = {
-    /**
-     * Embedding Year
-     */
-    embedding_year?: number | null;
-};
-
-/**
- * UpdateLabellingPolicyRequest
- *
- * Request body for PATCH /campaigns/{id}/labelling-policy - same shape
- * as LabellingPolicy, plus the campaign-public check applied by the service.
- *
- * The four labelling axes are required (no defaults), unlike the base
- * LabellingPolicy: a PATCH is a full replacement of the stored policy, so
- * silently omitting one would default it to "no one" rather than leaving it
- * as the caller likely intended. Callers must always send the complete
- * policy, which is what the settings UI does.
- *
- * ``modify_others`` keeps its inherited default instead, because that
- * default is "campaign admins" rather than "no one": omitting it leaves the
- * axis where a campaign that never set it already was.
- */
-export type UpdateLabellingPolicyRequest = {
-    explore: PolicyAudience;
-    unassigned_tasks: PolicyAudience;
-    assigned_tasks: PolicyAudience;
-    complete_assigned: PolicyAudience;
-    modify_others?: PolicyAudience;
-};
-
-/**
- * UpdateResearchSharingRequest
- */
-export type UpdateResearchSharingRequest = {
-    /**
-     * Research Sharing
-     */
-    research_sharing: boolean;
-};
-
-/**
- * UpdateSampleExtentRequest
- */
-export type UpdateSampleExtentRequest = {
-    /**
-     * Sample Extent Meters
-     */
-    sample_extent_meters?: number | null;
-};
-
-/**
- * UpdateTaskOutputRequest
- */
-export type UpdateTaskOutputRequest = {
-    /**
-     * Task Output
-     */
-    task_output: 'classify' | 'draw';
 };
 
 /**
@@ -5112,9 +4937,9 @@ export type UserOutDetailed = {
      */
     display_name?: string | null;
     /**
-     * Is Admin
+     * Is Platform Admin
      */
-    is_admin: boolean;
+    is_platform_admin: boolean;
     /**
      * Issuer
      */
@@ -5302,9 +5127,16 @@ export type VectorOverlayOut = {
 };
 
 /**
- * VisualizationTemplateCreate
+ * VisualizationCreate
+ *
+ * A visualization of the source. ``id`` keeps a stored one, so renaming it keeps its
+ * parameters; the name is what the rest of the payload refers to it by.
  */
-export type VisualizationTemplateCreate = {
+export type VisualizationCreate = {
+    /**
+     * Id
+     */
+    id?: number | null;
     /**
      * Name
      */
@@ -5312,9 +5144,9 @@ export type VisualizationTemplateCreate = {
 };
 
 /**
- * VisualizationTemplateOut
+ * VisualizationOut
  */
-export type VisualizationTemplateOut = {
+export type VisualizationOut = {
     /**
      * Id
      */
@@ -5537,6 +5369,10 @@ export type VisualizerFeedbackOut = {
      */
     verdict: 'good' | 'wrong' | null;
     /**
+     * Suggested Value
+     */
+    suggested_value: number | null;
+    /**
      * Suggested Label
      */
     suggested_label: string | null;
@@ -5579,7 +5415,7 @@ export type VisualizerImageryOut = {
     /**
      * Visualizations
      */
-    visualizations: Array<string>;
+    visualizations: Array<VisualizationOut>;
     /**
      * Default Zoom
      */
@@ -5693,23 +5529,7 @@ export type VisualizerStepOut = {
     /**
      * Tiles
      */
-    tiles: {
-        [key: string]: VisualizerTileOut;
-    };
-};
-
-/**
- * VisualizerTileOut
- */
-export type VisualizerTileOut = {
-    /**
-     * Url
-     */
-    url: string;
-    /**
-     * Provider
-     */
-    provider: string | null;
+    tiles: Array<SliceTileOut>;
 };
 
 /**
@@ -5812,80 +5632,10 @@ export type VisualizerViewOut = {
      * Registration Status
      */
     registration_status: string;
-};
-
-/**
- * VizParamsCreate
- *
- * Structured visualization parameters for TiTiler tile rendering.
- */
-export type VizParamsCreate = {
     /**
-     * Assets
+     * Imagery Renew At
      */
-    assets?: Array<string>;
-    /**
-     * Asset As Band
-     */
-    asset_as_band?: boolean;
-    /**
-     * Bidx
-     */
-    bidx?: Array<number> | null;
-    /**
-     * Rescale
-     */
-    rescale?: string | null;
-    /**
-     * Colormap Name
-     */
-    colormap_name?: string | null;
-    /**
-     * Color Formula
-     */
-    color_formula?: string | null;
-    /**
-     * Expression
-     */
-    expression?: string | null;
-    /**
-     * Resampling
-     */
-    resampling?: string | null;
-    /**
-     * Compositing
-     */
-    compositing?: string | null;
-    /**
-     * Nodata
-     */
-    nodata?: number | null;
-    /**
-     * Extra Params
-     */
-    extra_params?: {
-        [key: string]: string;
-    } | null;
-    /**
-     * Mask Layer
-     */
-    mask_layer?: string | null;
-    /**
-     * Mask Values
-     */
-    mask_values?: Array<number> | null;
-    /**
-     * Nir Band
-     */
-    nir_band?: string | null;
-    /**
-     * Red Band
-     */
-    red_band?: string | null;
-    /**
-     * Max Items
-     */
-    max_items?: number | null;
+    imagery_renew_at?: string | null;
 };
 
 /**
@@ -5909,10 +5659,6 @@ export type CampaignOutWritable = {
      */
     created_at: string;
     /**
-     * Mode
-     */
-    mode: 'tasks' | 'open';
-    /**
      * Is Public
      */
     is_public?: boolean;
@@ -5928,6 +5674,12 @@ export type CampaignOutWritable = {
      * Registration Errors
      */
     registration_errors?: Array<{
+        [key: string]: unknown;
+    }> | null;
+    /**
+     * Embedding Errors
+     */
+    embedding_errors?: Array<{
         [key: string]: unknown;
     }> | null;
     /**
@@ -5954,7 +5706,7 @@ export type CampaignOutWritable = {
     /**
      * Imagery Views
      */
-    imagery_views: Array<ImageryViewOutWritable>;
+    imagery_views: Array<ImageryViewOut>;
     /**
      * Basemaps
      */
@@ -5970,13 +5722,14 @@ export type CampaignOutWritable = {
     /**
      * Time Series
      */
-    time_series: Array<TimeSeriesOutWritable>;
+    time_series: Array<TimeseriesOutWritable>;
 };
 
 /**
  * CampaignOutFull
  *
- * Campaign with canvas layout information extracted.
+ * A campaign with its main canvas layouts, validated with the viewer's
+ * user_id in the context so their personal layouts come along.
  */
 export type CampaignOutFullWritable = {
     /**
@@ -5996,10 +5749,6 @@ export type CampaignOutFullWritable = {
      */
     created_at: string;
     /**
-     * Mode
-     */
-    mode: 'tasks' | 'open';
-    /**
      * Is Public
      */
     is_public?: boolean;
@@ -6015,6 +5764,12 @@ export type CampaignOutFullWritable = {
      * Registration Errors
      */
     registration_errors?: Array<{
+        [key: string]: unknown;
+    }> | null;
+    /**
+     * Embedding Errors
+     */
+    embedding_errors?: Array<{
         [key: string]: unknown;
     }> | null;
     /**
@@ -6041,7 +5796,7 @@ export type CampaignOutFullWritable = {
     /**
      * Imagery Views
      */
-    imagery_views: Array<ImageryViewOutWritable>;
+    imagery_views: Array<ImageryViewOut>;
     /**
      * Basemaps
      */
@@ -6057,29 +5812,13 @@ export type CampaignOutFullWritable = {
     /**
      * Time Series
      */
-    time_series: Array<TimeSeriesOutWritable>;
-};
-
-/**
- * ImageryViewOut
- */
-export type ImageryViewOutWritable = {
+    time_series: Array<TimeseriesOutWritable>;
+    default_main_canvas_layout?: CanvasLayoutOut | null;
+    personal_main_canvas_layout?: CanvasLayoutOut | null;
     /**
-     * Id
+     * Imagery Renew At
      */
-    id: number;
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Display Order
-     */
-    display_order: number;
-    /**
-     * Source Ids
-     */
-    source_ids: Array<number>;
+    imagery_renew_at?: string | null;
 };
 
 /**
@@ -6102,9 +5841,9 @@ export type MeOutWritable = {
      */
     display_name?: string | null;
     /**
-     * Is Admin
+     * Is Platform Admin
      */
-    is_admin: boolean;
+    is_platform_admin: boolean;
     /**
      * Issuer
      */
@@ -6120,13 +5859,21 @@ export type MeOutWritable = {
 };
 
 /**
- * TimeSeriesOut
- *
- * Deliberately not a subclass of the create schema: what comes back carries
- * the resolved index description, and a row written before an index was renamed
- * should still list rather than fail validation.
+ * TimeseriesBulkCreateResponse
  */
-export type TimeSeriesOutWritable = {
+export type TimeseriesBulkCreateResponseWritable = {
+    /**
+     * New Items
+     */
+    new_items: Array<TimeseriesOutWritable>;
+};
+
+/**
+ * TimeseriesOut
+ *
+ * What comes back carries the resolved index description besides the keys.
+ */
+export type TimeseriesOutWritable = {
     /**
      * Id
      */
@@ -6139,6 +5886,10 @@ export type TimeSeriesOutWritable = {
      * Name
      */
     name: string;
+    /**
+     * Window Id
+     */
+    window_id: number;
     /**
      * Window Name
      */
@@ -6156,33 +5907,9 @@ export type TimeSeriesOutWritable = {
      */
     data_source: string;
     /**
-     * Provider
-     */
-    provider: string;
-    /**
      * Ts Type
      */
     ts_type: string;
-};
-
-/**
- * TimeseriesBulkCreateResponse
- */
-export type TimeseriesBulkCreateResponseWritable = {
-    /**
-     * New Items
-     */
-    new_items: Array<TimeSeriesOutWritable>;
-};
-
-/**
- * TimeseriesListResponse
- */
-export type TimeseriesListResponseWritable = {
-    /**
-     * Items
-     */
-    items: Array<TimeSeriesOutWritable>;
 };
 
 export type MeData = {
@@ -6292,66 +6019,6 @@ export type EditUserInfoResponses = {
 };
 
 export type EditUserInfoResponse = EditUserInfoResponses[keyof EditUserInfoResponses];
-
-export type GrantAdminSingleData = {
-    body?: never;
-    path: {
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    query?: never;
-    url: '/api/auth/users/{user_id}/grant-admin';
-};
-
-export type GrantAdminSingleErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GrantAdminSingleError = GrantAdminSingleErrors[keyof GrantAdminSingleErrors];
-
-export type GrantAdminSingleResponses = {
-    /**
-     * Successful Response
-     */
-    200: UserOutDetailed;
-};
-
-export type GrantAdminSingleResponse = GrantAdminSingleResponses[keyof GrantAdminSingleResponses];
-
-export type RevokeAdminSingleData = {
-    body?: never;
-    path: {
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    query?: never;
-    url: '/api/auth/users/{user_id}/revoke-admin';
-};
-
-export type RevokeAdminSingleErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type RevokeAdminSingleError = RevokeAdminSingleErrors[keyof RevokeAdminSingleErrors];
-
-export type RevokeAdminSingleResponses = {
-    /**
-     * Successful Response
-     */
-    200: UserOutDetailed;
-};
-
-export type RevokeAdminSingleResponse = RevokeAdminSingleResponses[keyof RevokeAdminSingleResponses];
 
 export type ListGrantableTilersData = {
     body?: never;
@@ -7784,6 +7451,36 @@ export type GetCampaignResponses = {
 
 export type GetCampaignResponse = GetCampaignResponses[keyof GetCampaignResponses];
 
+export type UpdateCampaignData = {
+    body: CampaignUpdate;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}';
+};
+
+export type UpdateCampaignErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateCampaignError = UpdateCampaignErrors[keyof UpdateCampaignErrors];
+
+export type UpdateCampaignResponses = {
+    /**
+     * Successful Response
+     */
+    200: CampaignOut;
+};
+
+export type UpdateCampaignResponse = UpdateCampaignResponses[keyof UpdateCampaignResponses];
+
 export type GetCampaignSummaryData = {
     body?: never;
     path: {
@@ -7813,6 +7510,36 @@ export type GetCampaignSummaryResponses = {
 };
 
 export type GetCampaignSummaryResponse = GetCampaignSummaryResponses[keyof GetCampaignSummaryResponses];
+
+export type GetCampaignSettingsLocksData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/settings-locks';
+};
+
+export type GetCampaignSettingsLocksErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCampaignSettingsLocksError = GetCampaignSettingsLocksErrors[keyof GetCampaignSettingsLocksErrors];
+
+export type GetCampaignSettingsLocksResponses = {
+    /**
+     * Successful Response
+     */
+    200: CampaignSettingsLocksOut;
+};
+
+export type GetCampaignSettingsLocksResponse = GetCampaignSettingsLocksResponses[keyof GetCampaignSettingsLocksResponses];
 
 export type DuplicateCampaignData = {
     body: CampaignDuplicateRequest;
@@ -7874,714 +7601,7 @@ export type GetCampaignWithImageryWindowsResponses = {
 
 export type GetCampaignWithImageryWindowsResponse = GetCampaignWithImageryWindowsResponses[keyof GetCampaignWithImageryWindowsResponses];
 
-export type UpdateCampaignNameData = {
-    body: UpdateCampaignNameRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/name';
-};
-
-export type UpdateCampaignNameErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateCampaignNameError = UpdateCampaignNameErrors[keyof UpdateCampaignNameErrors];
-
-export type UpdateCampaignNameResponses = {
-    /**
-     * Successful Response
-     */
-    200: CampaignOut;
-};
-
-export type UpdateCampaignNameResponse = UpdateCampaignNameResponses[keyof UpdateCampaignNameResponses];
-
-export type UpdateResearchSharingData = {
-    body: UpdateResearchSharingRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/research-sharing';
-};
-
-export type UpdateResearchSharingErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateResearchSharingError = UpdateResearchSharingErrors[keyof UpdateResearchSharingErrors];
-
-export type UpdateResearchSharingResponses = {
-    /**
-     * Successful Response
-     */
-    200: CampaignOut;
-};
-
-export type UpdateResearchSharingResponse = UpdateResearchSharingResponses[keyof UpdateResearchSharingResponses];
-
-export type UpdateTaskOutputData = {
-    body: UpdateTaskOutputRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/task-output';
-};
-
-export type UpdateTaskOutputErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateTaskOutputError = UpdateTaskOutputErrors[keyof UpdateTaskOutputErrors];
-
-export type UpdateTaskOutputResponses = {
-    /**
-     * Successful Response
-     */
-    200: CampaignOut;
-};
-
-export type UpdateTaskOutputResponse = UpdateTaskOutputResponses[keyof UpdateTaskOutputResponses];
-
-export type UpdateCampaignGuideData = {
-    body: UpdateCampaignGuideRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/guide';
-};
-
-export type UpdateCampaignGuideErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateCampaignGuideError = UpdateCampaignGuideErrors[keyof UpdateCampaignGuideErrors];
-
-export type UpdateCampaignGuideResponses = {
-    /**
-     * Successful Response
-     */
-    200: CampaignOut;
-};
-
-export type UpdateCampaignGuideResponse = UpdateCampaignGuideResponses[keyof UpdateCampaignGuideResponses];
-
-export type UpdateCampaignBboxData = {
-    body: UpdateCampaignBBoxRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/bbox';
-};
-
-export type UpdateCampaignBboxErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateCampaignBboxError = UpdateCampaignBboxErrors[keyof UpdateCampaignBboxErrors];
-
-export type UpdateCampaignBboxResponses = {
-    /**
-     * Successful Response
-     */
-    200: CampaignOut;
-};
-
-export type UpdateCampaignBboxResponse = UpdateCampaignBboxResponses[keyof UpdateCampaignBboxResponses];
-
-export type UpdateCampaignLabelsData = {
-    body: UpdateCampaignLabelsRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/labels';
-};
-
-export type UpdateCampaignLabelsErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateCampaignLabelsError = UpdateCampaignLabelsErrors[keyof UpdateCampaignLabelsErrors];
-
-export type UpdateCampaignLabelsResponses = {
-    /**
-     * Successful Response
-     */
-    200: CampaignOut;
-};
-
-export type UpdateCampaignLabelsResponse = UpdateCampaignLabelsResponses[keyof UpdateCampaignLabelsResponses];
-
-export type UpdateCampaignFormFieldsData = {
-    body: UpdateCampaignFormFieldsRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/form-fields';
-};
-
-export type UpdateCampaignFormFieldsErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateCampaignFormFieldsError = UpdateCampaignFormFieldsErrors[keyof UpdateCampaignFormFieldsErrors];
-
-export type UpdateCampaignFormFieldsResponses = {
-    /**
-     * Successful Response
-     */
-    200: CampaignOut;
-};
-
-export type UpdateCampaignFormFieldsResponse = UpdateCampaignFormFieldsResponses[keyof UpdateCampaignFormFieldsResponses];
-
-export type UpdateSampleExtentData = {
-    body: UpdateSampleExtentRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/sample-extent';
-};
-
-export type UpdateSampleExtentErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateSampleExtentError = UpdateSampleExtentErrors[keyof UpdateSampleExtentErrors];
-
-export type UpdateSampleExtentResponses = {
-    /**
-     * Successful Response
-     */
-    200: CampaignOut;
-};
-
-export type UpdateSampleExtentResponse = UpdateSampleExtentResponses[keyof UpdateSampleExtentResponses];
-
-export type UpdateEmbeddingYearData = {
-    body: UpdateEmbeddingYearRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/embedding-year';
-};
-
-export type UpdateEmbeddingYearErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateEmbeddingYearError = UpdateEmbeddingYearErrors[keyof UpdateEmbeddingYearErrors];
-
-export type UpdateEmbeddingYearResponses = {
-    /**
-     * Successful Response
-     */
-    200: EmbeddingYearUpdateResponse;
-};
-
-export type UpdateEmbeddingYearResponse = UpdateEmbeddingYearResponses[keyof UpdateEmbeddingYearResponses];
-
-export type UpdateLabellingPolicyData = {
-    body: UpdateLabellingPolicyRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/labelling-policy';
-};
-
-export type UpdateLabellingPolicyErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateLabellingPolicyError = UpdateLabellingPolicyErrors[keyof UpdateLabellingPolicyErrors];
-
-export type UpdateLabellingPolicyResponses = {
-    /**
-     * Successful Response
-     */
-    200: LabellingPolicy;
-};
-
-export type UpdateLabellingPolicyResponse = UpdateLabellingPolicyResponses[keyof UpdateLabellingPolicyResponses];
-
-export type AssignTasksToUsersData = {
-    body: AssignTasksToUsersRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/assign-tasks';
-};
-
-export type AssignTasksToUsersErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type AssignTasksToUsersError = AssignTasksToUsersErrors[keyof AssignTasksToUsersErrors];
-
-export type AssignTasksToUsersResponses = {
-    /**
-     * Successful Response
-     */
-    200: AssignTasksToUsersResult;
-};
-
-export type AssignTasksToUsersResponse = AssignTasksToUsersResponses[keyof AssignTasksToUsersResponses];
-
-export type UnassignUserFromTaskData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * Task Id
-         */
-        task_id: number;
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/tasks/{task_id}/unassign-user/{user_id}';
-};
-
-export type UnassignUserFromTaskErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UnassignUserFromTaskError = UnassignUserFromTaskErrors[keyof UnassignUserFromTaskErrors];
-
-export type UnassignUserFromTaskResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
-export type BatchUnassignTasksData = {
-    body: UnassignTasksRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/unassign-tasks';
-};
-
-export type BatchUnassignTasksErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type BatchUnassignTasksError = BatchUnassignTasksErrors[keyof BatchUnassignTasksErrors];
-
-export type BatchUnassignTasksResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
-export type AssignReviewersData = {
-    body: AssignReviewersRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/assign-reviewers';
-};
-
-export type AssignReviewersErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type AssignReviewersError = AssignReviewersErrors[keyof AssignReviewersErrors];
-
-export type AssignReviewersResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
-export type DeleteAnnotationTasksData = {
-    body: DeleteAnnotationTasksRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/annotation-tasks';
-};
-
-export type DeleteAnnotationTasksErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type DeleteAnnotationTasksError = DeleteAnnotationTasksErrors[keyof DeleteAnnotationTasksErrors];
-
-export type DeleteAnnotationTasksResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
-export type GetAllAnnotationTasksData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/annotation-tasks';
-};
-
-export type GetAllAnnotationTasksErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetAllAnnotationTasksError = GetAllAnnotationTasksErrors[keyof GetAllAnnotationTasksErrors];
-
-export type GetAllAnnotationTasksResponses = {
-    /**
-     * Successful Response
-     */
-    200: AnnotationTaskListOut;
-};
-
-export type GetAllAnnotationTasksResponse = GetAllAnnotationTasksResponses[keyof GetAllAnnotationTasksResponses];
-
-export type ListTaskSetsData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/task-sets';
-};
-
-export type ListTaskSetsErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ListTaskSetsError = ListTaskSetsErrors[keyof ListTaskSetsErrors];
-
-export type ListTaskSetsResponses = {
-    /**
-     * Response Listtasksets
-     *
-     * Successful Response
-     */
-    200: Array<TaskSetOut>;
-};
-
-export type ListTaskSetsResponse = ListTaskSetsResponses[keyof ListTaskSetsResponses];
-
-export type CreateTaskSetData = {
-    body: TaskSetCreate;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/task-sets';
-};
-
-export type CreateTaskSetErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type CreateTaskSetError = CreateTaskSetErrors[keyof CreateTaskSetErrors];
-
-export type CreateTaskSetResponses = {
-    /**
-     * Successful Response
-     */
-    201: TaskSetOut;
-};
-
-export type CreateTaskSetResponse = CreateTaskSetResponses[keyof CreateTaskSetResponses];
-
-export type DeleteTaskSetData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * Task Set Id
-         */
-        task_set_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/task-sets/{task_set_id}';
-};
-
-export type DeleteTaskSetErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type DeleteTaskSetError = DeleteTaskSetErrors[keyof DeleteTaskSetErrors];
-
-export type DeleteTaskSetResponses = {
-    /**
-     * Successful Response
-     */
-    204: void;
-};
-
-export type DeleteTaskSetResponse = DeleteTaskSetResponses[keyof DeleteTaskSetResponses];
-
-export type RenameTaskSetData = {
-    body: TaskSetRename;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * Task Set Id
-         */
-        task_set_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/task-sets/{task_set_id}';
-};
-
-export type RenameTaskSetErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type RenameTaskSetError = RenameTaskSetErrors[keyof RenameTaskSetErrors];
-
-export type RenameTaskSetResponses = {
-    /**
-     * Successful Response
-     */
-    200: TaskSetOut;
-};
-
-export type RenameTaskSetResponse = RenameTaskSetResponses[keyof RenameTaskSetResponses];
-
-export type MoveTasksToSetData = {
-    body: MoveTasksToSetRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * Task Set Id
-         */
-        task_set_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/task-sets/{task_set_id}/move-tasks';
-};
-
-export type MoveTasksToSetErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type MoveTasksToSetError = MoveTasksToSetErrors[keyof MoveTasksToSetErrors];
-
-export type MoveTasksToSetResponses = {
-    /**
-     * Successful Response
-     */
-    200: MoveTasksToSetResult;
-};
-
-export type MoveTasksToSetResponse = MoveTasksToSetResponses[keyof MoveTasksToSetResponses];
-
-export type ExportTaskAssignmentsData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: {
-        /**
-         * Task Set Id
-         */
-        task_set_id?: number | null;
-    };
-    url: '/api/campaigns/{campaign_id}/export-task-assignments';
-};
-
-export type ExportTaskAssignmentsErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ExportTaskAssignmentsError = ExportTaskAssignmentsErrors[keyof ExportTaskAssignmentsErrors];
-
-export type ExportTaskAssignmentsResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
-export type ImportTaskAssignmentsData = {
-    body: BodyImportTaskAssignments;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/import-task-assignments';
-};
-
-export type ImportTaskAssignmentsErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ImportTaskAssignmentsError = ImportTaskAssignmentsErrors[keyof ImportTaskAssignmentsErrors];
-
-export type ImportTaskAssignmentsResponses = {
-    /**
-     * Successful Response
-     */
-    200: ImportTaskAssignmentsResult;
-};
-
-export type ImportTaskAssignmentsResponse = ImportTaskAssignmentsResponses[keyof ImportTaskAssignmentsResponses];
-
-export type GetCampaignStatisticsEndpointData = {
+export type GetCampaignStatisticsData = {
     body?: never;
     path: {
         /**
@@ -8600,290 +7620,57 @@ export type GetCampaignStatisticsEndpointData = {
     url: '/api/campaigns/{campaign_id}/statistics';
 };
 
-export type GetCampaignStatisticsEndpointErrors = {
+export type GetCampaignStatisticsErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type GetCampaignStatisticsEndpointError = GetCampaignStatisticsEndpointErrors[keyof GetCampaignStatisticsEndpointErrors];
+export type GetCampaignStatisticsError = GetCampaignStatisticsErrors[keyof GetCampaignStatisticsErrors];
 
-export type GetCampaignStatisticsEndpointResponses = {
+export type GetCampaignStatisticsResponses = {
     /**
      * Successful Response
      */
     200: CampaignStatistics;
 };
 
-export type GetCampaignStatisticsEndpointResponse = GetCampaignStatisticsEndpointResponses[keyof GetCampaignStatisticsEndpointResponses];
+export type GetCampaignStatisticsResponse = GetCampaignStatisticsResponses[keyof GetCampaignStatisticsResponses];
 
-export type GetAnnotationTaskChangesData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: {
-        /**
-         * Since
-         */
-        since?: string | null;
-    };
-    url: '/api/campaigns/{campaign_id}/annotation-tasks/changes';
-};
-
-export type GetAnnotationTaskChangesErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetAnnotationTaskChangesError = GetAnnotationTaskChangesErrors[keyof GetAnnotationTaskChangesErrors];
-
-export type GetAnnotationTaskChangesResponses = {
-    /**
-     * Successful Response
-     */
-    200: AnnotationTaskChangesOut;
-};
-
-export type GetAnnotationTaskChangesResponse = GetAnnotationTaskChangesResponses[keyof GetAnnotationTaskChangesResponses];
-
-export type CompleteAnnotationTaskData = {
-    body: AnnotationFromTaskCreate;
+export type AnnotateTaskData = {
+    body: TaskAnswerCreate;
     path: {
         /**
          * Campaign Id
          */
         campaign_id: number;
         /**
-         * Annotation Task Id
+         * Task Id
          */
-        annotation_task_id: number;
+        task_id: number;
     };
     query?: never;
-    url: '/api/campaigns/{campaign_id}/{annotation_task_id}/annotate';
+    url: '/api/campaigns/{campaign_id}/tasks/{task_id}/annotate';
 };
 
-export type CompleteAnnotationTaskErrors = {
+export type AnnotateTaskErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type CompleteAnnotationTaskError = CompleteAnnotationTaskErrors[keyof CompleteAnnotationTaskErrors];
+export type AnnotateTaskError = AnnotateTaskErrors[keyof AnnotateTaskErrors];
 
-export type CompleteAnnotationTaskResponses = {
+export type AnnotateTaskResponses = {
     /**
      * Successful Response
      */
-    200: AnnotationTaskSubmitResponse;
+    200: TaskSubmitResponse;
 };
 
-export type CompleteAnnotationTaskResponse = CompleteAnnotationTaskResponses[keyof CompleteAnnotationTaskResponses];
-
-export type ClaimAnnotationTaskData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * Annotation Task Id
-         */
-        annotation_task_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/{annotation_task_id}/claim';
-};
-
-export type ClaimAnnotationTaskErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ClaimAnnotationTaskError = ClaimAnnotationTaskErrors[keyof ClaimAnnotationTaskErrors];
-
-export type ClaimAnnotationTaskResponses = {
-    /**
-     * Successful Response
-     */
-    200: ClaimTaskResponse;
-};
-
-export type ClaimAnnotationTaskResponse = ClaimAnnotationTaskResponses[keyof ClaimAnnotationTaskResponses];
-
-export type ClaimNextAnnotationTaskData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: {
-        /**
-         * Task Set Id
-         */
-        task_set_id?: number | null;
-        /**
-         * After Annotation Number
-         */
-        after_annotation_number?: number | null;
-    };
-    url: '/api/campaigns/{campaign_id}/annotation-tasks/claim-next';
-};
-
-export type ClaimNextAnnotationTaskErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ClaimNextAnnotationTaskError = ClaimNextAnnotationTaskErrors[keyof ClaimNextAnnotationTaskErrors];
-
-export type ClaimNextAnnotationTaskResponses = {
-    /**
-     * Successful Response
-     */
-    200: ClaimNextResponse;
-};
-
-export type ClaimNextAnnotationTaskResponse = ClaimNextAnnotationTaskResponses[keyof ClaimNextAnnotationTaskResponses];
-
-export type ValidateAnnotationSubmissionData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * Annotation Task Id
-         */
-        annotation_task_id: number;
-    };
-    query: {
-        /**
-         * Label Id
-         */
-        label_id: number;
-    };
-    url: '/api/campaigns/{campaign_id}/annotations/{annotation_task_id}/validate-submission';
-};
-
-export type ValidateAnnotationSubmissionErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ValidateAnnotationSubmissionError = ValidateAnnotationSubmissionErrors[keyof ValidateAnnotationSubmissionErrors];
-
-export type ValidateAnnotationSubmissionResponses = {
-    /**
-     * Successful Response
-     */
-    200: ValidateLabelSubmissionsResponse;
-};
-
-export type ValidateAnnotationSubmissionResponse = ValidateAnnotationSubmissionResponses[keyof ValidateAnnotationSubmissionResponses];
-
-export type GetKnnValidationStatusData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/knn-validation-status';
-};
-
-export type GetKnnValidationStatusErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetKnnValidationStatusError = GetKnnValidationStatusErrors[keyof GetKnnValidationStatusErrors];
-
-export type GetKnnValidationStatusResponses = {
-    /**
-     * Successful Response
-     */
-    200: KnnValidationStatusOut;
-};
-
-export type GetKnnValidationStatusResponse = GetKnnValidationStatusResponses[keyof GetKnnValidationStatusResponses];
-
-export type IngestAnnotationTasksFromCsvData = {
-    body: BodyIngestAnnotationTasksFromCsv;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/ingest-annotation-task-csv';
-};
-
-export type IngestAnnotationTasksFromCsvErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type IngestAnnotationTasksFromCsvError = IngestAnnotationTasksFromCsvErrors[keyof IngestAnnotationTasksFromCsvErrors];
-
-export type IngestAnnotationTasksFromCsvResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
-export type IngestAnnotationTasksFromGeojsonData = {
-    body: BodyIngestAnnotationTasksFromGeojson;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/ingest-annotation-task-geojson';
-};
-
-export type IngestAnnotationTasksFromGeojsonErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type IngestAnnotationTasksFromGeojsonError = IngestAnnotationTasksFromGeojsonErrors[keyof IngestAnnotationTasksFromGeojsonErrors];
-
-export type IngestAnnotationTasksFromGeojsonResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
+export type AnnotateTaskResponse = AnnotateTaskResponses[keyof AnnotateTaskResponses];
 
 export type IngestAnnotationsFromGeojsonData = {
     body: BodyIngestAnnotationsFromGeojson;
@@ -8913,7 +7700,70 @@ export type IngestAnnotationsFromGeojsonResponses = {
     200: unknown;
 };
 
-export type CreateAnnotationOpenmodeData = {
+export type ListAnnotationsForCampaignData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: {
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+        /**
+         * User Ids
+         */
+        user_ids?: Array<string> | null;
+        /**
+         * Label Ids
+         */
+        label_ids?: Array<number> | null;
+        /**
+         * Confidences
+         */
+        confidences?: Array<number> | null;
+        /**
+         * Flagged Only
+         */
+        flagged_only?: boolean;
+        /**
+         * Search
+         */
+        search?: string | null;
+        /**
+         * Sort
+         */
+        sort?: 'default' | 'id-asc' | 'id-desc' | 'confidence-asc' | 'confidence-desc' | 'time-asc' | 'time-desc';
+    };
+    url: '/api/campaigns/{campaign_id}/annotations';
+};
+
+export type ListAnnotationsForCampaignErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListAnnotationsForCampaignError = ListAnnotationsForCampaignErrors[keyof ListAnnotationsForCampaignErrors];
+
+export type ListAnnotationsForCampaignResponses = {
+    /**
+     * Successful Response
+     */
+    200: AnnotationsPageOut;
+};
+
+export type ListAnnotationsForCampaignResponse = ListAnnotationsForCampaignResponses[keyof ListAnnotationsForCampaignResponses];
+
+export type CreateAnnotationData = {
     body: AnnotationCreate;
     path: {
         /**
@@ -8922,26 +7772,26 @@ export type CreateAnnotationOpenmodeData = {
         campaign_id: number;
     };
     query?: never;
-    url: '/api/campaigns/{campaign_id}/create-annotation';
+    url: '/api/campaigns/{campaign_id}/annotations';
 };
 
-export type CreateAnnotationOpenmodeErrors = {
+export type CreateAnnotationErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type CreateAnnotationOpenmodeError = CreateAnnotationOpenmodeErrors[keyof CreateAnnotationOpenmodeErrors];
+export type CreateAnnotationError = CreateAnnotationErrors[keyof CreateAnnotationErrors];
 
-export type CreateAnnotationOpenmodeResponses = {
+export type CreateAnnotationResponses = {
     /**
      * Successful Response
      */
     200: AnnotationOut;
 };
 
-export type CreateAnnotationOpenmodeResponse = CreateAnnotationOpenmodeResponses[keyof CreateAnnotationOpenmodeResponses];
+export type CreateAnnotationResponse = CreateAnnotationResponses[keyof CreateAnnotationResponses];
 
 export type BatchCreateAnnotationsData = {
     body: BatchCreateAnnotationsRequest;
@@ -8972,40 +7822,6 @@ export type BatchCreateAnnotationsResponses = {
 };
 
 export type BatchCreateAnnotationsResponse2 = BatchCreateAnnotationsResponses[keyof BatchCreateAnnotationsResponses];
-
-export type UpdateAnnotationOpenmodeData = {
-    body: AnnotationUpdate;
-    path: {
-        /**
-         * Annotation Id
-         */
-        annotation_id: number;
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/annotations/{annotation_id}/update';
-};
-
-export type UpdateAnnotationOpenmodeErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateAnnotationOpenmodeError = UpdateAnnotationOpenmodeErrors[keyof UpdateAnnotationOpenmodeErrors];
-
-export type UpdateAnnotationOpenmodeResponses = {
-    /**
-     * Successful Response
-     */
-    200: AnnotationOut;
-};
-
-export type UpdateAnnotationOpenmodeResponse = UpdateAnnotationOpenmodeResponses[keyof UpdateAnnotationOpenmodeResponses];
 
 export type DeleteAnnotationData = {
     body?: never;
@@ -9076,6 +7892,40 @@ export type GetAnnotationResponses = {
 };
 
 export type GetAnnotationResponse = GetAnnotationResponses[keyof GetAnnotationResponses];
+
+export type UpdateAnnotationData = {
+    body: AnnotationUpdate;
+    path: {
+        /**
+         * Annotation Id
+         */
+        annotation_id: number;
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/annotations/{annotation_id}';
+};
+
+export type UpdateAnnotationErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateAnnotationError = UpdateAnnotationErrors[keyof UpdateAnnotationErrors];
+
+export type UpdateAnnotationResponses = {
+    /**
+     * Successful Response
+     */
+    200: AnnotationOut;
+};
+
+export type UpdateAnnotationResponse = UpdateAnnotationResponses[keyof UpdateAnnotationResponses];
 
 export type BatchDeleteAnnotationsData = {
     body: BatchDeleteAnnotationsRequest;
@@ -9172,69 +8022,6 @@ export type ExportAnnotationsGeojsonResponses = {
      */
     200: unknown;
 };
-
-export type ListAnnotationsForCampaignData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: {
-        /**
-         * Limit
-         */
-        limit?: number;
-        /**
-         * Offset
-         */
-        offset?: number;
-        /**
-         * User Ids
-         */
-        user_ids?: Array<string> | null;
-        /**
-         * Label Ids
-         */
-        label_ids?: Array<number> | null;
-        /**
-         * Confidences
-         */
-        confidences?: Array<number> | null;
-        /**
-         * Flagged Only
-         */
-        flagged_only?: boolean;
-        /**
-         * Search
-         */
-        search?: string | null;
-        /**
-         * Sort
-         */
-        sort?: 'default' | 'id-asc' | 'id-desc' | 'confidence-asc' | 'confidence-desc' | 'time-asc' | 'time-desc';
-    };
-    url: '/api/campaigns/{campaign_id}/annotations';
-};
-
-export type ListAnnotationsForCampaignErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ListAnnotationsForCampaignError = ListAnnotationsForCampaignErrors[keyof ListAnnotationsForCampaignErrors];
-
-export type ListAnnotationsForCampaignResponses = {
-    /**
-     * Successful Response
-     */
-    200: AnnotationsPageOut;
-};
-
-export type ListAnnotationsForCampaignResponse = ListAnnotationsForCampaignResponses[keyof ListAnnotationsForCampaignResponses];
 
 export type GetAnnotationDensityByLabelData = {
     body?: never;
@@ -9471,6 +8258,304 @@ export type GetAnnotationsExtentResponses = {
 
 export type GetAnnotationsExtentResponse = GetAnnotationsExtentResponses[keyof GetAnnotationsExtentResponses];
 
+export type GetAnnotationDensityData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: {
+        /**
+         * Include Tasks
+         */
+        include_tasks?: boolean;
+    };
+    url: '/api/campaigns/{campaign_id}/annotations/density';
+};
+
+export type GetAnnotationDensityErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAnnotationDensityError = GetAnnotationDensityErrors[keyof GetAnnotationDensityErrors];
+
+export type GetAnnotationDensityResponses = {
+    /**
+     * Response Getannotationdensity
+     *
+     * Successful Response
+     */
+    200: Array<AnnotationDensityCell>;
+};
+
+export type GetAnnotationDensityResponse = GetAnnotationDensityResponses[keyof GetAnnotationDensityResponses];
+
+export type DeleteTasksData = {
+    body: DeleteTasksRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/tasks';
+};
+
+export type DeleteTasksErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteTasksError = DeleteTasksErrors[keyof DeleteTasksErrors];
+
+export type DeleteTasksResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type ListTasksData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/tasks';
+};
+
+export type ListTasksErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListTasksError = ListTasksErrors[keyof ListTasksErrors];
+
+export type ListTasksResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskListOut;
+};
+
+export type ListTasksResponse = ListTasksResponses[keyof ListTasksResponses];
+
+export type ListTaskChangesData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: {
+        /**
+         * Since
+         */
+        since?: string | null;
+    };
+    url: '/api/campaigns/{campaign_id}/tasks/changes';
+};
+
+export type ListTaskChangesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListTaskChangesError = ListTaskChangesErrors[keyof ListTaskChangesErrors];
+
+export type ListTaskChangesResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskChangesOut;
+};
+
+export type ListTaskChangesResponse = ListTaskChangesResponses[keyof ListTaskChangesResponses];
+
+export type ClaimTaskData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Task Id
+         */
+        task_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/tasks/{task_id}/claim';
+};
+
+export type ClaimTaskErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ClaimTaskError = ClaimTaskErrors[keyof ClaimTaskErrors];
+
+export type ClaimTaskResponses = {
+    /**
+     * Successful Response
+     */
+    200: ClaimTaskResponse;
+};
+
+export type ClaimTaskResponse2 = ClaimTaskResponses[keyof ClaimTaskResponses];
+
+export type ClaimNextTaskData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: {
+        /**
+         * Task Set Id
+         */
+        task_set_id?: number | null;
+        /**
+         * After Annotation Number
+         */
+        after_annotation_number?: number | null;
+    };
+    url: '/api/campaigns/{campaign_id}/tasks/claim-next';
+};
+
+export type ClaimNextTaskErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ClaimNextTaskError = ClaimNextTaskErrors[keyof ClaimNextTaskErrors];
+
+export type ClaimNextTaskResponses = {
+    /**
+     * Successful Response
+     */
+    200: ClaimNextResponse;
+};
+
+export type ClaimNextTaskResponse = ClaimNextTaskResponses[keyof ClaimNextTaskResponses];
+
+export type ValidateTaskLabelData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Task Id
+         */
+        task_id: number;
+    };
+    query: {
+        /**
+         * Label Id
+         */
+        label_id: number;
+    };
+    url: '/api/campaigns/{campaign_id}/tasks/{task_id}/validate-label';
+};
+
+export type ValidateTaskLabelErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ValidateTaskLabelError = ValidateTaskLabelErrors[keyof ValidateTaskLabelErrors];
+
+export type ValidateTaskLabelResponses = {
+    /**
+     * Successful Response
+     */
+    200: ValidateLabelSubmissionsResponse;
+};
+
+export type ValidateTaskLabelResponse = ValidateTaskLabelResponses[keyof ValidateTaskLabelResponses];
+
+export type ImportTasksFromCsvData = {
+    body: BodyImportTasksFromCsv;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/ingest-annotation-task-csv';
+};
+
+export type ImportTasksFromCsvErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ImportTasksFromCsvError = ImportTasksFromCsvErrors[keyof ImportTasksFromCsvErrors];
+
+export type ImportTasksFromCsvResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type ImportTasksFromGeojsonData = {
+    body: BodyImportTasksFromGeojson;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/ingest-annotation-task-geojson';
+};
+
+export type ImportTasksFromGeojsonErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ImportTasksFromGeojsonError = ImportTasksFromGeojsonErrors[keyof ImportTasksFromGeojsonErrors];
+
+export type ImportTasksFromGeojsonResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
 export type GetTaskDensityData = {
     body?: never;
     path: {
@@ -9518,7 +8603,264 @@ export type GetTaskDensityResponses = {
 
 export type GetTaskDensityResponse = GetTaskDensityResponses[keyof GetTaskDensityResponses];
 
-export type GetAnnotationDensityData = {
+export type AssignTasksToUsersData = {
+    body: AssignTasksToUsersRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/tasks/assign';
+};
+
+export type AssignTasksToUsersErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AssignTasksToUsersError = AssignTasksToUsersErrors[keyof AssignTasksToUsersErrors];
+
+export type AssignTasksToUsersResponses = {
+    /**
+     * Successful Response
+     */
+    200: AssignTasksToUsersResult;
+};
+
+export type AssignTasksToUsersResponse = AssignTasksToUsersResponses[keyof AssignTasksToUsersResponses];
+
+export type UnassignTasksData = {
+    body: UnassignTasksRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/tasks/unassign';
+};
+
+export type UnassignTasksErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UnassignTasksError = UnassignTasksErrors[keyof UnassignTasksErrors];
+
+export type UnassignTasksResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type AssignReviewersData = {
+    /**
+     * Req
+     */
+    body: ({
+        pattern: 'percentage';
+    } & ReviewShareOfTasks) | ({
+        pattern: 'fixed';
+    } & ReviewNumberOfTasks);
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/tasks/assign-reviewers';
+};
+
+export type AssignReviewersErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AssignReviewersError = AssignReviewersErrors[keyof AssignReviewersErrors];
+
+export type AssignReviewersResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type ListTaskSetsData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/task-sets';
+};
+
+export type ListTaskSetsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListTaskSetsError = ListTaskSetsErrors[keyof ListTaskSetsErrors];
+
+export type ListTaskSetsResponses = {
+    /**
+     * Response Listtasksets
+     *
+     * Successful Response
+     */
+    200: Array<TaskSetOut>;
+};
+
+export type ListTaskSetsResponse = ListTaskSetsResponses[keyof ListTaskSetsResponses];
+
+export type CreateTaskSetData = {
+    body: TaskSetCreate;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/task-sets';
+};
+
+export type CreateTaskSetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateTaskSetError = CreateTaskSetErrors[keyof CreateTaskSetErrors];
+
+export type CreateTaskSetResponses = {
+    /**
+     * Successful Response
+     */
+    201: TaskSetOut;
+};
+
+export type CreateTaskSetResponse = CreateTaskSetResponses[keyof CreateTaskSetResponses];
+
+export type DeleteTaskSetData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Task Set Id
+         */
+        task_set_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/task-sets/{task_set_id}';
+};
+
+export type DeleteTaskSetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteTaskSetError = DeleteTaskSetErrors[keyof DeleteTaskSetErrors];
+
+export type DeleteTaskSetResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteTaskSetResponse = DeleteTaskSetResponses[keyof DeleteTaskSetResponses];
+
+export type RenameTaskSetData = {
+    body: TaskSetRename;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Task Set Id
+         */
+        task_set_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/task-sets/{task_set_id}';
+};
+
+export type RenameTaskSetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RenameTaskSetError = RenameTaskSetErrors[keyof RenameTaskSetErrors];
+
+export type RenameTaskSetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskSetOut;
+};
+
+export type RenameTaskSetResponse = RenameTaskSetResponses[keyof RenameTaskSetResponses];
+
+export type MoveTasksToSetData = {
+    body: MoveTasksToSetRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Task Set Id
+         */
+        task_set_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/task-sets/{task_set_id}/move-tasks';
+};
+
+export type MoveTasksToSetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MoveTasksToSetError = MoveTasksToSetErrors[keyof MoveTasksToSetErrors];
+
+export type MoveTasksToSetResponses = {
+    /**
+     * Successful Response
+     */
+    200: MoveTasksToSetResult;
+};
+
+export type MoveTasksToSetResponse = MoveTasksToSetResponses[keyof MoveTasksToSetResponses];
+
+export type ExportTaskAssignmentsData = {
     body?: never;
     path: {
         /**
@@ -9528,35 +8870,31 @@ export type GetAnnotationDensityData = {
     };
     query?: {
         /**
-         * Include Tasks
+         * Task Set Id
          */
-        include_tasks?: boolean;
+        task_set_id?: number | null;
     };
-    url: '/api/campaigns/{campaign_id}/annotations/density';
+    url: '/api/campaigns/{campaign_id}/tasks/assignments/export';
 };
 
-export type GetAnnotationDensityErrors = {
+export type ExportTaskAssignmentsErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type GetAnnotationDensityError = GetAnnotationDensityErrors[keyof GetAnnotationDensityErrors];
+export type ExportTaskAssignmentsError = ExportTaskAssignmentsErrors[keyof ExportTaskAssignmentsErrors];
 
-export type GetAnnotationDensityResponses = {
+export type ExportTaskAssignmentsResponses = {
     /**
-     * Response Getannotationdensity
-     *
      * Successful Response
      */
-    200: Array<AnnotationDensityCell>;
+    200: unknown;
 };
 
-export type GetAnnotationDensityResponse = GetAnnotationDensityResponses[keyof GetAnnotationDensityResponses];
-
-export type GetTimeseriesForCampaignData = {
-    body?: never;
+export type ImportTaskAssignmentsData = {
+    body: BodyImportTaskAssignments;
     path: {
         /**
          * Campaign Id
@@ -9564,26 +8902,26 @@ export type GetTimeseriesForCampaignData = {
         campaign_id: number;
     };
     query?: never;
-    url: '/api/campaigns/{campaign_id}/timeseries';
+    url: '/api/campaigns/{campaign_id}/tasks/assignments/import';
 };
 
-export type GetTimeseriesForCampaignErrors = {
+export type ImportTaskAssignmentsErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type GetTimeseriesForCampaignError = GetTimeseriesForCampaignErrors[keyof GetTimeseriesForCampaignErrors];
+export type ImportTaskAssignmentsError = ImportTaskAssignmentsErrors[keyof ImportTaskAssignmentsErrors];
 
-export type GetTimeseriesForCampaignResponses = {
+export type ImportTaskAssignmentsResponses = {
     /**
      * Successful Response
      */
-    200: TimeseriesListResponse;
+    200: ImportTaskAssignmentsResult;
 };
 
-export type GetTimeseriesForCampaignResponse = GetTimeseriesForCampaignResponses[keyof GetTimeseriesForCampaignResponses];
+export type ImportTaskAssignmentsResponse = ImportTaskAssignmentsResponses[keyof ImportTaskAssignmentsResponses];
 
 export type CreateTimeseriesForCampaignData = {
     body: TimeseriesBulkCreateRequest;
@@ -9626,48 +8964,58 @@ export type GetTimeseriesCreationOptionsResponses = {
     /**
      * Successful Response
      */
-    200: TimeSeriesOptionsOut;
+    200: TimeseriesOptionsOut;
 };
 
 export type GetTimeseriesCreationOptionsResponse = GetTimeseriesCreationOptionsResponses[keyof GetTimeseriesCreationOptionsResponses];
 
-export type RenameTimeseriesPanelData = {
-    body: TimeseriesPanelRenameRequest;
+export type RenameTimeseriesWindowData = {
+    body: TimeseriesWindowRenameRequest;
     path: {
         /**
          * Campaign Id
          */
         campaign_id: number;
+        /**
+         * Window Id
+         */
+        window_id: number;
     };
     query?: never;
-    url: '/api/campaigns/{campaign_id}/timeseries/panel';
+    url: '/api/campaigns/{campaign_id}/timeseries/windows/{window_id}';
 };
 
-export type RenameTimeseriesPanelErrors = {
+export type RenameTimeseriesWindowErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type RenameTimeseriesPanelError = RenameTimeseriesPanelErrors[keyof RenameTimeseriesPanelErrors];
+export type RenameTimeseriesWindowError = RenameTimeseriesWindowErrors[keyof RenameTimeseriesWindowErrors];
 
-export type RenameTimeseriesPanelResponses = {
+export type RenameTimeseriesWindowResponses = {
     /**
      * Successful Response
      */
     204: void;
 };
 
-export type RenameTimeseriesPanelResponse = RenameTimeseriesPanelResponses[keyof RenameTimeseriesPanelResponses];
+export type RenameTimeseriesWindowResponse = RenameTimeseriesWindowResponses[keyof RenameTimeseriesWindowResponses];
 
 export type GetTimeseriesDataData = {
     body?: never;
     path: {
         /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
          * Timeseries Id
          */
         timeseries_id: number;
+    };
+    query: {
         /**
          * Latitude
          */
@@ -9677,8 +9025,7 @@ export type GetTimeseriesDataData = {
          */
         longitude: number;
     };
-    query?: never;
-    url: '/api/timeseries/{timeseries_id}/{latitude}/{longitude}/data';
+    url: '/api/campaigns/{campaign_id}/timeseries/{timeseries_id}/data';
 };
 
 export type GetTimeseriesDataErrors = {
@@ -9772,7 +9119,7 @@ export type SaveImageryData = {
         campaign_id: number;
     };
     query?: never;
-    url: '/api/{campaign_id}/imagery';
+    url: '/api/campaigns/{campaign_id}/imagery';
 };
 
 export type SaveImageryErrors = {
@@ -9788,10 +9135,12 @@ export type SaveImageryResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    204: void;
 };
 
-export type CreateNewCanvasLayoutData = {
+export type SaveImageryResponse = SaveImageryResponses[keyof SaveImageryResponses];
+
+export type SaveCanvasLayoutData = {
     body: CanvasLayoutCreateRequest;
     path: {
         /**
@@ -9800,55 +9149,23 @@ export type CreateNewCanvasLayoutData = {
         campaign_id: number;
     };
     query?: never;
-    url: '/api/{campaign_id}/new-layout';
+    url: '/api/campaigns/{campaign_id}/layouts';
 };
 
-export type CreateNewCanvasLayoutErrors = {
+export type SaveCanvasLayoutErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type CreateNewCanvasLayoutError = CreateNewCanvasLayoutErrors[keyof CreateNewCanvasLayoutErrors];
+export type SaveCanvasLayoutError = SaveCanvasLayoutErrors[keyof SaveCanvasLayoutErrors];
 
-export type CreateNewCanvasLayoutResponses = {
+export type SaveCanvasLayoutResponses = {
     /**
      * Successful Response
      */
     201: unknown;
-};
-
-export type RefreshCollectionImageryData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * Collection Id
-         */
-        collection_id: number;
-    };
-    query?: never;
-    url: '/api/{campaign_id}/imagery/collections/{collection_id}/refresh';
-};
-
-export type RefreshCollectionImageryErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type RefreshCollectionImageryError = RefreshCollectionImageryErrors[keyof RefreshCollectionImageryErrors];
-
-export type RefreshCollectionImageryResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
 };
 
 export type RefreshSourceImageryData = {
@@ -9864,7 +9181,7 @@ export type RefreshSourceImageryData = {
         source_id: number;
     };
     query?: never;
-    url: '/api/{campaign_id}/imagery/sources/{source_id}/refresh';
+    url: '/api/campaigns/{campaign_id}/imagery/sources/{source_id}/refresh';
 };
 
 export type RefreshSourceImageryErrors = {
@@ -9880,8 +9197,10 @@ export type RefreshSourceImageryResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    204: void;
 };
+
+export type RefreshSourceImageryResponse = RefreshSourceImageryResponses[keyof RefreshSourceImageryResponses];
 
 export type SearchPlanetScenesData = {
     body: PlanetSceneSearchIn;
@@ -9896,7 +9215,7 @@ export type SearchPlanetScenesData = {
         source_id: number;
     };
     query?: never;
-    url: '/api/{campaign_id}/imagery/sources/{source_id}/planet-scenes/search';
+    url: '/api/campaigns/{campaign_id}/imagery/sources/{source_id}/planet-scenes/search';
 };
 
 export type SearchPlanetScenesErrors = {
@@ -9930,7 +9249,7 @@ export type MintPlanetSceneLayersData = {
         source_id: number;
     };
     query?: never;
-    url: '/api/{campaign_id}/imagery/sources/{source_id}/planet-scenes/layers';
+    url: '/api/campaigns/{campaign_id}/imagery/sources/{source_id}/planet-scenes/layers';
 };
 
 export type MintPlanetSceneLayersErrors = {
@@ -9960,7 +9279,7 @@ export type CreateImageryViewData = {
         campaign_id: number;
     };
     query?: never;
-    url: '/api/{campaign_id}/imagery/views';
+    url: '/api/campaigns/{campaign_id}/views';
 };
 
 export type CreateImageryViewErrors = {
@@ -9990,7 +9309,7 @@ export type ReorderImageryViewsData = {
         campaign_id: number;
     };
     query?: never;
-    url: '/api/{campaign_id}/imagery/views/order';
+    url: '/api/campaigns/{campaign_id}/views/order';
 };
 
 export type ReorderImageryViewsErrors = {
@@ -10024,7 +9343,7 @@ export type DeleteImageryViewData = {
         view_id: number;
     };
     query?: never;
-    url: '/api/{campaign_id}/imagery/views/{view_id}';
+    url: '/api/campaigns/{campaign_id}/views/{view_id}';
 };
 
 export type DeleteImageryViewErrors = {
@@ -10058,7 +9377,7 @@ export type UpdateImageryViewData = {
         view_id: number;
     };
     query?: never;
-    url: '/api/{campaign_id}/imagery/views/{view_id}';
+    url: '/api/campaigns/{campaign_id}/views/{view_id}';
 };
 
 export type UpdateImageryViewErrors = {
@@ -10104,7 +9423,7 @@ export type ProxyBasemapTileData = {
         y: number;
     };
     query?: never;
-    url: '/api/{campaign_id}/imagery/basemaps/{basemap_id}/tiles/{z}/{x}/{y}';
+    url: '/api/campaigns/{campaign_id}/imagery/basemaps/{basemap_id}/tiles/{z}/{x}/{y}';
 };
 
 export type ProxyBasemapTileErrors = {
@@ -10135,9 +9454,9 @@ export type ProxySliceTileData = {
          */
         slice_id: number;
         /**
-         * Visualization Name
+         * Visualization Id
          */
-        visualization_name: string;
+        visualization_id: number;
         /**
          * Z
          */
@@ -10152,7 +9471,7 @@ export type ProxySliceTileData = {
         y: number;
     };
     query?: never;
-    url: '/api/{campaign_id}/imagery/slices/{slice_id}/tiles/{visualization_name}/{z}/{x}/{y}';
+    url: '/api/campaigns/{campaign_id}/imagery/slices/{slice_id}/tiles/{visualization_id}/{z}/{x}/{y}';
 };
 
 export type ProxySliceTileErrors = {
@@ -10200,7 +9519,7 @@ export type ProxyPlanetLayerTileData = {
         y: number;
     };
     query?: never;
-    url: '/api/{campaign_id}/imagery/sources/{source_id}/planet-layers/{layer_id}/tiles/{z}/{x}/{y}';
+    url: '/api/campaigns/{campaign_id}/imagery/sources/{source_id}/planet-layers/{layer_id}/tiles/{z}/{x}/{y}';
 };
 
 export type ProxyPlanetLayerTileErrors = {
@@ -10275,9 +9594,9 @@ export type ProxyVisualizerSliceTileData = {
          */
         slice_id: number;
         /**
-         * Visualization Name
+         * Visualization Id
          */
-        visualization_name: string;
+        visualization_id: number;
         /**
          * Z
          */
@@ -10292,7 +9611,7 @@ export type ProxyVisualizerSliceTileData = {
         y: number;
     };
     query?: never;
-    url: '/api/visualizers/{visualizer_id}/imagery/slices/{slice_id}/tiles/{visualization_name}/{z}/{x}/{y}';
+    url: '/api/visualizers/{visualizer_id}/imagery/slices/{slice_id}/tiles/{visualization_id}/{z}/{x}/{y}';
 };
 
 export type ProxyVisualizerSliceTileErrors = {
@@ -10601,13 +9920,13 @@ export type DeleteCustomMapData = {
     body?: never;
     path: {
         /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
          * Map Id
          */
         map_id: number;
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
     };
     query?: never;
     url: '/api/campaigns/{campaign_id}/custom-maps/{map_id}';
@@ -10635,13 +9954,13 @@ export type UpdateCustomMapData = {
     body: CustomMapUpdate;
     path: {
         /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
          * Map Id
          */
         map_id: number;
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
     };
     query?: never;
     url: '/api/campaigns/{campaign_id}/custom-maps/{map_id}';
@@ -10731,13 +10050,13 @@ export type DeleteVectorLayerData = {
     body?: never;
     path: {
         /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
          * Layer Id
          */
         layer_id: number;
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
     };
     query?: never;
     url: '/api/campaigns/{campaign_id}/vector-layers/{layer_id}';
@@ -10765,13 +10084,13 @@ export type UpdateVectorLayerData = {
     body: VectorLayerUpdate;
     path: {
         /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
          * Layer Id
          */
         layer_id: number;
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
     };
     query?: never;
     url: '/api/campaigns/{campaign_id}/vector-layers/{layer_id}';
@@ -10861,13 +10180,13 @@ export type DeleteVisualizerCustomMapData = {
     body?: never;
     path: {
         /**
-         * Visualizer Id
-         */
-        visualizer_id: number;
-        /**
          * Map Id
          */
         map_id: number;
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
     };
     query?: never;
     url: '/api/visualizers/{visualizer_id}/custom-maps/{map_id}';
@@ -10895,13 +10214,13 @@ export type UpdateVisualizerCustomMapData = {
     body: CustomMapUpdate;
     path: {
         /**
-         * Visualizer Id
-         */
-        visualizer_id: number;
-        /**
          * Map Id
          */
         map_id: number;
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
     };
     query?: never;
     url: '/api/visualizers/{visualizer_id}/custom-maps/{map_id}';
@@ -10991,13 +10310,13 @@ export type DeleteVisualizerVectorLayerData = {
     body?: never;
     path: {
         /**
-         * Visualizer Id
-         */
-        visualizer_id: number;
-        /**
          * Layer Id
          */
         layer_id: number;
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
     };
     query?: never;
     url: '/api/visualizers/{visualizer_id}/vector-layers/{layer_id}';
@@ -11025,13 +10344,13 @@ export type UpdateVisualizerVectorLayerData = {
     body: VectorLayerUpdate;
     path: {
         /**
-         * Visualizer Id
-         */
-        visualizer_id: number;
-        /**
          * Layer Id
          */
         layer_id: number;
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
     };
     query?: never;
     url: '/api/visualizers/{visualizer_id}/vector-layers/{layer_id}';
@@ -11579,7 +10898,7 @@ export type NextAgentTasksResponses = {
 export type NextAgentTasksResponse = NextAgentTasksResponses[keyof NextAgentTasksResponses];
 
 export type AnnotateAgentTaskData = {
-    body: AgentAnnotate;
+    body: TaskAnswerCreate;
     path: {
         /**
          * Agent Id
@@ -11607,7 +10926,7 @@ export type AnnotateAgentTaskResponses = {
     /**
      * Successful Response
      */
-    200: AnnotationTaskSubmitResponse;
+    200: TaskSubmitResponse;
 };
 
 export type AnnotateAgentTaskResponse = AnnotateAgentTaskResponses[keyof AnnotateAgentTaskResponses];

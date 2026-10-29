@@ -1,23 +1,20 @@
-from collections.abc import Sequence
 from datetime import datetime
-from typing import Literal, Protocol, TypedDict
+from typing import Annotated, Any, Literal, TypedDict
 from uuid import UUID
 
 from geoalchemy2.shape import to_shape
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-
-from src.annotation.constants import (
-    ANNOTATION_TASK_STATUS_DONE,
-    ANNOTATION_TASK_STATUS_PENDING,
-    ANNOTATION_TASK_STATUS_SKIPPED,
-    TASK_STATUS_CONFLICTING,
-    TASK_STATUS_DONE,
-    TASK_STATUS_PARTIAL,
-    TASK_STATUS_PENDING,
-    TASK_STATUS_SKIPPED,
-    TaskOutcome,
-    TaskStatus,
+from pydantic import (
+    AfterValidator,
+    AliasChoices,
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    model_validator,
 )
+
+from src.annotation.constants import TaskOutcome
+from src.geometry import valid_wkt
 
 
 class DateRangeValue(TypedDict):
@@ -50,19 +47,12 @@ def normalize_slice_comments(comments: list[SliceComment] | None) -> list[dict] 
     return [c.model_dump() for c in by_slice.values()] or None
 
 
-class GeometryOut(BaseModel):
-    id: int
-    geometry: str
+def _wkt(value: Any) -> str:
+    """A geometry column as WKT, like every geometry this API hands out."""
+    return value if isinstance(value, str) else to_shape(value).wkt
 
-    @field_validator("geometry", mode="before")
-    @classmethod
-    def convert_geometry(cls, v):
-        """Convert GeoAlchemy2 Geometry objects to WKT representation."""
-        if v is None:
-            return None
-        return to_shape(v).wkt
 
-    model_config = ConfigDict(from_attributes=True)
+Wkt = Annotated[str, BeforeValidator(_wkt)]
 
 
 class AnnotationFromTaskOut(BaseModel):
@@ -106,10 +96,10 @@ class AnnotationFromTaskOut(BaseModel):
 
 
 class AnnotationOut(AnnotationFromTaskOut):
-    geometry: GeometryOut
+    geometry_wkt: Wkt = Field(validation_alias=AliasChoices("geometry", "geometry_wkt"))
     # Origin: set for task-bound annotations, None for standalone (explore)
     # ones. Lets the annotations page open the matching work mode on "View".
-    annotation_task_id: int | None = None
+    task_id: int | None = None
     origin_task_id: int | None = None
     output_of_task_id: int | None = None
 
@@ -142,7 +132,7 @@ class AnnotationListItemOut(BaseModel):
     flagged_for_review: bool
     flag_comment: str | None = None
     comment: str | None = None
-    annotation_task_id: int | None = None
+    task_id: int | None = None
     created_at: datetime
     created_by_user_id: UUID
     created_by_user_email: str | None = None
@@ -210,270 +200,27 @@ class AnnotationFacetsOut(BaseModel):
     confidences: list[ConfidenceFacet]
 
 
-class AnnotationTaskAssignmentOut(BaseModel):
-    user_id: UUID
-    # Derived, not stored: attached to the ORM row by AnnotationTaskOut's
-    # validator, which is the only place holding both the assignments and the
-    # annotations they are read from.
-    status: Literal["pending", "done", "skipped"]
-    is_review: bool = False
-    user_email: str | None = None
-    user_display_name: str | None = None
+class _AnnotationFields(BaseModel):
+    """What every annotation write may carry besides its label and shape."""
 
-    @model_validator(mode="before")
-    @classmethod
-    def populate_user_info(cls, data):
-        """Populate user_email and user_display_name from the user relationship."""
-        if hasattr(data, "user") and data.user is not None:
-            user = data.user
-            result = {
-                "user_id": data.user_id,
-                "status": data.status,
-                "is_review": data.is_review,
-                "user_email": user.email,
-                "user_display_name": user.display_name,
-            }
-            return result
-        return data
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-def derive_assignment_status(annotation_list: list[dict], user_id: UUID) -> str:
-    """A user's state on a task, read off their annotation.
-
-    An answer means done, an annotation without one means they looked and
-    skipped, and no annotation at all means they have not acted. Stored
-    nowhere: the annotation is the record of the work, so there is no second
-    copy to keep in step with it.
-    """
-    for annotation in annotation_list:
-        if annotation["created_by_user_id"] == user_id:
-            return (
-                ANNOTATION_TASK_STATUS_DONE
-                if annotation["answer"] is not None
-                else ANNOTATION_TASK_STATUS_SKIPPED
-            )
-    return ANNOTATION_TASK_STATUS_PENDING
-
-
-def compute_task_status_value(
-    assignment_list: list[dict], annotation_list: list[dict]
-) -> TaskStatus:
-    """Derive a task's status from its assignments and annotations.
-
-    Only counting annotations (`counts_toward_completion` is True; every
-    task-linked read path attaches the boolean before this runs) drive
-    done/partial/conflicting. An answer is a label, or for a draw task whether
-    shapes were drawn (`task_answer`). Review assignments set a required
-    review-answer count, satisfiable by a counting answer from any non-primary
-    user, not just the assigned reviewer(s).
-    """
-    counting = [a for a in annotation_list if a["counts_toward_completion"]]
-    answered = [a for a in counting if a["answer"] is not None]
-    has_authoritative_answer = any(a.get("is_authoritative") for a in answered)
-
-    if has_authoritative_answer:
-        # An authoritative reviewer's answer resolves the task on its own,
-        # overriding assignment-based aggregation.
-        return TASK_STATUS_DONE
-    if not assignment_list:
-        # Nobody was assigned, so whoever picked it up settles it: an answer
-        # completes it, an annotation without one is the skip they left behind.
-        if answered:
-            return TASK_STATUS_DONE
-        return TASK_STATUS_SKIPPED if annotation_list else TASK_STATUS_PENDING
-
-    all_skipped = all(
-        derive_assignment_status(annotation_list, a["user_id"]) == ANNOTATION_TASK_STATUS_SKIPPED
-        for a in assignment_list
-    )
-    if all_skipped:
-        return TASK_STATUS_SKIPPED
-
-    num_reviewers_required = sum(1 for a in assignment_list if a.get("is_review"))
-    if num_reviewers_required:
-        primary_ids = {a["user_id"] for a in assignment_list if not a.get("is_review")}
-        primary_answers = {
-            a["created_by_user_id"]: a["answer"]
-            for a in answered
-            if a["created_by_user_id"] in primary_ids
-        }
-        # Anyone else with a counting answer fills a review slot, whether or
-        # not they hold an assignment row on this task.
-        review_answers = {
-            a["created_by_user_id"]: a["answer"]
-            for a in answered
-            if a["created_by_user_id"] not in primary_ids
-        }
-        if not primary_answers and not review_answers:
-            return TASK_STATUS_PENDING
-        if primary_answers.keys() != primary_ids or len(review_answers) < num_reviewers_required:
-            return TASK_STATUS_PARTIAL
-        answers = set(primary_answers.values()) | set(review_answers.values())
-        return TASK_STATUS_DONE if len(answers) == 1 else TASK_STATUS_CONFLICTING
-
-    all_assigned_ids = {a["user_id"] for a in assignment_list}
-    answered_ids = {
-        a["created_by_user_id"] for a in answered if a["created_by_user_id"] in all_assigned_ids
-    }
-    if not answered_ids:
-        # Nobody answered yet; some may have skipped or still be pending.
-        return TASK_STATUS_PENDING
-    if answered_ids != all_assigned_ids:
-        # Some assignees answered, others didn't (skip or not-yet-acted).
-        # Not enough information to call this done or conflicting.
-        return TASK_STATUS_PARTIAL
-    answers = {a["answer"] for a in answered if a["created_by_user_id"] in answered_ids}
-    return TASK_STATUS_DONE if len(answers) == 1 else TASK_STATUS_CONFLICTING
-
-
-class _AssignmentRow(Protocol):
-    user_id: UUID
-    is_review: bool
-
-
-class _AnnotationRow(Protocol):
-    label_id: int | None
-    outcome: str | None
-    created_by_user_id: UUID
-    is_authoritative: bool
-    counts_toward_completion: bool | None
-
-
-def task_answer(annotation: _AnnotationRow) -> int | str | None:
-    """What one task row answers, comparable across annotators: the label of a
-    classify task, whether shapes were drawn for a draw task, None for a skip."""
-    if annotation.outcome == "labelled":
-        return annotation.label_id
-    if annotation.outcome == "skipped":
-        return None
-    return annotation.outcome
-
-
-def resolve_task_outcome(
-    task_output: str, label_id: int | None, outcome: TaskOutcome | None
-) -> TaskOutcome:
-    """The outcome a task submission stores, or ValueError when it does not fit
-    the campaign. A classify submission may leave it out: the label says it."""
-    if task_output == "draw":
-        if label_id is not None:
-            raise ValueError("Draw tasks are answered with shapes, not a label")
-        if outcome not in ("drawn", "none_found", "skipped"):
-            raise ValueError("Draw tasks take the outcome drawn, none_found or skipped")
-        return outcome
-    if outcome in ("drawn", "none_found"):
-        raise ValueError("This campaign's tasks are answered with a label")
-    return "labelled" if label_id is not None else "skipped"
-
-
-def task_status_inputs(
-    assignments: Sequence[_AssignmentRow], annotations: Sequence[_AnnotationRow]
-) -> tuple[list[dict], list[dict]]:
-    """Convert ORM assignment/annotation rows into the plain-dict shape
-    `compute_task_status_value` consumes.
-
-    The single seam between ORM rows and that pure function - shared by
-    `AnnotationTaskOut`'s validator below and the export path
-    (annotation/export.py), so neither hand-rolls its own conversion.
-    `counts_toward_completion` is an attribute attached at request time
-    (annotation/completion.py), not a mapped column; a caller that skipped
-    the attach fails here with AttributeError rather than silently counting.
-    """
-    assignment_list = [{"user_id": a.user_id, "is_review": a.is_review} for a in assignments]
-    annotation_list = [
-        {
-            "answer": task_answer(a),
-            "created_by_user_id": a.created_by_user_id,
-            "is_authoritative": a.is_authoritative,
-            "counts_toward_completion": a.counts_toward_completion,
-        }
-        for a in annotations
-    ]
-    return assignment_list, annotation_list
-
-
-class AnnotationTaskOut(BaseModel):
-    id: int
-    annotation_number: int
-    task_set_id: int
-    task_status: TaskStatus = TASK_STATUS_PENDING
-    geometry: GeometryOut
-    assignments: list[AnnotationTaskAssignmentOut] | None
-    annotations: list[AnnotationFromTaskOut]
-    # The soft claim on this task. Concurrency only: it says who is working on
-    # it right now, never who may label it.
-    claimed_by_user_id: UUID | None = None
-    claimed_at: datetime | None = None
-    claimed_by_display_name: str | None = None
-    # Whether a satellite embedding vector exists for this task. Populated by
-    # the task list/fetch query (extra attribute on the ORM instance). Used by
-    # the frontend to show why KNN label validation is unavailable on a task.
-    has_embedding: bool = False
-    # Standalone annotations drawn after leaving this task for Explore.
-    nearby_annotation_count: int = 0
-    # Who has drawn shapes as this draw task's answer.
-    drawn_by_user_ids: list[UUID] = []
-
-    @model_validator(mode="before")
-    @classmethod
-    def compute_task_status(cls, data):
-        """
-        Compute task_status on the fly from assignments and annotations.
-
-        A skipped assignee is treated as "did not contribute a label", so a
-        task is only done/conflicting when *every* assignee actually provided
-        a label. One skip next to one label is partial, not done.
-
-        - pending:     No assignee has labeled yet (and not all skipped)
-        - skipped:     ALL assigned users skipped
-        - partial:     At least one label, but some assignees still haven't
-                       labeled (they either skipped or haven't acted yet)
-        - done:        Every assignee labeled and all labels match, OR an
-                       authoritative reviewer has submitted a label that
-                       overrides the assignment-based aggregation.
-        - conflicting: Every assignee labeled and labels disagree
-
-        Also attaches each assignee's derived status, since this is the only
-        place holding both the assignments and the annotations they are read
-        from.
-
-        Only reachable via `model_validate` on an ORM `AnnotationTask` (the
-        only way this model is ever built in production - see
-        service.py's `AnnotationTaskOut.model_validate` calls). Anything
-        without an `assignments` attribute is passed through untouched and
-        keeps the field's `pending` default.
-        """
-        if not hasattr(data, "assignments"):
-            return data
-        assignment_list, annotation_list = task_status_inputs(
-            data.assignments or [], data.annotations or []
-        )
-        for assignment in data.assignments or []:
-            assignment.status = derive_assignment_status(annotation_list, assignment.user_id)
-        data.__dict__["task_status"] = compute_task_status_value(assignment_list, annotation_list)
-        data.__dict__["claimed_by_display_name"] = (
-            data.claimed_by.display_name if data.claimed_by else None
-        )
-        return data
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class AnnotationTaskListOut(BaseModel):
-    campaign_id: int
-    tasks: list[AnnotationTaskOut]
-
-
-class AnnotationFromTaskCreate(BaseModel):
-    label_id: int | None
-    comment: str | None = Field(max_length=5000)
+    comment: str | None = Field(default=None, max_length=5000)
     confidence: int | None = Field(default=None, ge=0, le=10)
-    is_authoritative: bool | None = None
     flagged_for_review: bool | None = None
     flag_comment: str | None = Field(default=None, max_length=5000)
     slice_comments: list[SliceComment] | None = Field(default=None, max_length=100)
     form_values: dict[str, FormValue] | None = None
+
+
+class _ViewedImagery(BaseModel):
+    """The slice the annotator was looking at. Its source and dates are recorded
+    from the slice itself (see Annotation)."""
+
+    imagery_slice_id: int | None = None
+
+
+class TaskAnswerCreate(_AnnotationFields, _ViewedImagery):
+    label_id: int | None = None
+    is_authoritative: bool | None = None
     # Required for draw tasks; a classify submission's label already says it.
     outcome: TaskOutcome | None = None
     # Active time the client measured for this task since the last submit. Capped
@@ -481,61 +228,9 @@ class AnnotationFromTaskCreate(BaseModel):
     active_ms: int | None = Field(default=None, ge=0, le=3_600_000)
 
 
-class TaskStatusOut(BaseModel):
-    """Where a task and the acting user stand after a write to it."""
-
-    task_status: str
-    assignment_status: str
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class AnnotationTaskSubmitResponse(TaskStatusOut):
-    """Response from submitting or skipping an annotation task.
-
-    The annotation is always there: a skip is stored with the outcome `skipped`,
-    so every submission leaves a record behind.
-    """
-
-    annotation: AnnotationFromTaskOut
-
-
-class ClaimTaskResponse(BaseModel):
-    """Response from soft-claiming a task.
-
-    `claimed` false with a holder means somebody else is on it; false without
-    one means there was nothing to lease (the task is assigned, or already
-    worked). Neither is an error - labelling it anyway stays allowed.
-    """
-
-    task_id: int
-    claimed: bool
-    claimed_at: datetime | None
-    holder_user_id: UUID | None = None
-    holder_display_name: str | None = None
-
-
-class ClaimNextResponse(BaseModel):
-    """The task the server picked and claimed, or null once the pool is dry."""
-
-    task: AnnotationTaskOut | None
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class AnnotationCreate(BaseModel):
+class AnnotationCreate(_AnnotationFields, _ViewedImagery):
     label_id: int
-    comment: str | None = Field(max_length=5000)
-    geometry_wkt: str  # Geometry in WKT format
-    confidence: int | None = Field(default=None, ge=0, le=10)
-    flagged_for_review: bool | None = None
-    flag_comment: str | None = Field(default=None, max_length=5000)
-    imagery_slice_id: int | None = None
-    imagery_source_name: str | None = None
-    imagery_start_date: str | None = None
-    imagery_end_date: str | None = None
-    slice_comments: list[SliceComment] | None = Field(default=None, max_length=100)
-    form_values: dict[str, FormValue] | None = None
+    geometry_wkt: Annotated[str, AfterValidator(valid_wkt)]
     # The task the annotator was on when they drew this standalone annotation.
     origin_task_id: int | None = None
     # The draw task this shape answers. At most one of the two links is set.
@@ -547,18 +242,6 @@ class AnnotationsExtentOut(BaseModel):
     EPSG:4326, or null when the campaign has no annotations."""
 
     bbox: tuple[float, float, float, float] | None = None
-
-
-class TaskDensityCell(BaseModel):
-    """One grid cell's worth of tasks sharing a status and a label: where they sit and
-    how many there are. The campaign maps draw from these instead of a marker per task,
-    so the payload grows with cells rather than with the size of the campaign."""
-
-    lon: float
-    lat: float
-    task_status: TaskStatus
-    label_id: int | None
-    count: int
 
 
 class AnnotationDensityCell(BaseModel):
@@ -602,14 +285,6 @@ class AnnotationChangesOut(BaseModel):
     truncated: bool = False
 
 
-class AnnotationTaskChangesOut(BaseModel):
-    """Tasks somebody annotated since a cursor, re-read whole, plus the cursor
-    for the next poll. Same clock as :class:`AnnotationChangesOut`."""
-
-    server_time: datetime
-    tasks: list[AnnotationTaskOut]
-
-
 class BatchDeleteAnnotationsRequest(BaseModel):
     annotation_ids: list[int]
 
@@ -628,62 +303,11 @@ class BatchCreateAnnotationsResponse(BaseModel):
     created_count: int
 
 
-class AnnotationUpdate(BaseModel):
-    label_id: int | None
-    comment: str | None = Field(max_length=5000)
-    geometry_wkt: str | None  # Geometry in WKT format
-    confidence: int | None = Field(default=None, ge=0, le=10)
-    is_authoritative: bool | None
-    flagged_for_review: bool | None = None
-    flag_comment: str | None = Field(default=None, max_length=5000)
-    imagery_slice_id: int | None = None
-    imagery_source_name: str | None = None
-    imagery_start_date: str | None = None
-    imagery_end_date: str | None = None
-    slice_comments: list[SliceComment] | None = Field(default=None, max_length=100)
-    form_values: dict[str, FormValue] | None = None
+class AnnotationUpdate(_AnnotationFields, _ViewedImagery):
+    """Fields left out stay as they are. The imagery viewed only changes
+    together with the geometry."""
 
-
-class ValidateLabelSubmissionsResponse(BaseModel):
-    """Result of a KNN-based label validation check.
-
-    status tells the caller why a certain result was returned:
-
-    - "ok" - enough data, label agrees with neighbours
-    - "mismatch" - enough data, label disagrees with neighbours
-    - "skipped_no_embedding" - task has no embedding vector
-    - "skipped_insufficient_data" - not enough labeled neighbours yet
-    - "disabled" - validation is disabled (no embedding year configured)
-    """
-
-    status: Literal[
-        "ok",
-        "mismatch",
-        "skipped_no_embedding",
-        "skipped_insufficient_data",
-        "disabled",
-    ]
-    agrees: bool | None = None
-
-
-class KnnValidationStatusOut(BaseModel):
-    """Summary of what the KNN label validator has available.
-
-    Used by the frontend to explain to annotators why validation may be
-    unavailable for a given task/label (e.g. not enough prior labels yet).
-    """
-
-    # True when an embedding year is set on the campaign. If false, nothing
-    # else in this response is meaningful.
-    enabled: bool
-    # Minimum number of embedded+labeled neighbours required for a specific
-    # label before validation runs for that label (k in kNN).
-    required_per_label: int
-    # Minimum total number of embedded+labeled tasks required in the campaign.
-    required_total: int
-    # Current total of distinct tasks that have both an embedding and at least
-    # one labeled annotation.
-    total_labeled_with_embedding: int
-    # Per-label count of distinct embedded tasks carrying that label. Key is
-    # label_id as a string (JSON object key convention).
-    per_label_counts: dict[str, int]
+    label_id: int | None = None
+    geometry_wkt: Annotated[
+        str | None, AfterValidator(lambda v: v if v is None else valid_wkt(v))
+    ] = None

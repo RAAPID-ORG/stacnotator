@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useDismissOnOutside } from '~/shared/hooks/useDismissOnOutside';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import { Button } from '~/shared/ui/forms';
-import { IconChevronDownFilled } from '~/shared/ui/Icons';
+import { IconChevronDown } from '~/shared/ui/Icons';
 import { mainLayoutChanged, type WorkspaceLayout } from '../grid';
 
 export interface SaveDialogsProps {
@@ -68,7 +68,7 @@ export function SaveDialogs({
           data-testid="save-menu-trigger"
         >
           {t('common:actions.save')}
-          <IconChevronDownFilled className="w-3 h-3" />
+          <IconChevronDown className="h-3.5 w-3.5" />
         </Button>
       )}
       {!mustSaveDefault && menuOpen && (

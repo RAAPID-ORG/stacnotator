@@ -1,14 +1,14 @@
 """Task-set service guards, tested with mocked sessions (no DB)."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
 
-from src.campaigns import task_sets
-from src.campaigns.models import TaskSet
-from src.campaigns.schemas import TaskSetCreate
+from src.tasks import task_sets
+from src.tasks.models import TaskSet
+from src.tasks.schemas import TaskSetCreate
 
 
 def make_set(set_id=1, campaign_id=10, name="Default"):
@@ -50,7 +50,8 @@ def test_delete_task_set_rejects_last_set():
     assert exc.value.status_code == 409
 
 
-def test_delete_task_set_deletes_tasks_then_set():
+@patch("src.tasks.task_sets.delete_tasks")
+def test_delete_task_set_deletes_tasks_then_set(delete_tasks):
     db = MagicMock()
     target = make_set()
     db.get.return_value = target
@@ -58,8 +59,8 @@ def test_delete_task_set_deletes_tasks_then_set():
     fake_tasks = [MagicMock(), MagicMock()]
     db.scalars.return_value.all.return_value = fake_tasks
     task_sets.delete_task_set(db, campaign_id=10, task_set_id=1)
-    deleted = [call.args[0] for call in db.delete.call_args_list]
-    assert deleted == fake_tasks + [target]
+    delete_tasks.assert_called_once_with(db, 10, fake_tasks, delete_annotations=False)
+    db.delete.assert_called_once_with(target)
     db.commit.assert_called_once()
 
 
@@ -117,7 +118,7 @@ def test_task_set_create_strips_name():
 
 
 def test_eligible_task_ids_filters_by_set():
-    from src.campaigns import assignments
+    from src.tasks import assignments
 
     db = MagicMock()
     db.scalars.return_value.all.return_value = [1, 2]
@@ -127,7 +128,7 @@ def test_eligible_task_ids_filters_by_set():
 
 
 def test_eligible_task_ids_without_set_has_no_set_clause():
-    from src.campaigns import assignments
+    from src.tasks import assignments
 
     db = MagicMock()
     db.scalars.return_value.all.return_value = []

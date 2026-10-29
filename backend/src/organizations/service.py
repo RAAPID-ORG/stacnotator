@@ -1,9 +1,8 @@
-from datetime import UTC, datetime
 from typing import NamedTuple
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import delete, func, select
+from sqlalchemy import Select, delete, func, select
 from sqlalchemy.orm import Session, joinedload
 
 from src.auth.models import User
@@ -25,6 +24,18 @@ from src.projects.models import Project, ProjectUser
 from src.tilers import registry
 
 
+def split_by_account(db: Session, emails: list[str]) -> tuple[list[User], list[str]]:
+    """The people behind ``emails`` who already have an account, and the
+    addresses nobody has signed up with yet, each in the order given."""
+    normalized = normalize_emails(emails)
+    users = db.scalars(select(User).where(func.lower(User.email).in_(normalized))).all()
+    by_email = {u.email.lower(): u for u in users}
+    return (
+        [by_email[e] for e in normalized if e in by_email],
+        [e for e in normalized if e not in by_email],
+    )
+
+
 def normalize_emails(emails: list[str]) -> list[str]:
     """Trim, lowercase, and dedupe (preserving order), dropping empties."""
     seen: set[str] = set()
@@ -37,23 +48,27 @@ def normalize_emails(emails: list[str]) -> list[str]:
     return out
 
 
-def is_active_org_member(db: Session, user_id: UUID, organization_id: int) -> bool:
-    """The raw org-membership input to the access rule in projects/access.py:
-    an active (not pending) membership row in an APPROVED org. Pending or
-    rejected orgs grant nothing, so their members get no org-public access."""
+def active_organization_ids(user_id: UUID) -> Select[tuple[int]]:
+    """The approved organizations the user is an active (not pending) member of,
+    as a query to run or embed. Pending or rejected orgs grant nothing, so their
+    members get no org-public access."""
     return (
-        db.scalars(
-            select(OrganizationUser)
-            .join(Organization, Organization.id == OrganizationUser.organization_id)
-            .where(
-                OrganizationUser.user_id == user_id,
-                OrganizationUser.organization_id == organization_id,
-                OrganizationUser.status == MEMBER_STATUS_ACTIVE,
-                Organization.status == ORG_STATUS_APPROVED,
-            )
-        ).first()
-        is not None
+        select(OrganizationUser.organization_id)
+        .join(Organization, Organization.id == OrganizationUser.organization_id)
+        .where(
+            OrganizationUser.user_id == user_id,
+            OrganizationUser.status == MEMBER_STATUS_ACTIVE,
+            Organization.status == ORG_STATUS_APPROVED,
+        )
     )
+
+
+def is_active_org_member(db: Session, user_id: UUID, organization_id: int) -> bool:
+    """The raw org-membership input to the access rule in projects/access.py."""
+    stmt = active_organization_ids(user_id).where(
+        OrganizationUser.organization_id == organization_id
+    )
+    return db.scalars(stmt).first() is not None
 
 
 def _get_org(db: Session, organization_id: int) -> Organization:
@@ -83,7 +98,7 @@ def request_organization(
     if db.scalar(select(Organization).where(Organization.name == name)):
         raise HTTPException(status_code=409, detail="An organization with this name already exists")
 
-    status = ORG_STATUS_APPROVED if user.is_admin else ORG_STATUS_PENDING
+    status = ORG_STATUS_APPROVED if user.is_platform_admin else ORG_STATUS_PENDING
     org = Organization(name=name, description=description, status=status, created_by=user.id)
     db.add(org)
     db.flush()
@@ -148,7 +163,7 @@ def list_organizations_for_user(db: Session, user: User) -> list[OrganizationLis
     """Platform admins see every org (flagged admin); others see only orgs they
     belong to. The pending-request count is only filled for orgs the viewer
     administers - it is a to-do list, and only admins can act on it."""
-    if user.is_admin:
+    if user.is_platform_admin:
         orgs = list(db.scalars(select(Organization).order_by(Organization.created_at)).all())
         admin_of = [org.id for org in orgs]
     else:
@@ -320,21 +335,17 @@ def invite_emails(
     project_id: int | None = None,
 ) -> list[str]:
     """Store pre-authorization invites for not-yet-registered emails (already
-    normalized), skipping emails that still hold an unconsumed invite for the
-    same target. Returns every email as invited either way; does not commit -
+    normalized), skipping emails already invited to the same target. Returns every email as invited either way; does not commit -
     runs inside the caller's add-by-email transaction."""
     if not emails:
         return []
-    pending = set(
+    invited = set(
         db.scalars(
-            select(Invite.email).where(
-                Invite.consumed_at.is_(None),
-                _invite_target_filter(organization_id, project_id),
-            )
+            select(Invite.email).where(_invite_target_filter(organization_id, project_id))
         ).all()
     )
     for email in emails:
-        if email not in pending:
+        if email not in invited:
             db.add(
                 Invite(
                     email=email,
@@ -352,10 +363,7 @@ def list_pending_invites(
     return list(
         db.scalars(
             select(Invite)
-            .where(
-                Invite.consumed_at.is_(None),
-                _invite_target_filter(organization_id, project_id),
-            )
+            .where(_invite_target_filter(organization_id, project_id))
             .order_by(Invite.created_at)
         ).all()
     )
@@ -368,12 +376,11 @@ def revoke_invite(
     organization_id: int | None = None,
     project_id: int | None = None,
 ) -> None:
-    """Delete a pending invite. 404s when it does not exist, was already
-    consumed, or belongs to a different target than the admin is acting on."""
+    """Delete a pending invite. 404s when it does not exist (already redeemed
+    included) or belongs to a different target than the admin is acting on."""
     invite = db.get(Invite, invite_id)
     if (
         invite is None
-        or invite.consumed_at is not None
         or (organization_id is not None and invite.organization_id != organization_id)
         or (project_id is not None and invite.project_id != project_id)
     ):
@@ -383,26 +390,17 @@ def revoke_invite(
 
 
 def consume_invites_for_new_user(db: Session, user: User) -> None:
-    """Redeem every unconsumed invite matching the new user's lowercased
-    email: org invites become active non-admin memberships, project invites
-    non-admin non-authoritative ones. Flushes only - runs inside
-    register_user's transaction so registration stays all-or-nothing."""
-    invites = db.scalars(
-        select(Invite).where(
-            Invite.email == user.email.lower(),
-            Invite.consumed_at.is_(None),
-        )
-    ).all()
-    now = datetime.now(UTC)
-    # Track per-target grants: under autoflush=False a pending add is invisible
-    # to db.get, so a duplicate invite for one target (pre-index rows, races)
-    # would otherwise insert a second membership and abort the registration.
-    granted_orgs: set[int] = set()
-    granted_projects: set[int] = set()
+    """Redeem every invite matching the new user's lowercased email: org
+    invites become active non-admin memberships, project invites non-admin
+    non-authoritative ones, and the invite is deleted. Flushes only - runs
+    inside register_user's transaction so registration stays all-or-nothing."""
+    invites = db.scalars(select(Invite).where(Invite.email == user.email.lower())).all()
+    # invites_target_uniq allows one invite per target, so each target is
+    # granted at most once here.
     for invite in invites:
         org_id, project_id = invite.organization_id, invite.project_id
         if org_id is not None:
-            if org_id not in granted_orgs and db.get(OrganizationUser, (user.id, org_id)) is None:
+            if db.get(OrganizationUser, (user.id, org_id)) is None:
                 db.add(
                     OrganizationUser(
                         user_id=user.id,
@@ -411,23 +409,16 @@ def consume_invites_for_new_user(db: Session, user: User) -> None:
                         status=MEMBER_STATUS_ACTIVE,
                     )
                 )
-            granted_orgs.add(org_id)
-        elif project_id is not None:
-            if (
-                project_id not in granted_projects
-                and db.get(ProjectUser, (user.id, project_id)) is None
-            ):
-                db.add(
-                    ProjectUser(
-                        user_id=user.id,
-                        project_id=project_id,
-                        is_admin=False,
-                        is_authoritative_reviewer=False,
-                    )
+        elif project_id is not None and db.get(ProjectUser, (user.id, project_id)) is None:
+            db.add(
+                ProjectUser(
+                    user_id=user.id,
+                    project_id=project_id,
+                    is_admin=False,
+                    is_authoritative_reviewer=False,
                 )
-            granted_projects.add(project_id)
-        invite.consumed_at = now
-        invite.consumed_by = user.id
+            )
+        db.delete(invite)
 
 
 def add_users_by_email(
@@ -435,25 +426,17 @@ def add_users_by_email(
 ) -> tuple[list[User], list[str]]:
     """Add registered users as active members; store invites for the rest so
     they join automatically when they sign up with that email."""
-    normalized = normalize_emails(emails)
-    users = db.scalars(select(User).where(func.lower(User.email).in_(normalized))).all()
-    by_email = {u.email.lower(): u for u in users}
-    added: list[User] = []
-    for email in normalized:
-        found = by_email.get(email)
-        if found is None:
-            continue
-        if db.get(OrganizationUser, (found.id, organization_id)) is None:
-            db.add(
-                OrganizationUser(
-                    user_id=found.id,
-                    organization_id=organization_id,
-                    is_admin=False,
-                    status=MEMBER_STATUS_ACTIVE,
-                )
+    users, unknown = split_by_account(db, emails)
+    added = [u for u in users if db.get(OrganizationUser, (u.id, organization_id)) is None]
+    for user in added:
+        db.add(
+            OrganizationUser(
+                user_id=user.id,
+                organization_id=organization_id,
+                is_admin=False,
+                status=MEMBER_STATUS_ACTIVE,
             )
-            added.append(found)
-    unknown = [e for e in normalized if e not in by_email]
+        )
     invited = invite_emails(db, unknown, invited_by=invited_by, organization_id=organization_id)
     db.commit()
     return added, invited

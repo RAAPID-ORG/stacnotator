@@ -11,10 +11,10 @@ from seed_dev_data import (
     _stac_search_query,
     _wait_for_registration,
 )
-from src.annotation.models import AnnotationTaskAssignment
 from src.auth.models import User
 from src.campaigns.models import Campaign
 from src.imagery.registration import _resolved_search_body
+from src.tasks.models import TaskAssignment
 
 
 def test_monthly_slices_cover_the_year_without_overlap():
@@ -33,7 +33,11 @@ def test_monthly_slices_cover_the_year_without_overlap():
 def test_seed_search_query_resolves_the_slice_dates():
     query = _stac_search_query()
     bbox = list(UKRAINE_BBOX.values())
-    body = _resolved_search_body(query, bbox, _monthly_slices(2024)[0])
+    january = _monthly_slices(2024)[0]
+    order = SimpleNamespace(
+        search_query=query, start_date=january.start_date, end_date=january.end_date
+    )
+    body = _resolved_search_body(order, bbox)
     assert body["collections"] == ["sentinel-2-l2a"]
     assert body["filterLang"] == "cql2-json"
     assert body["bbox"] == bbox
@@ -57,13 +61,13 @@ def test_seed_tasks_uses_the_default_task_set_and_assigns_each_task(sample_user_
 
     args = generate.call_args.args
     assert args[0] is db
-    assert args[1] == 3
+    assert args[1] is campaign
     assert args[2].num_samples == 100
     assert args[2].seed == 42
     assert args[3].bounds == tuple(UKRAINE_BBOX.values())
     assert args[4] == 8
     statement, assignments = db.execute.call_args.args
-    assert statement.table.name == AnnotationTaskAssignment.__tablename__
+    assert statement.table.name == TaskAssignment.__tablename__
     assert assignments == [
         {"task_id": 10, "user_id": sample_user_id},
         {"task_id": 11, "user_id": sample_user_id},

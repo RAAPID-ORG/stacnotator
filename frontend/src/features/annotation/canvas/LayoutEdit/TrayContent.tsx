@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import type { ImageryViewOut } from '~/api/client';
 import type { ImageryCatalog } from '../../campaign/imagery';
-import { collectionsInView } from '../../campaign/imagery';
+import { collectionsInView, windowsShown } from '../../campaign/imagery';
 import { IconSliders } from '~/shared/ui/Icons';
 import { useLayoutStore } from '../../stores/layout';
 import { toGridLayout } from '../grid';
@@ -29,10 +29,10 @@ const sectionHeading = 'block text-[11px] font-medium uppercase tracking-wider t
  *  only way a panel gets back onto the canvas, and nothing else says so - and
  *  hides the size the rows are added at behind a toggle, since it belongs to
  *  this list but is touched far less often than the list itself. */
-function HiddenPanelsHeader({ count }: { count: number }) {
+function HiddenPanelsHeader({ count, shown }: { count: number; shown: number[] }) {
   const { t } = useTranslation('annotation');
   const hideAllWindows = useLayoutStore((s) => s.hideAllWindows);
-  const hasVisibleWindows = useLayoutStore((s) => Object.keys(s.currentLayout.windows).length > 0);
+  const hasVisibleWindows = shown.length > 0;
   const newWindowSize = useLayoutStore((s) => s.newWindowSize);
   const setNewWindowSize = useLayoutStore((s) => s.setNewWindowSize);
   const [sizeOpen, setSizeOpen] = useState(false);
@@ -59,7 +59,7 @@ function HiddenPanelsHeader({ count }: { count: number }) {
           </button>
           <button
             type="button"
-            onClick={hideAllWindows}
+            onClick={() => hideAllWindows(shown)}
             disabled={!hasVisibleWindows}
             className="text-[11px] font-medium text-neutral-600 hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-40"
             data-testid="hide-all-windows"
@@ -128,11 +128,9 @@ export function TrayContent({
   const currentLayout = useLayoutStore((s) => s.currentLayout);
   const showWindow = useLayoutStore((s) => s.showWindow);
 
-  const layoutKeys = new Set(toGridLayout(currentLayout).map((it) => it.i));
-
-  const hiddenCollections = view
-    ? collectionsInView(catalog, view).filter((c) => !layoutKeys.has(String(c.id)))
-    : [];
+  const inView = view ? collectionsInView(catalog, view) : [];
+  const hiddenCollections = inView.filter((c) => currentLayout.hidden.includes(c.id));
+  const shown = view ? windowsShown(catalog, view, currentLayout.hidden).map((c) => c.id) : [];
 
   const items: HiddenTrayItem[] = hiddenCollections.map((collection) => {
     const sourceId = catalog.sourceOf.get(collection.id);
@@ -189,7 +187,7 @@ export function TrayContent({
         )
       }
       pinnedSection={<NavigationPanels />}
-      listHeader={<HiddenPanelsHeader count={items.length} />}
+      listHeader={<HiddenPanelsHeader count={items.length} shown={shown} />}
       storageKey="annotation:layoutPanel"
       onAdd={(id) => showWindow(Number(id))}
     />
