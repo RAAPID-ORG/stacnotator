@@ -85,7 +85,7 @@ export function ExportMenu({
       const fetcher = format === 'geojson' ? exportAnnotationsGeojson : exportAnnotations;
       const result = await fetcher(exportRows(campaignId, mergeOnAgreement));
       const body = result.data instanceof Blob ? result.data : null;
-      if (!result.response.ok || !body) {
+      if (!result.response?.ok || !body) {
         const detail = exportErrorDetail(result.error);
         throw new Error(detail ?? t('export.failedAs', { format: format.toUpperCase() }));
       }

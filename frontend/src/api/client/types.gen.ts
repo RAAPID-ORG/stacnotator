@@ -1071,7 +1071,7 @@ export type BodyGenerateTasksFromSampling = {
      *
      * Region boundary file (.zip shapefile or .geojson). Optional if using campaign bbox.
      */
-    region_file?: string | null;
+    region_file?: Blob | File | null;
 };
 
 /**
@@ -1081,7 +1081,7 @@ export type BodyImportTaskAssignments = {
     /**
      * File
      */
-    file: string;
+    file: Blob | File;
 };
 
 /**
@@ -1091,7 +1091,7 @@ export type BodyImportTasksFromCsv = {
     /**
      * File
      */
-    file: string;
+    file: Blob | File;
     /**
      * Task Set Id
      */
@@ -1105,7 +1105,7 @@ export type BodyImportTasksFromGeojson = {
     /**
      * File
      */
-    file: string;
+    file: Blob | File;
     /**
      * Task Set Id
      */
@@ -1119,7 +1119,7 @@ export type BodyIngestAnnotationsFromGeojson = {
     /**
      * File
      */
-    file: string;
+    file: Blob | File;
 };
 
 /**

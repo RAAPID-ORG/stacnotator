@@ -186,7 +186,7 @@ export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome
       },
       throwOnError: false,
     });
-    if (response.response.status === 404) return { kind: 'gone' };
+    if (response.response?.status === 404) return { kind: 'gone' };
     if (response.error) return { kind: 'error', message: extractErrorMessage(response.error) };
     const result: TaskSubmitResponse | undefined = response.data;
     if (!result) return { kind: 'error', message: t('taskActions.submitFailed') };

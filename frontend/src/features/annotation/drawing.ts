@@ -144,7 +144,7 @@ export async function commitEdit(): Promise<boolean> {
       body: { geometry_wkt: geometryToWkt(edit.pending), imagery_slice_id: viewedSliceId() },
       throwOnError: false,
     });
-    if (result.response.status === 404) {
+    if (result.response?.status === 404) {
       work.recordDeletes([edit.annotation.id]);
       alert(t('drawing.deletedWhileEditing'), 'error');
       return false;

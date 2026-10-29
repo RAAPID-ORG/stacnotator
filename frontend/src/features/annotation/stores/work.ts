@@ -672,7 +672,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
         });
         // Someone deleted it between our last poll and this click. The click
         // is how we found out, so it is also where we stop drawing it.
-        if (result.response.status === 404) {
+        if (result.response?.status === 404) {
           get().recordDeletes([annotationId]);
           return;
         }
