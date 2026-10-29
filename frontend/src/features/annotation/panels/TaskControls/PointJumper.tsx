@@ -53,7 +53,7 @@ export function PointJumper({ current, disabled, onJump, onNotFound }: PointJump
       }}
       aria-label={t('task.currentPoint')}
       title={t('task.currentPointTitle')}
-      className="w-14 h-7 shrink-0 px-2 text-center text-xs text-neutral-900 bg-white border border-neutral-300 rounded hover:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-brand-600 focus:border-brand-400 disabled:opacity-50 tabular-nums cursor-text"
+      className="w-14 h-7 shrink-0 px-1 text-center text-xs text-neutral-900 bg-white border border-neutral-300 rounded hover:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-brand-600 focus:border-brand-400 disabled:opacity-50 tabular-nums cursor-text"
     />
   );
 }
