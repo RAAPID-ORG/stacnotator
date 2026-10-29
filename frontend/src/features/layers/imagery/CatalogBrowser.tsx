@@ -998,7 +998,7 @@ export const CatalogBrowser = ({
         </button>
         <Button variant="primary" onClick={handleGenerate} disabled={!isValid}>
           {initialGeneration
-            ? t('catalog.regenerate', { count: preview?.collections ?? 0 })
+            ? t('catalog.apply', { count: preview?.collections ?? 0 })
             : preview
               ? t('catalog.generate', { count: preview.collections })
               : t('catalog.generateCollections')}
