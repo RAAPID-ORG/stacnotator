@@ -8,6 +8,7 @@ per source (see ``timeline``), which is the whole reason the two can be mixed.
 """
 
 import secrets
+from datetime import datetime
 
 from fastapi import HTTPException
 from sqlalchemy import func, select
@@ -406,9 +407,28 @@ def linked_tile_layers(visualizer: Visualizer) -> list[str]:
     return sorted(layers)
 
 
+def renew_imagery(db: Session, visualizer: Visualizer) -> datetime | None:
+    """Register again the MPC imagery this map shows that is about to expire, its own
+    and its linked campaigns', and return when the next is due."""
+    owners: list[Campaign | Visualizer] = [visualizer, *_linked_campaigns(visualizer)]
+    due = [registration.renew_expiring_mpc_mosaics(db, owner) for owner in owners]
+    return min((d for d in due if d is not None), default=None)
+
+
+def _linked_campaigns(visualizer: Visualizer) -> list[Campaign]:
+    campaigns = {e.source.campaign for e in visualizer.imagery if e.source is not None}
+    return sorted((c for c in campaigns if c is not None), key=lambda c: c.id)
+
+
 def build_view(
-    db: Session, visualizer: Visualizer, *, can_edit: bool, can_give_feedback: bool
+    db: Session,
+    visualizer: Visualizer,
+    *,
+    can_edit: bool,
+    can_give_feedback: bool,
+    imagery_renew_at: datetime | None = None,
 ) -> VisualizerViewOut:
+    registering = any(c.registration_status == "registering" for c in _linked_campaigns(visualizer))
     return VisualizerViewOut(
         id=visualizer.id,
         slug=visualizer.slug,
@@ -427,7 +447,8 @@ def build_view(
         overlays=[out for out in (_overlay_out(o) for o in visualizer.overlays) if out],
         can_edit=can_edit,
         can_give_feedback=can_give_feedback,
-        registration_status=visualizer.registration_status,
+        registration_status="registering" if registering else visualizer.registration_status,
+        imagery_renew_at=imagery_renew_at,
     )
 
 

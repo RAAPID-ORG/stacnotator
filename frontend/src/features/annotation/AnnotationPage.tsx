@@ -467,19 +467,26 @@ export function AnnotationPage() {
       .flatMap(([panelId]) => panelsById.get(panelId) ?? []);
 
   // ------------------------------------------------------------------
-  // Registration polling
+  // Registration polling and imagery renewal
   // ------------------------------------------------------------------
   const isRegistering =
     campaign?.registration_status === 'registering' || campaign?.embedding_status === 'registering';
+  // Only a campaign's first setup holds the page. Once it has a view, imagery
+  // registered again (a new source, expired MPC searches) loads in its panels.
+  const isSettingUp =
+    campaign?.embedding_status === 'registering' ||
+    (campaign?.registration_status === 'registering' && campaign.imagery_views.length === 0);
+  const renewAt = campaign?.imagery_renew_at;
 
-  // Campaign creation returns before mosaic registration finishes. Poll the
-  // same response the initial load used so completed tile URLs appear without
-  // the user having to refresh or wonder whether setup is stuck.
+  // Registration runs off the request path: poll the same response the initial
+  // load used until it is done. MPC tile URLs expire, so a long session reads
+  // them again when the backend says they are due, which renews them.
   useEffect(() => {
-    if (load !== 'ready' || campaign?.id !== campaignId || !isRegistering) return;
+    if (load !== 'ready' || campaign?.id !== campaignId) return;
+    if (!isRegistering && !renewAt) return;
     let cancelled = false;
     let refreshing = false;
-    const interval = window.setInterval(() => {
+    const refresh = () => {
       if (refreshing) return;
       refreshing = true;
       void getCampaignWithImageryWindows({
@@ -494,6 +501,7 @@ export function AnnotationPage() {
           useCampaignStore.getState().setCampaign({
             ...current,
             imagery_sources: data.imagery_sources,
+            imagery_renew_at: data.imagery_renew_at,
             registration_status: data.registration_status,
             registration_errors: data.registration_errors,
             embedding_status: data.embedding_status,
@@ -507,12 +515,17 @@ export function AnnotationPage() {
         .finally(() => {
           refreshing = false;
         });
-    }, RUN_POLL_MS);
+    };
+    const timer =
+      renewAt && !isRegistering
+        ? window.setTimeout(refresh, Math.max(0, Date.parse(renewAt) - Date.now()))
+        : window.setInterval(refresh, RUN_POLL_MS);
     return () => {
       cancelled = true;
-      window.clearInterval(interval);
+      window.clearInterval(timer);
+      window.clearTimeout(timer);
     };
-  }, [campaignId, campaign?.id, load, isRegistering]);
+  }, [campaignId, campaign?.id, load, isRegistering, renewAt]);
 
   // ------------------------------------------------------------------
   // Gates
@@ -520,7 +533,7 @@ export function AnnotationPage() {
   if (load === 'loading') return <LoadingGate />;
   if (load === 'failed' || !campaign || !catalog) return <NotFoundGate />;
 
-  if (isRegistering && !bypassRegistering) {
+  if (isSettingUp && !bypassRegistering) {
     return (
       <RegisteringGate
         campaign={campaign}

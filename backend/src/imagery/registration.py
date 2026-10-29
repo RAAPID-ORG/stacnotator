@@ -3,7 +3,9 @@
 What is missing is read off the rows (``tiles.missing_providers``): a save that changes
 a search drops the mosaics it made stale, and the next run registers whatever is
 missing, against MPC or a hosted tiler, in parallel and off the request path. A source
-refresh re-ingests what a hosted tiler already holds.
+refresh re-ingests what a hosted tiler already holds. MPC forgets a search after a day,
+so one about to expire counts as missing, and opening a map registers it again
+(``renew_expiring_mpc_mosaics``).
 
 Planet scene sources register nothing: a search is bounded by an area, and theirs
 is wherever an annotator is standing - see ``service.search_planet_scenes_in_view``.
@@ -17,6 +19,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
 from dataclasses import dataclass, replace
+from datetime import UTC, datetime
 from functools import partial
 
 import httpx
@@ -141,14 +144,10 @@ def drop_mosaics(sources: list[ImagerySource]) -> None:
 def _owner_sources(db: Session, owner: LayerOwner) -> list[ImagerySource]:
     """The owner's sources with everything ``missing_mosaics`` reads, in a few queries
     rather than one per slice."""
-    column = (
-        ImagerySource.campaign_id if owner.campaign_id is not None else ImagerySource.visualizer_id
-    )
-    owner_id = owner.campaign_id if owner.campaign_id is not None else owner.visualizer_id
     return list(
         db.scalars(
             select(ImagerySource)
-            .where(column == owner_id)
+            .where(_owned_by(owner))
             .options(
                 selectinload(ImagerySource.collections).options(
                     selectinload(ImageryCollection.visualizations),
@@ -157,6 +156,12 @@ def _owner_sources(db: Session, owner: LayerOwner) -> list[ImagerySource]:
             )
         )
     )
+
+
+def _owned_by(owner: LayerOwner):
+    if owner.campaign_id is not None:
+        return ImagerySource.campaign_id == owner.campaign_id
+    return ImagerySource.visualizer_id == owner.visualizer_id
 
 
 def register_missing(db: Session, owner: LayerOwner, bbox: list[float]) -> list[dict]:
@@ -367,6 +372,28 @@ def commit_and_register(db: Session, owner: Campaign | Visualizer, bbox) -> None
     owner.registration_errors = None
     db.commit()
     spawn_background_registration(owner.layer_owner, list(bbox))
+
+
+def renew_expiring_mpc_mosaics(db: Session, owner: Campaign | Visualizer) -> datetime | None:
+    """Start the run that registers again the owner's MPC mosaics that expired or soon
+    will, and otherwise return when the first is due, for an open map to read its
+    tiles again then. A cheap read of the ids first, as this runs on every open."""
+    if owner.registration_status == "registering":
+        return None
+    mosaic_ids = db.scalars(
+        select(SliceMosaic.mosaic_id)
+        .join(ImagerySlice, ImagerySlice.id == SliceMosaic.slice_id)
+        .join(ImageryCollection, ImageryCollection.id == ImagerySlice.collection_id)
+        .join(ImagerySource, ImagerySource.id == ImageryCollection.source_id)
+        .where(_owned_by(owner.layer_owner), SliceMosaic.provider == registry.MPC)
+    ).all()
+    if not mosaic_ids:
+        return None
+    due = min(tiles.mpc_expiry(m) for m in mosaic_ids) - tiles.MPC_RENEW_BEFORE_SECONDS
+    if due > time.time():
+        return datetime.fromtimestamp(due, UTC)
+    commit_and_register(db, owner, owner.bbox)
+    return None
 
 
 def refreshable_collection_ids(db: Session, source_id: int, campaign_id: int) -> list[int]:

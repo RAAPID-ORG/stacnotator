@@ -1458,6 +1458,10 @@ export type CampaignOutFull = {
     time_series: Array<TimeseriesOut>;
     default_main_canvas_layout?: CanvasLayoutOut | null;
     personal_main_canvas_layout?: CanvasLayoutOut | null;
+    /**
+     * Imagery Renew At
+     */
+    imagery_renew_at?: string | null;
 };
 
 /**
@@ -5628,6 +5632,10 @@ export type VisualizerViewOut = {
      * Registration Status
      */
     registration_status: string;
+    /**
+     * Imagery Renew At
+     */
+    imagery_renew_at?: string | null;
 };
 
 /**
@@ -5807,6 +5815,10 @@ export type CampaignOutFullWritable = {
     time_series: Array<TimeseriesOutWritable>;
     default_main_canvas_layout?: CanvasLayoutOut | null;
     personal_main_canvas_layout?: CanvasLayoutOut | null;
+    /**
+     * Imagery Renew At
+     */
+    imagery_renew_at?: string | null;
 };
 
 /**

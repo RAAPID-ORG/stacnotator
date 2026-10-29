@@ -310,6 +310,8 @@ class CampaignOutFull(CampaignOut):
 
     default_main_canvas_layout: CanvasLayoutOut | None = None
     personal_main_canvas_layout: CanvasLayoutOut | None = None
+    # When an open page should read its imagery again: its MPC tiles are about to expire.
+    imagery_renew_at: datetime | None = None
 
     @model_validator(mode="wrap")
     @classmethod

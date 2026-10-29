@@ -694,7 +694,7 @@
     "minAuto": "Mín. (auto)",
     "maxAuto": "Máx. (auto)"
   },
-  "registrationNotice": "Registro de imágenes en curso. Las imágenes aparecerán automáticamente.",
+  "registrationNotice": "Preparando las imágenes",
   "missingRequired": "Faltan campos obligatorios: {{fields}}",
   "claims": {
     "you": "Reservada por ti",

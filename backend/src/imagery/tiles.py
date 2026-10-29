@@ -6,13 +6,18 @@ those parameters in the URL. So a parameter edit is visible on the next read, an
 a change to what was searched needs registering again.
 """
 
+import time
 from typing import TYPE_CHECKING
 
 from src.config import get_settings
 from src.tilers import providers, registry
 
 if TYPE_CHECKING:
-    from src.imagery.models import ImageryCollection, ImagerySlice, SliceTile
+    from src.imagery.models import ImageryCollection, ImagerySlice, SliceMosaic, SliceTile
+
+# MPC forgets a search a day after registering it, so one is registered again this
+# long before then.
+MPC_RENEW_BEFORE_SECONDS = 4 * 3600
 
 
 def visualization_params(collection: "ImageryCollection", sl: "ImagerySlice") -> dict[int, dict]:
@@ -58,23 +63,38 @@ def cloud_cover_ceiling(query: dict | list | None) -> float | None:
     return cloud_cover_ceiling(list(query.values()))
 
 
+def mpc_expiry(mosaic_id: str) -> int:
+    """When MPC forgets a search: the unix time it stamps on the id
+    (``pc1.<expiry>.<hash>``), or 0 for an id from before it stamped them, all of
+    which it has forgotten."""
+    parts = mosaic_id.split(".")
+    if len(parts) == 3 and parts[0] == "pc1" and parts[1].isdigit():
+        return int(parts[1])
+    return 0
+
+
+def _lasts(mosaic: "SliceMosaic", seconds: float) -> bool:
+    return mosaic.provider != registry.MPC or mpc_expiry(mosaic.mosaic_id) > time.time() + seconds
+
+
 def missing_providers(collection: "ImageryCollection", sl: "ImagerySlice") -> set[str | None]:
-    """Providers this slice's visualizations need a mosaic on and it has none."""
+    """Providers this slice's visualizations need a mosaic on and it has none, or only
+    one MPC is about to forget."""
     if not collection.is_stac:
         return set()
-    have = {m.provider for m in sl.mosaics}
+    have = {m.provider for m in sl.mosaics if _lasts(m, MPC_RENEW_BEFORE_SECONDS)}
     needed = {provider_for(collection, p) for p in visualization_params(collection, sl).values()}
     return needed - have
 
 
 def slice_tiles(collection: "ImageryCollection", sl: "ImagerySlice") -> list["SliceTile"]:
     """Every visualization of the slice that can be drawn now. One whose mosaic is not
-    registered yet, or whose tiler is no longer configured, is left out."""
+    registered yet, has expired, or whose tiler is no longer configured, is left out."""
     from src.imagery.models import SliceTile
 
     if not collection.is_stac:
         return [SliceTile(t.visualization_id, t.url, None) for t in sl.templates]
-    mosaics = {m.provider: m.mosaic_id for m in sl.mosaics}
+    mosaics = {m.provider: m.mosaic_id for m in sl.mosaics if _lasts(m, 0)}
     tiles = []
     for visualization_id, params in sorted(visualization_params(collection, sl).items()):
         provider = provider_for(collection, params)

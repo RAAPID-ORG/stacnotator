@@ -20,7 +20,7 @@ from src.campaigns.schemas import (
     CampaignUpdate,
 )
 from src.database import get_db, release
-from src.imagery.registration import REGISTRATION_RUN
+from src.imagery.registration import REGISTRATION_RUN, renew_expiring_mpc_mosaics
 from src.projects.dependencies import require_project_admin
 from src.projects.models import Project
 from src.projects.viewer import project_flags
@@ -204,8 +204,10 @@ def get_campaign_with_imagery_windows(
     # annotations_version, so a heuristically cached copy would leave every
     # annotator looking at a stale map with nothing to show for it.
     response.headers["Cache-Control"] = "no-store"
+    renew_at = renew_expiring_mpc_mosaics(db, campaign)
     campaign_with_layouts = service.get_campaign_full(db, campaign_id)
     out = CampaignOutFull.model_validate(campaign_with_layouts, context={"user_id": user.id})
+    out.imagery_renew_at = renew_at
     return _with_viewer_roles(out, db, user, campaign_with_layouts.project_id)
 
 

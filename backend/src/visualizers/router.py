@@ -181,11 +181,13 @@ def get_shared_visualizer(
     db: Session = Depends(get_db),
 ):
     _recover_stale_registration(db, viewer.visualizer)
+    renew_at = service.renew_imagery(db, viewer.visualizer)
     return service.build_view(
         db,
         viewer.visualizer,
         can_edit=viewer.can_edit,
         can_give_feedback=viewer.can_give_feedback,
+        imagery_renew_at=renew_at,
     )
 
 

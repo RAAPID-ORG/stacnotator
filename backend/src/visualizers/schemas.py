@@ -160,8 +160,11 @@ class VisualizerViewOut(BaseModel):
     # Whether this viewer may leave feedback: signed in, on a published map.
     can_give_feedback: bool
     # Its own imagery's registration run, so the viewer can say why a source it
-    # lists has no dates yet rather than looking broken.
+    # lists has no dates yet rather than looking broken. Linked campaign imagery
+    # being registered again counts too.
     registration_status: str
+    # When the map should read its imagery again: its MPC tiles are about to expire.
+    imagery_renew_at: datetime | None = None
 
 
 class VisualizerConfigOut(BaseModel):

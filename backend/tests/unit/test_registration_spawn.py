@@ -2,6 +2,7 @@
 the providers their visualizations route to, and nothing a slice already has. The run's
 wiring into the background-run protocol is covered in test_background_runs.py."""
 
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import httpx
@@ -100,7 +101,7 @@ def test_a_slice_with_its_mosaics_needs_nothing_and_a_moved_area_drops_them():
     source = _source()
     for sl in source.collections[0].slices:
         sl.mosaics = [
-            SliceMosaic(provider="mpc", mosaic_id="m"),
+            SliceMosaic(provider="mpc", mosaic_id="pc1.4000000000.m"),
             SliceMosaic(provider="test-tiler", mosaic_id="h"),
         ]
     assert registration.missing_mosaics([source]) == []
@@ -198,3 +199,34 @@ def test_a_refused_search_is_not_retried(monkeypatch, status, attempts):
     # Two slices, each on MPC and the hosted tiler, all through the one post here.
     assert len(calls) == 4 * attempts
     assert {e["error"] for e in errors} == {f"HTTP {status}: Invalid filter"}
+
+
+@pytest.fixture()
+def renewal(monkeypatch):
+    monkeypatch.setattr(registration.time, "time", lambda: 1_000_000)
+    register = MagicMock()
+    monkeypatch.setattr(registration, "commit_and_register", register)
+    owner = MagicMock(registration_status="ready", layer_owner=LayerOwner(campaign_id=7))
+
+    def renew(*mosaic_ids):
+        db = MagicMock()
+        db.scalars.return_value.all.return_value = list(mosaic_ids)
+        return registration.renew_expiring_mpc_mosaics(db, owner)
+
+    return renew, register
+
+
+def test_opening_a_map_whose_mpc_imagery_expires_soon_registers_it_again(renewal):
+    renew, register = renewal
+
+    assert renew("pc1.1100000.cd34", "pc1.1003600.ab12") is None
+    register.assert_called_once()
+
+
+def test_lasting_mpc_imagery_is_due_before_the_first_expires(renewal):
+    renew, register = renewal
+
+    renew_at = renew("pc1.1100000.cd34", "pc1.1050000.ef56")
+
+    assert renew_at == datetime.fromtimestamp(1_050_000 - 4 * 3600, UTC)
+    register.assert_not_called()

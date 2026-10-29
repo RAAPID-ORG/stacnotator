@@ -689,7 +689,7 @@
     "minAuto": "Min (auto)",
     "maxAuto": "Max (auto)"
   },
-  "registrationNotice": "Imagery registration in progress. Imagery will appear automatically.",
+  "registrationNotice": "Preparing imagery",
   "missingRequired": "Missing required: {{fields}}",
   "claims": {
     "you": "Claimed by you",

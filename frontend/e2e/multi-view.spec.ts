@@ -139,7 +139,7 @@ for (const readyAtCreation of [false, true]) {
     await page.getByTestId('save-required-default').click();
     await expect(page.getByTestId('edit-layout-trigger')).toBeVisible();
     if (!readyAtCreation) {
-      await expect(mainNotice).toContainText('Imagery will appear automatically');
+      await expect(mainNotice).toContainText('Preparing imagery');
       await expect(windowNotice).toBeVisible();
       await expect(
         windowPanel(page, COLLECTION_S2.id).getByText('No imagery', { exact: true })
@@ -155,6 +155,45 @@ for (const readyAtCreation of [false, true]) {
     await expectImageryPainted(windowMap);
   });
 }
+
+test('a set-up campaign opens its workspace while its imagery is registered again', async ({
+  annotationPage: page,
+}) => {
+  let ready = false;
+  const source = MOCK_CAMPAIGN.imagery_sources[0];
+  await page.route('**/api/campaigns/*/detailed', (route) =>
+    route.fulfill({
+      json: {
+        ...MOCK_CAMPAIGN,
+        registration_status: ready ? 'ready' : 'registering',
+        imagery_sources: [
+          {
+            ...source,
+            collections: source.collections.map((collection) => ({
+              ...collection,
+              slices: collection.slices.map((slice) => ({
+                ...slice,
+                tiles: ready ? slice.tiles : [],
+              })),
+            })),
+          },
+        ],
+      },
+    })
+  );
+  await mockVisibleImagery(page);
+
+  await page.reload();
+  const mainMap = page.locator('[data-panel-role="main-map"]');
+  const notice = mainMap.getByTestId('imagery-registration-notice');
+  await expect(notice).toContainText('Preparing imagery');
+  await expect(page.getByTestId('registering-gate')).toHaveCount(0);
+
+  ready = true;
+  await page.waitForResponse('**/api/campaigns/*/detailed');
+  await expect(notice).toHaveCount(0);
+  await expectImageryPainted(mainMap);
+});
 
 test('layout dragging stops if the mouse button was released outside the window', async ({
   annotationPage: page,

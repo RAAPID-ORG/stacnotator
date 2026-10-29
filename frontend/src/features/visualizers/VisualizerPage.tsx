@@ -68,9 +68,14 @@ export function VisualizerPage({ slug }: { slug: string }) {
   const { data: view = null, isError: loadFailed } = useQuery({
     ...getSharedVisualizerOptions({ path: { slug } }),
     meta: { errorMessage: t('viewer.notAvailable'), showUser: false },
-    // Imagery being registered arrives on its own; stops once it is there.
-    refetchInterval: (query) =>
-      query.state.data?.registration_status === 'registering' ? RUN_POLL_MS : false,
+    // Imagery being registered arrives on its own, and MPC imagery is read again
+    // when it is due to expire, which renews it.
+    refetchInterval: ({ state: { data } }) => {
+      if (data?.registration_status === 'registering') return RUN_POLL_MS;
+      if (data?.imagery_renew_at)
+        return Math.max(1000, Date.parse(data.imagery_renew_at) - Date.now());
+      return false;
+    },
   });
   const [sessionFailed, setSessionFailed] = useState(false);
   // A failed re-read while registration runs leaves the page as it was.

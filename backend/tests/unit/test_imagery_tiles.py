@@ -31,7 +31,7 @@ def _collection(**overrides) -> ImageryCollection:
     week = ImagerySlice(id=2, start_date="2024-01-01", end_date="2024-01-07")
     for sl in (cover, week):
         sl.mosaics = [
-            SliceMosaic(provider="mpc", mosaic_id=f"mpc-{sl.id}"),
+            SliceMosaic(provider="mpc", mosaic_id=f"pc1.4000000000.{sl.id}"),
             SliceMosaic(provider="hosted-a", mosaic_id=f"pg-{sl.id}"),
         ]
     fields = {
@@ -59,7 +59,7 @@ def test_each_rendering_is_drawn_from_the_mosaic_of_the_provider_it_routes_to():
 
     by_rendering = {t.visualization_id: t for t in tiles.slice_tiles(collection, week)}
     assert by_rendering[5].tiler == "mpc"
-    assert "/mosaic/mpc-2/" in by_rendering[5].url
+    assert "/mosaic/pc1.4000000000.2/" in by_rendering[5].url
     assert "collection=sentinel-2-l2a" in by_rendering[5].url
     assert by_rendering[6].tiler == "hosted-a"
     assert by_rendering[6].url.startswith("https://tiler.test/searches/pg-2/")
@@ -87,6 +87,24 @@ def test_a_rendering_without_its_mosaic_or_tiler_is_left_out_until_registered():
     week.mosaics = []
     assert tiles.slice_tiles(collection, week) == []
     assert tiles.missing_providers(collection, week) == {"mpc", "gone"}
+
+
+def test_an_mpc_mosaic_is_registered_again_before_it_expires_and_not_drawn_after(
+    monkeypatch,
+):
+    monkeypatch.setattr(tiles.time, "time", lambda: 1_000_000)
+    collection = _collection()
+    week = collection.slices[1]
+
+    for mosaic_id, missing, drawn in [
+        ("pc1.1100000.ab", set(), [5, 6]),
+        ("pc1.1003600.ab", {"mpc"}, [5, 6]),
+        ("pc1.999999.ab", {"mpc"}, [6]),
+        ("0123abcd", {"mpc"}, [6]),
+    ]:
+        week.mosaics[0].mosaic_id = mosaic_id
+        assert tiles.missing_providers(collection, week) == missing
+        assert [t.visualization_id for t in tiles.slice_tiles(collection, week)] == drawn
 
 
 def test_a_manual_slice_is_drawn_from_its_templates_and_needs_no_mosaic():
