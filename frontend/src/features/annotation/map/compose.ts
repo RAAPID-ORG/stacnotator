@@ -300,13 +300,9 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
       id: EXTENT_LAYER_ID,
       decorative: true,
       features: [state.focusExtent],
-      style: {
-        stroke: {
-          color: state.crosshairColor ?? DEFAULT_CROSSHAIR_COLOR,
-          width: 2,
-          dash: [6, 4],
-        },
-      },
+      // Solid: dashes run around the ring with a four-fold twist, and a box
+      // zoomed down to the cross's size turned the two into a pinwheel.
+      style: { stroke: { color: state.crosshairColor ?? DEFAULT_CROSSHAIR_COLOR, width: 1.5 } },
       zIndex: EXTENT_Z,
     });
   }

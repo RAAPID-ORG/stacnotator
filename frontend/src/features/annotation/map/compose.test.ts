@@ -158,7 +158,7 @@ describe('composeLayers - tasks mode', () => {
     );
     const extent = layers.find((l) => l.id === EXTENT_LAYER_ID);
     expect(extent?.kind === 'features' && extent.style).toEqual({
-      stroke: { color: '#00ffff', width: 2, dash: [6, 4] },
+      stroke: { color: '#00ffff', width: 1.5 },
     });
   });
 
