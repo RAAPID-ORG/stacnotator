@@ -6,9 +6,10 @@ import type {
   ImageryGenerationSeries,
   ImagerySlice,
   ImagerySource,
+  NamedVizParams,
   StacBrowserCollectionData,
 } from './types';
-import { createId, isPlanetSceneConfig } from './types';
+import { createId, emptyVizParams, isPlanetSceneConfig } from './types';
 
 export interface EditableGenerationSeries {
   id: string;
@@ -39,6 +40,27 @@ const earliest = (collections: CollectionItem[]) =>
     return aStart.localeCompare(bStart);
   });
 
+/** The source's visualizations in its order, each with the parameters the
+ *  collection has for it. One added under the source after the collection was
+ *  generated has none yet and starts empty, so it is a tab in the generator,
+ *  which is where it gets them. */
+function sourceVisualizations(
+  source: ImagerySource,
+  own: NamedVizParams[],
+  cover = false
+): NamedVizParams[] {
+  const named = source.visualizations.filter((viz) => viz.name.trim());
+  if (named.length === 0) return own;
+  const byName = new Map(own.map((viz) => [viz.name, viz]));
+  return named.map(
+    ({ name }) =>
+      byName.get(name) ?? {
+        name,
+        vizParams: cover ? { ...emptyVizParams(), compositing: 'first' } : emptyVizParams(),
+      }
+  );
+}
+
 /** Resolve every explicitly persisted series. Configuration ownership is on
  * the source-level series; collections only provide membership. */
 export function editableGenerationSeries(source: ImagerySource): EditableGenerationSeries[] {
@@ -64,8 +86,11 @@ export function editableGenerationSeries(source: ImagerySource): EditableGenerat
       itemSort: currentData.itemSort ?? 'date_desc',
       coverMaxCloudCover: currentData.coverMaxCloudCover ?? DEFAULT_MAX_CLOUD_COVER,
       coverItemSort: currentData.coverItemSort ?? 'cloud_cover_asc',
-      visualizations: currentData.visualizations,
-      coverVisualizations: currentData.coverVisualizations ?? [],
+      visualizations: sourceVisualizations(source, currentData.visualizations),
+      // An empty list means the cover is the nth slice, not a custom one.
+      coverVisualizations: currentData.coverVisualizations?.length
+        ? sourceVisualizations(source, currentData.coverVisualizations, true)
+        : [],
       searchQuery: currentData.searchQuery,
       coverSearchQuery: currentData.coverSearchQuery,
       internalStorage: currentData.internalStorage,

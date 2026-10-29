@@ -108,6 +108,22 @@ describe('imagery generation series', () => {
     expect(merged.slices[0].id).toBe('slice-42');
   });
 
+  it('offers a visualization added under the source as a tab of its own', () => {
+    const withNdvi = {
+      ...source(
+        [collection('a', '2025-01-01', 'series-a')],
+        [{ id: 'series-a', config: generationConfig('Sentinel') }]
+      ),
+      visualizations: [{ name: 'RGB' }, { name: 'NDVI' }, { name: '' }],
+    };
+
+    const [series] = editableGenerationSeries(withNdvi);
+
+    expect(series.config.visualizations.map((viz) => viz.name)).toEqual(['RGB', 'NDVI']);
+    expect(series.config.visualizations[0].vizParams.assets).toEqual(['red']);
+    expect(series.config.visualizations[1].vizParams.assets).toEqual([]);
+  });
+
   it('does not infer provenance for unassociated historical collections', () => {
     expect(editableGenerationSeries(source([collection('old', '2025-01-01')], []))).toEqual([]);
   });
