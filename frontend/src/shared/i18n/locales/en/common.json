@@ -163,5 +163,10 @@
   "typeToDelete": {
     "typeToConfirm": "Please type <name>{{name}}</name> to confirm:",
     "placeholder": "Type the name here"
+  },
+  "help": {
+    "title": "Help & guides",
+    "comingSoon": "Coming soon",
+    "workInProgress": "Guides for STACNotator are a work in progress and will appear here."
   }
 }

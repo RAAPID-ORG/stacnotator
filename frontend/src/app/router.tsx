@@ -8,6 +8,7 @@ import {
   Route,
   RouterProvider,
 } from 'react-router-dom';
+import { HelpPage } from '~/features/home/pages/HelpPage';
 import { HomePage } from '~/features/home/pages/HomePage';
 import { ProjectsPage } from '~/features/projects/pages/ProjectsPage';
 import { AppLayout } from '~/app/AppLayout';
@@ -122,6 +123,7 @@ const router = createBrowserRouter(
       <Route path="organizations/new" lazy={lazyNewOrganization} />
       <Route path="organizations/:orgId" loader={requireOrgId} lazy={lazyOrganization} />
       <Route path="settings" lazy={lazySettings} />
+      <Route path="help" element={<HelpPage />} />
       <Route path="admin" lazy={lazyPlatformAdmin} />
       <Route path="sdk-auth" lazy={lazySdkAuth} />
       {/* Unmatched paths render a friendly 404 within the layout. */}
