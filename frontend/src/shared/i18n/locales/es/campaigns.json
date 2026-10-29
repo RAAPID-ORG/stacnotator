@@ -216,7 +216,7 @@
     "importFailed": "No se pudieron importar las asignaciones de tareas",
     "exported": "Asignaciones de tareas exportadas",
     "imported": "Asignaciones de tareas importadas",
-    "importSummary": "Tareas actualizadas: {{tasks}}; anotadores asignados: {{assignees}}; revisores: {{reviewers}}",
+    "importSummary": "Tareas actualizadas: {{tasks}}; anotadores añadidos: {{assignees}}; revisores añadidos: {{reviewers}}",
     "exporting": "Exportando…",
     "export": "Exportar",
     "chooseCsv": "Elegir CSV",
@@ -354,7 +354,7 @@
     "admin": "Administrador",
     "authoritativeReviewer": "Revisor autoritativo",
     "tasksLabel": "Tareas:",
-    "previewEven_one": "<strong>Vista previa:</strong> se asignará {{count}} tarea repartida equitativamente entre los usuarios seleccionados ({{users}})",
+    "previewEven_one": "<strong>Vista previa:</strong> se asignará {{count}} tarea a los usuarios seleccionados ({{users}})",
     "previewEven_many": "<strong>Vista previa:</strong> se asignarán {{count}} tareas repartidas equitativamente entre los usuarios seleccionados ({{users}})",
     "previewEven_other": "<strong>Vista previa:</strong> se asignarán {{count}} tareas repartidas equitativamente entre los usuarios seleccionados ({{users}})",
     "previewFixed_one": "<strong>Vista previa:</strong> se asignará {{count}} tarea a los usuarios seleccionados ({{users}})",
@@ -566,7 +566,7 @@
     "duplicatePanel": "Ya existe un panel con este nombre.",
     "renamePanelAria": "Renombrar el panel {{name}}",
     "rename": "Renombrar",
-    "series": "Serie {{number}} (sin nombre)",
+    "series": "Serie {{number}} (aún sin nombre)",
     "name": "Nombre de la serie temporal",
     "startDate": "Fecha de inicio",
     "endDate": "Fecha de fin",
@@ -791,7 +791,7 @@
     "south": "Sur (lat.)",
     "east": "Este (long.)",
     "north": "Norte (lat.)",
-    "dragHint": "Arrastra el recuadro para moverlo, o sus esquinas y bordes para cambiar su tamaño. Mayús y arrastrar dibuja un recuadro nuevo."
+    "dragHint": "Arrastra el recuadro para moverlo, o sus esquinas y bordes para cambiar su tamaño. Arrastrar con Shift dibuja un recuadro nuevo."
   },
   "customMaps": {
     "status": {
