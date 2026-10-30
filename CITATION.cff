@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+type: software
+message: "If you use STACNotator, please cite this software."
+title: "STACNotator: A STAC-native platform for annotating satellite imagery time series"
+authors:
+  - family-names: Sawahn
+    given-names: Rohan
+    orcid: "https://orcid.org/0009-0006-8672-9012"
+  - family-names: Humber
+    given-names: Michael
+    affiliation: "University of Maryland, College Park"
+    orcid: "https://orcid.org/0000-0001-9359-188X"
+  - family-names: Sanchez Galvez
+    given-names: Antonio
+    affiliation: "University of Maryland, College Park"
+    orcid: "https://orcid.org/0009-0009-2219-8197"
+doi: "10.5281/zenodo.23807896"
+repository-code: "https://github.com/RAAPID-ORG/stacnotator"
+license: MIT
