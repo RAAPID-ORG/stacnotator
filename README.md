@@ -1,6 +1,8 @@
 
 # STACNotator
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23807896.svg)](https://doi.org/10.5281/zenodo.23807896)
+
 NASA Harvest's geospatial imagery annotation platform.
 
 > [!Important]
@@ -232,3 +234,22 @@ Any production deployment must replace the dev-default secrets: with `ENVIRONMEN
 ## Contributing
 This project welcomes contributions and proposals. Please open up a issue deiscribing your requirements, proposed solutions or  encountered bugs. Check the [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to contribute.
 To familiarize yourself with the project please refer to the [docs](docs/architecture.md). For the development workflow (branching, reviews, CI) see [docs/development.md](docs/development.md).
+
+## Citation
+
+If you use STACNotator in your research, please cite the software:
+
+```bibtex
+@software{stacnotator,
+  author    = {Sawahn, Rohan and Humber, Michael and Sanchez Galvez, Antonio},
+  title     = {{STACNotator}: A {STAC}-native platform for annotating satellite imagery time series},
+  year      = {2026},
+  publisher = {Zenodo},
+  doi       = {10.5281/zenodo.23807896},
+  url       = {https://doi.org/10.5281/zenodo.23807896}
+}
+```
+
+This DOI represents all versions. For reproducibility, cite the specific version
+you used via its version DOI on [Zenodo](https://doi.org/10.5281/zenodo.23807896).
+Citation metadata is also available in [CITATION.cff](CITATION.cff).
