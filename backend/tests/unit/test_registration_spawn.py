@@ -127,7 +127,7 @@ def test_registers_the_missing_mosaics_without_holding_a_transaction(monkeypatch
         assert json["bbox"] == bbox
         assert json["datetime"].startswith("2024-01-01T00:00:00Z/")
         response = MagicMock()
-        response.json.return_value = {"searchid": f"mpc-{json['limit']}"}
+        response.json.return_value = {"id": f"mpc-{json['limit']}"}
         return response
 
     def ingest(tiler, catalog, collection_id, new_bbox, *args, **kwargs):
@@ -165,7 +165,7 @@ def test_a_search_edited_while_its_registration_was_out_is_not_kept(monkeypatch)
     reads = iter([[registered], [edited]])
     monkeypatch.setattr(registration, "_owner_sources", lambda db, owner: next(reads))
     response = MagicMock()
-    response.json.return_value = {"searchid": "mpc-old"}
+    response.json.return_value = {"id": "mpc-old"}
     monkeypatch.setattr(registration.httpx, "post", lambda *a, **k: response)
     monkeypatch.setattr(registration.providers, "resolve_tiler", lambda name: None)
     monkeypatch.setattr(registration, "_register_hosted", lambda *a: "hosted-old")

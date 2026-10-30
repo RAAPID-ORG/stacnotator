@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
 
 from src.campaigns import router as campaigns_router
 from src.campaigns.router import _with_viewer_roles
@@ -172,6 +172,41 @@ class TestMutationResponsesCarryViewerFlags:
         assert isinstance(out, CampaignOut)
         assert (out.viewer_is_admin, out.viewer_is_member) == (True, True)
         assert out.viewer_is_authoritative_reviewer is False
+
+
+def test_annotation_poll_recovers_interrupted_registration_before_renewing(monkeypatch):
+    row = _campaign_row()
+    row.registration_status = "registering"
+    row.embedding_status = "ready"
+    db = _db(None)
+
+    def sweep(db, fields, row_id):
+        assert row_id == row.id
+        assert campaigns_router.REGISTRATION_RUN in fields
+        row.registration_status = "failed"
+        row.registration_errors = [{"error": "Registration interrupted"}]
+        return 1
+
+    def renew(db, campaign):
+        assert campaign.registration_status == "failed"
+        return None
+
+    monkeypatch.setattr(campaigns_router.background, "fail_stale_status_runs", sweep)
+    monkeypatch.setattr(campaigns_router, "renew_expiring_mpc_mosaics", renew)
+    monkeypatch.setattr(campaigns_router.service, "get_campaign_full", lambda db, campaign_id: row)
+
+    out = campaigns_router.get_campaign_with_imagery_windows(
+        campaign_id=row.id,
+        response=Response(),
+        campaign=row,
+        user=_user(is_admin=True),
+        db=db,
+    )
+
+    assert out.registration_status == "failed"
+    assert out.registration_errors == [{"error": "Registration interrupted"}]
+    db.commit.assert_called_once()
+    db.expire_all.assert_called_once()
 
 
 class TestDuplicateTarget:

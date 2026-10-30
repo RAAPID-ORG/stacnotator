@@ -152,7 +152,7 @@ def build_tile_url(
 ) -> str:
     """Build an absolute XYZ tile-URL template for a registered search.
 
-    ``ref`` is the provider's search id (MPC ``searchid`` / titiler-pgstac ``id``).
+    ``ref`` is the provider's registered search ``id``.
     """
     if provider == PROVIDER_MPC:
         url = (

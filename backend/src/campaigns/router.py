@@ -204,6 +204,7 @@ def get_campaign_with_imagery_windows(
     # annotations_version, so a heuristically cached copy would leave every
     # annotator looking at a stale map with nothing to show for it.
     response.headers["Cache-Control"] = "no-store"
+    _recover_stale_registration(db, campaign)
     renew_at = renew_expiring_mpc_mosaics(db, campaign)
     campaign_with_layouts = service.get_campaign_full(db, campaign_id)
     out = CampaignOutFull.model_validate(campaign_with_layouts, context={"user_id": user.id})

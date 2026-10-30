@@ -450,10 +450,10 @@ def _resolved_search_body(order: MosaicOrder, bbox: list[float]) -> dict:
 
 
 def _register_mpc(order: MosaicOrder, bbox: list[float]) -> str:
-    """Register the slice's search with MPC's own tiler. Returns its searchid."""
+    """Register the slice's search with MPC's own tiler. Returns its id."""
     resp = httpx.post(MPC_REGISTER_URL, json=_resolved_search_body(order, bbox), timeout=30)
     resp.raise_for_status()
-    search_id: str = resp.json()["searchid"]
+    search_id: str = resp.json()["id"]
     return search_id
 
 
