@@ -4,6 +4,7 @@
 !.env.example
 !.env.dev
 !.env.deploy.example
+!deployment/compose/.env.production.example
 deployment/azure/.env.deploy.*
 !deployment/azure/.env.deploy.example
 deployment/azure/.env

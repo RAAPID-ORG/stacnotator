@@ -1,239 +1,230 @@
-
 # STACNotator
 
+![STACNotator: satellite imagery annotation, with the application's logo and real Sentinel-2 imagery of irrigated Kansas farmland](docs/assets/stacnotator-banner.jpg)
+
+[![CI](https://github.com/RAAPID-ORG/stacnotator/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/RAAPID-ORG/stacnotator/actions/workflows/ci.yml?query=branch%3Adevelop)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Status: alpha](https://img.shields.io/badge/status-alpha-orange.svg)](#project-maturity)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23807896.svg)](https://doi.org/10.5281/zenodo.23807896)
 
-NASA Harvest's geospatial imagery annotation platform.
+[Features](#features) | [Local development](#local-development) | [Deployment](#deployment) | [Documentation](#documentation) | [Contributing](#contributing) | [Citation](#citation)
 
-> [!Important]
-> This software is still under development and not yet at a mature stage. It should be considered as a pre-release for alpha testing. The documentation will be released soon.
+## Project maturity
 
-## Quick Start
+> [!IMPORTANT]
+> STACNotator is under active development and is **alpha software**. Features,
+> APIs, and configuration may change, and the documentation is still evolving.
+> Evaluate it with your own imagery and workflows before relying on it, and
+> back up your data before upgrading. Support for STAC catalogs other than
+> Microsoft Planetary Computer is experimental.
 
-### Development Setup (with Hot Reloading)
+## Overview
 
-#### Prerequisites
+STACNotator is an open-source web application from [NASA Harvest](https://nasaharvest.org/)
+for annotating satellite imagery time series. It connects to
+[SpatioTemporal Asset Catalogs (STAC)](https://stacspec.org/), brings imagery from
+different dates into a shared workspace, and lets people label locations or draw
+features on a map.
 
-- Ensure you have Docker and its Compose plugin installed (`docker compose version`). Follow the setup instructions for your system [here](https://docs.docker.com/compose/install/). Docker Desktop includes Compose.
+It is intended for researchers and annotation teams building reference datasets
+for remote sensing, including crop mapping, land-cover classification, and
+model evaluation.
 
-#### Option A - Local Mode (No Firebase, Quickest Setup)
+Imagery preloading and keyboard-driven navigation keep annotation fast and smooth
+across dates and visualizations. It streams imagery from supported
+catalogs and tile services, without requiring you to preprocess and maintain
+your own imagery archive.
 
-For single-user local usage, no external auth provider is needed. The app runs with a built-in local user that has full admin access.
+You can run it locally as a single user or host an instance for a team.
+The [Python SDK](sdk/README.md) connects annotations to model-training and
+active-learning workflows.
 
-**Step 1 - Configure Environment**
+<sub>
+<a href="docs/assets/README.md">Image credits and sources</a>.</sub>
+
+## Features
+
+| Feature                          | Description                                                                                                                                                          |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Compare imagery over time        | Browse STAC collections and dated imagery slices, switch between custom visualizations such as true color and false color, and arrange synchronized imagery windows. |
+| Label locations or draw features | Classify predefined points and polygons, or draw points, lines, and polygons while exploring. Add confidence scores, comments, and campaign-specific forms.          |
+| Organize annotation work         | Group campaigns into projects and organizations, import or generate task locations, assign work, and track progress.                                                 |
+| Review labels                    | Collect multiple answers per task, flag annotations for review, and configure whose answers count toward completion.                                                 |
+| Bring your own layers            | Add Planet Basemaps, XYZ imagery, prediction rasters as COG overlays, and PMTiles vector layers. Some sources require credentials or a hosted tiler.                 |
+| Use time series and embeddings   | Add Earth Engine time series and AlphaEarth embeddings when Earth Engine credentials are configured.                                                                 |
+| Connect research workflows       | Export annotations as CSV or GeoJSON, use the Python SDK for active learning, or connect labelling agents through the MCP server.                                    |
+| Share maps                       | Publish visualizers with imagery and overlays, optionally allowing access without an account. Check provider licenses before publishing.                             |
+
+The interface supports English and Spanish, keyboard-driven annotation, and
+saved workspace layouts, including pop-out windows for multiple monitors.
+See the [full feature overview](docs/features.md) for details.
+
+## Local development
+
+The development stack runs the frontend, backend, and database in Docker, with
+hot reloading. You need Git, [Docker Engine and Compose](https://docs.docker.com/compose/install/),
+and Make. Allow at least 4 GB of RAM for the stack; imagery workloads may need more.
 
 ```bash
+git clone https://github.com/RAAPID-ORG/stacnotator.git
+cd stacnotator
 cp .env.example .env
-nano .env
-```
 
-The defaults in `.env.example` already use `AUTH_PROVIDER=local`. You might want to add the earth-engine credentials for timeseries functionality.
-You can find instructions on how to setup a earth-engine Service account [here](https://developers.google.com/earth-engine/guides/service_account).
-Please aware that if you create a campaign with embeddings-support activated or with timeseries, this might lead to errors, if no EE credentials are provided.
-
-**Step 2 - Initialize & Start**
-
-```bash
 make dev-init
 make dev-up
 ```
 
-Open http://localhost:5173 and you're in.
+The default configuration uses a built-in local administrator, so you do not
+need Firebase or Earth Engine to try the application. `make dev-init` builds
+the images, starts the services, runs migrations, and seeds example campaigns.
 
-> [!Warning]
-> Local auth mode is for local development only. It cannot be used with `ENVIRONMENT=production` and should never be exposed to a network.
+| Service                       | Address                        |
+| ----------------------------- | ------------------------------ |
+| Application                   | http://localhost:5173          |
+| Backend                       | http://localhost:8000          |
+| Interactive API documentation | http://localhost:8000/api/docs |
 
-#### Option B - Firebase Auth (Multi-User Deployments)
+> [!WARNING]
+> Local authentication gives every request administrator access. Use it only on
+> a trusted development machine, and do not expose the development ports to a
+> network. Local authentication is refused in production.
 
-For multi-user setups or production deployments, STACNotator uses Firebase for authentication.
+Stop the stack with `make dev-down`. Data remains in Docker volumes.
 
-You will need a Google Account for the Firebase setup.
+### Optional imagery services
 
-**Step 0 - Firebase Setup**
+Microsoft Planetary Computer imagery with **first-valid compositing** works
+without a hosted tiler. For other public STAC catalogs, advanced compositing or
+masking, and custom COG overlays, enable the optional
+[stacnotator-tiler](https://github.com/RAAPID-ORG/stacnotator-tiler) service by adding
+these settings to `.env`:
 
-1. Go to [Firebase Console](https://console.firebase.google.com/) and create a new project.
-2. Navigate to **Settings > General**:
-   - Note your **project ID**.
-   - Scroll to **Your apps > \<your-app-name\>** and note the **API key** and **auth domain** from the SDK instructions (used as the `VITE_FIREBASE_*` variables below).
-3. Navigate to **Settings > Service Accounts**:
-   - Select *Firebase Admin SDK* and click **Generate new private key**. Save the file.
+```dotenv
+COMPOSE_PROFILES=tiler
+TILERS={"hosted":{"url":"http://localhost:8083","internal_url":"http://tiler:8000","allows_ingest":true}}
+DEFAULT_TILER=hosted
+```
 
-**Step 1 - Configure Environment**
+Run `make dev-init` again to build and start the additional services.
+Docker builds the tiler from its GitHub repository; no separate checkout is
+needed. Use `TILER_CONTEXT` to select a local checkout instead, and see
+[`.env.example`](.env.example) for port and COG-directory options. Without a
+tiler, unsupported imagery configurations are rejected during campaign setup.
+
+Earth Engine time series and embedding features require an
+[Earth Engine service account](https://developers.google.com/earth-engine/guides/service_account).
+Set `EE_SERVICE_ACCOUNT` and `EE_PRIVATE_KEY_PATH_HOST` in `.env` to enable them.
+Leave those features off when working without Earth Engine credentials.
+
+### Firebase authentication
+
+Firebase is required for multi-user instances, including production deployments.
+To use it in the development stack:
+
+1. Create a project in the [Firebase Console](https://console.firebase.google.com/)
+   and register a web app under **Project settings > General**. Copy its API key,
+   auth domain, and project ID.
+2. Under **Authentication > Sign-in method**, enable Email/Password, Google, or
+   both. Add your application hostname to **Settings > Authorized domains**.
+   Email/password users must verify their email before using STACNotator.
+3. Under **Project settings > Service accounts**, generate a Firebase Admin SDK
+   private key. Store the JSON file outside the repository.
+4. In `.env`, set `AUTH_PROVIDER=firebase` and `VITE_AUTH_MODE=firebase`. Set
+   `FIREBASE_CREDENTIALS_PATH_HOST` to the key file's path and fill in
+   `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, and `VITE_FIREBASE_PROJECT_ID`.
+5. Create a user under **Authentication > Users**, copy its UID, and initialize
+   the development stack for that account:
+
+   ```bash
+   make dev-init FIREBASE_UID="<YOUR-FIREBASE-UID>"
+   make dev-up
+   ```
+
+The seed script makes that account a development administrator. For a production
+instance, use the [first-administrator instructions](deployment/compose/README.md#set-up-the-first-administrator)
+instead of seeding example data.
+
+### Development commands
 
 ```bash
-cp .env.example .env
-nano .env
+make dev-logs-backend   # Inspect backend logs
+make dev-shell-backend  # Open a backend shell
+make dev-migrate        # Apply database migrations
+make dev-openapi        # Regenerate the frontend API client from the running backend
+make dev-down           # Stop the development stack
 ```
 
-Set `AUTH_PROVIDER=firebase` and update the following variables:
+To run tooling outside Docker, use Python 3.12 with [uv](https://docs.astral.sh/uv/)
+for both the backend and SDK, and Node.js 22 with npm for the frontend.
+The SDK also supports Python 3.10+ for users of the library.
+Install the locked dependencies with `uv sync --frozen` in `backend/`
+and `sdk/`, and `npm ci` in `frontend/`.
 
-| Variable | Description |
-|---|---|
-| `FIREBASE_CREDENTIALS_PATH_HOST` | Path to the Firebase service account credentials file (from Step 0) |
-| `VITE_FIREBASE_API_KEY` | Firebase API key (from Step 0) |
-| `VITE_FIREBASE_AUTH_DOMAIN` | Firebase auth domain (from Step 0) |
-| `VITE_FIREBASE_PROJECT_ID` | Firebase project ID (from Step 0) |
+`make test` runs backend, SDK, and browser end-to-end tests; the latter need a
+running frontend and Playwright's browser dependencies.
+`make lint`, `make typecheck`, and `make format-check` run the individual quality
+checks; `make ci-check` combines them with the tests. Install commit hooks with
+`make pre-commit-install`. See the [development guide](docs/development.md)
+and `make help` for the full workflow.
 
-For timeseries features, also set these in your `.env`:
+## Deployment
 
-| Variable | Description |
-|---|---|
-| `EE_SERVICE_ACCOUNT` | Email address of your Google Earth Engine service account |
-| `EE_PRIVATE_KEY_PATH_HOST` | Path to the GEE service account private key file |
+We provide [Azure deployment instructions](deployment/azure/README.md) for
+Azure Container Apps, Static Web Apps, and PostgreSQL. Azure is the project's
+primary deployment environment. The guide covers infrastructure prerequisites,
+initial setup, secrets, domains, and releases through GitHub Actions or the
+local deployment scripts.
 
-You can find instructions on how to setup a GEE Service account [here](https://developers.google.com/earth-engine/guides/service_account).
+The core application does **not** require Azure. You can run its containers
+on another cloud, a virtual private server, or an on-premises Linux host.
+The [Docker Compose deployment guide](deployment/compose/README.md) provides
+a production environment template and an HTTPS gateway, including database
+persistence, migrations, Firebase setup, and first-administrator provisioning.
+This is a single-host starting point, not a high-availability setup.
 
-**Step 2 - Create a Firebase User**
+Multi-user authentication still depends on Firebase. Earth Engine features,
+paid imagery, and hosted tilers have their own service and credential
+requirements. For a hosted tiler, the browser-facing app and tiler must share
+a registrable domain, with matching token secrets and cookie configuration.
+Azure managed-identity storage access does not carry over to another cloud.
 
-1. Go to [Firebase Console](https://console.firebase.google.com/) and select your project.
-2. Navigate to the **Authentication** tab.
-3. Under **Users**, click **Add user** and follow the prompts.
-4. Copy the **UID** of the newly created user.
+Any public deployment needs HTTPS, unique secrets, backups, monitoring, and
+operator-appropriate privacy and terms notices. Interactive API docs are
+disabled in production. Read the deployment guide before exposing an instance.
 
-**Step 3 - Initialize Services & Seed the Database**
+## Documentation
 
-```bash
-make dev-init FIREBASE_UID="<YOUR-UID>"
-```
+| Guide                                                             | Contents                                                                                                       |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| [Architecture](docs/architecture.md)                              | FastAPI backend, React/Vite/OpenLayers frontend, PostgreSQL with PostGIS and pgvector, and the optional tiler. |
+| [Features](docs/features.md)                                      | Campaigns, imagery, annotation, review, and visualizers.                                                       |
+| [Development](docs/development.md)                                | Repository workflow, code generation, checks, and CI.                                                          |
+| [Tile serving](docs/tile-serving.md) and [tilers](docs/tilers.md) | Imagery providers, compositing, access control, and deployment topology.                                       |
+| [Labelling policy](docs/labelling-policy.md)                      | Who can annotate, review, and contribute to task completion.                                                   |
+| [Python SDK](sdk/README.md)                                       | Installation, annotation access, and active-learning examples.                                                 |
+| [Agentic labelling](docs/agentic-labelling.md)                    | Agent setup and MCP integration.                                                                               |
 
-**Step 4 - Start All Services**
-
-```bash
-make dev-up
-```
-
-The app will be available at:
-
-| Service | URL |
-|---|---|
-| Frontend | http://localhost:5173 (auto-reloads) |
-| Backend | http://localhost:8000 (auto-reloads) |
-| API Docs | http://localhost:8000/api/docs (disabled in production) |
-
-#### Step 5 - Stop All Services
-
-```bash
-make dev-down
-```
-
-
-## Project Structure
-
-```
-stacnotator/
-├── docker-compose.dev.yml       # Development configuration (standalone)
-├── docker-compose.prod.yml      # Production-like local configuration
-├── .env.example                 # Configuration template
-├── Makefile                     # Common commands (dev-* for development)
-├── deployment/                  # Deployment
-│   └── azure/                   # deploy.sh, bootstrap.sh, utils/ (DB sync, logs)
-├── backend/                     # FastAPI application
-│   ├── Dockerfile               # Production build
-│   ├── Dockerfile.dev           # Development (with reload)
-│   ├── src/                     # Application code
-│   └── alembic/                 # Database migrations
-├── frontend/                    # React + Vite application
-│   ├── Dockerfile               # Production build (nginx)
-│   ├── Dockerfile.dev           # Development server (HMR)
-│   └── src/                     # Application code
-└── sdk/                         # Python SDK (active-learning client library)
-```
-
-## Prerequisites
-
-- Docker Engine 20.10+
-- Docker Compose 2.0+
-- 4GB+ RAM
-- Firebase credentials file (only if using `AUTH_PROVIDER=firebase`)
-
-## Architecture
-
-**Services:**
-- **Frontend**: React app (Vite + OpenLayers). Backend client generated with `openapi-ts`. Deployed as Azure Static Web App in production.
-- **Backend**: FastAPI application (Gunicorn workers in production, uvicorn reload in dev). Handles auth, organizations/projects multi-tenancy, campaigns, annotations, STAC catalog browsing, mosaic registration, time series, and sampling design.
-- **Tiler** (optional, separate repo: [stacnotator-tiler](https://github.com/RAAPID-ORG/stacnotator-tiler)): self-hosted TiTiler + GDAL tile server. Reads COGs from STAC catalogs into a pgstac index, composites mosaics, serves PNG tiles. Only needed for non-MPC catalogs or compositing/masking - MPC imagery with first-valid compositing is served directly by Planetary Computer.
-- **Database**: PostgreSQL 16 with PostGIS (spatial queries), pgvector (embeddings)
-
-More docs: [architecture](docs/architecture.md), [features](docs/features.md), [development workflow](docs/development.md), [tile serving](docs/tile-serving.md), [tilers](docs/tilers.md), [labelling policy](docs/labelling-policy.md), [agentic labelling](docs/agentic-labelling.md).
-
-## Development
-
-A seperate docker-environment is provided for development that facilitates usage with hot-reloading.
-
-```bash
-# Build images for development, setup db and run migrations
-make dev-init
-
-# Start with hot-reloading
-make dev-up
-
-# Common commands - Check the Makefile for more
-make dev-logs-backend      # Backend logs only
-make dev-shell-backend     # Backend shell
-make dev-migrate           # Run database migrations
-make dev-openapi           # Regenerate the frontend API client from the running backend
-make dev-down              # Stop all services
-
-# Quality gates (CI runs the same)
-make test                  # backend + SDK + E2E tests
-make lint                  # ruff + eslint
-make typecheck             # mypy + tsc
-make ci-check              # everything above + format checks
-```
-
-### Imagery providers locally
-
-By default the dev stack runs **db + backend + frontend** - no tiler. That fully covers
-**Microsoft Planetary Computer (MPC) imagery with first-valid compositing**, which is
-served straight from MPC (no tiler in the path).
-
-A tiler is only needed for imagery from **outside MPC** (custom STAC catalogs), for
-any additional **compositing / masking** (median, mean, NDVI-best, SCL masks), or for
-custom-map COG overlays. An optional tiler ships behind a compose profile: set
-`COMPOSE_PROFILES=tiler` plus `TILERS` and `DEFAULT_TILER` in your `.env` (the exact
-values are in `.env.example`) and the dev stack brings up the tiler + its own pgstac
-on `TILER_PORT` (default `8083`). The image is built straight from the
-[stacnotator-tiler](https://github.com/RAAPID-ORG/stacnotator-tiler) GitHub repo, so no
-separate checkout is needed; override `TILER_CONTEXT` with a local path to build your own.
-
-Without a tiler configured, the backend's tiler registry is empty and non-MPC or
-compositing imagery is rejected when you try to add it in campaign setup.
-
-**Local vs deployed networking.** Locally this "just works" because the backend and
-tiler share `localhost` (cookies aren't port-scoped). In a **deployed** setup, tile
-access is authorized by an HttpOnly cookie the backend sets, so the browser only
-sends it to the tiler if the tiler shares a **registrable domain** with the app -
-i.e. same-origin behind a reverse proxy, or a sibling subdomain (`tiler.example.com`)
-with `TILER_COOKIE_DOMAIN=.example.com`. A tiler on an unrelated domain can't receive
-the cookie, so its tiles 401 in the browser even if the registry wiring is correct.
-The tiler also shares the backend's `TILER_TOKEN_SECRET` (the backend mints HS256
-tokens the tiler verifies), so a tiler is part of one trusted deployment - not a
-third-party service you point at across origins. See the tiler repo's
-"Production topology" for the exact reverse-proxy / subdomain setup.
-
-### Pre-commit Hooks
-
-The project uses [pre-commit](https://pre-commit.com/) to enforce code quality on every commit.
-
-```bash
-# Install hooks (one-time setup)
-make pre-commit-install
-```
-
-## Production Deployment
-
-STACNotator supports multiple deployment options (or maybe only one at the moment):
-
-- **Azure** (recommended) - Backend + Tiler on Container Apps, Frontend on Static Web App. Self-managed via `deployment/azure/deploy.sh`. See `deployment/azure/README.md`.
-   - Deployment: Prod deploys automatically via CI on push to `main` (gated by a `production` GitHub Environment approval); dev deploys via the manual `Deploy Dev` workflow. `deploy.sh` can also be run locally from within VPN as a fallback (`make az-deploy-dev`, followed by `make az-sync-prod-to-dev` to fill the dev db with current prod data).
-
-- **Docker Compose** - For local VPS or bare metal. See `Makefile` for `make build`, `make up`, `make migrate`. May need updates as primary deployment target is Azure and we do not maintain any secure configs for bare metal deployments.
-
-Any production deployment must replace the dev-default secrets: with `ENVIRONMENT=production` the backend refuses to start while `TILER_TOKEN_SECRET` or `APIKEY_ENCRYPTION_SECRET` still hold their dev defaults (on Azure, `bootstrap.sh` generates both).
+Application code lives in `backend/` and `frontend/`, database image
+configuration in `db/`, and the Python client in `sdk/`. Development and
+production Compose files are at the repository root; hosting instructions
+are under `deployment/`.
 
 ## Contributing
-This project welcomes contributions and proposals. Please open up a issue deiscribing your requirements, proposed solutions or  encountered bugs. Check the [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to contribute.
-To familiarize yourself with the project please refer to the [docs](docs/architecture.md). For the development workflow (branching, reviews, CI) see [docs/development.md](docs/development.md).
+
+Bug reports, feature proposals, documentation improvements, and code
+contributions are welcome. [Open an issue](https://github.com/RAAPID-ORG/stacnotator/issues)
+to discuss a substantial change before implementing it, and read
+[CONTRIBUTING.md](CONTRIBUTING.md) for the contribution process. Pull requests
+target `develop`.
+
+Report security problems privately using [SECURITY.md](SECURITY.md), not in
+a public issue.
+
+## License
+
+STACNotator is released under the [MIT License](LICENSE). Imagery and other
+data accessed through the application remain subject to their providers'
+licenses and terms.
 
 ## Citation
 

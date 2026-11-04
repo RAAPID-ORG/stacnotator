@@ -1,0 +1,24 @@
+services:
+  gateway:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?Public hostname required}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deployment/compose/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+    networks:
+      - stacnotator-network
+
+volumes:
+  caddy_data:
+  caddy_config:
