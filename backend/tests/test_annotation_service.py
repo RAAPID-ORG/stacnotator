@@ -829,7 +829,7 @@ class TestExportAnnotatorCount:
             records, _ = _build_annotation_records(
                 annotations=annotations,
                 campaign=self._campaign(),
-                user_email_map={},
+                user_name_map={},
                 merge_on_agreement=merge,
                 include_geometry_wkt=False,
                 form_schema=FormExportSchema([]),
@@ -986,12 +986,12 @@ class TestExportMergeCorrectness:
             setattr(ann, k, v)
         return ann
 
-    def _csv(self, annotations, *, merge=False, campaign=None, email_map=None):
+    def _csv(self, annotations, *, merge=False, campaign=None, name_map=None):
         campaign = campaign or self._campaign()
         with (
             patch(
                 "src.annotation.export.fetch_annotations_with_context",
-                return_value=(annotations, email_map or {}),
+                return_value=(annotations, name_map or {}),
             ),
             patch(
                 "src.annotation.export._compute_task_status_for_export",
@@ -1000,12 +1000,12 @@ class TestExportMergeCorrectness:
         ):
             return build_annotations_export(MagicMock(), campaign, merge_on_agreement=merge)
 
-    def _geojson(self, annotations, *, merge=False, campaign=None, email_map=None):
+    def _geojson(self, annotations, *, merge=False, campaign=None, name_map=None):
         campaign = campaign or self._campaign()
         with (
             patch(
                 "src.annotation.export.fetch_annotations_with_context",
-                return_value=(annotations, email_map or {}),
+                return_value=(annotations, name_map or {}),
             ),
             patch(
                 "src.annotation.export._compute_task_status_for_export",
@@ -1073,9 +1073,9 @@ class TestExportMergeCorrectness:
         assert props["stacnotator_imagery_start_date"] == "2024-01-01"
         assert props["stacnotator_imagery_end_date"] == "2024-01-31"
 
-    def test_merge_aggregates_comment_confidence_email_and_latest_time(self):
+    def test_merge_aggregates_comment_confidence_username_and_latest_time(self):
         u1, u2 = uuid4(), uuid4()
-        email_map = {u1: "alice@example.com", u2: "bob@example.com"}
+        name_map = {u1: "alice", u2: "bob"}
         task = self._task()
         a1 = self._ann(
             ann_id=1,
@@ -1095,13 +1095,11 @@ class TestExportMergeCorrectness:
             confidence=8,
             created_at=datetime(2026, 5, 9, tzinfo=UTC),
         )
-        row = self._csv([a1, a2], merge=True, email_map=email_map).iloc[0]
+        row = self._csv([a1, a2], merge=True, name_map=name_map).iloc[0]
 
         assert row["stacnotator_confidence"] == 7.0  # mean of 6 and 8
-        assert row["stacnotator_comment"] == (
-            "alice@example.com: looks like forest | bob@example.com: agree"
-        )
-        assert row["stacnotator_created_by_user_email"] == "alice@example.com, bob@example.com"
+        assert row["stacnotator_comment"] == ("alice: looks like forest | bob: agree")
+        assert row["stacnotator_created_by_username"] == "alice, bob"
         assert row["stacnotator_created_at"] == datetime(2026, 5, 9, tzinfo=UTC)  # latest
 
     def test_merge_is_authoritative_and_flag_are_ored(self):
@@ -1117,11 +1115,11 @@ class TestExportMergeCorrectness:
             flagged_for_review=True,
             flag_comment="verify",
         )
-        row = self._csv([a1, a2], merge=True, email_map={u2: "rev@x.com"}).iloc[0]
+        row = self._csv([a1, a2], merge=True, name_map={u2: "rev"}).iloc[0]
 
         assert bool(row["stacnotator_is_authoritative"]) is True
         assert bool(row["stacnotator_flagged_for_review"]) is True
-        assert row["stacnotator_flag_comment"] == "rev@x.com: verify"
+        assert row["stacnotator_flag_comment"] == "rev: verify"
 
     # ---- merge: conflict handling --------------------------------------
 

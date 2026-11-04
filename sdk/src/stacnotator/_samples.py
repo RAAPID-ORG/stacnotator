@@ -42,7 +42,8 @@ def samples_frame(feature_collection: dict[str, Any]) -> pd.DataFrame:
                 "label_id": properties.get("stacnotator_label_id"),
                 "label": properties.get("stacnotator_label_name"),
                 "confidence": properties.get("stacnotator_confidence"),
-                "annotator": properties.get("stacnotator_created_by_user_email"),
+                "annotator": properties.get("stacnotator_created_by_username")
+                or properties.get("stacnotator_created_by_user_email"),
                 "created_at": properties.get("stacnotator_created_at"),
                 "geometry": geometry,
             }

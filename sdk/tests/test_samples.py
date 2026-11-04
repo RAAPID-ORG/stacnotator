@@ -22,7 +22,7 @@ def feature(
             "stacnotator_label_id": label_id,
             "stacnotator_label_name": label_name,
             "stacnotator_confidence": confidence,
-            "stacnotator_created_by_user_email": annotator,
+            "stacnotator_created_by_username": annotator,
             "stacnotator_created_at": created_at,
         },
     }

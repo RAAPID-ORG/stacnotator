@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Last updated: 2026-08-31
+Last updated: 2026-11-02
 
 This notice explains what personal data STACNotator (the "Service") collects,
 why, and what you can do about it.
@@ -26,10 +26,12 @@ that campaign's progress statistics.
 credentials, we store that key encrypted and use it only to fetch imagery for
 your campaigns.
 
-**Technical records.** Our servers and our hosting provider record the usual
-request metadata, including your IP address, the pages and endpoints requested,
-and timing. We keep these for a short period to operate the Service, to
-diagnose faults, and to detect abuse.
+**Technical records.** Our servers log the pages and endpoints requested, the
+response status, and timing, plus details of any errors. These logs don't
+contain your IP address, your browser details, or the query parameters of a
+request, and email addresses in them are masked. Our hosting provider processes
+your IP address to deliver traffic. We keep these logs for 30 days to operate
+the Service, to diagnose faults, and to detect abuse.
 
 **In your browser.** One cookie, `tiler_token`, which is HttpOnly and lasts one
 hour and authorizes your browser to load map tiles. Your sign-in session, held
@@ -48,12 +50,16 @@ running the Service securely and reliably.
 of the organizations, projects, and campaigns you belong to, and is shown next
 to work you contribute there. Administrators of those organizations and
 projects, and platform administrators, can also see your email address. A
-campaign's administrators can export that campaign's annotations, and the
-export names the annotator who made each one by email address.
+campaign's administrators can export that campaign's annotations and task
+assignments, and those exports name each annotator by username only, never by
+email address.
 
 **Google.** Sign-in is handled by Firebase Authentication, so Google receives
 your email address and holds your credentials
-(https://policies.google.com/privacy).
+(https://policies.google.com/privacy). Google may store this sign-in data in the
+United States. We also use Google Earth Engine to process satellite data for
+campaign areas. It receives only the locations of campaign tasks, never data
+about you.
 
 **Microsoft.** The Service is hosted on Microsoft Azure in the West Europe and
 North Europe regions.
@@ -68,9 +74,11 @@ for advertising.
 ## Where your data is
 
 Your account and your work are stored in the European Union, in the Azure
-regions named above. Some of the providers described above may process data
-outside the European Economic Area, and those transfers rest on an adequacy
-decision or on the European Commission's standard contractual clauses.
+regions named above. Your sign-in data held by Google, and the data that
+imagery providers see, may be processed outside the European Economic Area,
+mainly in the United States. Those transfers rest on the EU-U.S. Data Privacy
+Framework adequacy decision or on the European Commission's standard
+contractual clauses.
 
 ## Annotations published as research data
 
@@ -83,7 +91,7 @@ published under an open license it cannot be recalled.
 ## How long we keep it
 
 We keep your account and the work attached to it for as long as your account
-exists. Technical records are kept short-term.
+exists. Technical records are deleted after 30 days.
 
 If you ask us to delete your account, we delete it and the personal data held
 with it; annotations that a campaign depends on may be kept without any link to

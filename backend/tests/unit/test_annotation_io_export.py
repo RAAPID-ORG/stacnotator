@@ -82,7 +82,7 @@ def _records(annotations, *, merge_on_agreement=False):
     records, _canonical, _columns = build_export_records(
         annotations=annotations,
         campaign=_campaign(),
-        user_email_map={},
+        user_name_map={},
         merge_on_agreement=merge_on_agreement,
         include_geometry_wkt=False,
     )

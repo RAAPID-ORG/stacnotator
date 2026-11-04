@@ -142,7 +142,7 @@ _STACNOTATOR_COLUMN_ORDER: tuple[str, ...] = (
     "stacnotator_is_authoritative",
     "stacnotator_flagged_for_review",
     "stacnotator_flag_comment",
-    "stacnotator_created_by_user_email",
+    "stacnotator_created_by_username",
     "stacnotator_created_at",
     "stacnotator_active_seconds",
     "stacnotator_imagery_source_name",
@@ -244,7 +244,7 @@ def _slice_comments_cell(annotation: Annotation) -> str | None:
 def _build_export_record_for_annotation(
     annotation: Annotation,
     campaign: Campaign,
-    user_email_map: dict[UUID, str],
+    user_name_map: dict[UUID, str],
     task_status: str | None,
     include_geometry_wkt: bool,
     form_schema: FormExportSchema,
@@ -296,7 +296,7 @@ def _build_export_record_for_annotation(
     record["stacnotator_is_authoritative"] = annotation.is_authoritative
     record["stacnotator_flagged_for_review"] = annotation.flagged_for_review
     record["stacnotator_flag_comment"] = annotation.flag_comment
-    record["stacnotator_created_by_user_email"] = user_email_map.get(annotation.created_by_user_id)
+    record["stacnotator_created_by_username"] = user_name_map.get(annotation.created_by_user_id)
     record["stacnotator_created_at"] = annotation.created_at
     record["stacnotator_active_seconds"] = annotation.active_seconds
     record["stacnotator_annotator_count"] = task_annotator_count
@@ -322,7 +322,7 @@ def _canonical(task_anns: list[Annotation]) -> Annotation:
 def _build_export_record_merged(
     anns: list[Annotation],
     campaign: Campaign,
-    user_email_map: dict[UUID, str],
+    user_name_map: dict[UUID, str],
     task_status: str | None,
     include_geometry_wkt: bool,
     form_schema: FormExportSchema,
@@ -332,7 +332,7 @@ def _build_export_record_merged(
     Caller must have already ensured the answers agree (any conflict is
     rejected up-front by ``_guard_merge_on_agreement``). The row represents the
     task with the agreed answer and aggregates per-annotator
-    detail (emails, comments, confidences). The DB ``stacnotator_annotation_id``
+    detail (usernames, comments, confidences). The DB ``stacnotator_annotation_id``
     field is intentionally **omitted** here - the row no longer corresponds
     to a single annotation row, and ``stacnotator_task_id`` is the stable
     join key in merged mode.
@@ -341,12 +341,12 @@ def _build_export_record_merged(
     canonical = _canonical(anns)
     agreed_label_id = canonical.label_id
 
-    emails = sorted(
-        {user_email_map.get(a.created_by_user_id, "") for a in labeled if a.created_by_user_id}
+    usernames = sorted(
+        {user_name_map.get(a.created_by_user_id, "") for a in labeled if a.created_by_user_id}
         - {""}
     )
     comments = [
-        f"{user_email_map.get(a.created_by_user_id, 'unknown')}: {a.comment}"
+        f"{user_name_map.get(a.created_by_user_id, 'unknown')}: {a.comment}"
         for a in labeled
         if a.comment and a.comment.strip()
     ]
@@ -375,7 +375,7 @@ def _build_export_record_merged(
     record.update(form_schema.cells(canonical.form_values))
     record["stacnotator_comment"] = " | ".join(comments) if comments else None
     slice_comments = [
-        f"{user_email_map.get(a.created_by_user_id, 'unknown')}: {cell}"
+        f"{user_name_map.get(a.created_by_user_id, 'unknown')}: {cell}"
         for a in labeled
         if (cell := _slice_comments_cell(a))
     ]
@@ -384,12 +384,12 @@ def _build_export_record_merged(
     record["stacnotator_is_authoritative"] = any(a.is_authoritative for a in labeled)
     record["stacnotator_flagged_for_review"] = any(a.flagged_for_review for a in labeled)
     flag_comments = [
-        f"{user_email_map.get(a.created_by_user_id, 'unknown')}: {a.flag_comment}"
+        f"{user_name_map.get(a.created_by_user_id, 'unknown')}: {a.flag_comment}"
         for a in labeled
         if a.flag_comment and a.flag_comment.strip()
     ]
     record["stacnotator_flag_comment"] = " | ".join(flag_comments) if flag_comments else None
-    record["stacnotator_created_by_user_email"] = ", ".join(emails) if emails else None
+    record["stacnotator_created_by_username"] = ", ".join(usernames) if usernames else None
     record["stacnotator_created_at"] = latest_created_at
     # Summed, not averaged: the merged row stands for the task, so the useful
     # figure is the total effort the task cost across its annotators.
@@ -404,7 +404,7 @@ def _build_export_record_merged(
 def _build_annotation_records(
     annotations: list[Annotation],
     campaign: Campaign,
-    user_email_map: dict[UUID, str],
+    user_name_map: dict[UUID, str],
     merge_on_agreement: bool,
     include_geometry_wkt: bool,
     form_schema: FormExportSchema,
@@ -434,7 +434,7 @@ def _build_annotation_records(
                 _build_export_record_merged(
                     task_anns,
                     campaign,
-                    user_email_map,
+                    user_name_map,
                     task_status,
                     include_geometry_wkt,
                     form_schema,
@@ -448,7 +448,7 @@ def _build_annotation_records(
                     _build_export_record_for_annotation(
                         ann,
                         campaign,
-                        user_email_map,
+                        user_name_map,
                         task_status,
                         include_geometry_wkt,
                         form_schema,
@@ -460,7 +460,7 @@ def _build_annotation_records(
     for ann in standalone:
         records.append(
             _build_export_record_for_annotation(
-                ann, campaign, user_email_map, None, include_geometry_wkt, form_schema
+                ann, campaign, user_name_map, None, include_geometry_wkt, form_schema
             )
         )
         canonical_annotations.append(ann)
@@ -496,7 +496,7 @@ def _guard_merge_on_agreement(annotations: list[Annotation], merge_on_agreement:
 def build_export_records(
     annotations: list[Annotation],
     campaign: Campaign,
-    user_email_map: dict[UUID, str],
+    user_name_map: dict[UUID, str],
     merge_on_agreement: bool,
     include_geometry_wkt: bool,
 ) -> tuple[list[dict], list[Annotation], list[str]]:
@@ -517,7 +517,7 @@ def build_export_records(
     records, canonical_annotations = _build_annotation_records(
         annotations=annotations,
         campaign=campaign,
-        user_email_map=user_email_map,
+        user_name_map=user_name_map,
         merge_on_agreement=merge_on_agreement,
         include_geometry_wkt=include_geometry_wkt,
         form_schema=form_schema,
@@ -527,10 +527,15 @@ def build_export_records(
     return records, canonical_annotations, columns
 
 
+def _export_username(user: User) -> str:
+    # Exports name annotators by username only; email addresses stay out of them.
+    return user.display_name or f"user-{str(user.id)[:8]}"
+
+
 def fetch_annotations_with_context(
     db: Session, campaign: Campaign
 ) -> tuple[list[Annotation], dict[UUID, str]]:
-    """Fetch all annotations for a campaign with user emails resolved and
+    """Fetch all annotations for a campaign with usernames resolved and
     ``counts_toward_completion`` attached (the one DB touch of the export)."""
     annotations = (
         db.execute(
@@ -547,12 +552,12 @@ def fetch_annotations_with_context(
         .all()
     )
     user_ids = {ann.created_by_user_id for ann in annotations if ann.created_by_user_id}
-    user_email_map: dict[UUID, str] = {}
+    user_name_map: dict[UUID, str] = {}
     if user_ids:
         users = db.execute(select(User).where(User.id.in_(user_ids))).scalars().all()
-        user_email_map = {user.id: user.email for user in users}
+        user_name_map = {user.id: _export_username(user) for user in users}
     attach_counts_toward_completion(db, campaign, list(annotations))
-    return list(annotations), user_email_map
+    return list(annotations), user_name_map
 
 
 def build_annotations_export(
@@ -571,11 +576,11 @@ def build_annotations_export(
     columns) stay un-prefixed so the consumer can tell their IDs apart from
     ours.
     """
-    annotations, user_email_map = fetch_annotations_with_context(db, campaign)
+    annotations, user_name_map = fetch_annotations_with_context(db, campaign)
     records, _canonical, columns = build_export_records(
         annotations=annotations,
         campaign=campaign,
-        user_email_map=user_email_map,
+        user_name_map=user_name_map,
         merge_on_agreement=merge_on_agreement,
         include_geometry_wkt=True,
     )
@@ -604,11 +609,11 @@ def build_annotations_geojson_export(
     raised when a merge is requested but conflicts exist). GeoJSON features
     use the canonical annotation's geometry for merged rows.
     """
-    annotations, user_email_map = fetch_annotations_with_context(db, campaign)
+    annotations, user_name_map = fetch_annotations_with_context(db, campaign)
     records, canonical_annotations, columns = build_export_records(
         annotations=annotations,
         campaign=campaign,
-        user_email_map=user_email_map,
+        user_name_map=user_name_map,
         merge_on_agreement=merge_on_agreement,
         include_geometry_wkt=False,
     )

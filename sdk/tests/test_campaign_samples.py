@@ -28,7 +28,7 @@ def point_feature(annotation_id, lon=13.4, lat=52.5, label_id=1):
             "stacnotator_label_id": label_id,
             "stacnotator_label_name": "Maize",
             "stacnotator_confidence": None,
-            "stacnotator_created_by_user_email": "a@b.c",
+            "stacnotator_created_by_username": "a@b.c",
             "stacnotator_created_at": "2026-06-01T10:00:00+00:00",
         },
     }

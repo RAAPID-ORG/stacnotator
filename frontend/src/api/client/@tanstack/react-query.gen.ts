@@ -1959,10 +1959,10 @@ export const exportTaskAssignmentsQueryKey = (options: Options<ExportTaskAssignm
  *
  * The archive contains two files:
  * - `assignments.csv`: one row per task with comma-separated assignee and
- * reviewer emails, plus a count and `email=label` listing of annotations
+ * reviewer usernames, plus a count and `username=label` listing of annotations
  * already on the task (informational, ignored on re-import).
  * - `users.csv`: the campaign's members with roles, so the admin knows which
- * emails are valid to use in the assignee/reviewer columns.
+ * usernames are valid to use in the assignee/reviewer columns.
  *
  * ``task_set_id`` narrows the archive to one set, so an admin working on a single set
  * is not handed every task in the campaign. Import stays campaign-wide either way:
@@ -1987,7 +1987,7 @@ export const exportTaskAssignmentsOptions = (options: Options<ExportTaskAssignme
  * Import task assignments from a CSV (campaign admins only).
  *
  * Expects the `assignments.csv` layout from the export: `annotation_number`,
- * `assignees`, and `reviewers` columns (comma-separated emails). Every email
+ * `assignees`, and `reviewers` columns (comma-separated usernames). Every username
  * must belong to an existing member of this campaign or the whole import is
  * rejected. Listed tasks have their assignments replaced; other tasks are
  * left untouched.

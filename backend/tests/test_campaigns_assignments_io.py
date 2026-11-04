@@ -9,7 +9,7 @@ from fastapi import HTTPException
 
 from src.tasks.assignments import (
     USERS_CSV_COLUMNS,
-    _split_emails,
+    _split_names,
     _unique_users,
     build_task_assignments_export,
     import_task_assignments,
@@ -37,8 +37,8 @@ def _stub_scalars(db, results_in_order):
     db.scalars.side_effect = _side_effect
 
 
-def _user(email):
-    return MagicMock(id=uuid4(), email=email)
+def _user(username):
+    return MagicMock(id=uuid4(), display_name=username)
 
 
 def _task(number, task_id):
@@ -55,20 +55,20 @@ def _csv_bytes(records, columns=("annotation_number", "assignees", "reviewers"))
 # ---------------------------------------------------------------------------
 
 
-class TestSplitEmails:
+class TestSplitNames:
     def test_empty(self):
-        assert _split_emails("") == []
-        assert _split_emails(None) == []
+        assert _split_names("") == []
+        assert _split_names(None) == []
 
     def test_strips_and_drops_blanks(self):
-        assert _split_emails(" a@x.com ,b@x.com,, ") == ["a@x.com", "b@x.com"]
+        assert _split_names(" a ,b,, ") == ["a", "b"]
 
 
 class TestUniqueUsers:
     def test_dedups_case_insensitively_preserving_order(self):
-        ua, ub = _user("a@x.com"), _user("b@x.com")
-        lookup = {"a@x.com": ua, "b@x.com": ub}
-        result = _unique_users(["A@x.com", "b@x.com", "a@x.com"], lookup)
+        ua, ub = _user("a"), _user("b")
+        lookup = {"a": ua, "b": ub}
+        result = _unique_users(["A", "b", "a"], lookup)
         assert result == [ua, ub]
 
 
@@ -110,15 +110,15 @@ class TestBuildExport:
         campaign.label_names = {1: "Forest", 2: "Water"}
 
         cu = MagicMock(is_admin=True, is_authoritative_reviewer=False)
-        cu.user = MagicMock(email="alice@x.com", display_name="Alice")
+        cu.user = MagicMock(email="alice@x.com", display_name="alice")
 
         self._wire_db(
             db,
             tasks=[_task(1001, 10), _task(1002, 20)],
-            assignment_rows=[(10, "alice@x.com", False), (10, "bob@x.com", True)],
+            assignment_rows=[(10, "alice", False), (10, "bob", True)],
             annotation_rows=[
-                (10, "alice@x.com", 1, "labelled"),
-                (10, "carol@x.com", None, "skipped"),
+                (10, "alice", 1, "labelled"),
+                (10, "carol", None, "skipped"),
             ],
             campaign_users=[cu],
         )
@@ -126,11 +126,11 @@ class TestBuildExport:
         assignments_df, users_df = build_task_assignments_export(db, campaign)
 
         row = assignments_df[assignments_df.annotation_number == 1001].iloc[0]
-        assert row.assignees == "alice@x.com"
-        assert row.reviewers == "bob@x.com"
+        assert row.assignees == "alice"
+        assert row.reviewers == "bob"
         assert row.annotation_count == 2
-        # sorted by email; a skip renders as SKIPPED
-        assert row.existing_annotations == "alice@x.com=Forest, carol@x.com=SKIPPED"
+        # sorted by username; a skip renders as SKIPPED
+        assert row.existing_annotations == "alice=Forest, carol=SKIPPED"
 
         empty = assignments_df[assignments_df.annotation_number == 1002].iloc[0]
         assert empty.assignees == ""
@@ -138,7 +138,8 @@ class TestBuildExport:
         assert empty.annotation_count == 0
 
         assert list(users_df.columns) == USERS_CSV_COLUMNS
-        assert users_df.iloc[0]["email"] == "alice@x.com"
+        assert users_df.iloc[0]["username"] == "alice"
+        assert "@" not in users_df.to_csv() + assignments_df.to_csv()
         assert bool(users_df.iloc[0]["is_admin"]) is True
         assert bool(users_df.iloc[0]["is_authoritative_reviewer"]) is False
 
@@ -152,7 +153,7 @@ class TestImportValidation:
     def test_missing_required_column_raises_400(self):
         db = _mock_db()
         contents = _csv_bytes(
-            [{"annotation_number": 1001, "assignees": "a@x.com"}],
+            [{"annotation_number": 1001, "assignees": "a"}],
             columns=("annotation_number", "assignees"),
         )
         with pytest.raises(HTTPException) as exc:
@@ -160,26 +161,22 @@ class TestImportValidation:
         assert exc.value.status_code == 400
         assert "reviewers" in exc.value.detail
 
-    def test_unknown_email_raises_400(self):
+    def test_unknown_username_raises_400(self):
         db = _mock_db()
         _stub_scalars(db, [[_task(1001, 10)], [], []])  # no users found
-        contents = _csv_bytes(
-            [{"annotation_number": 1001, "assignees": "ghost@x.com", "reviewers": ""}]
-        )
+        contents = _csv_bytes([{"annotation_number": 1001, "assignees": "ghost", "reviewers": ""}])
         with pytest.raises(HTTPException) as exc:
             import_task_assignments(db, 1, contents)
         assert exc.value.status_code == 400
         assert "not found" in exc.value.detail
-        assert "ghost@x.com" in exc.value.detail
+        assert "ghost" in exc.value.detail
         db.commit.assert_not_called()
 
     def test_non_member_raises_400(self):
         db = _mock_db()
-        alice = _user("alice@x.com")
+        alice = _user("alice")
         _stub_scalars(db, [[_task(1001, 10)], [alice], []])  # found but not a member
-        contents = _csv_bytes(
-            [{"annotation_number": 1001, "assignees": "alice@x.com", "reviewers": ""}]
-        )
+        contents = _csv_bytes([{"annotation_number": 1001, "assignees": "alice", "reviewers": ""}])
         with pytest.raises(HTTPException) as exc:
             import_task_assignments(db, 1, contents)
         assert exc.value.status_code == 400
@@ -187,11 +184,9 @@ class TestImportValidation:
 
     def test_unknown_task_raises_400(self):
         db = _mock_db()
-        alice = _user("alice@x.com")
+        alice = _user("alice")
         _stub_scalars(db, [[_task(1001, 10)], [alice], [alice.id]])
-        contents = _csv_bytes(
-            [{"annotation_number": 9999, "assignees": "alice@x.com", "reviewers": ""}]
-        )
+        contents = _csv_bytes([{"annotation_number": 9999, "assignees": "alice", "reviewers": ""}])
         with pytest.raises(HTTPException) as exc:
             import_task_assignments(db, 1, contents)
         assert exc.value.status_code == 400
@@ -199,12 +194,12 @@ class TestImportValidation:
 
     def test_duplicate_annotation_number_raises_400(self):
         db = _mock_db()
-        alice = _user("alice@x.com")
+        alice = _user("alice")
         _stub_scalars(db, [[_task(1001, 10)], [alice], [alice.id]])
         contents = _csv_bytes(
             [
-                {"annotation_number": 1001, "assignees": "alice@x.com", "reviewers": ""},
-                {"annotation_number": 1001, "assignees": "alice@x.com", "reviewers": ""},
+                {"annotation_number": 1001, "assignees": "alice", "reviewers": ""},
+                {"annotation_number": 1001, "assignees": "alice", "reviewers": ""},
             ]
         )
         with pytest.raises(HTTPException) as exc:
@@ -213,10 +208,10 @@ class TestImportValidation:
 
     def test_same_user_assignee_and_reviewer_raises_400(self):
         db = _mock_db()
-        alice = _user("alice@x.com")
+        alice = _user("alice")
         _stub_scalars(db, [[_task(1001, 10)], [alice], [alice.id]])
         contents = _csv_bytes(
-            [{"annotation_number": 1001, "assignees": "alice@x.com", "reviewers": "alice@x.com"}]
+            [{"annotation_number": 1001, "assignees": "alice", "reviewers": "alice"}]
         )
         with pytest.raises(HTTPException) as exc:
             import_task_assignments(db, 1, contents)
@@ -224,11 +219,9 @@ class TestImportValidation:
 
     def test_reviewer_without_assignee_raises_400(self):
         db = _mock_db()
-        bob = _user("bob@x.com")
+        bob = _user("bob")
         _stub_scalars(db, [[_task(1001, 10)], [bob], [bob.id]])
-        contents = _csv_bytes(
-            [{"annotation_number": 1001, "assignees": "", "reviewers": "bob@x.com"}]
-        )
+        contents = _csv_bytes([{"annotation_number": 1001, "assignees": "", "reviewers": "bob"}])
         with pytest.raises(HTTPException) as exc:
             import_task_assignments(db, 1, contents)
         assert "no assignee" in exc.value.detail
@@ -242,10 +235,10 @@ class TestImportValidation:
 class TestImportApply:
     def test_replaces_assignments_for_listed_task(self):
         db = _mock_db()
-        alice, bob = _user("alice@x.com"), _user("bob@x.com")
+        alice, bob = _user("alice"), _user("bob")
         _stub_scalars(db, [[_task(1001, 10)], [alice, bob], [alice.id, bob.id]])
         contents = _csv_bytes(
-            [{"annotation_number": 1001, "assignees": "alice@x.com", "reviewers": "bob@x.com"}]
+            [{"annotation_number": 1001, "assignees": "alice", "reviewers": "bob"}]
         )
 
         result = import_task_assignments(db, 1, contents)

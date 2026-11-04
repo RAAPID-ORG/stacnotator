@@ -235,7 +235,7 @@ See [annotation-tiles.md](annotation-tiles.md) for details.
 - Region upload: shapefile (.zip) or GeoJSON with automatic CRS conversion
 - Task sets: named task groups per campaign with stats; generation, assignment, and annotation can be scoped to a set
 - Task assignment strategies: distribute evenly, fixed number per user, or explicit per-task; a task can have multiple assignees (redundant labeling), plus reviewer assignments (per task or percentage-based)
-- Assignment CSV export/import (round-trips assignees + reviewers by email)
+- Assignment CSV export/import (round-trips assignees + reviewers by username)
 - Soft claims: opening an unassigned task takes a 30-minute lease on it, one per user per campaign (enforced by the database). Claimed tasks are kept out of everyone else's unassigned pool so two people do not label the same point, but the lease is advisory: reach one deliberately and you can still label it, and it never changes who the labelling policy allows
 - Working the unassigned pool: Next and submitting both ask the server for the next task nobody is on, which picks and claims it in one transaction. Annotators sharing a campaign are handed different tasks rather than each walking the list and colliding on everything already taken; the pick moves forward from where you are and wraps at the end
 
