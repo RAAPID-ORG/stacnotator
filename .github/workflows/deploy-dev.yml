@@ -24,7 +24,14 @@ permissions:
   id-token: write
 
 jobs:
+  vulnerability-scan:
+    if: github.ref == 'refs/heads/develop'
+    uses: ./.github/workflows/vulnerability-scan.yml
+    secrets:
+      TILER_REPO_TOKEN: ${{ secrets.TILER_REPO_TOKEN }}
+
   deploy-dev:
+    needs: [vulnerability-scan]
     if: github.ref == 'refs/heads/develop'
     uses: ./.github/workflows/deploy.yml
     with:

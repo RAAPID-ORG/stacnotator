@@ -21,16 +21,52 @@ Feature work happens on `feature/*`, `fix/*`, `refactor/*`, or `hotfix/*` branch
 
 `.github/workflows/ci.yml` runs on every push and pull request to `main` and `develop`:
 
-| Job             | What it runs                                     | When                           |
-| --------------- | ------------------------------------------------ | ------------------------------ |
-| Secret scanning | Gitleaks                                         | every CI run                   |
-| Backend lint    | Ruff lint + format check (Python 3.12 via `uv`)  | every CI run                   |
-| Frontend lint   | ESLint, `tsc --noEmit`, Prettier check (Node 22) | every CI run                   |
-| Backend tests   | Dockerized `pytest`                              | `develop`/`main` + PRs to them |
-| Frontend E2E    | Playwright with mocked APIs                      | `main` + PRs to `main`         |
-| Docker build    | Production images (backend, tiler, frontend)     | `main` + PRs to `main`         |
+| Job                                 | What it runs                                                           | When                                                        |
+| ----------------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Secret scanning                     | Gitleaks                                                               | every CI run                                                |
+| Backend lint                        | Ruff lint + format check (Python 3.12 via `uv`)                        | every CI run                                                |
+| Frontend lint                       | ESLint, `tsc --noEmit`, Prettier check (Node 22)                       | every CI run                                                |
+| Backend tests                       | Dockerized `pytest`                                                    | `develop`/`main` + PRs to them                              |
+| Frontend E2E                        | Playwright with mocked APIs                                            | `main` + PRs to `main`                                      |
+| Docker build and vulnerability scan | Production images (backend, tiler, frontend) and frontend dependencies | every CI run                                                |
+| CodeQL                              | Python, JavaScript/TypeScript and GitHub Actions source-code analysis  | pushes/PRs to `main`/`develop`, weekly on `main`, or manual |
 
-Test and docker-build jobs only run after the lint jobs pass. Pushes to feature branches without an open PR trigger no CI.
+Backend tests and vulnerability scans run after the lint jobs pass. The required
+`Docker: Production Build` check reports whether all builds and scans succeeded,
+including a failure when prerequisite scans were skipped. Pushes to feature
+branches without an open PR trigger no CI.
+
+The reusable `vulnerability-scan.yml` workflow uses Trivy to scan production images
+for known OS and library vulnerabilities, and the frontend lockfile for dependency
+vulnerabilities, including development/build dependencies. All severities are
+reported in the workflow logs. High and critical findings block production CI
+deployment and manual dev deployment, including findings without an available fix.
+Scanner errors also block deployment; no vulnerability exceptions are configured.
+These scans cover newly built images, not continuous monitoring of deployed images.
+Deployment still rebuilds images, so the scans do not guarantee that the deployed
+artifacts contain exactly the same dependencies as the scanned images.
+
+### CodeQL setup transition
+
+The advanced `.github/workflows/codeql.yml` workflow preserves CodeQL's default
+security queries. GitHub's CodeQL security ruleset requires results and blocks
+high/critical security alerts on both `main` and `develop`, with no admin bypass.
+
+Keep GitHub default setup enabled while this workflow is only on `develop`.
+After merging it to `main`, disable default setup and manually run the advanced
+workflow on both branches:
+
+```bash
+gh api --method PATCH repos/RAAPID-ORG/stacnotator/code-scanning/default-setup \
+  -f state=not-configured
+gh workflow run codeql.yml --repo RAAPID-ORG/stacnotator --ref main
+gh workflow run codeql.yml --repo RAAPID-ORG/stacnotator --ref develop
+```
+
+Default setup and advanced analysis must not be enabled together: GitHub rejects
+advanced CodeQL uploads while default setup is enabled. Verify successful advanced
+analyses for all three languages on both branches before considering the switch
+complete. The existing CodeQL merge ruleset remains in place during the transition.
 
 ## Local checks before pushing
 
