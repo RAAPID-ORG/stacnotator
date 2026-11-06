@@ -3,6 +3,7 @@ import {
   editableGenerationSeries,
   generateStacCollections,
   periods,
+  recipeOf,
   retainMatchingIds,
 } from './generation';
 import type {
@@ -149,6 +150,18 @@ describe('generateStacCollections', () => {
     const [window] = generateStacCollections({ ...quarter, coverMode: 'custom' }, 's');
     expect(window).toMatchObject({ coverSliceIndex: 0, hasDedicatedCover: true });
     expect(window.slices[0]).toMatchObject({ startDate: '2025-01-01', endDate: '2025-01-31' });
+  });
+
+  it('uses the only slice of a window as its cover rather than repeating it', () => {
+    const monthly = {
+      ...quarter,
+      coverMode: 'custom' as const,
+      slicePeriodUnit: 'months' as const,
+    };
+    const [window] = generateStacCollections(monthly, 's');
+    expect(window).toMatchObject({ coverSliceIndex: 0, hasDedicatedCover: false });
+    expect(window.slices).toHaveLength(1);
+    expect(recipeOf(monthly).coverMode).toBe('nth');
   });
 
   it('only filters on cloud cover when the items carry it', () => {

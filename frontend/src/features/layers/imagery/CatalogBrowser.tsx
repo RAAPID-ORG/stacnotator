@@ -28,7 +28,12 @@ import type { BandPreset } from './collectionPresets';
 import { StacQueryEditor } from './StacQueryEditor';
 import { SasTokenField } from './SasTokenField';
 import { readSasToken } from './sasToken';
-import { generateStacCollections, recipeOf, type PrivateCatalog } from './generation';
+import {
+  generateStacCollections,
+  oneSlicePerWindow,
+  recipeOf,
+  type PrivateCatalog,
+} from './generation';
 import { Button, DateField, Input, Select } from '~/shared/ui/forms';
 import { extractErrorMessage, handleError } from '~/shared/utils/errorHandler';
 
@@ -1709,7 +1714,13 @@ export const CatalogBrowser = ({
 
                 {/* Cover Slice - basic UI always visible in mosaic mode, advanced settings gated */}
                 {mode === 'mosaic' &&
-                  (Object.keys(availableAssets).length > 0 || initialGeneration) && (
+                  (Object.keys(availableAssets).length > 0 || initialGeneration) &&
+                  !oneSlicePerWindow({
+                    collectionPeriodInterval,
+                    collectionPeriodUnit,
+                    slicePeriodInterval,
+                    slicePeriodUnit,
+                  }) && (
                     <CoverSliceSection
                       coverMode={coverMode}
                       setCoverMode={(m) => {

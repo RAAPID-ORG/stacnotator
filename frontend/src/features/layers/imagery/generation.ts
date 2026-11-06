@@ -180,6 +180,24 @@ export function periods(
   return out;
 }
 
+type PeriodSettings = Pick<
+  ImageryGenerationConfig,
+  'collectionPeriodInterval' | 'collectionPeriodUnit' | 'slicePeriodInterval' | 'slicePeriodUnit'
+>;
+
+/** Whether a window holds a single slice, which then is its cover: a dedicated cover
+ *  would only repeat it. */
+export function oneSlicePerWindow(config: PeriodSettings): boolean {
+  const from = new Date(Date.UTC(2001, 0, 1));
+  return (
+    addPeriod(from, config.slicePeriodInterval, config.slicePeriodUnit) >=
+    addPeriod(from, config.collectionPeriodInterval, config.collectionPeriodUnit)
+  );
+}
+
+const coverModeOf = (config: ImageryGenerationConfig) =>
+  oneSlicePerWindow(config) ? 'nth' : config.coverMode;
+
 const lastDay = (end: Date) => toDateStr(new Date(end.getTime() - 86_400_000));
 
 /** The period a generator covers, cut into windows of slices, each window
@@ -194,7 +212,7 @@ export function generateStacCollections(
   const [endY, endM] = config.endDate.split('-').map(Number);
   const start = new Date(Date.UTC(startY, startM - 1, 1));
   const end = new Date(Date.UTC(endY, endM, 1));
-  const custom = config.coverMode === 'custom';
+  const custom = coverModeOf(config) === 'custom';
   const cloudy = config.hasCloudCover;
 
   return periods(start, end, config.collectionPeriodInterval, config.collectionPeriodUnit).map(
@@ -269,7 +287,7 @@ export function recipeOf(config: ImageryGenerationConfig): GenerationRecipe {
     collectionPeriodUnit: config.collectionPeriodUnit,
     slicePeriodInterval: config.slicePeriodInterval,
     slicePeriodUnit: config.slicePeriodUnit,
-    coverMode: config.coverMode,
+    coverMode: coverModeOf(config),
     coverSliceNth: config.coverSliceNth,
   };
 }
