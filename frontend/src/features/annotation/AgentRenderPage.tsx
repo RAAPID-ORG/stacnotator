@@ -4,6 +4,13 @@ import { authManager } from '~/features/auth';
 import type { AuthAdapter } from '~/features/auth/core/authAdapter';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import { buildImageryCatalog } from './campaign/imagery';
+import {
+  locateProbe,
+  offsetMeters,
+  probeView,
+  type ProbeInput,
+  type ProbeOptions,
+} from './agents/probe';
 import { renderView, type RenderedImage } from './agents/render';
 import {
   campaignContext,
@@ -17,12 +24,22 @@ import {
 
 type RenderedView = { view: ViewSpec } & (RenderedImage | { error: string });
 
+const MAX_PROBES = 6;
+
 interface AgentPageApi {
   context(): CampaignContext;
   defaultViews(): ViewSpec[];
   render(task: AgentTask, views: ViewSpec[], limits: ImageLimits): Promise<RenderedView[]>;
   /** Draws in the background, one view at a time, so a later render is instant. */
   preload(tasks: AgentTask[], views: ViewSpec[], limits: ImageLimits): void;
+  /** Time series at points the agent picked, beside the task's, with the map cells they
+   *  were picked on redrawn with each point marked so the agent can check its aim. */
+  probe(
+    task: AgentTask,
+    probes: ProbeInput[],
+    options: ProbeOptions,
+    limits: ImageLimits
+  ): Promise<RenderedView>;
 }
 
 declare global {
@@ -86,6 +103,45 @@ function createApi(campaign: CampaignOutFull, stage: HTMLElement): AgentPageApi 
       void (async () => {
         for (const task of tasks) for (const view of views) await draw(task, view, limits);
       })();
+    },
+    probe: async (task, inputs, options, limits) => {
+      let view: ViewSpec = { cells: [] };
+      try {
+        if (!inputs.length || inputs.length > MAX_PROBES)
+          throw new Error(`probe 1-${MAX_PROBES} points`);
+        const probes = inputs.map((input) => locateProbe(task, input));
+        const ids = [
+          ...new Set(options.timeseries_ids ?? context.timeseries.map((t) => t.timeseries_id)),
+        ];
+        if (!ids.length) throw new Error('this campaign has no time series');
+        const unknown = ids.filter((id) => !campaign.time_series.some((t) => t.id === id));
+        if (unknown.length) throw new Error(`unknown time series ${unknown.join(', ')}`);
+
+        view = probeView(probes, ids, options, limits);
+        checkView(view);
+        const image = await renderView({
+          task,
+          view,
+          limits,
+          campaign,
+          catalog,
+          stage,
+          probes,
+        });
+        const meta = {
+          ...image.meta,
+          probes: probes.map(({ lon, lat, from }, i) => ({
+            probe: `P${i + 1}`,
+            lat: Number(lat.toFixed(6)),
+            lon: Number(lon.toFixed(6)),
+            ...offsetMeters(task, lon, lat),
+            ...(from ? { from } : {}),
+          })),
+        };
+        return { view, ...image, meta };
+      } catch (err) {
+        return { view, error: extractErrorMessage(err, 'Probing failed') };
+      }
     },
   };
 }

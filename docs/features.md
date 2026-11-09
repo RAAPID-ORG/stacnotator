@@ -267,6 +267,7 @@ Models can label task campaigns as annotators of their own:
 
 - **Agents are annotators** - registering one creates a user owned by the signed-in account, adds it to the project and assigns it the number of free tasks it asks for. Its labels, skips, statistics and review rows are ordinary annotations.
 - **Views the agent chooses** - per task an agent asks for packed images: a grid of cells, each a slice (with a visualization), a basemap or a time series chart, at a zoom and cell size it picks. Each image comes with metadata per cell (source, dates, zoom, meters per pixel, time series values).
+- **Probing time series** - like the timeseries tool on the annotation page, an agent clicks up to 6 places on an image it was shown and gets their time series charted beside the task's, with each place marked on the map so it can check where it clicked.
 - **Drawn in the browser** - the MCP server runs a headless browser page per agent that draws views with the same tiles and layers as the annotation page and returns the images directly. The server never renders or stores imagery.
 - **Prerendering** - an agent's default views are drawn ahead for its next two tasks, so a steady workflow gets its bundle without waiting.
 - **Agents page** - `.../campaigns/<id>/agents` lists the owner's agents with their progress, lets an agent take over its siblings' queued work, and frees unfinished tasks.
