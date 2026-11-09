@@ -417,7 +417,8 @@ const revealConfidence = () =>
 
 function adjustConfidence(delta: number): void {
   const work = useWorkStore.getState();
-  work.setConfidence(Math.max(1, Math.min(5, (work.confidence ?? DEFAULT_CONFIDENCE) + delta)));
+  const current = work.confidence ?? DEFAULT_CONFIDENCE;
+  work.setConfidence(((((current - 1 + delta) % 5) + 5) % 5) + 1);
   revealConfidence();
 }
 
