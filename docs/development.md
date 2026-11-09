@@ -59,10 +59,8 @@ still shows these findings. After an entry expires, the gate blocks on it again:
 recheck the reasoning, then extend the date or fix the finding. Add an entry only
 after the same triage; never raise the severity threshold instead.
 
-Tiler scans use its `develop` branch for pushes and pull requests targeting
-`develop`, and `main` otherwise. Dev deployments also default to the tiler's
-`develop`; production defaults to `main`. `TILER_REPO_REF` overrides these defaults.
-Publish the tiler's `develop` branch before running these workflows.
+Tiler scans and deployments build the tiler's `main` branch unless the
+`TILER_REPO_REF` repository variable names another ref.
 
 The frontend overrides the SWA CLI's `adm-zip` and `devcert`'s `tmp` dependencies
 to patched releases outside their upstream version ranges. These overrides affect

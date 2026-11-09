@@ -55,7 +55,7 @@ jobs:
         with:
           persist-credentials: false
           repository: RAAPID-ORG/stacnotator-tiler
-          ref: ${{ vars.TILER_REPO_REF || (inputs.deploy-env == 'dev' && 'develop' || 'main') }}
+          ref: ${{ vars.TILER_REPO_REF || 'main' }}
           token: ${{ secrets.TILER_REPO_TOKEN }}
           path: stacnotator-tiler
 

@@ -358,7 +358,7 @@ Safety relies on:
 
    | Repository **variable** (optional) | Value |
    |---|---|
-   | `TILER_REPO_REF` | Git ref of the tiler repo to build/deploy. If unset, scans targeting `develop` and dev deployments use `develop`; other scans and production deployments use `main`. |
+   | `TILER_REPO_REF` | Git ref of the tiler repo to build/deploy. Defaults to `main` if unset. |
 
 3. **Set the per-environment variables** alongside the secrets in each Environment (Settings → Environments → `<env>` → Environment variables). Like the secrets, the names are unsuffixed and identical in both:
 
