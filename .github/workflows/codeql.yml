@@ -19,6 +19,7 @@ permissions:
 jobs:
   analyze:
     name: "Analyze: ${{ matrix.language }}"
+    if: vars.CODEQL_ADVANCED_SETUP == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

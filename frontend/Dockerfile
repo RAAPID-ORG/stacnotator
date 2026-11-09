@@ -34,7 +34,7 @@ RUN npm run build
 FROM nginx:alpine
 
 # Install curl for health checks
-RUN apk add --no-cache curl
+RUN apk add --no-cache --upgrade curl libcurl 'brotli-libs>=1.2.1-r0' 'libexpat>=2.10.0-r0'
 
 # Copy custom nginx config
 COPY nginx.conf /etc/nginx/nginx.conf

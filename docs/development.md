@@ -40,11 +40,33 @@ The reusable `vulnerability-scan.yml` workflow uses Trivy to scan production ima
 for known OS and library vulnerabilities, and the frontend lockfile for dependency
 vulnerabilities, including development/build dependencies. All severities are
 reported in the workflow logs. High and critical findings block production CI
-deployment and manual dev deployment, including findings without an available fix.
-Scanner errors also block deployment; no vulnerability exceptions are configured.
+deployment and manual dev deployment, including findings without an available fix,
+unless they are listed in `.trivyignore.yaml`. Scanner errors also block deployment.
 These scans cover newly built images, not continuous monitoring of deployed images.
 Deployment still rebuilds images, so the scans do not guarantee that the deployed
 artifacts contain exactly the same dependencies as the scanned images.
+
+Scanned builds pull current base images. The backend and tiler Dockerfiles apply
+Debian stable updates, remove unused mount tools, and clear setuid/setgid bits
+from system command directories before switching to their non-root users.
+This reduces privilege-escalation paths; it does not patch remaining library
+advisories.
+
+`.trivyignore.yaml` lists Debian advisories that have no fixed package and were
+triaged as not reachable from the backend or tiler. Each entry names its CVE,
+the affected packages and the reason, and expires on a set date. The report step
+still shows these findings. After an entry expires, the gate blocks on it again:
+recheck the reasoning, then extend the date or fix the finding. Add an entry only
+after the same triage; never raise the severity threshold instead.
+
+Tiler scans use its `develop` branch for pushes and pull requests targeting
+`develop`, and `main` otherwise. Dev deployments also default to the tiler's
+`develop`; production defaults to `main`. `TILER_REPO_REF` overrides these defaults.
+Publish the tiler's `develop` branch before running these workflows.
+
+The frontend overrides the SWA CLI's `adm-zip` and `devcert`'s `tmp` dependencies
+to patched releases outside their upstream version ranges. These overrides affect
+deployment tooling, not the browser bundle.
 
 ### CodeQL setup transition
 
@@ -52,13 +74,20 @@ The advanced `.github/workflows/codeql.yml` workflow preserves CodeQL's default
 security queries. GitHub's CodeQL security ruleset requires results and blocks
 high/critical security alerts on both `main` and `develop`, with no admin bypass.
 
+Advanced jobs run only when the repository variable `CODEQL_ADVANCED_SETUP` is
+`true`. Until cutover, leave it unset and keep GitHub default setup enabled so
+source scanning continues without conflicting advanced uploads. This explicit
+switch avoids giving the workflow repository-administration credentials to read
+the default-setup configuration.
+
 Keep GitHub default setup enabled while this workflow is only on `develop`.
-After merging it to `main`, disable default setup and manually run the advanced
-workflow on both branches:
+After merging it to `main`, disable default setup, enable the advanced workflow,
+and manually run it on both branches:
 
 ```bash
 gh api --method PATCH repos/RAAPID-ORG/stacnotator/code-scanning/default-setup \
   -f state=not-configured
+gh variable set CODEQL_ADVANCED_SETUP --repo RAAPID-ORG/stacnotator --body true
 gh workflow run codeql.yml --repo RAAPID-ORG/stacnotator --ref main
 gh workflow run codeql.yml --repo RAAPID-ORG/stacnotator --ref develop
 ```

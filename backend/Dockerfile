@@ -1,8 +1,8 @@
 # Multi-stage build for optimized production image
 # Final-stage base comes from the ECR Public mirror of the official image (identical
 # digest) because Docker Hub rate-limits the shared ACR build IP. Overridable.
-ARG PYTHON_IMAGE=public.ecr.aws/docker/library/python:3.12-slim-bookworm
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
+ARG PYTHON_IMAGE=public.ecr.aws/docker/library/python:3.12-slim-trixie
+FROM ghcr.io/astral-sh/uv:python3.12-trixie-slim AS builder
 
 WORKDIR /app
 
@@ -28,13 +28,18 @@ WORKDIR /app
 # a "Permission denied: '/home/appuser'" error on every worker recycle without it.
 RUN groupadd -r appuser && useradd -r -g appuser -m -d /home/appuser appuser
 
-# Install runtime dependencies only. libpq5 is what psycopg2 links against; the
+# Install runtime dependencies and refresh Python's system SQLite library.
+# libpq5 is what psycopg2 links against; the
 # psql/pg_dump binaries are deliberately absent, because postgresql-client pulls
-# perl in with it and perl is the largest block of unfixable CVEs in this image.
+# perl in with it.
 # Nothing here shells out to them - migrations run through alembic, and the
 # scripts that do use pg_dump run on a developer machine, not in this container.
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && apt-get install -y --no-install-recommends \
     libpq5 \
+    libsqlite3-0 \
+    && apt-get purge -y mount \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy virtual environment from builder
@@ -46,6 +51,9 @@ COPY . .
 # Create directories for config and logs
 RUN mkdir -p /app/config /app/logs && \
     chown -R appuser:appuser /app
+
+# The service never needs setuid/setgid helpers.
+RUN find /usr/bin /usr/sbin -type f -perm /6000 -exec chmod a-s {} +
 
 # Switch to non-root user
 USER appuser
