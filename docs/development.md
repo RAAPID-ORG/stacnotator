@@ -66,35 +66,6 @@ The frontend overrides the SWA CLI's `adm-zip` and `devcert`'s `tmp` dependencie
 to patched releases outside their upstream version ranges. These overrides affect
 deployment tooling, not the browser bundle.
 
-### CodeQL setup transition
-
-The advanced `.github/workflows/codeql.yml` workflow preserves CodeQL's default
-security queries. GitHub's CodeQL security ruleset requires results and blocks
-high/critical security alerts on both `main` and `develop`, with no admin bypass.
-
-Advanced jobs run only when the repository variable `CODEQL_ADVANCED_SETUP` is
-`true`. Until cutover, leave it unset and keep GitHub default setup enabled so
-source scanning continues without conflicting advanced uploads. This explicit
-switch avoids giving the workflow repository-administration credentials to read
-the default-setup configuration.
-
-Keep GitHub default setup enabled while this workflow is only on `develop`.
-After merging it to `main`, disable default setup, enable the advanced workflow,
-and manually run it on both branches:
-
-```bash
-gh api --method PATCH repos/RAAPID-ORG/stacnotator/code-scanning/default-setup \
-  -f state=not-configured
-gh variable set CODEQL_ADVANCED_SETUP --repo RAAPID-ORG/stacnotator --body true
-gh workflow run codeql.yml --repo RAAPID-ORG/stacnotator --ref main
-gh workflow run codeql.yml --repo RAAPID-ORG/stacnotator --ref develop
-```
-
-Default setup and advanced analysis must not be enabled together: GitHub rejects
-advanced CodeQL uploads while default setup is enabled. Verify successful advanced
-analyses for all three languages on both branches before considering the switch
-complete. The existing CodeQL merge ruleset remains in place during the transition.
-
 ## Local checks before pushing
 
 Install the pre-commit hooks once (`.pre-commit-config.yaml` covers whitespace/yaml/json/toml checks, Gitleaks, Ruff for the backend, and ESLint/`tsc`/Prettier for the frontend):

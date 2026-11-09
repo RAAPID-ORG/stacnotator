@@ -1,5 +1,8 @@
 import json
 import logging
+import time
+from collections import OrderedDict
+from threading import Lock
 
 import firebase_admin
 from fastapi import Request
@@ -11,6 +14,47 @@ from src.config import get_settings
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
+
+
+class _VerifiedTokenCache:
+    """Remember the outcome of verifying an ID token, until that token expires.
+
+    Verification is pure, so repeating it per request buys nothing - and one map
+    viewport sends a dozen requests bearing the identical token. Entries never outlive
+    the token's own `exp`, and the cache is bounded so a stream of distinct tokens
+    cannot grow it without limit.
+    """
+
+    def __init__(self, max_entries: int = 2048):
+        self._entries: OrderedDict[str, tuple[float, AuthenticatedUser]] = OrderedDict()
+        self._max_entries = max_entries
+        self._lock = Lock()
+
+    def get(self, token: str) -> AuthenticatedUser | None:
+        now = time.time()
+        with self._lock:
+            entry = self._entries.get(token)
+            if entry is None:
+                return None
+            expires_at, user = entry
+            if expires_at <= now:
+                del self._entries[token]
+                return None
+            self._entries.move_to_end(token)
+            return user
+
+    def put(self, token: str, user: AuthenticatedUser, expires_at: float | None) -> None:
+        # No expiry claim means we cannot bound the entry safely, so do not keep it.
+        if not expires_at:
+            return
+        with self._lock:
+            self._entries[token] = (float(expires_at), user)
+            self._entries.move_to_end(token)
+            while len(self._entries) > self._max_entries:
+                self._entries.popitem(last=False)
+
+
+_verified_cache = _VerifiedTokenCache()
 
 
 class FirebaseAuthProvider(AuthProvider):
@@ -56,8 +100,12 @@ class FirebaseAuthProvider(AuthProvider):
             return None
         token = header.split(" ")[1]
 
+        cached = _verified_cache.get(token)
+        if cached is not None:
+            return cached
+
         try:
-            decoded = await run_in_threadpool(auth.verify_id_token, token, check_revoked=True)
+            decoded = await run_in_threadpool(auth.verify_id_token, token)
 
             # Verify email is present and verified
             email = decoded.get("email")
@@ -69,6 +117,7 @@ class FirebaseAuthProvider(AuthProvider):
                 "uid": decoded["uid"],
                 "email": email,
             }
+            _verified_cache.put(token, verified, expires_at=decoded.get("exp"))
             return verified
         except ExternalAuthEmailNotVerified:
             raise  # Re-raise so the dependency layer can return a specific 403
