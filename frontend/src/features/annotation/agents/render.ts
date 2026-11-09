@@ -448,24 +448,32 @@ async function drawChart(
   const data = await Promise.all(
     points.map(async (point) => (await timeSeriesCache.get(campaign.id, ids, point)) ?? {})
   );
-  const series = ids.map((id) => campaign.time_series.find((t) => t.id === id));
   const times = collectSeriesLabels(ids, ...data);
   const { smoothing } = DEFAULT_TIMESERIES_CHART;
-  // One line per series at the task, then the same per probe.
-  const pairs = points.flatMap((_, p) => ids.map((id, i) => ({ id, i, p })));
-  const lines = pairs.map(({ id, p }) => {
-    const byTime = new Map((data[p][id] ?? []).map((row) => [row.time, row]));
-    const raw = times.map((time) => {
-      const row = byTime.get(time);
-      return !row || (cell.remove_cloudy && row.cloud === 1) ? null : row.values;
-    });
-    const cloudy = times.map((time) => byTime.get(time)?.cloud === 1);
-    return {
-      raw,
-      cloudy,
-      shown: cell.smoothed ? savitzkyGolay(raw, smoothing.window, smoothing.order) : raw,
-    };
-  });
+  // One line per series at the task, then the same per probe, each in its marker's colour.
+  const lines = points.flatMap((_, p) =>
+    ids.map((id, i) => {
+      const series = campaign.time_series.find((t) => t.id === id);
+      const name = series?.name ?? `Series ${id}`;
+      const point = p === 0 ? 'task' : `P${p}`;
+      const byTime = new Map((data[p][id] ?? []).map((row) => [row.time, row]));
+      const raw = times.map((time) => {
+        const row = byTime.get(time);
+        return !row || (cell.remove_cloudy && row.cloud === 1) ? null : row.values;
+      });
+      return {
+        id,
+        series,
+        point,
+        label: lineLabel(name, point, ids.length, probes.length),
+        color: p === 0 ? SERIES_COLORS[i % SERIES_COLORS.length] : probeColor(p - 1),
+        dash: p === 0 ? [] : SERIES_DASHES[i % SERIES_DASHES.length],
+        raw,
+        cloudy: times.map((time) => byTime.get(time)?.cloud === 1),
+        shown: cell.smoothed ? savitzkyGolay(raw, smoothing.window, smoothing.order) : raw,
+      };
+    })
+  );
 
   const canvas = document.createElement('canvas');
   canvas.width = rect.width;
@@ -477,24 +485,17 @@ async function drawChart(
     type: 'line',
     data: {
       labels: times.map(formatDateLabel),
-      datasets: pairs.map(({ id, i, p }, n) => {
-        const color = p === 0 ? SERIES_COLORS[i % SERIES_COLORS.length] : probeColor(p - 1);
-        const pointColors = lines[n].cloudy.map((cloudy) => (cloudy ? CLOUDY_DOT_COLOR : color));
-        const name = series[i]?.name ?? `Series ${id}`;
+      datasets: lines.map((line) => {
+        const pointColors = line.cloudy.map((cloudy) => (cloudy ? CLOUDY_DOT_COLOR : line.color));
         return {
-          label:
-            p > 0
-              ? `${ids.length > 1 ? `${name} ` : ''}P${p}`
-              : probes.length
-                ? `${name}, task`
-                : name,
-          data: lines[n].shown,
-          borderDash: p === 0 ? [] : SERIES_DASHES[i % SERIES_DASHES.length],
-          borderColor: color,
-          backgroundColor: color,
+          label: line.label,
+          data: line.shown,
+          borderDash: line.dash,
+          borderColor: line.color,
+          backgroundColor: line.color,
           pointBackgroundColor: pointColors,
           pointBorderColor: pointColors,
-          pointRadius: lines[n].raw.map((value) => (value == null ? 0 : 2)),
+          pointRadius: line.raw.map((value) => (value == null ? 0 : 2)),
           spanGaps: true,
         };
       }),
@@ -528,17 +529,17 @@ async function drawChart(
       label: ['time series', cell.remove_cloudy ? 'cloudy removed' : 'grey dots cloudy']
         .concat(cell.smoothed ? ['smoothed'] : [])
         .join(', '),
-      series: pairs.map(({ id, i, p }, n) => ({
-        timeseries_id: id,
-        name: series[i]?.name,
-        index: series[i]?.ts_type,
-        ...(probes.length ? { point: p === 0 ? 'task' : `P${p}` } : {}),
+      series: lines.map((line) => ({
+        timeseries_id: line.id,
+        name: line.series?.name,
+        index: line.series?.ts_type,
+        ...(probes.length ? { point: line.point } : {}),
         columns,
         rows: times.flatMap((time, t) => {
-          const value = lines[n].raw[t];
+          const value = line.raw[t];
           if (value == null) return [];
-          const row = [time.slice(0, 10), round(value), lines[n].cloudy[t] ? 1 : 0];
-          const smooth = lines[n].shown[t];
+          const row = [time.slice(0, 10), round(value), line.cloudy[t] ? 1 : 0];
+          const smooth = line.shown[t];
           return [cell.smoothed && smooth != null ? [...row, round(smooth)] : row];
         }),
       })),
@@ -594,6 +595,13 @@ function drawFocus(ctx: CanvasRenderingContext2D, rect: CellRect, sidePx: number
   ctx.restore();
 }
 
+/** The legend names the series and, once there are probes, the point; a single series
+ *  needs only the point. */
+function lineLabel(name: string, point: string, seriesCount: number, probeCount: number) {
+  if (point === 'task') return probeCount ? `${name}, task` : name;
+  return seriesCount > 1 ? `${name} ${point}` : point;
+}
+
 /** Each probe as a numbered crosshair in its chart colour, open in the middle so the
  *  probed pixel itself stays visible. */
 function drawProbes(
@@ -622,10 +630,10 @@ function drawProbes(
   type Box = [number, number, number, number];
   const overlaps = ([l, t, w, h]: Box, [l2, t2, w2, h2]: Box) =>
     l < l2 + w2 && l2 < l + w && t < t2 + h2 && t2 < t + h;
-  const crosses: Box[] = marks.map(({ x, y }) => [x - reach, y - reach, 2 * reach, 2 * reach]);
   const placed: Box[] = [];
-  // Each label goes in the first corner around its crosshair that stays in the cell, clear of
-  // the cell title, other labels and other crosshairs; points picked close together stay named.
+  // Each label goes in the first corner around its crosshair that stays in the cell, below the
+  // cell title and clear of other labels, so points picked close together stay named. The
+  // crosshairs are drawn after the labels, so no label hides one.
   for (const { index, x, y } of marks) {
     const text = `P${index + 1}`;
     const width = ctx.measureText(text).width + 8;
@@ -643,7 +651,6 @@ function drawProbes(
       l + w <= rect.x + rect.width &&
       t + h <= rect.y + rect.height;
     const box =
-      corners.find((c) => inCell(c) && ![...placed, ...crosses].some((o) => overlaps(c, o))) ??
       corners.find((c) => inCell(c) && !placed.some((o) => overlaps(c, o))) ??
       corners.find(inCell) ??
       corners[0];

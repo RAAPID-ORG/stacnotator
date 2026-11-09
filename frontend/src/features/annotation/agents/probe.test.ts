@@ -2,7 +2,7 @@ import View from 'ol/View';
 import { fromLonLat, toLonLat } from 'ol/proj';
 import { describe, expect, it } from 'vitest';
 import { metersPerPixel } from './pack';
-import { locateProbe, lonLatToPixel, offsetMeters, pixelToLonLat } from './probe';
+import { locateProbe, lonLatToPixel, offsetMeters, pixelToLonLat, probeView } from './probe';
 
 const TASK = { task_id: 1, lat: 52.37, lon: 4.89, geometry_wkt: 'POINT(4.89 52.37)' };
 const CENTER: [number, number] = [TASK.lon, TASK.lat];
@@ -58,5 +58,26 @@ describe('locateProbe', () => {
       /time series/
     );
     expect(() => locateProbe(TASK, { view, reply: 7, image: 1, x: 900, y: 10 })).toThrow(/outside/);
+  });
+});
+
+describe('probeView', () => {
+  const view = { cells: [{ slice_id: 1, zoom: 14 }], columns: 1, cell_px: 800 };
+  const limits = { max_edge_px: 1568, max_megapixels: 0.5 };
+
+  it('redraws a picked map once, over the same ground, when it must shrink', () => {
+    const picks = [
+      locateProbe(TASK, { view, reply: 1, image: 1, x: 790, y: 10 }),
+      locateProbe(TASK, { view, reply: 1, image: 1, x: 400, y: 600 }),
+    ];
+    const probed = probeView(picks, [5], { remove_cloudy: true }, limits);
+    expect(probed.cells).toHaveLength(2);
+    expect(probed.cells[1]).toEqual({ timeseries_ids: [5], remove_cloudy: true });
+    const px = probed.cell_px!;
+    const zoom = probed.cells[0].zoom!;
+    expect(px).toBeLessThan(800);
+    const [x, y] = lonLatToPixel(CENTER, zoom, px, px, [picks[0].lon, picks[0].lat]);
+    expect(x / px).toBeCloseTo(790 / 800, 2);
+    expect(y / px).toBeCloseTo(10 / 800, 2);
   });
 });

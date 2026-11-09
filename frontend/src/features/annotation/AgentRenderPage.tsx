@@ -4,27 +4,25 @@ import { authManager } from '~/features/auth';
 import type { AuthAdapter } from '~/features/auth/core/authAdapter';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import { buildImageryCatalog } from './campaign/imagery';
-import { locateProbe, offsetMeters, type ProbeInput } from './agents/probe';
+import {
+  locateProbe,
+  offsetMeters,
+  probeView,
+  type ProbeInput,
+  type ProbeOptions,
+} from './agents/probe';
 import { renderView, type RenderedImage } from './agents/render';
 import {
   campaignContext,
   checkView,
   defaultViews,
-  fitCellPx,
   type AgentTask,
   type CampaignContext,
   type ImageLimits,
-  type ViewCell,
   type ViewSpec,
 } from './agents/view';
 
 type RenderedView = { view: ViewSpec } & (RenderedImage | { error: string });
-
-interface ProbeOptions {
-  timeseries_ids?: number[];
-  remove_cloudy?: boolean;
-  smoothed?: boolean;
-}
 
 const MAX_PROBES = 6;
 
@@ -119,32 +117,7 @@ function createApi(campaign: CampaignOutFull, stage: HTMLElement): AgentPageApi 
         const unknown = ids.filter((id) => !campaign.time_series.some((t) => t.id === id));
         if (unknown.length) throw new Error(`unknown time series ${unknown.join(', ')}`);
 
-        const mapCells = new Map<string, { cell: ViewCell & { zoom: number }; px: number }>();
-        for (const { cell, cellPx } of probes)
-          if (cell && cellPx) mapCells.set(JSON.stringify([cell, cellPx]), { cell, px: cellPx });
-        const maps = [...mapCells.values()];
-        const first = inputs.find((input) => 'view' in input);
-        view = {
-          cells: [
-            ...maps.map(({ cell }) => cell),
-            ...ids.map((id) => ({
-              timeseries_ids: [id],
-              remove_cloudy: options.remove_cloudy,
-              smoothed: options.smoothed,
-            })),
-          ],
-          columns: maps.length > 4 ? 3 : maps.length || 2,
-          cell_px: first && 'view' in first ? first.view.cell_px : 512,
-        };
-        // Redraw each map over the ground it showed, whatever size its cell is now, so every
-        // point picked on it stays in frame.
-        const cellPx = fitCellPx(view, limits);
-        maps.forEach(({ cell, px }, i) => {
-          view.cells[i] = {
-            ...cell,
-            zoom: Math.round((cell.zoom + Math.log2(cellPx / px)) * 100) / 100,
-          };
-        });
+        view = probeView(probes, ids, options, limits);
         checkView(view);
         const image = await renderView({
           task,

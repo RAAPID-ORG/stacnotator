@@ -4,7 +4,9 @@ import { packView } from './pack';
 import {
   DEFAULT_COLUMNS,
   DEFAULT_ZOOM,
+  fitCellPx,
   type AgentTask,
+  type ImageLimits,
   type ViewCell,
   type ViewSpec,
 } from './view';
@@ -110,6 +112,43 @@ export function locateProbe(task: AgentTask, probe: ProbeInput): LocatedProbe {
     cellPx: rect.width,
     from: { reply, image, x, y, cell: rect.index },
   };
+}
+
+export interface ProbeOptions {
+  timeseries_ids?: number[];
+  remove_cloudy?: boolean;
+  smoothed?: boolean;
+}
+
+/** The view a probe reply is drawn as: each map cell a point was picked on, then one chart
+ *  per time series. Each map covers the same ground it did when picked on, whatever size its
+ *  cell is drawn at now, so every point picked on it stays in frame. */
+export function probeView(
+  probes: LocatedProbe[],
+  timeseriesIds: number[],
+  options: ProbeOptions,
+  limits: ImageLimits
+): ViewSpec {
+  const maps = new Map<string, { cell: ViewCell & { zoom: number }; px: number }>();
+  for (const { cell, cellPx } of probes)
+    if (cell && cellPx) maps.set(JSON.stringify([cell, cellPx]), { cell, px: cellPx });
+  const picked = [...maps.values()];
+  const charts = timeseriesIds.map((id) => ({
+    timeseries_ids: [id],
+    remove_cloudy: options.remove_cloudy,
+    smoothed: options.smoothed,
+  }));
+  const view: ViewSpec = {
+    cells: [...picked.map(({ cell }) => cell), ...charts],
+    columns: picked.length > 4 ? 3 : picked.length || 2,
+    cell_px: picked[0]?.px ?? 512,
+  };
+  const cellPx = fitCellPx(view, limits);
+  view.cell_px = cellPx;
+  picked.forEach(({ cell, px }, i) => {
+    view.cells[i] = { ...cell, zoom: Math.round((cell.zoom + Math.log2(cellPx / px)) * 100) / 100 };
+  });
+  return view;
 }
 
 /** Ground offset of a point from the task, in metres east and north. */
