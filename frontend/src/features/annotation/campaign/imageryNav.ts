@@ -133,21 +133,38 @@ export function collectionAddress(
 }
 
 /**
- * The collection a task transition lands on.
- *
- * The view's pinned start wins, then its configured start, and only with
- * neither does the task inherit wherever the user happens to be. Pure and
- * shared so what preloading warms is what the next task will actually show -
- * the two drifting apart is what made the preload bar move when the user
- * merely changed date.
+ * A source's starting collection: its starred one while that is still among
+ * the collections it shows, otherwise its earliest shown collection. When the
+ * layout hides all of them, they all count as shown.
+ */
+export function sourceStartCollectionId(
+  cat: ImageryCatalog,
+  sourceId: number,
+  pinnedStart: Record<number, number>,
+  hidden: readonly number[]
+): number | null {
+  const collections = cat.sources.get(sourceId)?.collections ?? [];
+  const shown = collections.filter((c) => !hidden.includes(c.id));
+  const pool = shown.length > 0 ? shown : collections;
+  const pinned = pinnedStart[sourceId];
+  if (pinned != null && pool.some((c) => c.id === pinned)) return pinned;
+  return (
+    [...pool].sort((a, b) => collectionStartDate(a).localeCompare(collectionStartDate(b)))[0]?.id ??
+    null
+  );
+}
+
+/**
+ * The collection a task transition lands on: the view's start (its first
+ * source, at that source's starred collection), and only without one does the
+ * task inherit wherever the user happens to be. Shared so what preloading
+ * warms is what the next task will actually show - the two drifting apart is
+ * what made the preload bar move when the user merely changed date.
  */
 export function taskLandingCollectionId(
-  cat: ImageryCatalog,
   configuredStart: number | null,
-  pinnedStart: number | undefined,
   currentCollectionId: number | null
 ): number | null {
-  if (pinnedStart != null && cat.collections.has(pinnedStart)) return pinnedStart;
   return configuredStart ?? currentCollectionId ?? null;
 }
 
@@ -245,14 +262,17 @@ export type CycleSourceResult =
   | { kind: 'source'; address: SliceAddress };
 
 /** The cycling ring is one entry per view source plus one per basemap.
- *  `lastBySource` is the caller's memory of where each source was left. */
+ *  `lastBySource` is the caller's memory of where each source was left; only
+ *  its visualization is reused. */
 export function cycleSource(
   cat: ImageryCatalog,
   view: Pick<ImageryViewOut, 'source_ids'>,
   addr: SliceAddress | null,
   basemap: { showBasemap: boolean; selectedBasemapId: string | null },
   dir: 1 | -1,
-  lastBySource: Record<number, SliceAddress>
+  lastBySource: Record<number, SliceAddress>,
+  pinnedStart: Record<number, number> = {},
+  hidden: readonly number[] = []
 ): CycleSourceResult | null {
   const sourceIds = view.source_ids.filter((id) => cat.sources.has(id));
   const basemapIds = [...cat.basemaps.keys()].map((id) => `basemap-${id}`);
@@ -274,20 +294,22 @@ export function cycleSource(
   const target = cat.sources.get(sourceIds[nextIdx]);
   if (!target) return null;
 
-  const remembered = lastBySource[target.id];
-  if (remembered && target.collections.some((c) => c.id === remembered.collectionId)) {
-    return { kind: 'source', address: remembered };
-  }
-
-  const first = target.collections[0];
-  if (!first) return null;
+  // A source always opens on its starting collection; only the
+  // visualization it was last shown in is remembered.
+  const startId = sourceStartCollectionId(cat, target.id, pinnedStart, hidden);
+  const start = target.collections.find((c) => c.id === startId);
+  if (!start) return null;
+  const rememberedViz = lastBySource[target.id]?.vizId;
+  const vizId = target.visualizations.some((v) => String(v.id) === rememberedViz)
+    ? rememberedViz!
+    : String(target.visualizations[0]?.id ?? '');
   return {
     kind: 'source',
     address: {
       sourceId: target.id,
-      collectionId: first.id,
-      sliceIndex: first.cover_slice_index ?? 0,
-      vizId: String(target.visualizations[0]?.id ?? ''),
+      collectionId: start.id,
+      sliceIndex: start.cover_slice_index ?? 0,
+      vizId,
     },
   };
 }

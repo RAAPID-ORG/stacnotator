@@ -650,7 +650,7 @@
     "sources": "Fuentes en esta vista",
     "sourcesHint": "Compartidas por todos los anotadores. Los cambios se guardan al instante.",
     "noSources": "Todavía no hay fuentes de imágenes: añade una en la configuración de la campaña.",
-    "firstTip": "La primera fuente con imágenes se abre por defecto, salvo que haya una colección inicial marcada con estrella",
+    "firstTip": "Las tareas se abren en la primera fuente con imágenes, en su colección marcada con estrella si la tiene",
     "first": "Primera",
     "sourceUp": "Mover la fuente antes",
     "sourceUpLabel": "Subir la fuente {{name}}",

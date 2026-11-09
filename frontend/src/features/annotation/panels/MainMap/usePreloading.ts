@@ -335,9 +335,7 @@ export function usePreloading(options: PreloadingOptions): void {
   const address = useImageryStore((s) => s.address);
   const viewSync = useImageryStore((s) => s.viewSync);
   const windowSlices = useImageryStore((s) => s.windowSlices);
-  const view = useCampaignStore((s) => s.view);
   const configuredStart = useCampaignStore((s) => s.taskStartCollectionId);
-  const pinnedStart = usePrefsStore((s) => (view ? s.pinnedStart[view.id] : undefined));
   const upcomingKey = JSON.stringify(upcoming ?? []);
   const visibleCollectionsKey = visibleCollectionIds.join(',');
   const viewportKey = viewportTileKey(viewportPx);
@@ -348,18 +346,13 @@ export function usePreloading(options: PreloadingOptions): void {
       upcomingAddresses(
         catalog,
         address,
-        taskLandingCollectionId(
-          catalog,
-          configuredStart,
-          pinnedStart,
-          address?.collectionId ?? null
-        ),
+        taskLandingCollectionId(configuredStart, address?.collectionId ?? null),
         visibleCollectionIds,
         viewSync
       ),
     // visibleCollectionsKey stands in for the array, rebuilt each render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [catalog, address, configuredStart, pinnedStart, visibleCollectionsKey, viewSync]
+    [catalog, address, configuredStart, visibleCollectionsKey, viewSync]
   );
   const warmKey = JSON.stringify(warmAddresses);
 

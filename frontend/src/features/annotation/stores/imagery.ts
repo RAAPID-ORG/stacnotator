@@ -51,7 +51,9 @@ export interface ImageryState extends ImageryNavState {
     cat: ImageryCatalog,
     view: Pick<ImageryViewOut, 'source_ids'>,
     dir: 1 | -1,
-    lastBySource: Record<number, SliceAddress>
+    lastBySource: Record<number, SliceAddress>,
+    pinnedStart?: Record<number, number>,
+    hidden?: readonly number[]
   ) => void;
   cycleVizAction: (cat: ImageryCatalog, dir: 1 | -1) => void;
   stepSliceAction: (cat: ImageryCatalog, dir: 1 | -1) => void;
@@ -177,7 +179,7 @@ export const useImageryStore = create<ImageryState>((set) => ({
   setOverlayOpacity: (overlayOpacity) => set({ overlayOpacity }),
   vectorAction: (items, action) => set((s) => ({ vector: toggleCycle(items, s.vector, action) })),
 
-  cycleSourceAction: (cat, view, dir, lastBySource) =>
+  cycleSourceAction: (cat, view, dir, lastBySource, pinnedStart, hidden) =>
     set((s) => {
       const result = cycleSource(
         cat,
@@ -185,7 +187,9 @@ export const useImageryStore = create<ImageryState>((set) => ({
         s.address,
         { showBasemap: s.showBasemap, selectedBasemapId: s.selectedBasemapId },
         dir,
-        lastBySource
+        lastBySource,
+        pinnedStart,
+        hidden
       );
       if (!result) return s;
       return result.kind === 'basemap'

@@ -7,8 +7,6 @@ import type {
 } from '~/api/client';
 import {
   buildImageryCatalog,
-  collectionStartDate,
-  collectionsInView,
   withSceneLayers,
   withSceneSearch,
   type ImageryCatalog,
@@ -19,6 +17,7 @@ import {
   type ExtendedLabel,
   type FormField,
 } from '../campaign/annotation';
+import { sourceStartCollectionId } from '../campaign/imageryNav';
 import type { PolicyContext } from '~/features/campaigns/utils/labellingPolicy';
 import { viewLayout } from '../canvas/grid';
 import { useImageryStore } from './imagery';
@@ -59,7 +58,8 @@ interface CampaignState {
   setOriginTask: (originTask: OriginTask | null) => void;
   setReviewMode: (isReviewMode: boolean) => void;
   setMobile: (isMobile: boolean) => void;
-  setTaskStartCollection: (collectionId: number) => void;
+  /** Recompute the task start, after a star or the view's source order changed. */
+  refreshTaskStart: () => void;
   /** What a viewport search found for a scene source: which dates hold imagery
    *  here, and the covers that are already drawable. */
   applySceneSearch: (sourceId: number, vizId: number, found: PlanetSceneSliceOut[]) => void;
@@ -71,28 +71,23 @@ interface CampaignState {
 }
 
 /**
- * Open the first nonempty source in view order, preferring its windowed
- * collections, then its earliest date. An eligible pinned start still wins.
+ * Open the first nonempty source in view order, at its starting collection:
+ * its starred one, else its earliest windowed one.
  */
 export function startCollectionFor(
   catalog: ImageryCatalog,
   view: ImageryViewOut | null,
   hidden: readonly number[]
 ): number | null {
-  const entries = collectionsInView(catalog, view);
-  const windowed = entries.filter((c) => !hidden.includes(c.id));
-  const pool = windowed.length > 0 ? windowed : entries;
-  const pinned = view ? usePrefsStore.getState().pinnedStart[view.id] : undefined;
-  if (pinned != null && pool.some((c) => c.id === pinned)) return pinned;
   const firstSource = view?.source_ids
     .map((id) => catalog.sources.get(id))
     .find((source) => source && source.collections.length > 0);
-  const collections = firstSource?.collections ?? [];
-  const visible = collections.filter((c) => !hidden.includes(c.id));
-  return (
-    [...(visible.length > 0 ? visible : collections)].sort((a, b) =>
-      collectionStartDate(a).localeCompare(collectionStartDate(b))
-    )[0]?.id ?? null
+  if (!firstSource) return null;
+  return sourceStartCollectionId(
+    catalog,
+    firstSource.id,
+    usePrefsStore.getState().pinnedStart,
+    hidden
   );
 }
 
@@ -118,13 +113,7 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
       (kept.source_ids.length !== current.source_ids.length ||
         kept.source_ids.some((id, index) => id !== current.source_ids[index]))
     ) {
-      set({
-        taskStartCollectionId: startCollectionFor(
-          catalog,
-          kept,
-          useLayoutStore.getState().currentLayout.hidden
-        ),
-      });
+      get().refreshTaskStart();
     }
     // The selected view is gone (an admin deleted it). Moving to the
     // replacement is a real view switch - the imagery address and the canvas
@@ -165,7 +154,17 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
   setOriginTask: (originTask) => set({ originTask }),
   setReviewMode: (isReviewMode) => set({ isReviewMode }),
   setMobile: (isMobile) => set({ isMobile }),
-  setTaskStartCollection: (taskStartCollectionId) => set({ taskStartCollectionId }),
+  refreshTaskStart: () => {
+    const { catalog, view } = get();
+    if (!catalog) return;
+    set({
+      taskStartCollectionId: startCollectionFor(
+        catalog,
+        view,
+        useLayoutStore.getState().currentLayout.hidden
+      ),
+    });
+  },
 
   selectView: (view) => {
     const { catalog, view: previous } = get();

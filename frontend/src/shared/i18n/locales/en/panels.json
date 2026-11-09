@@ -163,8 +163,8 @@
   },
   "collections": {
     "label": "Collections",
-    "pinnedStart": "Show this collection first on every task (selected)",
-    "pinStart": "Show this collection first on every task"
+    "pinnedStart": "Open this source on this collection first (selected)",
+    "pinStart": "Open this source on this collection first"
   },
   "layers": {
     "sources": "Imagery sources",

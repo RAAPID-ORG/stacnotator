@@ -151,6 +151,20 @@ describe('cycleSource', () => {
     expect(result).toEqual({ kind: 'source', address: addr(2, 200, '20') });
   });
 
+  it('lands on a starred collection when switching to a source not visited yet', () => {
+    const cat = buildImageryCatalog(makeCampaign({ imagery_sources: [s2, vhr], basemaps: [] }));
+    const result = cycleSource(
+      cat,
+      view,
+      addr(2, 200, '20'),
+      { showBasemap: false, selectedBasemapId: null },
+      1,
+      {},
+      { 1: 101 }
+    );
+    expect(result).toEqual({ kind: 'source', address: addr(1, 101, '10') });
+  });
+
   it('cycles from the last source to the basemap', () => {
     const cat = buildImageryCatalog(
       makeCampaign({ imagery_sources: [s2, vhr], basemaps: [{ id: 5, name: 'Osm', url: 'x' }] })
@@ -195,7 +209,7 @@ describe('cycleSource', () => {
     expect(result).toBeNull();
   });
 
-  it('restores the remembered address when returning to a source after a detour', () => {
+  it('returns to the start collection but keeps the remembered visualization', () => {
     const cat = buildImageryCatalog(makeCampaign({ imagery_sources: [s2, vhr], basemaps: [] }));
     const lastBySource = { 1: addr(1, 101, '11') };
     const result = cycleSource(
@@ -206,12 +220,12 @@ describe('cycleSource', () => {
       1,
       lastBySource
     );
-    expect(result).toEqual({ kind: 'source', address: addr(1, 101, '11') });
+    expect(result).toEqual({ kind: 'source', address: addr(1, 100, '11') });
   });
 
   it('ignores remembered state referencing a collection the source no longer owns', () => {
     const cat = buildImageryCatalog(makeCampaign({ imagery_sources: [s2, vhr], basemaps: [] }));
-    const lastBySource = { 1: addr(1, 999, '11') };
+    const lastBySource = { 1: addr(1, 999, '99') };
     const result = cycleSource(
       cat,
       view,

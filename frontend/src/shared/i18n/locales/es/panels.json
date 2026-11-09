@@ -165,8 +165,8 @@
   },
   "collections": {
     "label": "Colecciones",
-    "pinnedStart": "Mostrar esta colección primero en cada tarea (seleccionada)",
-    "pinStart": "Mostrar esta colección primero en cada tarea"
+    "pinnedStart": "Abrir esta fuente en esta colección primero (seleccionada)",
+    "pinStart": "Abrir esta fuente en esta colección primero"
   },
   "layers": {
     "sources": "Fuentes de imágenes",
