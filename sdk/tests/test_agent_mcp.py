@@ -69,7 +69,7 @@ def browsers(monkeypatch):
     agent_mcp._default_views.clear()
     agent_mcp._current_tasks.clear()
     agent_mcp._image_limits.clear()
-    agent_mcp._shown.clear()
+    agent_mcp._replies.clear()
     yield fake
     agent_mcp._signed_in_http.cache_clear()
 
@@ -104,53 +104,78 @@ def test_get_views_only_draws_the_current_task(browsers):
         asyncio.run(agent_mcp.get_views(AGENT, 5, [DEFAULT_VIEW]))
 
 
-@responses.activate
-def test_probes_pick_pixels_on_the_views_the_agent_was_last_shown(browsers):
+def _start_task(tasks):
     responses.get(f"{BASE}/api/agents/{AGENT}", json=AGENT_OUT)
-    responses.post(
-        f"{BASE}/api/agents/{AGENT}/next",
-        json={"campaign_id": 12, "remaining": 1, "tasks": [TASK]},
-    )
+    for task in tasks:
+        responses.post(
+            f"{BASE}/api/agents/{AGENT}/next",
+            json={"campaign_id": 12, "remaining": 1, "tasks": [task]},
+        )
     asyncio.run(agent_mcp.set_image_limits(AGENT, 1000, 1.0))
-    asyncio.run(agent_mcp.next_task(AGENT))
+    text, _image = asyncio.run(agent_mcp.next_task(AGENT))
+    return json.loads(text)["reply"]
 
-    points = [{"image": 1, "x": 120, "y": 40}, {"lat": 1.6, "lon": 30.1}]
+
+@responses.activate
+def test_probes_pick_pixels_on_the_images_of_the_reply_they_name(browsers):
+    first = _start_task([TASK])
+
+    points = [{"reply": first, "image": 1, "x": 120, "y": 40}, {"lat": 1.6, "lon": 30.1}]
     text, image = asyncio.run(agent_mcp.probe_timeseries(AGENT, 5, points, [3]))
 
     method, task, probes, options, _limits = browsers.calls[-1]
     assert (method, task) == ("probe", TASK)
     # The drawn size, not the asked one, is what turns the pixel back into a place.
     shown = {**DEFAULT_VIEW, "columns": 4, "cell_px": 300}
-    assert probes == [{"view": shown, "image": 1, "x": 120, "y": 40}, points[1]]
+    assert probes == [{"view": shown, **points[0]}, points[1]]
     assert options == {"timeseries_ids": [3], "remove_cloudy": True, "smoothed": False}
-    assert json.loads(text)["views"][0]["meta"]["probes"] == [{"probe": "P1"}]
+    summary = json.loads(text)
+    assert summary["views"][0]["meta"]["probes"] == [{"probe": "P1"}]
     assert isinstance(image, Image)
-    # Picking again aims at the probe image the agent has just been shown.
-    assert agent_mcp._shown[AGENT] == [
-        {
-            "cells": [{"slice_id": 7, "zoom": 15}, {"timeseries_ids": [3]}],
-            "columns": 2,
-            "cell_px": 300,
-        }
-    ]
+
+    # A pick on the probe image and one on the earlier reply each resolve against their own.
+    second = summary["reply"]
+    asyncio.run(
+        agent_mcp.probe_timeseries(
+            AGENT,
+            5,
+            [
+                {"reply": second, "image": 1, "x": 10, "y": 10},
+                {"reply": first, "image": 1, "x": 10, "y": 10},
+            ],
+        )
+    )
+    probe_view = {
+        "cells": [{"slice_id": 7, "zoom": 15}, {"timeseries_ids": [3]}],
+        "columns": 2,
+        "cell_px": 300,
+    }
+    assert [p["view"] for p in browsers.calls[-1][2]] == [probe_view, shown]
 
 
 @responses.activate
-def test_probes_refuse_images_the_agent_was_not_shown(browsers):
-    responses.get(f"{BASE}/api/agents/{AGENT}", json=AGENT_OUT)
-    responses.post(
-        f"{BASE}/api/agents/{AGENT}/next",
-        json={"campaign_id": 12, "remaining": 1, "tasks": [TASK]},
-    )
-    asyncio.run(agent_mcp.set_image_limits(AGENT, 1000, 1.0))
-    asyncio.run(agent_mcp.next_task(AGENT))
+def test_probes_refuse_images_the_agent_was_not_shown_for_this_task(browsers):
+    first = _start_task([TASK, NEXT_TASK])
 
-    with pytest.raises(ToolError, match="had 1 image\\."):
-        asyncio.run(agent_mcp.probe_timeseries(AGENT, 5, [{"image": 2, "x": 1, "y": 1}]))
+    with pytest.raises(ToolError, match="has no image 2: it had 1 image\\."):
+        asyncio.run(
+            agent_mcp.probe_timeseries(AGENT, 5, [{"reply": first, "image": 2, "x": 1, "y": 1}])
+        )
+    with pytest.raises(ToolError, match="not one of your last"):
+        asyncio.run(
+            agent_mcp.probe_timeseries(AGENT, 5, [{"reply": first + 1, "image": 1, "x": 1, "y": 1}])
+        )
     with pytest.raises(ToolError, match="or"):
-        asyncio.run(agent_mcp.probe_timeseries(AGENT, 5, [{"image": 1, "x": 1}]))
+        asyncio.run(agent_mcp.probe_timeseries(AGENT, 5, [{"image": 1, "x": 1, "y": 1}]))
     with pytest.raises(ToolError, match="call next_task"):
         asyncio.run(agent_mcp.probe_timeseries(AGENT, 6, [{"lat": 1.0, "lon": 2.0}]))
+
+    # The views of an earlier task are centred on that task, not on this one.
+    asyncio.run(agent_mcp.next_task(AGENT))
+    with pytest.raises(ToolError, match="drawn for task 5, not 6"):
+        asyncio.run(
+            agent_mcp.probe_timeseries(AGENT, 6, [{"reply": first, "image": 1, "x": 1, "y": 1}])
+        )
 
 
 @responses.activate

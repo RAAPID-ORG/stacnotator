@@ -14,7 +14,8 @@ export type ProbeInput =
   | {
       /** The view that image was drawn from, with the columns and cell_px it was drawn at. */
       view: ViewSpec;
-      /** The image's number in the reply the agent saw it in, echoed back in the metadata. */
+      /** The reply the agent saw the image in and its number there, echoed in the metadata. */
+      reply: number;
       image: number;
       x: number;
       y: number;
@@ -27,7 +28,7 @@ export interface LocatedProbe {
   /** The map cell the pixel fell on, with the zoom and width it was drawn at. */
   cell?: ViewCell & { zoom: number };
   cellPx?: number;
-  from?: { image: number; x: number; y: number; cell: number };
+  from?: { reply: number; image: number; x: number; y: number; cell: number };
 }
 
 type LonLat = [number, number];
@@ -71,8 +72,8 @@ export function locateProbe(task: AgentTask, probe: ProbeInput): LocatedProbe {
       throw new Error(`(${probe.lat}, ${probe.lon}) is not a lat/lon`);
     return { lon: probe.lon, lat: probe.lat };
   }
-  const { view, image, x, y } = probe;
-  const where = `pixel (${x}, ${y}) of image ${image}`;
+  const { view, reply, image, x, y } = probe;
+  const where = `pixel (${x}, ${y}) of reply ${reply} image ${image}`;
   const columns = view.columns ?? DEFAULT_COLUMNS;
   if (!view.cell_px) throw new Error(`the size image ${image} was drawn at is not known`);
   const packed = packView(view.cells, columns, view.cell_px);
@@ -107,7 +108,7 @@ export function locateProbe(task: AgentTask, probe: ProbeInput): LocatedProbe {
     lat,
     cell: { ...cell, zoom },
     cellPx: rect.width,
-    from: { image, x, y, cell: rect.index },
+    from: { reply, image, x, y, cell: rect.index },
   };
 }
 

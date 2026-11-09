@@ -83,16 +83,18 @@ the annotation page. Typical use: get a zoomed-out view of the surroundings (one
 lower `zoom`, large `cell_px`), spot 2-3 fields that look like the task (or like each
 candidate label), then probe them to see whether their seasons match the task's.
 
-- A point is `{"image", "x", "y"}`: a pixel of an image in your **latest** reply (`image` is
-  its 1-based number there), counted in that image's own pixels from its top-left corner,
-  on a map cell; the pixel becomes a place through that cell's zoom. Or `{"lat", "lon"}`.
+- A point is `{"reply", "image", "x", "y"}`: a pixel of image `image` (1-based) of the
+  reply numbered `reply` (every `next_task`, `get_views` and `probe_timeseries` reply with
+  images has a `reply` number; your last 8 for the current task can be picked on), counted
+  in that image's own pixels from its top-left corner, on a map cell; the pixel becomes a
+  place through that cell's zoom. Or `{"lat", "lon"}`.
 - Aim at the middle of a uniform patch, not at its edge: a pixel is `m_per_px` wide.
 - The reply redraws each cell you clicked, in the order of your points, over the same ground
   (its size and zoom may change to fit your image limits), with every point marked `P1`,
   `P2`... at the exact pixel it resolved to, on every cell that covers it. Then one chart
   per time series: the task line plus a line per point in its marker's colour. **Check
   each marker sits where you meant before reading the charts.** If one is off, probe again
-  on that reply's image (now image 1), correcting `x`, `y`.
+  on that reply's image (its new `reply` number, image 1), correcting `x`, `y`.
 - `meta.probes` gives each point's `lat`, `lon` and `east_m`/`north_m` from the task;
   values are in `series[].rows` per `point`.
 

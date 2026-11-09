@@ -39,8 +39,8 @@ describe('locateProbe', () => {
   };
 
   it('finds the cell under the pixel and uses that cell zoom', () => {
-    const probe = locateProbe(TASK, { view, image: 2, x: 400 + 300, y: 200 });
-    expect(probe.from).toEqual({ image: 2, x: 700, y: 200, cell: 1 });
+    const probe = locateProbe(TASK, { view, reply: 7, image: 2, x: 400 + 300, y: 200 });
+    expect(probe.from).toEqual({ reply: 7, image: 2, x: 700, y: 200, cell: 1 });
     expect(probe.cell).toEqual({ basemap_id: 2, zoom: 12 });
     const metersEast = 100 * metersPerPixel(TASK.lat, 12);
     expect(offsetMeters(TASK, probe.lon, probe.lat).east_m).toBeCloseTo(metersEast, -1);
@@ -48,13 +48,15 @@ describe('locateProbe', () => {
   });
 
   it('puts the centre of a cell on the task', () => {
-    const probe = locateProbe(TASK, { view, image: 1, x: 200, y: 200 });
+    const probe = locateProbe(TASK, { view, reply: 7, image: 1, x: 200, y: 200 });
     expect(probe.lon).toBeCloseTo(TASK.lon, 9);
     expect(probe.lat).toBeCloseTo(TASK.lat, 9);
   });
 
   it('refuses pixels on a chart or outside the image', () => {
-    expect(() => locateProbe(TASK, { view, image: 1, x: 10, y: 450 })).toThrow(/time series/);
-    expect(() => locateProbe(TASK, { view, image: 1, x: 900, y: 10 })).toThrow(/outside/);
+    expect(() => locateProbe(TASK, { view, reply: 7, image: 1, x: 10, y: 450 })).toThrow(
+      /time series/
+    );
+    expect(() => locateProbe(TASK, { view, reply: 7, image: 1, x: 900, y: 10 })).toThrow(/outside/);
   });
 });
