@@ -202,7 +202,7 @@ describe('startCollectionFor', () => {
   });
 
   it('honours a pinned start that is still in the pool', () => {
-    usePrefsStore.getState().setPinnedStart(7, 30);
+    usePrefsStore.getState().setPinnedStart(1, 30);
     expect(startCollectionFor(catalog, view, [])).toBe(30);
     // Pinned to a hidden collection: the pin does not apply.
     expect(startCollectionFor(catalog, view, [10, 30])).toBe(20);
@@ -229,9 +229,11 @@ describe('startCollectionFor', () => {
     ).toBe(10);
   });
 
-  it('keeps an explicitly pinned start ahead of the view default', () => {
-    usePrefsStore.getState().setPinnedStart(7, 40);
-    expect(startCollectionFor(multiCatalog, multiSource.imagery_views[0], [])).toBe(40);
+  it('opens the first source at its own star, ignoring stars on later sources', () => {
+    usePrefsStore.getState().setPinnedStart(2, 40);
+    expect(startCollectionFor(multiCatalog, multiSource.imagery_views[0], [])).toBe(10);
+    usePrefsStore.getState().setPinnedStart(1, 20);
+    expect(startCollectionFor(multiCatalog, multiSource.imagery_views[0], [])).toBe(20);
   });
 
   it('updates the next-task default after a server order change without resetting navigation or layout edits', () => {

@@ -32,8 +32,8 @@ interface PrefsState {
   preloadTier: PreloadTier;
   /** Whether Skip may proceed without asking. */
   skipConfirmDisabled: boolean;
-  /** Which collection becomes active on task navigation, per view. Absent
-   *  means "use the default". */
+  /** Each source's starred starting collection, by source id. Absent means
+   *  "its earliest collection". */
   pinnedStart: Record<number, number>;
   /** Ids of guided tours already dismissed. */
   toursSeen: string[];
@@ -45,8 +45,8 @@ interface PrefsState {
   setPreloadTier: (tier: PreloadTier) => void;
   setTimeseriesChart: (patch: Partial<TimeseriesChartOptions>) => void;
   setSkipConfirmDisabled: (disabled: boolean) => void;
-  /** `null` clears the pin for that view. */
-  setPinnedStart: (viewId: number, collectionId: number | null) => void;
+  /** `null` clears the star for that source. */
+  setPinnedStart: (sourceId: number, collectionId: number | null) => void;
   markTourSeen: (tourId: string) => void;
   setLabelStyle: (labelId: number, patch: Partial<LabelStyle>) => void;
   resetLabelStyle: (labelId: number) => void;
@@ -77,12 +77,12 @@ export const usePrefsStore = create<PrefsState>()(
         set((s) => ({ timeseriesChart: { ...s.timeseriesChart, ...patch } })),
       setSkipConfirmDisabled: (skipConfirmDisabled) => set({ skipConfirmDisabled }),
 
-      setPinnedStart: (viewId, collectionId) =>
+      setPinnedStart: (sourceId, collectionId) =>
         set((s) => ({
           pinnedStart:
             collectionId === null
-              ? omit(s.pinnedStart, viewId)
-              : { ...s.pinnedStart, [viewId]: collectionId },
+              ? omit(s.pinnedStart, sourceId)
+              : { ...s.pinnedStart, [sourceId]: collectionId },
         })),
 
       markTourSeen: (tourId) =>
@@ -99,6 +99,14 @@ export const usePrefsStore = create<PrefsState>()(
       resetCustomMapOverride: (mapId) =>
         set((s) => ({ customMapOverrides: omit(s.customMapOverrides, mapId) })),
     }),
-    { name: 'annotation:prefs', storage: createJSONStorage(() => localStorage) }
+    {
+      name: 'annotation:prefs',
+      storage: createJSONStorage(() => localStorage),
+      version: 1,
+      // Version 0 keyed starred collections by view id; read as source ids
+      // they would star the wrong source.
+      migrate: (persisted, version) =>
+        (version < 1 ? { ...(persisted as object), pinnedStart: {} } : persisted) as PrefsState,
+    }
   )
 );

@@ -32,6 +32,8 @@ import {
 } from './stores/campaign';
 import { isAudienceMember } from '~/features/campaigns/utils/labellingPolicy';
 import { useImageryStore } from './stores/imagery';
+import { useLayoutStore } from './stores/layout';
+import { usePrefsStore } from './stores/prefs';
 import { currentTask, useTasksStore } from './stores/tasks';
 import { useWorkStore, type Tool } from './stores/work';
 import {
@@ -525,7 +527,14 @@ function mapBindings(): Binding[] {
   const cycleSource = (dir: 1 | -1) => {
     if (!view) return;
     rememberLastAddress(imagery().address);
-    imagery().cycleSourceAction(catalog, view, dir, lastBySource);
+    imagery().cycleSourceAction(
+      catalog,
+      view,
+      dir,
+      lastBySource,
+      usePrefsStore.getState().pinnedStart,
+      useLayoutStore.getState().currentLayout.hidden
+    );
   };
 
   const cycleView = () => {

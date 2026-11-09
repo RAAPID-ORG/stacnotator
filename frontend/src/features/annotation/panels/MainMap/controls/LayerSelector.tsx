@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { useLayoutStore } from '../../../stores/layout';
 import { type ImageryCatalog } from '../../../campaign/imagery';
 import { type SliceAddress } from '../../../campaign/imageryNav';
-import { restoreSnapshot } from '../../../campaign/imageryNav';
+import { restoreSnapshot, sourceStartCollectionId } from '../../../campaign/imageryNav';
+import { usePrefsStore } from '../../../stores/prefs';
 import { useImageryStore } from '../../../stores/imagery';
 import { HeaderSelect, type HeaderSelectOption } from '../../../components/HeaderSelect';
 import { rememberLastAddress } from '../../../keymap';
@@ -19,7 +20,12 @@ function addressFor(
   current: SliceAddress | null
 ): SliceAddress | null {
   if (current && current.sourceId === sourceId) return { ...current, vizId };
-  const collectionId = catalog.sources.get(sourceId)?.collections[0]?.id;
+  const collectionId = sourceStartCollectionId(
+    catalog,
+    sourceId,
+    usePrefsStore.getState().pinnedStart,
+    useLayoutStore.getState().currentLayout.hidden
+  );
   if (collectionId == null) return null;
   const base = restoreSnapshot(catalog, undefined, collectionId).address;
   return base ? { ...base, vizId } : null;

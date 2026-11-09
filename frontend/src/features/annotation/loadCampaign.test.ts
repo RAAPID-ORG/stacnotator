@@ -138,7 +138,7 @@ describe('loadCampaign happy path', () => {
     vi.mocked(listTasks).mockResolvedValue(apiSuccess(makeTaskList({ tasks: [task()] })));
     vi.mocked(listTaskSets).mockResolvedValue(apiSuccess([]));
 
-    usePrefsStore.getState().setPinnedStart(100, 20);
+    usePrefsStore.getState().setPinnedStart(1, 20);
 
     await loadCampaign(5, { now: 1000, currentUserId: 'u1' });
     expect(useImageryStore.getState().address?.collectionId).toBe(20);

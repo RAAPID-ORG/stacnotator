@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useLayoutStore } from '../../../stores/layout';
-import { collectionsInView, type ImageryCatalog } from '../../../campaign/imagery';
+import { type ImageryCatalog } from '../../../campaign/imagery';
+import { sourceStartCollectionId } from '../../../campaign/imageryNav';
 import { useCampaignStore } from '../../../stores/campaign';
 import { useImageryStore } from '../../../stores/imagery';
 import { usePrefsStore } from '../../../stores/prefs';
@@ -29,22 +30,23 @@ export function CollectionPicker({
   const editing = useLayoutStore((s) => s.editing);
   const address = useImageryStore((s) => s.address);
   const activateCollection = useImageryStore((s) => s.activateCollection);
-  const selectedViewId = useCampaignStore((s) => s.view?.id ?? null);
-  const taskStartCollectionId = useCampaignStore((s) => s.taskStartCollectionId);
-  const setTaskStartCollection = useCampaignStore((s) => s.setTaskStartCollection);
+  const hidden = useLayoutStore((s) => s.currentLayout.hidden);
+  const refreshTaskStart = useCampaignStore((s) => s.refreshTaskStart);
   const pinnedStart = usePrefsStore((s) => s.pinnedStart);
   const setPinnedStart = usePrefsStore((s) => s.setPinnedStart);
 
-  const collections = collectionsInView(catalog, { source_ids: sourceIds });
+  // Only the open source's collections: the source selector picks the source.
+  const sourceId =
+    address && sourceIds.includes(address.sourceId)
+      ? address.sourceId
+      : sourceIds.find((id) => (catalog.sources.get(id)?.collections.length ?? 0) > 0);
+  const collections = sourceId != null ? (catalog.sources.get(sourceId)?.collections ?? []) : [];
   if (collections.length === 0 || (collections.length === 1 && !expanded && !onExpandedChange))
     return null;
 
-  const pinnable = isTaskMode && selectedViewId != null;
-  const pinned = selectedViewId != null ? pinnedStart[selectedViewId] : undefined;
+  const pinnable = isTaskMode && sourceId != null;
   const effectiveStart =
-    pinned != null && collections.some((collection) => collection.id === pinned)
-      ? pinned
-      : taskStartCollectionId;
+    sourceId != null ? sourceStartCollectionId(catalog, sourceId, pinnedStart, hidden) : null;
 
   return (
     // timeline sidebar - it is what picks a window now.
@@ -61,11 +63,10 @@ export function CollectionPicker({
         menuTourName="collection-picker-menu"
         markedValue={pinnable ? effectiveStart : undefined}
         onMarkOption={
-          pinnable && selectedViewId != null
+          pinnable && sourceId != null
             ? (v) => {
-                const collectionId = Number(v);
-                setPinnedStart(selectedViewId, collectionId);
-                setTaskStartCollection(collectionId);
+                setPinnedStart(sourceId, Number(v));
+                refreshTaskStart();
               }
             : undefined
         }
