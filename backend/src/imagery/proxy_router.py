@@ -189,15 +189,18 @@ async def _proxy(target: TileTarget, z: int, x: int, y: int) -> Response:
     return Response(
         content=resp.content,
         media_type=_image_media_type(resp.headers.get("content-type")),
-        headers={"Cache-Control": "public, max-age=86400"},
+        headers={
+            "Cache-Control": "public, max-age=86400",
+            "Content-Security-Policy": "sandbox; default-src 'none'",
+        },
     )
 
 
 def _image_media_type(upstream: str | None) -> str:
-    """Never echo a non-image content type back from an image endpoint - the body
-    is upstream-controlled, so HTML here would render in the user's origin."""
-    if upstream and upstream.split(";")[0].strip().lower().startswith("image/"):
-        return upstream
+    if upstream:
+        media_type = upstream.split(";", 1)[0].strip().lower()
+        if media_type in {"image/png", "image/jpeg", "image/webp", "image/gif", "image/avif"}:
+            return media_type
     return "application/octet-stream"
 
 

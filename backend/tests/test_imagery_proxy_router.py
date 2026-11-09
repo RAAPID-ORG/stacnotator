@@ -56,12 +56,12 @@ def _clear_overrides():
 def upstream(monkeypatch):
     """A stubbed provider. Set ``content_type`` to change what it claims to return;
     ``log`` records the DB/fetch ordering the request produced."""
-    stub = SimpleNamespace(content_type="image/png", log=[])
+    stub = SimpleNamespace(content_type="image/png", content=b"tile", log=[])
 
     async def fake_get(url):
         stub.log.append("fetch")
         return SimpleNamespace(
-            content=b"tile",
+            content=stub.content,
             headers={"content-type": stub.content_type},
             raise_for_status=lambda: None,
         )
@@ -80,9 +80,32 @@ def test_session_closes_before_the_upstream_fetch(upstream):
     assert upstream.log == ["db", "close", "fetch"]
 
 
-def test_an_image_content_type_is_passed_through(upstream):
-    upstream.content_type = "image/webp"
-    assert TestClient(app).get(TILE_PATH).headers["content-type"] == "image/webp"
+@pytest.mark.parametrize(
+    ("content_type", "expected"),
+    [
+        ("image/webp", "image/webp"),
+        ("image/jpeg", "image/jpeg"),
+        ("IMAGE/PNG; charset=UTF-8", "image/png"),
+    ],
+)
+def test_a_raster_content_type_is_passed_through(upstream, content_type, expected):
+    upstream.content_type = content_type
+    resp = TestClient(app).get(TILE_PATH)
+
+    assert resp.headers["content-type"] == expected
+    assert resp.headers["content-security-policy"] == "sandbox; default-src 'none'"
+
+
+@pytest.mark.parametrize("content_type", ["image/svg+xml", "IMAGE/SVG+XML; charset=UTF-8"])
+def test_active_image_content_is_not_served_on_the_api_origin(upstream, content_type):
+    upstream.content_type = content_type
+    upstream.content = b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
+
+    resp = TestClient(app).get(TILE_PATH)
+
+    assert resp.headers["content-type"] == "application/octet-stream"
+    assert resp.headers["content-security-policy"] == "sandbox; default-src 'none'"
+    assert resp.headers["x-content-type-options"] == "nosniff"
 
 
 def test_a_non_image_content_type_is_not_echoed(upstream):

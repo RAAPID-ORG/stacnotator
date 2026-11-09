@@ -21,16 +21,50 @@ Feature work happens on `feature/*`, `fix/*`, `refactor/*`, or `hotfix/*` branch
 
 `.github/workflows/ci.yml` runs on every push and pull request to `main` and `develop`:
 
-| Job             | What it runs                                     | When                           |
-| --------------- | ------------------------------------------------ | ------------------------------ |
-| Secret scanning | Gitleaks                                         | every CI run                   |
-| Backend lint    | Ruff lint + format check (Python 3.12 via `uv`)  | every CI run                   |
-| Frontend lint   | ESLint, `tsc --noEmit`, Prettier check (Node 22) | every CI run                   |
-| Backend tests   | Dockerized `pytest`                              | `develop`/`main` + PRs to them |
-| Frontend E2E    | Playwright with mocked APIs                      | `main` + PRs to `main`         |
-| Docker build    | Production images (backend, tiler, frontend)     | `main` + PRs to `main`         |
+| Job                                 | What it runs                                                           | When                                                        |
+| ----------------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Secret scanning                     | Gitleaks                                                               | every CI run                                                |
+| Backend lint                        | Ruff lint + format check (Python 3.12 via `uv`)                        | every CI run                                                |
+| Frontend lint                       | ESLint, `tsc --noEmit`, Prettier check (Node 22)                       | every CI run                                                |
+| Backend tests                       | Dockerized `pytest`                                                    | `develop`/`main` + PRs to them                              |
+| Frontend E2E                        | Playwright with mocked APIs                                            | `main` + PRs to `main`                                      |
+| Docker build and vulnerability scan | Production images (backend, tiler, frontend) and frontend dependencies | every CI run                                                |
+| CodeQL                              | Python, JavaScript/TypeScript and GitHub Actions source-code analysis  | pushes/PRs to `main`/`develop`, weekly on `main`, or manual |
 
-Test and docker-build jobs only run after the lint jobs pass. Pushes to feature branches without an open PR trigger no CI.
+Backend tests and vulnerability scans run after the lint jobs pass. The required
+`Docker: Production Build` check reports whether all builds and scans succeeded,
+including a failure when prerequisite scans were skipped. Pushes to feature
+branches without an open PR trigger no CI.
+
+The reusable `vulnerability-scan.yml` workflow uses Trivy to scan production images
+for known OS and library vulnerabilities, and the frontend lockfile for dependency
+vulnerabilities, including development/build dependencies. All severities are
+reported in the workflow logs. High and critical findings block production CI
+deployment and manual dev deployment, including findings without an available fix,
+unless they are listed in `.trivyignore.yaml`. Scanner errors also block deployment.
+These scans cover newly built images, not continuous monitoring of deployed images.
+Deployment still rebuilds images, so the scans do not guarantee that the deployed
+artifacts contain exactly the same dependencies as the scanned images.
+
+Scanned builds pull current base images. The backend and tiler Dockerfiles apply
+Debian stable updates, remove unused mount tools, and clear setuid/setgid bits
+from system command directories before switching to their non-root users.
+This reduces privilege-escalation paths; it does not patch remaining library
+advisories.
+
+`.trivyignore.yaml` lists Debian advisories that have no fixed package and were
+triaged as not reachable from the backend or tiler. Each entry names its CVE,
+the affected packages and the reason, and expires on a set date. The report step
+still shows these findings. After an entry expires, the gate blocks on it again:
+recheck the reasoning, then extend the date or fix the finding. Add an entry only
+after the same triage; never raise the severity threshold instead.
+
+Tiler scans and deployments build the tiler's `main` branch unless the
+`TILER_REPO_REF` repository variable names another ref.
+
+The frontend overrides the SWA CLI's `adm-zip` and `devcert`'s `tmp` dependencies
+to patched releases outside their upstream version ranges. These overrides affect
+deployment tooling, not the browser bundle.
 
 ## Local checks before pushing
 

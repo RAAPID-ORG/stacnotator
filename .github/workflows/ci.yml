@@ -200,34 +200,27 @@ jobs:
           path: frontend/test-results/
           retention-days: 7
 
-  # Docker build verification production images  (main only) - Will want to do staging tests here later
+  vulnerability-scan:
+    name: "Docker: Build & Vulnerability Scan"
+    needs: [backend-lint, frontend-lint]
+    uses: ./.github/workflows/vulnerability-scan.yml
+    secrets:
+      TILER_REPO_TOKEN: ${{ secrets.TILER_REPO_TOKEN }}
+
   docker-build:
     name: "Docker: Production Build"
-    needs: [backend-lint, frontend-lint]
-    if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
+    needs: [vulnerability-scan]
+    if: always() && !cancelled()
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - name: Build backend image
-        run: docker build -t stacnotator-backend:ci ./backend
-
-      - name: Check out tiler repo
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-          repository: RAAPID-ORG/stacnotator-tiler
-          ref: ${{ vars.TILER_REPO_REF || 'main' }}
-          token: ${{ secrets.TILER_REPO_TOKEN }}
-          path: stacnotator-tiler
-
-      - name: Build tiler image
-        run: docker build -t stacnotator-tiler:ci ./stacnotator-tiler
-
-      - name: Build frontend image
-        run: docker build -t stacnotator-frontend:ci ./frontend
+      - name: Require successful builds and vulnerability scans
+        env:
+          SCAN_RESULT: ${{ needs.vulnerability-scan.result }}
+        run: |
+          if [ "$SCAN_RESULT" != success ]; then
+            echo "::error::Production image builds or vulnerability scans did not succeed."
+            exit 1
+          fi
 
   # Deploy to Azure production  (main only, push events only)
   deploy-prod:

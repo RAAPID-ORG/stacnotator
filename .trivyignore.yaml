@@ -1,0 +1,111 @@
+# Debian advisories without a fixed package that were triaged as not reachable
+# in the backend and tiler images. Each entry is limited to the listed packages
+# and expires so the triage is repeated. See docs/development.md.
+vulnerabilities:
+  - id: CVE-2025-69720
+    purls:
+      - pkg:deb/debian/ncurses-bin
+      - pkg:deb/debian/ncurses-base
+      - pkg:deb/debian/libncursesw6
+      - pkg:deb/debian/libtinfo6
+    statement: Affects the infocmp CLI only; the services never run it.
+    expired_at: 2027-05-09
+
+  - id: CVE-2026-76642
+    purls: &util-linux
+      - pkg:deb/debian/util-linux
+      - pkg:deb/debian/bsdutils
+      - pkg:deb/debian/libblkid1
+      - pkg:deb/debian/libmount1
+      - pkg:deb/debian/libsmartcols1
+      - pkg:deb/debian/libuuid1
+      - pkg:deb/debian/liblastlog2-2
+      - pkg:deb/debian/login
+    statement: >-
+      Needs privileged util-linux mount tooling; mount/umount are removed, no
+      setuid binaries remain, the services run non-root and do not load libmount.
+    expired_at: 2027-05-09
+
+  - id: CVE-2026-78408
+    purls: *util-linux
+    statement: >-
+      Needs privileged util-linux mount tooling; mount/umount are removed, no
+      setuid binaries remain, the services run non-root and do not load libmount.
+    expired_at: 2027-05-09
+
+  - id: CVE-2026-78409
+    purls: *util-linux
+    statement: >-
+      Debian marks the vulnerable code as introduced in 2.42; Trixie ships 2.41.
+      Mount tooling is also removed and the services run non-root.
+    expired_at: 2027-05-09
+
+  - id: CVE-2026-78410
+    purls: *util-linux
+    statement: >-
+      Needs privileged util-linux mount tooling; mount/umount are removed, no
+      setuid binaries remain, the services run non-root and do not load libmount.
+    expired_at: 2027-05-09
+
+  - id: CVE-2026-54369
+    purls:
+      - pkg:deb/debian/libacl1
+    statement: >-
+      Needs a privileged caller handling attacker-controlled ACL paths; no
+      service code path does this and the services run non-root.
+    expired_at: 2027-05-09
+
+  - id: CVE-2026-16742
+    purls:
+      - pkg:deb/debian/libsystemd0
+      - pkg:deb/debian/libudev1
+    statement: Affects systemd-homed, which is not installed in the images.
+    expired_at: 2027-05-09
+
+  - id: CVE-2026-9538
+    purls:
+      - pkg:deb/debian/perl-base
+    statement: Affects Perl Archive::Tar, which is not installed in the images.
+    expired_at: 2027-05-09
+
+  - id: CVE-2026-113351
+    purls: &expat
+      - pkg:deb/debian/libexpat1
+    statement: &expat-statement >-
+      Python uses its bundled Expat; the tiler's GDAL has no Expat-based drivers
+      compiled in and only opens GeoTIFFs, so no XML reaches system Expat.
+    expired_at: 2027-05-09
+
+  - id: CVE-2026-117610
+    purls: *expat
+    statement: *expat-statement
+    expired_at: 2027-05-09
+
+  - id: CVE-2026-118370
+    purls: *expat
+    statement: *expat-statement
+    expired_at: 2027-05-09
+
+  - id: CVE-2026-115506
+    purls: *expat
+    statement: *expat-statement
+    expired_at: 2027-05-09
+
+  - id: CVE-2026-119373
+    purls: &sqlite
+      - pkg:deb/debian/libsqlite3-0
+    statement: &sqlite-statement >-
+      Needs an attacker-supplied SQLite database, FTS5 query or session
+      changeset; only Python's sqlite3 module and liblastlog2 link the system
+      library, and the services use PostgreSQL and never open untrusted SQLite data.
+    expired_at: 2027-05-09
+
+  - id: CVE-2026-119374
+    purls: *sqlite
+    statement: *sqlite-statement
+    expired_at: 2027-05-09
+
+  - id: CVE-2026-119379
+    purls: *sqlite
+    statement: *sqlite-statement
+    expired_at: 2027-05-09
