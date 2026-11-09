@@ -24,11 +24,13 @@ import { createLayer, destroyLayer } from '~/shared/map/layers';
 import type { LayerSpec } from '~/shared/map/types';
 import type { ImageryCatalog } from '../campaign/imagery';
 import { sliceRaster } from '../campaign/tileUrls';
+import { probeColor } from '../map/compose';
 import { collectSeriesLabels, formatDateLabel } from '../panels/Timeseries/chartData';
 import { timeSeriesCache } from '../panels/Timeseries/cache';
 import { savitzkyGolay } from '../panels/Timeseries/smoothing';
 import { DEFAULT_TIMESERIES_CHART } from '../stores/prefs';
 import { metersPerPixel, packView, type CellRect } from './pack';
+import { lonLatToPixel } from './probe';
 import { withTaskScenes } from './scenes';
 import {
   DEFAULT_COLUMNS,
@@ -66,6 +68,11 @@ const BRIGHT_CHANNEL_MIN = 200;
 const JPEG_QUALITY = 0.9;
 const CLOUDY_DOT_COLOR = 'rgb(162, 159, 155)';
 const SERIES_COLORS = ['#2563eb', '#16a34a', '#dc2626', '#7c3aed', '#ea580c', '#0891b2'];
+/** A probe's lines take its marker colour, so several series at one probe differ by dash,
+ *  as on the annotation page. */
+const SERIES_DASHES = [[], [6, 3], [2, 2], [8, 3, 2, 3]];
+const PROBE_GAP_PX = 3;
+const PROBE_ARM_PX = 9;
 
 export interface RenderInput {
   task: AgentTask;
@@ -75,6 +82,8 @@ export interface RenderInput {
   catalog: ImageryCatalog;
   /** Where the offscreen maps are mounted: OpenLayers needs a laid-out element. */
   stage: HTMLElement;
+  /** Points marked P1, P2... on every map cell and charted beside the task. */
+  probes?: { lon: number; lat: number }[];
 }
 
 export interface RenderedImage {
@@ -86,6 +95,8 @@ interface CellMeta {
   i: number;
   row: number;
   col: number;
+  /** [x, y, width, height] in image pixels, which is where probes are aimed. */
+  rect: [number, number, number, number];
   kind: 'imagery' | 'basemap' | 'timeseries';
   /** Printed on the image, large enough to read at the size the model sees it. */
   label: string;
@@ -100,7 +111,7 @@ interface DrawnCell {
   metersPerPixel?: number;
 }
 
-type Place = Pick<CellMeta, 'i' | 'row' | 'col'>;
+type Place = Pick<CellMeta, 'i' | 'row' | 'col' | 'rect'>;
 
 /**
  * One packed image and the metadata the agent reads it with. The image is fitted to the
@@ -135,6 +146,7 @@ export async function renderView(input: RenderInput): Promise<RenderedImage> {
     i: rect.index,
     row: rowTops.indexOf(rect.y),
     col: Math.round(rect.x / cellPx),
+    rect: [rect.x, rect.y, rect.width, rect.height],
   });
 
   const isPoint = task.geometry_wkt.startsWith('POINT');
@@ -170,6 +182,8 @@ export async function renderView(input: RenderInput): Promise<RenderedImage> {
       drawFocus(ctx, rect, sidePx);
     }
     drawLabel(ctx, rect, meta);
+    if (image && input.probes?.length && typeof meta.zoom === 'number')
+      drawProbes(ctx, rect, task, meta.zoom, input.probes);
   }
 
   return {
@@ -262,7 +276,7 @@ async function drawCell(
     meta: {
       ...place,
       kind,
-      label: `${label}, z${Math.round(zoom)}`,
+      label: `${label}, z${Math.round(zoom * 100) / 100}`,
       ...details,
       zoom,
       m_per_px: Number(mpp.toFixed(2)),
@@ -428,15 +442,19 @@ async function drawChart(
   ids: number[],
   rect: CellRect,
   place: Place,
-  { task, campaign, stage }: RenderInput
+  { task, campaign, stage, probes = [] }: RenderInput
 ): Promise<DrawnCell> {
-  const { lat, lon } = task;
-  const data = (await timeSeriesCache.get(campaign.id, ids, { lat, lon })) ?? {};
+  const points = [{ lat: task.lat, lon: task.lon }, ...probes];
+  const data = await Promise.all(
+    points.map(async (point) => (await timeSeriesCache.get(campaign.id, ids, point)) ?? {})
+  );
   const series = ids.map((id) => campaign.time_series.find((t) => t.id === id));
-  const times = collectSeriesLabels(ids, data);
+  const times = collectSeriesLabels(ids, ...data);
   const { smoothing } = DEFAULT_TIMESERIES_CHART;
-  const lines = ids.map((id) => {
-    const byTime = new Map((data[id] ?? []).map((row) => [row.time, row]));
+  // One line per series at the task, then the same per probe.
+  const pairs = points.flatMap((_, p) => ids.map((id, i) => ({ id, i, p })));
+  const lines = pairs.map(({ id, p }) => {
+    const byTime = new Map((data[p][id] ?? []).map((row) => [row.time, row]));
     const raw = times.map((time) => {
       const row = byTime.get(time);
       return !row || (cell.remove_cloudy && row.cloud === 1) ? null : row.values;
@@ -459,17 +477,24 @@ async function drawChart(
     type: 'line',
     data: {
       labels: times.map(formatDateLabel),
-      datasets: ids.map((id, i) => {
-        const color = SERIES_COLORS[i % SERIES_COLORS.length];
-        const pointColors = lines[i].cloudy.map((cloudy) => (cloudy ? CLOUDY_DOT_COLOR : color));
+      datasets: pairs.map(({ id, i, p }, n) => {
+        const color = p === 0 ? SERIES_COLORS[i % SERIES_COLORS.length] : probeColor(p - 1);
+        const pointColors = lines[n].cloudy.map((cloudy) => (cloudy ? CLOUDY_DOT_COLOR : color));
+        const name = series[i]?.name ?? `Series ${id}`;
         return {
-          label: series[i]?.name ?? `Series ${id}`,
-          data: lines[i].shown,
+          label:
+            p > 0
+              ? `${ids.length > 1 ? `${name} ` : ''}P${p}`
+              : probes.length
+                ? `${name}, task`
+                : name,
+          data: lines[n].shown,
+          borderDash: p === 0 ? [] : SERIES_DASHES[i % SERIES_DASHES.length],
           borderColor: color,
           backgroundColor: color,
           pointBackgroundColor: pointColors,
           pointBorderColor: pointColors,
-          pointRadius: lines[i].raw.map((value) => (value == null ? 0 : 2)),
+          pointRadius: lines[n].raw.map((value) => (value == null ? 0 : 2)),
           spanGaps: true,
         };
       }),
@@ -503,16 +528,17 @@ async function drawChart(
       label: ['time series', cell.remove_cloudy ? 'cloudy removed' : 'grey dots cloudy']
         .concat(cell.smoothed ? ['smoothed'] : [])
         .join(', '),
-      series: ids.map((id, i) => ({
+      series: pairs.map(({ id, i, p }, n) => ({
         timeseries_id: id,
         name: series[i]?.name,
         index: series[i]?.ts_type,
+        ...(probes.length ? { point: p === 0 ? 'task' : `P${p}` } : {}),
         columns,
         rows: times.flatMap((time, t) => {
-          const value = lines[i].raw[t];
+          const value = lines[n].raw[t];
           if (value == null) return [];
-          const row = [time.slice(0, 10), round(value), lines[i].cloudy[t] ? 1 : 0];
-          const smooth = lines[i].shown[t];
+          const row = [time.slice(0, 10), round(value), lines[n].cloudy[t] ? 1 : 0];
+          const smooth = lines[n].shown[t];
           return [cell.smoothed && smooth != null ? [...row, round(smooth)] : row];
         }),
       })),
@@ -565,6 +591,89 @@ function drawFocus(ctx: CanvasRenderingContext2D, rect: CellRect, sidePx: number
     }
   }
   ctx.stroke();
+  ctx.restore();
+}
+
+/** Each probe as a numbered crosshair in its chart colour, open in the middle so the
+ *  probed pixel itself stays visible. */
+function drawProbes(
+  ctx: CanvasRenderingContext2D,
+  rect: CellRect,
+  task: AgentTask,
+  zoom: number,
+  probes: { lon: number; lat: number }[]
+) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(rect.x, rect.y, rect.width, rect.height);
+  ctx.clip();
+  ctx.font = `bold ${fontPx(rect)}px sans-serif`;
+  ctx.textBaseline = 'middle';
+  const height = labelHeight(rect);
+  const marks = probes.flatMap((probe, index) => {
+    const [px, py] = lonLatToPixel([task.lon, task.lat], zoom, rect.width, rect.height, [
+      probe.lon,
+      probe.lat,
+    ]);
+    if (px < 0 || py < 0 || px > rect.width || py > rect.height) return [];
+    return [{ index, x: rect.x + px, y: rect.y + py }];
+  });
+  const reach = PROBE_GAP_PX + PROBE_ARM_PX;
+  type Box = [number, number, number, number];
+  const overlaps = ([l, t, w, h]: Box, [l2, t2, w2, h2]: Box) =>
+    l < l2 + w2 && l2 < l + w && t < t2 + h2 && t2 < t + h;
+  const crosses: Box[] = marks.map(({ x, y }) => [x - reach, y - reach, 2 * reach, 2 * reach]);
+  const placed: Box[] = [];
+  // Each label goes in the first corner around its crosshair that stays in the cell, clear of
+  // the cell title, other labels and other crosshairs; points picked close together stay named.
+  for (const { index, x, y } of marks) {
+    const text = `P${index + 1}`;
+    const width = ctx.measureText(text).width + 8;
+    const right = x + PROBE_GAP_PX + 2;
+    const left = x - PROBE_GAP_PX - 2 - width;
+    const corners: Box[] = [
+      [right, y - reach - height, width, height],
+      [left, y - reach - height, width, height],
+      [right, y + reach, width, height],
+      [left, y + reach, width, height],
+    ];
+    const inCell = ([l, t, w, h]: Box) =>
+      l >= rect.x &&
+      t >= rect.y + height &&
+      l + w <= rect.x + rect.width &&
+      t + h <= rect.y + rect.height;
+    const box =
+      corners.find((c) => inCell(c) && ![...placed, ...crosses].some((o) => overlaps(c, o))) ??
+      corners.find((c) => inCell(c) && !placed.some((o) => overlaps(c, o))) ??
+      corners.find(inCell) ??
+      corners[0];
+    placed.push(box);
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    ctx.fillRect(box[0], box[1], width, height);
+    ctx.fillStyle = probeColor(index);
+    ctx.fillText(text, box[0] + 4, box[1] + height / 2);
+  }
+  for (const { index, x, y } of marks) {
+    const arms = () => {
+      ctx.beginPath();
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ]) {
+        ctx.moveTo(x + dx * PROBE_GAP_PX, y + dy * PROBE_GAP_PX);
+        ctx.lineTo(x + dx * reach, y + dy * reach);
+      }
+      ctx.stroke();
+    };
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 4;
+    arms();
+    ctx.strokeStyle = probeColor(index);
+    ctx.lineWidth = 2;
+    arms();
+  }
   ctx.restore();
 }
 

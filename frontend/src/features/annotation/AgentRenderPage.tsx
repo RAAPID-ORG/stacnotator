@@ -4,18 +4,29 @@ import { authManager } from '~/features/auth';
 import type { AuthAdapter } from '~/features/auth/core/authAdapter';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import { buildImageryCatalog } from './campaign/imagery';
+import { locateProbe, offsetMeters, type ProbeInput } from './agents/probe';
 import { renderView, type RenderedImage } from './agents/render';
 import {
   campaignContext,
   checkView,
   defaultViews,
+  fitCellPx,
   type AgentTask,
   type CampaignContext,
   type ImageLimits,
+  type ViewCell,
   type ViewSpec,
 } from './agents/view';
 
 type RenderedView = { view: ViewSpec } & (RenderedImage | { error: string });
+
+interface ProbeOptions {
+  timeseries_ids?: number[];
+  remove_cloudy?: boolean;
+  smoothed?: boolean;
+}
+
+const MAX_PROBES = 6;
 
 interface AgentPageApi {
   context(): CampaignContext;
@@ -23,6 +34,14 @@ interface AgentPageApi {
   render(task: AgentTask, views: ViewSpec[], limits: ImageLimits): Promise<RenderedView[]>;
   /** Draws in the background, one view at a time, so a later render is instant. */
   preload(tasks: AgentTask[], views: ViewSpec[], limits: ImageLimits): void;
+  /** Time series at points the agent picked, beside the task's, with the map cells they
+   *  were picked on redrawn with each point marked so the agent can check its aim. */
+  probe(
+    task: AgentTask,
+    probes: ProbeInput[],
+    options: ProbeOptions,
+    limits: ImageLimits
+  ): Promise<RenderedView>;
 }
 
 declare global {
@@ -86,6 +105,70 @@ function createApi(campaign: CampaignOutFull, stage: HTMLElement): AgentPageApi 
       void (async () => {
         for (const task of tasks) for (const view of views) await draw(task, view, limits);
       })();
+    },
+    probe: async (task, inputs, options, limits) => {
+      let view: ViewSpec = { cells: [] };
+      try {
+        if (!inputs.length || inputs.length > MAX_PROBES)
+          throw new Error(`probe 1-${MAX_PROBES} points`);
+        const probes = inputs.map((input) => locateProbe(task, input));
+        const ids = [
+          ...new Set(options.timeseries_ids ?? context.timeseries.map((t) => t.timeseries_id)),
+        ];
+        if (!ids.length) throw new Error('this campaign has no time series');
+        const unknown = ids.filter((id) => !campaign.time_series.some((t) => t.id === id));
+        if (unknown.length) throw new Error(`unknown time series ${unknown.join(', ')}`);
+
+        const mapCells = new Map<string, { cell: ViewCell & { zoom: number }; px: number }>();
+        for (const { cell, cellPx } of probes)
+          if (cell && cellPx) mapCells.set(JSON.stringify([cell, cellPx]), { cell, px: cellPx });
+        const maps = [...mapCells.values()];
+        const first = inputs.find((input) => 'view' in input);
+        view = {
+          cells: [
+            ...maps.map(({ cell }) => cell),
+            ...ids.map((id) => ({
+              timeseries_ids: [id],
+              remove_cloudy: options.remove_cloudy,
+              smoothed: options.smoothed,
+            })),
+          ],
+          columns: maps.length > 4 ? 3 : maps.length || 2,
+          cell_px: first && 'view' in first ? first.view.cell_px : 512,
+        };
+        // Redraw each map over the ground it showed, whatever size its cell is now, so every
+        // point picked on it stays in frame.
+        const cellPx = fitCellPx(view, limits);
+        maps.forEach(({ cell, px }, i) => {
+          view.cells[i] = {
+            ...cell,
+            zoom: Math.round((cell.zoom + Math.log2(cellPx / px)) * 100) / 100,
+          };
+        });
+        checkView(view);
+        const image = await renderView({
+          task,
+          view,
+          limits,
+          campaign,
+          catalog,
+          stage,
+          probes,
+        });
+        const meta = {
+          ...image.meta,
+          probes: probes.map(({ lon, lat, from }, i) => ({
+            probe: `P${i + 1}`,
+            lat: Number(lat.toFixed(6)),
+            lon: Number(lon.toFixed(6)),
+            ...offsetMeters(task, lon, lat),
+            ...(from ? { from } : {}),
+          })),
+        };
+        return { view, ...image, meta };
+      } catch (err) {
+        return { view, error: extractErrorMessage(err, 'Probing failed') };
+      }
     },
   };
 }

@@ -13,7 +13,7 @@ import functools
 import json
 import subprocess
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlparse
 
 from mcp.server.mcpserver import Image, MCPServer
@@ -54,12 +54,24 @@ class ViewSpec(TypedDict, total=False):
     zoom: float
 
 
+class ProbePoint(TypedDict, total=False):
+    """Either image with x and y: a pixel of an image from your latest reply (x right, y down
+    from that image's top-left corner, in its own pixels), on a map cell. Or lat and lon."""
+
+    image: int
+    x: float
+    y: float
+    lat: float
+    lon: float
+
+
 server = MCPServer(
     "stacnotator",
     instructions=(
         "Label STACNotator campaign tasks from rendered imagery. Register one agent per "
         "worker, read the campaign guide in its context, then loop next_task -> "
-        "(get_views) -> submit_label or skip_task, always passing your own agent_id."
+        "(get_views, probe_timeseries) -> submit_label or skip_task, always passing your own "
+        "agent_id."
     ),
 )
 
@@ -69,6 +81,9 @@ _agents: dict[str, dict[str, Any]] = {}
 _default_views: dict[str, list[ViewSpec]] = {}
 _current_tasks: dict[str, dict[str, Any]] = {}
 _image_limits: dict[str, dict[str, float]] = {}
+# The views behind the images of each agent's latest reply, at the size they were drawn,
+# so a probe's pixel can be turned back into a place.
+_shown: dict[str, list[ViewSpec]] = {}
 # Task assignment locks the campaign's whole open pool, so a registration running alongside
 # another would find every task taken and get none.
 _registering = asyncio.Lock()
@@ -193,15 +208,19 @@ async def _bundle(
     entry names the image it corresponds to, since failed views have none."""
     images: list[str | Image] = []
     views = []
+    shown: list[ViewSpec] = []
     for view in rendered:
         entry: dict[str, Any] = {"view": view["view"]}
         if "image_base64" in view:
             images.append(Image(data=base64.b64decode(view["image_base64"]), format="jpeg"))
             entry["image"] = len(images)
             entry["meta"] = view["meta"]
+            grid = view["meta"].get("grid", {})
+            shown.append(cast(ViewSpec, {**view["view"], **grid}))
         else:
             entry["error"] = view["error"]
         views.append(entry)
+    _shown[agent_id] = shown
 
     drawn = [view["image_base64"] for view in rendered if "image_base64" in view]
     agent = await _agent(agent_id)
@@ -225,7 +244,7 @@ async def login(url: str) -> str:
     except StacnotatorError as exc:
         raise ToolError(str(exc)) from exc
     if url != _session_url:
-        for state in (_agents, _default_views, _current_tasks, _image_limits):
+        for state in (_agents, _default_views, _current_tasks, _image_limits, _shown):
             state.clear()
     _session_url = url
     _signed_in_http.cache_clear()
@@ -377,6 +396,58 @@ async def get_views(agent_id: str, task_id: int, views: list[ViewSpec]) -> list[
         raise ToolError("Pass 1-8 views.")
     rendered = await _on_page(agent_id, "render", task, views, _limits_of(agent_id))
     return await _bundle(agent_id, {"task": task}, rendered)
+
+
+@server.tool(structured_output=False)
+async def probe_timeseries(
+    agent_id: str,
+    task_id: int,
+    points: list[ProbePoint],
+    timeseries_ids: list[int] | None = None,
+    remove_cloudy: bool = True,
+    smoothed: bool = False,
+) -> list[str | Image]:
+    """Load the time series at 1-6 points you pick on a map, charted beside the task's own,
+    to compare places that look alike (or unlike) with the task.
+
+    points: {"image", "x", "y"} picks the pixel at x, y of that image (1-based, from your
+    latest next_task, get_views or probe_timeseries reply), measured in that image's own
+    pixels from its top-left corner; meta.cells[i].rect gives each cell's [x, y, w, h].
+    It must fall on a map cell; the cell's zoom turns the pixel into a place. Or
+    {"lat", "lon"}. timeseries_ids: default all of the campaign's, one chart each.
+
+    Returns one image: each map cell a point was picked on, redrawn over the same ground (its
+    size and zoom may change to fit your limits) with every point it covers marked P1, P2...
+    at the exact pixel it resolved to, then the charts with a line for the task and one per
+    point in its marker's colour. meta.probes gives each point's lat,
+    lon, east_m and north_m from the task. Check every marker sits where you meant before
+    reading the chart; pick again on this image to correct one.
+    """
+    task = _current_tasks.get(agent_id)
+    if task is None or task["task_id"] != task_id:
+        raise ToolError(f"Task {task_id} is not this agent's current task: call next_task.")
+    if not 1 <= len(points) <= 6:
+        raise ToolError("Pass 1-6 points.")
+    shown = _shown.get(agent_id, [])
+    probes: list[dict[str, Any]] = []
+    for point in points:
+        if {"image", "x", "y"} <= point.keys() and not {"lat", "lon"} & point.keys():
+            image = point["image"]
+            if not 1 <= image <= len(shown):
+                count = f"{len(shown)} image{'' if len(shown) == 1 else 's'}"
+                raise ToolError(f"Image {image} is not in your latest reply, which had {count}.")
+            probes.append({"view": shown[image - 1], **point})
+        elif {"lat", "lon"} == point.keys():
+            probes.append(dict(point))
+        else:
+            raise ToolError('Each point is {"image", "x", "y"} or {"lat", "lon"}.')
+    options = _without_none(
+        {"timeseries_ids": timeseries_ids, "remove_cloudy": remove_cloudy, "smoothed": smoothed}
+    )
+    rendered = await _on_page(agent_id, "probe", task, probes, options, _limits_of(agent_id))
+    if "error" in rendered:
+        raise ToolError(rendered["error"])
+    return await _bundle(agent_id, {"task": task}, [rendered])
 
 
 @server.tool(structured_output=False)

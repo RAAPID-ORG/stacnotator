@@ -108,6 +108,13 @@ sequenceDiagram
   the season, zoomed on the point, the time series and a basemap pair); the agent then calls
   `get_views` on the same point as often as it needs for other dates, zooms, cell sizes,
   visualizations or basemaps. Drawn views are cached, so asking again costs nothing.
+- **Probing.** `probe_timeseries` is the agent's timeseries tool: it clicks up to 6 places
+  as pixels of an image it was just shown (or as lat/lon), and gets the time series there
+  charted beside the task's. The MCP server remembers the views behind its latest images at
+  the size they were drawn; the page finds the cell under each pixel and turns the pixel
+  into a place with that cell's zoom and OpenLayers' own resolution, the inverse of how the
+  cell was drawn. The reply redraws the clicked cells with each point marked at the pixel it
+  resolved to, so the agent can check its aim and click again.
 - **Preloading.** Every `next_task` draws the agent's default views for its next two tasks in
   the background, so a steady loop gets its images without waiting. Default views live in
   the MCP server's memory and reset when it restarts.
