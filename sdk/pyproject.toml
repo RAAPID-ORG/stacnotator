@@ -15,9 +15,12 @@ dependencies = [
 
 [project.optional-dependencies]
 agent = ["mcp>=2.2,<3", "playwright>=1.47"]
+# Labelling through a model API (stacnotator-label) instead of a coding agent.
+api = ["stacnotator-sdk[agent]", "openai>=2", "azure-identity>=1.19"]
 
 [project.scripts]
 stacnotator-mcp = "stacnotator.agent_mcp:main"
+stacnotator-label = "stacnotator.agent_runner:main"
 
 [dependency-groups]
 dev = [
@@ -30,6 +33,8 @@ dev = [
     # The agent MCP server is type-checked and tested with the rest of the SDK.
     "mcp>=2.2,<3",
     "playwright>=1.47",
+    "openai>=2",
+    "azure-identity>=1.19",
 ]
 
 [build-system]

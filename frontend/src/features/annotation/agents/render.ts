@@ -200,6 +200,12 @@ export async function renderView(input: RenderInput): Promise<RenderedImage> {
   };
 }
 
+/** Tiles that were still loading when a view was drawn: drawing it again can fill them. A
+ *  failed tile is no data (MPC answers 204 where a date has no scene), which redrawing never
+ *  fills. */
+export const hasMissingTiles = ({ meta }: RenderedImage): boolean =>
+  (meta.cells as CellMeta[]).some((cell) => cell.tiles_missing === true);
+
 const kindOf = (cell: ViewCell): CellMeta['kind'] =>
   cell.timeseries_ids != null ? 'timeseries' : cell.basemap_id != null ? 'basemap' : 'imagery';
 
@@ -281,6 +287,7 @@ async function drawCell(
       zoom,
       m_per_px: Number(mpp.toFixed(2)),
       ...(warning ? { warning } : {}),
+      ...(!complete ? { tiles_missing: true } : {}),
     },
   };
 }

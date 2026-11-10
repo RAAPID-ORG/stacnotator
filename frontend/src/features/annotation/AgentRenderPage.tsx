@@ -11,7 +11,7 @@ import {
   type ProbeInput,
   type ProbeOptions,
 } from './agents/probe';
-import { renderView, type RenderedImage } from './agents/render';
+import { hasMissingTiles, renderView, type RenderedImage } from './agents/render';
 import {
   campaignContext,
   checkView,
@@ -84,7 +84,10 @@ function createApi(campaign: CampaignOutFull, stage: HTMLElement): AgentPageApi 
         return renderView({ task, view, limits, campaign, catalog, stage });
       })
       .then(
-        (image): RenderedView => ({ view, ...image }),
+        (image): RenderedView => {
+          if (hasMissingTiles(image)) drawn.delete(key);
+          return { view, ...image };
+        },
         (err: unknown): RenderedView => {
           drawn.delete(key);
           return { view, error: extractErrorMessage(err, 'Rendering failed') };
