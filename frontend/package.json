@@ -20,6 +20,12 @@
     "benchmark:campaign-113": "RUN_CAMPAIGN_BENCHMARK=1 playwright test e2e/campaign-113-benchmark.spec.ts --project=chromium --workers=1 --reporter=line"
   },
   "overrides": {
+    "@azure/static-web-apps-cli": {
+      "adm-zip": "^0.6.1",
+      "devcert": {
+        "tmp": "^0.2.6"
+      }
+    },
     "esbuild": "^0.28.1",
     "@grpc/grpc-js": "^1.14.6",
     "js-yaml": "^4.3.2"

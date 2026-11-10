@@ -515,11 +515,10 @@ test.describe('Submit body integrity', () => {
     expect(lastAnnotate(api.requests)!.body.label_id).toBe(1);
   });
 
-  test('confidence clamps to [1, 5]', async ({ annotationPage, api }) => {
-    for (let i = 0; i < 10; i++) await annotationPage.keyboard.press('q');
+  test('confidence wraps around at 1 and 5', async ({ annotationPage, api }) => {
+    await annotationPage.keyboard.press('Shift+1');
+    await annotationPage.keyboard.press('q');
     await selectAndSubmit(annotationPage, '1');
-    const req = lastAnnotate(api.requests)!;
-    expect(req.body.confidence).toBeGreaterThanOrEqual(1);
-    expect(req.body.confidence).toBeLessThanOrEqual(5);
+    expect(lastAnnotate(api.requests)!.body.confidence).toBe(5);
   });
 });

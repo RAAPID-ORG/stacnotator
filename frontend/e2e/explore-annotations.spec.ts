@@ -9,6 +9,7 @@ import {
   EXPLORE_ANN_SW_POLYGON,
   EXPLORE_CENTER,
   TASK_3,
+  makeCreateAnnotationResponse,
 } from './fixtures/mock-data';
 import {
   assertCoordsMatch,
@@ -46,7 +47,10 @@ async function loadExplore(
   });
   await page.goto('/projects/7/campaigns/42/annotate?mode=explore');
   await page.waitForSelector('[data-tour="toolbar"]', { timeout: 15_000 });
-  await page.locator('[title="Pan (P)"]').waitFor({ state: 'visible', timeout: 10_000 });
+  await page.getByRole('button', { name: 'Pan (P)', exact: true }).waitFor({
+    state: 'visible',
+    timeout: 10_000,
+  });
   // Map laid out -> minimap reports a centre.
   await page
     .locator('[data-testid="viewport-center"]')
@@ -55,7 +59,7 @@ async function loadExplore(
   api.clear();
 }
 
-const tool = (page: Page, title: string) => page.locator(`[title="${title}"]`);
+const tool = (page: Page, name: string) => page.getByRole('button', { name, exact: true });
 const controls = (page: Page) => page.locator('[data-tour="controls"]');
 const ACTIVE = /bg-brand-50/;
 
@@ -74,6 +78,97 @@ test.describe('Explore renders', () => {
     await expect(tool(annotationPage, 'Edit (E)')).toBeVisible();
     await expect(tool(annotationPage, 'Probe time series (T)')).toBeVisible();
     await expect(annotationPage.locator('button', { hasText: /^(Submit|Update)$/ })).toHaveCount(0);
+  });
+
+  test('tool icons show compact hover labels without an expand toggle', async ({
+    annotationPage: page,
+  }) => {
+    const tools = controls(page).locator('#explore-tools');
+    const annotate = tool(page, 'Annotate (R)');
+    await expect(tools).toHaveText('');
+    await annotate.hover();
+    const tooltip = page.getByRole('tooltip');
+    await expect(tooltip).toHaveText('Annotate (R)');
+    const bubble = await tooltip.boundingBox();
+    expect(bubble!.width).toBeLessThan(180);
+    expect(bubble!.height).toBeLessThan(40);
+    await expect(annotate).toHaveAttribute('aria-pressed', 'true');
+    await expect(controls(page).getByRole('button', { name: /tool names/i })).toHaveCount(0);
+    await tool(page, 'Edit (E)').click();
+    await expect(tool(page, 'Edit (E)')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  test('main map explains Pan and Edit and clears the hint for Annotate', async ({
+    annotationPage: page,
+  }) => {
+    const hint = page.locator('[data-panel-id="main"]').getByTestId('map-tool-hint');
+    await tool(page, 'Pan (P)').click();
+    await expect(hint).toHaveText('Choose the Annotate tool (R) to draw more.');
+    await tool(page, 'Edit (E)').click();
+    await expect(hint).toHaveText('Click an annotation on the map to edit it.');
+    await tool(page, 'Annotate (R)').click();
+    await expect(hint).toHaveCount(0);
+    await tool(page, 'Pan (P)').click();
+    await expect(hint).toBeVisible();
+    await page.keyboard.press('m');
+    await expect(hint).toHaveCount(0);
+  });
+
+  test('undo and redo a drawn shape only in Explore mode', async ({ annotationPage: page }) => {
+    let annotation = makeCreateAnnotationResponse({ label_id: 1 }, 9009);
+    const replayed: boolean[] = [];
+    await page.route('**/api/campaigns/42/annotations', async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      expect(route.request().headers()['x-annotation-history']).toBe('true');
+      annotation = makeCreateAnnotationResponse(route.request().postDataJSON(), 9009);
+      await route.fulfill({
+        headers: {
+          'X-Annotation-Action': '737a2912-c361-454c-b4c1-51948ebf934a',
+          'Access-Control-Expose-Headers': 'X-Annotation-Action',
+        },
+        json: annotation,
+      });
+    });
+    await page.route('**/api/campaigns/42/annotation-actions/*', async (route) => {
+      const { undo } = route.request().postDataJSON();
+      replayed.push(undo);
+      await route.fulfill({
+        json: {
+          annotations: undo ? [] : [annotation],
+          deleted_ids: undo ? [annotation.id] : [],
+        },
+      });
+    });
+    const mapActions = page.locator('[data-panel-id="main"] [data-tour="map-actions"]');
+    const undo = mapActions.getByRole('button', { name: 'Undo labelling action', exact: true });
+    const redo = mapActions.getByRole('button', { name: 'Redo labelling action', exact: true });
+    await expect(
+      page.locator('[data-tour="toolbar"]').getByRole('button', { name: 'Undo labelling action' })
+    ).toHaveCount(0);
+    await expect(undo).toBeDisabled();
+    await expect(redo).toBeDisabled();
+    await page.keyboard.press('1');
+    await Promise.all([waitForCreate(page), clickMapCenter(page)]);
+    await expect(undo).toBeEnabled();
+
+    await page.keyboard.press('m');
+    await expect(undo).toHaveCount(0);
+    await expect(redo).toHaveCount(0);
+    await page.keyboard.press('Control+z');
+    expect(replayed).toEqual([]);
+    await page.keyboard.press('m');
+    await expect(undo).toBeEnabled();
+
+    await undo.click();
+    await expect(redo).toBeEnabled();
+    await page.keyboard.press('Control+Shift+z');
+    await expect(redo).toBeDisabled();
+    await expect(undo).toBeEnabled();
+    await page.keyboard.press('Meta+z');
+    await expect(redo).toBeEnabled();
+    await redo.click();
+    await expect(redo).toBeDisabled();
+    expect(replayed).toEqual([true, false, true, false]);
   });
 
   test('does not bulk-load every annotation on open (served as tiles instead)', async ({
@@ -99,6 +194,30 @@ test.describe('Explore renders', () => {
 
   test('default active tool is Annotate', async ({ annotationPage }) => {
     await expect(tool(annotationPage, 'Annotate (R)')).toHaveClass(ACTIVE);
+  });
+
+  test('a shape comment saves and remains when reopened from its annotation link', async ({
+    annotationPage: page,
+    api,
+  }) => {
+    const url = `/projects/7/campaigns/42/annotate?mode=explore&annotation=${EXPLORE_ANN_CENTER.id}`;
+    await page.goto(url);
+    const comment = controls(page).getByRole('textbox', { name: 'Comment', exact: true });
+    await expect(comment).toBeVisible();
+    await comment.fill('Trees partly obscured by cloud');
+    await Promise.all([
+      waitForUpdate(page),
+      controls(page).getByRole('button', { name: 'Save changes', exact: true }).click(),
+    ]);
+    const update = api.requests.find(
+      (request) =>
+        request.method === 'PUT' &&
+        request.pathname.endsWith(`/annotations/${EXPLORE_ANN_CENTER.id}`)
+    );
+    expect(update?.body).toEqual({ comment: 'Trees partly obscured by cloud' });
+    await expect(controls(page).getByRole('button', { name: 'Save changes' })).toBeDisabled();
+    await page.goto(url);
+    await expect(comment).toHaveValue('Trees partly obscured by cloud');
   });
 });
 
@@ -128,14 +247,22 @@ test.describe('Tools and label selection', () => {
   });
 
   test('1 / 2 / 3 select the label, show ✓, and switch to Annotate', async ({ annotationPage }) => {
+    const hint = annotationPage.locator('[data-panel-role="main-map"]').getByTestId('label-hint');
     await annotationPage.keyboard.press('1');
     await expect(tool(annotationPage, 'Annotate (R)')).toHaveClass(ACTIVE);
     await expect(controls(annotationPage)).toContainText('✓ Tree');
-    await expect(controls(annotationPage)).toContainText('click the map to draw a point');
+    await expect(hint).toHaveText('Tree - click the map to draw a point.');
+    await expect(controls(annotationPage).getByTestId('label-hint')).toHaveCount(0);
 
     await annotationPage.keyboard.press('2');
     await expect(controls(annotationPage)).toContainText('✓ Field');
-    await expect(controls(annotationPage)).toContainText('click the map to draw a polygon');
+    await expect(hint).toHaveText(
+      'Field - click the map to draw a polygon. Click the first point or press Enter to finish.'
+    );
+    await annotationPage.keyboard.press('3');
+    await expect(hint).toHaveText('Road - click the map to draw a line.');
+    await annotationPage.keyboard.press('p');
+    await expect(hint).toHaveCount(0);
   });
 
   test('label rows show the geometry icon per type', async ({ annotationPage }) => {

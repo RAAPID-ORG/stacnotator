@@ -101,14 +101,16 @@ export const Tooltip = ({
             style={
               spot ? { left: spot.left, top: spot.top } : { left: 0, top: 0, visibility: 'hidden' }
             }
-            // Long comments in a narrow bubble run out of height; they get a wider one.
-            className={`fixed z-[100] max-w-[calc(100vw-16px)] pointer-events-none ${
-              text.length > 240 ? 'w-96' : 'w-64'
+            role="tooltip"
+            className={`fixed z-[100] w-max pointer-events-none ${
+              text.length > 240
+                ? 'max-w-[min(24rem,calc(100vw-16px))]'
+                : 'max-w-[min(16rem,calc(100vw-16px))]'
             }`}
           >
             <div
               style={{ maxHeight: spot?.maxHeight }}
-              className={`overflow-hidden px-2.5 py-2 ${tone[variant].bubble} text-white text-[11px] leading-relaxed rounded-md shadow-lg whitespace-pre-wrap`}
+              className={`overflow-hidden break-words px-2 py-1 ${tone[variant].bubble} text-white text-[11px] leading-snug rounded shadow-sm whitespace-pre-wrap`}
             >
               {text}
             </div>

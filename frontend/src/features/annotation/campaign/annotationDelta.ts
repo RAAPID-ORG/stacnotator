@@ -47,12 +47,16 @@ export const pendingCount = (delta: AnnotationDelta): number => delta.pending.si
  * ours even when the poll hands it back, and a shape we deleted is not
  * resurrected by a poll that ran before the delete landed.
  */
-export function withWrites(delta: AnnotationDelta, writes: DeltaWrite[]): AnnotationDelta {
+export function withWrites(
+  delta: AnnotationDelta,
+  writes: DeltaWrite[],
+  restoreDeleted = false
+): AnnotationDelta {
   if (writes.length === 0) return delta;
   const pending = new Map(delta.pending);
   for (const write of writes) {
     const existing = pending.get(write.id);
-    if (existing === null) continue;
+    if (existing === null && !restoreDeleted) continue;
     pending.set(write.id, {
       ...write,
       origin: existing?.origin === 'local' ? 'local' : write.origin,

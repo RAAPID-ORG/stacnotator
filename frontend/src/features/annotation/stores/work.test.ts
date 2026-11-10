@@ -570,6 +570,43 @@ describe('what the tiles have not caught up with', () => {
     expect(deltaIds(useWorkStore.getState().delta)).toEqual(new Set([7]));
   });
 
+  it('draws a deleted shape again when another annotator restores it', async () => {
+    useWorkStore.getState().recordDeletes([7]);
+    vi.mocked(getAnnotationChanges).mockResolvedValue(
+      changes({
+        changes: [
+          { id: 7, label_id: 1, created_by_user_id: 'someone-else', geometry_wkt: 'POINT(1 2)' },
+        ],
+      })
+    );
+
+    await useWorkStore.getState().syncRemoteAnnotations();
+
+    expect(deltaWrites(useWorkStore.getState().delta)).toEqual([
+      { id: 7, labelId: 1, geometry, origin: 'remote' },
+    ]);
+  });
+
+  it('does not apply an old poll over a delete made while it was in flight', async () => {
+    let resolve!: (value: ReturnType<typeof changes>) => void;
+    const response = new Promise<ReturnType<typeof changes>>((done) => {
+      resolve = done;
+    });
+    vi.mocked(getAnnotationChanges).mockReturnValueOnce(response);
+    const poll = useWorkStore.getState().syncRemoteAnnotations();
+    useWorkStore.getState().recordDeletes([7]);
+    resolve(
+      changes({
+        changes: [{ id: 7, label_id: 1, created_by_user_id: 'u1', geometry_wkt: 'POINT(1 2)' }],
+      })
+    );
+
+    await poll;
+
+    expect(deltaWrites(useWorkStore.getState().delta)).toEqual([]);
+    expect(useWorkStore.getState().syncCursor).toBeNull();
+  });
+
   it('ends the edit of a shape another annotator deleted', async () => {
     seedCampaign(makeCampaign({ id: 99 }), { currentUserId: 'me' });
     useWorkStore.setState({

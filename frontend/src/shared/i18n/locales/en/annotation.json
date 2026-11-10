@@ -1,4 +1,11 @@
 {
+  "history": {
+    "undo": "Undo labelling action",
+    "redo": "Redo labelling action",
+    "undoFailed": "Could not undo the labelling action",
+    "redoFailed": "Could not redo the labelling action",
+    "busy": "Wait for undo/redo to finish before changing annotations."
+  },
   "keymap": {
     "answerField": "Answer the focused field",
     "cycleFields": "Cycle form fields",
@@ -647,7 +654,7 @@
     "sources": "Sources in this view",
     "sourcesHint": "Shared by all annotators. Changes save immediately.",
     "noSources": "No imagery sources yet - add one in campaign settings.",
-    "firstTip": "First source with imagery opens by default unless a starting collection is starred",
+    "firstTip": "Tasks open on the first source with imagery, at its starred collection if it has one",
     "first": "First",
     "sourceUp": "Move source earlier",
     "sourceUpLabel": "Move source {{name}} up",

@@ -23,13 +23,20 @@ const source = makeSource({
     makeCollection({ id: 72, name: 'Summer', slices: [makeSlice({ id: 720 })] }),
   ],
 });
-const catalog = buildImageryCatalog(makeCampaign({ imagery_sources: [source] }));
+const other = makeSource({
+  id: 8,
+  visualizations: [makeViz({ id: 80, name: 'rgb' })],
+  collections: [makeCollection({ id: 81, name: 'Other', slices: [makeSlice({ id: 810 })] })],
+});
+const campaign = makeCampaign({ imagery_sources: [source, other] });
+const catalog = buildImageryCatalog(campaign);
 
 beforeEach(() => {
   useLayoutStore.setState({ editing: false });
   usePrefsStore.setState({ pinnedStart: {} });
   useCampaignStore.setState({
-    view: makeView({ id: 9, name: 'View', source_ids: [7] }),
+    catalog,
+    view: makeView({ id: 9, name: 'View', source_ids: [7, 8] }),
     taskStartCollectionId: 71,
   });
   useImageryStore.setState({
@@ -90,6 +97,29 @@ describe('CollectionPicker task start', () => {
     fireEvent.click(stars[1]);
 
     expect(useCampaignStore.getState().taskStartCollectionId).toBe(72);
-    expect(usePrefsStore.getState().pinnedStart).toEqual({ 9: 72 });
+    expect(usePrefsStore.getState().pinnedStart).toEqual({ 7: 72 });
+  });
+
+  it("lists only the open source's collections and stars per source", () => {
+    useImageryStore.setState({
+      address: { sourceId: 8, collectionId: 81, sliceIndex: 0, vizId: '80' },
+    });
+    render(
+      <CollectionPicker
+        catalog={catalog}
+        sourceIds={[7, 8]}
+        isTaskMode
+        title="Collections"
+        expanded={false}
+        onExpandedChange={() => {}}
+      />
+    );
+    fireEvent.click(screen.getByTitle('Collections'));
+    expect(screen.queryByText('Spring')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: /collection first/i }));
+    expect(usePrefsStore.getState().pinnedStart).toEqual({ 8: 81 });
+    // A star on a later source does not move where tasks open.
+    expect(useCampaignStore.getState().taskStartCollectionId).toBe(71);
   });
 });

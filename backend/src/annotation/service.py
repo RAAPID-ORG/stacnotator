@@ -5,6 +5,7 @@ from fastapi import HTTPException
 from sqlalchemy import String, exists, func, select
 from sqlalchemy.orm import Session, joinedload
 
+from src.annotation import history
 from src.annotation.forms import (
     FormValidationError,
     campaign_form_fields,
@@ -476,12 +477,14 @@ def create_annotations(
         raise HTTPException(status_code=400, detail=exc.message) from exc
 
     imagery = viewed_imagery(db, campaign, {a.imagery_slice_id for a in annotations_create})
+    before = history.capture(db, [])
     try:
         annotations = [
             _standalone_annotation(campaign, user_id, a, form_values, imagery)
             for a, form_values in zip(annotations_create, normalized_form_values, strict=True)
         ]
         db.add_all(annotations)
+        history.record(db, campaign.id, user_id, before, annotations)
         bump_campaign_annotations_version(db, campaign.id)
         db.commit()
         return annotations
@@ -504,8 +507,10 @@ def update_annotation(
     # Scoped to the campaign - without this, an annotation from any campaign
     # platform-wide would be editable through this endpoint, and the policy /
     # ownership checks below would evaluate against the wrong campaign.
-    query = select(Annotation).where(
-        Annotation.id == annotation_id, Annotation.campaign_id == campaign.id
+    query = (
+        select(Annotation)
+        .where(Annotation.id == annotation_id, Annotation.campaign_id == campaign.id)
+        .with_for_update()
     )
     annotation = db.execute(query).scalar_one_or_none()
 
@@ -523,6 +528,7 @@ def update_annotation(
         _require_drawing_access(db, campaign, user_id, {annotation.output_of_task_id})
 
     _require_own_annotations(db, [annotation], campaign, user_id, "edit")
+    before = history.capture(db, [annotation])
 
     try:
         # Update geometry if provided
@@ -583,6 +589,7 @@ def update_annotation(
         if annotation_update.flag_comment is not None and annotation.flagged_for_review:
             annotation.flag_comment = annotation_update.flag_comment
 
+        history.record(db, campaign.id, user_id, before, [annotation])
         bump_campaign_annotations_version(db, annotation.campaign_id)
         db.commit()
         db.refresh(annotation)
@@ -830,10 +837,13 @@ def delete_annotations(
         return 0
 
     annotations = db.scalars(
-        select(Annotation).where(
+        select(Annotation)
+        .where(
             Annotation.id.in_(annotation_ids),
             Annotation.campaign_id == campaign.id,
         )
+        .order_by(Annotation.id)
+        .with_for_update()
     ).all()
 
     found_ids = {a.id for a in annotations}
@@ -845,10 +855,12 @@ def delete_annotations(
         )
 
     _require_own_annotations(db, list(annotations), campaign, user_id, "delete")
+    before = history.capture(db, list(annotations))
 
     try:
         for annotation in annotations:
             db.delete(annotation)
+        history.record(db, campaign.id, user_id, before, [])
         record_annotation_deletions(db, campaign.id, sorted(found_ids))
         touch_tasks(db, (a.task_id for a in annotations if a.task_id is not None))
         bump_campaign_annotations_version(db, campaign.id)

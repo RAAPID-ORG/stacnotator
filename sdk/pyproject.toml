@@ -15,9 +15,12 @@ dependencies = [
 
 [project.optional-dependencies]
 agent = ["mcp>=2.2,<3", "playwright>=1.47", "shapely>=2.1.2"]
+# Labelling through a model API (stacnotator-label) instead of a coding agent.
+api = ["stacnotator-sdk[agent]", "openai>=2", "azure-identity>=1.19"]
 
 [project.scripts]
 stacnotator-mcp = "stacnotator.agent_mcp:main"
+stacnotator-label = "stacnotator.api_labelling:main"
 
 [dependency-groups]
 dev = [
@@ -32,6 +35,8 @@ dev = [
     "playwright>=1.47",
     "shapely>=2.1.2",
     "types-shapely>=2.1.0",
+    "openai>=2",
+    "azure-identity>=1.19",
 ]
 
 [build-system]

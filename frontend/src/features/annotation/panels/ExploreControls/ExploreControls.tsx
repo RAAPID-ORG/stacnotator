@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { capitalizeFirst } from '~/shared/utils/utility';
 import { IconChevronRight } from '~/shared/ui/Icons';
+import { Tooltip } from '~/shared/ui/Tooltip';
 import {
   extendedLabels,
   isLabelGroupActive,
@@ -185,7 +185,6 @@ export function ExploreControls() {
   const labels = extendedLabels(campaign);
   const fields = campaign.settings.form_fields;
   const labelGroupActive = isLabelGroupActive(activeFieldIndex, fields.length);
-  const selectedLabel = labels.find((l) => l.id === selectedLabelId) ?? null;
   const draftLabel =
     draft.phase === 'idle' ? null : (labels.find((l) => l.id === draft.labelId) ?? null);
   // A shape with no questions to answer is saved as soon as it is drawn; the
@@ -222,23 +221,23 @@ export function ExploreControls() {
     <div className="w-full h-full p-2 bg-white overflow-y-auto">
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-1.5">
-          <span className={sectionHeaderClass()}>{t('explore.tools')}</span>
-          <div className={chipRowClass}>
+          <div id="explore-tools" className="flex flex-wrap gap-1.5">
             {availableTools.map((def) => (
-              <button
+              <Tooltip
                 key={def.id}
-                type="button"
-                onClick={() => void useWorkStore.getState().selectTool(def.id)}
-                title={`${t(`tools.${def.id}`)} (${def.shortcut})`}
-                aria-pressed={tool === def.id}
-                className={chipClass(tool === def.id)}
+                text={`${t(`tools.${def.id}`)} (${def.shortcut})`}
+                className="min-w-0"
               >
-                <Icon path={def.icon} />
-                <span className="truncate">{t(`tools.${def.id}`)}</span>
-                <span className="text-[10px] text-neutral-400" aria-hidden>
-                  {def.shortcut}
-                </span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => void useWorkStore.getState().selectTool(def.id)}
+                  aria-label={`${t(`tools.${def.id}`)} (${def.shortcut})`}
+                  aria-pressed={tool === def.id}
+                  className={`${chipClass(tool === def.id)} h-8 w-8`}
+                >
+                  <Icon path={def.icon} />
+                </button>
+              </Tooltip>
             ))}
           </div>
         </div>
@@ -354,20 +353,6 @@ export function ExploreControls() {
                     activeFieldIndex={activeFieldIndex}
                   />
                 </div>
-              )}
-
-              {selectedLabel && (
-                <p
-                  className="text-[11px] text-neutral-500 leading-relaxed"
-                  data-testid="label-hint"
-                >
-                  <span className="font-medium text-neutral-700">
-                    {capitalizeFirst(selectedLabel.name)}
-                  </span>{' '}
-                  {tool === 'labelVector'
-                    ? t('labelHint.vector')
-                    : t(`labelHint.draw.${selectedLabel.geometry_type}`)}
-                </p>
               )}
             </>
           )

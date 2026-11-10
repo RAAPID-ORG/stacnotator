@@ -69,7 +69,7 @@ Every campaign supports both; who may do what is governed by the labelling polic
 
 - Multiple views per campaign - each view is an ordered set of imagery sources; all their collections are browsable in it
 - Views are authored by campaign admins in the annotation page's edit mode (create, rename, reorder, delete, source membership); a campaign is annotatable once its first view exists
-- In the annotation page's **Edit Layout > Views**, campaign admins can reorder the selected view's sources with up/down arrows. Order saves immediately on the server for everyone using that view, independently of personal layout changes. The first source with collections opens by default, preferring its windowed collections and then its earliest date; an explicitly starred starting collection still overrides this default. The same order drives the source selector and keyboard cycling. Upcoming-task preloading follows the starting imagery and displayed, synchronized imagery windows, not every source/date in the view.
+- In the annotation page's **Edit Layout > Views**, campaign admins can reorder the selected view's sources with up/down arrows. Order saves immediately on the server for everyone using that view, independently of personal layout changes. The first source with collections opens by default, at its starred starting collection or else its earliest windowed collection. Each source can have its own starred collection (the star in the collection selector, which lists only the open source's collections); switching to a source (`I` or the source selector) opens its starred collection, keeping the visualization it was last shown in, and the next task always returns to the first source. The same order drives the source selector and keyboard cycling. Upcoming-task preloading follows the starting imagery and displayed, synchronized imagery windows, not every source/date in the view.
 - Drag-and-resize grid layout (react-grid-layout). In **Edit Layout**, drag a panel by its header or body; buttons and form fields remain interactive. Imagery windows are hidden with their header's **Hide** button, not by clicking their body.
 - Save, Reset, and Cancel live in a fixed bottom row of the floating **Edit Layout** panel. The actions stay visible while its contents scroll, and the Save menu opens upwards to stay on screen. Minimize remains in the header; expand the panel after minimizing it to access the actions.
 - In **Edit Layout > Map navigation**, move the timeline and imagery selectors into separate resizable panels with horizontal or vertical orientation. The timeline starts beside the map vertically, or directly below it horizontally, sharing the map's original footprint without moving neighboring panels. Both remain freely draggable and resizable. Detached imagery always shows source radio choices, with smaller, directly selectable visualizations beneath each source. Collections and dates start as compact dropdowns without headings, separated by subtle dividers. In Edit Layout, click **Expand** or **Collapse** to choose whether each shows its radio choices inline; this preference saves with the layout. Map action buttons stay in the map header. During layout editing, the entire timeline panel becomes an amber "Timeline" drag header; outside editing it returns to the slider with no header. Turn a separate panel off to return its controls to the map.
@@ -134,14 +134,22 @@ Hotkey & Shortcut drive. Complete annotation process can be done without using a
 - Point, polygon, and line drawing
 - Edit mode for modifying existing geometries
 - Pan/navigate mode
+- Explore tools are icons with names and shortcuts on hover. The main map shows drawing guidance in Pan and selection guidance in Edit.
 
 ### Labels
 
 - Custom label definitions with name and geometry type constraint (colors are auto-derived per label)
 - Number keys for quick label selection (two-digit input buffered for lists longer than 9)
 - Confidence scoring per annotation
-- Comments/remarks field
+- Comments/remarks field. In Explore, select a drawn shape with Pan or Edit, enter its comment, and choose **Save changes**.
 - Annotations can be flagged for review (`F`) with a flag comment, filterable in review
+
+### Undo and Redo
+
+- In Explore mode, buttons in the main map header and `Ctrl/Cmd+Z` undo saved labelling actions; `Ctrl/Cmd+Shift+Z` or `Ctrl+Y` redo them. Text inputs keep their native undo behavior. Task mode has no undo/redo controls or history recording.
+- Covers drawn shapes, geometry and detail edits, imagery notes, and bulk labelling or deletion in Explore. A bulk request is one action.
+- History keeps the last 100 actions while the annotation page stays open, for up to 24 hours. Leaving the page clears it, and a new saved action clears redo.
+- Undo restores original annotation IDs, authorship, answers and task status. It refuses to overwrite annotations changed since the action and checks current permissions.
 
 ### Shared Annotation View
 
@@ -267,11 +275,13 @@ Models can label task campaigns as annotators of their own:
 
 - **Agents are annotators** - registering one creates a user owned by the signed-in account, adds it to the project and assigns it the number of free tasks it asks for. Its labels, skips, statistics and review rows are ordinary annotations.
 - **Views the agent chooses** - per task an agent asks for packed images: a grid of cells, each a slice (with a visualization), a basemap or a time series chart, at a zoom and cell size it picks. Each image comes with metadata per cell (source, dates, zoom, meters per pixel, time series values).
+- **Probing time series** - like the timeseries tool on the annotation page, an agent clicks up to 6 places on an image it was shown and gets their time series charted beside the task's, with each place marked on the map so it can check where it clicked.
 - **Drawn in the browser** - the MCP server runs a headless browser page per agent that draws views with the same tiles and layers as the annotation page and returns the images directly. The server never renders or stores imagery.
 - **Prerendering** - an agent's default views are drawn ahead for its next two tasks, so a steady workflow gets its bundle without waiting.
 - **Agents page** - `.../campaigns/<id>/agents` lists the owner's agents with their progress, lets an agent take over its siblings' queued work, and frees unfinished tasks.
 - **Plugin for Claude Code and Codex** - adding the `RAAPID-ORG/stacnotator` marketplace and installing `stacnotator` installs the MCP server (`stacnotator-mcp`, run through uvx) and the skill that teaches an agent (or a team of subagents) how to look at a point step by step and label it.
 - **Campaign setup by agents** - the same MCP server creates a campaign (area, labels, guide, Planetary Computer imagery with every window, slice and cover spelled out, basemaps, time series), adds tasks from GeoJSON or sampling, edits an existing campaign's settings and imagery, and previews the first tasks once imagery is registered. Each of `create_campaign`, `add_tasks`, `edit_campaign` and `edit_imagery` is offered only when the user grants it with `STACNOTATOR_MCP_ALLOW`. The agent asks for the area, period and labels rather than assuming them, and changes nothing until the user accepts the full proposal in the chat. Imagery is built with the campaign wizard's own presets and collection builder.
+- **Labelling through a model API** - `stacnotator-label` in the SDK runs the agents with a model API instead of a coding agent (OpenAI Responses API: OpenAI, Azure OpenAI, Azure AI Foundry), one conversation per task, with the labelling rules from an instructions file. The model submits through the same `submit_label` and `skip_task` tools, so the backend's checks apply and their errors go back to it.
 
 See `docs/agentic-labelling.md` for setup and how it works.
 

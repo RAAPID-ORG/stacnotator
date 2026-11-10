@@ -24,7 +24,6 @@
     "timeseries": "Probe time series"
   },
   "explore": {
-    "tools": "Tools",
     "shortcuts": "Shortcuts",
     "labels": "Labels",
     "customizeStyles": "Customize label styles",
@@ -78,6 +77,7 @@
     "width": "Width"
   },
   "editDetails": {
+    "comment": "Comment",
     "finishReshapeFirst": "Confirm (Enter) or cancel (Esc) the reshape before changing the label.",
     "missingRequired": "Missing required: {{fields}}",
     "updated": "Annotation updated successfully",
@@ -120,6 +120,8 @@
     "answerToSave": "Answer to save: {{fields}}",
     "answerHelp": "Tab moves between questions, Enter saves.",
     "pickLabel": "Pick a label in the controls panel (or press its number) to start drawing",
+    "panHint": "Choose the Annotate tool (R) to draw more.",
+    "editHint": "Click an annotation on the map to edit it.",
     "loadingImagery": "Loading imagery",
     "hideDrawnTitle": "Hide drawn objects (Shift+X)",
     "showDrawnTitle": "Show drawn objects (Shift+X)"
@@ -163,8 +165,8 @@
   },
   "collections": {
     "label": "Collections",
-    "pinnedStart": "Show this collection first on every task (selected)",
-    "pinStart": "Show this collection first on every task"
+    "pinnedStart": "Open this source on this collection first (selected)",
+    "pinStart": "Open this source on this collection first"
   },
   "layers": {
     "sources": "Imagery sources",

@@ -1,6 +1,7 @@
-import { IconProbe } from '~/shared/ui/Icons';
+import { IconProbe, IconRedo, IconUndo } from '~/shared/ui/Icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
+import { capitalizeFirst } from '~/shared/utils/utility';
 import { useShallow } from 'zustand/react/shallow';
 import { SliceCommentButton } from '../../chrome/SliceComments';
 import { SliceNavigation } from '../../chrome/SliceNavigation';
@@ -27,9 +28,11 @@ import {
   useCampaignStore,
   useCatalog,
   useDrawsShapes,
+  useLabels,
   type WorkMode,
 } from '../../stores/campaign';
 import { useImageryStore } from '../../stores/imagery';
+import { historyAvailable, replayLabelling, useHistoryStore } from '../../stores/history';
 import { useLayoutStore } from '../../stores/layout';
 import { usePrefsStore } from '../../stores/prefs';
 import { useMapFocus, useTasksStore } from '../../stores/tasks';
@@ -254,6 +257,44 @@ export function ImageryControls({
   );
 }
 
+function HistoryControls() {
+  const { t } = useTranslation('annotation');
+  useHistoryStore();
+  useWorkStore((s) => s.draft);
+  useWorkStore((s) => s.edit);
+  useTasksStore((s) => s.isSubmitting);
+  const button =
+    'flex h-6 w-6 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40';
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label={t('history.undo')}
+        title={`${t('history.undo')} (Ctrl/Cmd+Z)`}
+        disabled={!historyAvailable(true)}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={() => void replayLabelling(true)}
+        className={button}
+      >
+        <IconUndo className="h-[13px] w-[13px]" />
+      </button>
+      <button
+        type="button"
+        aria-label={t('history.redo')}
+        title={`${t('history.redo')} (Ctrl/Cmd+Shift+Z / Ctrl+Y)`}
+        disabled={!historyAvailable(false)}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={() => void replayLabelling(false)}
+        className={button}
+      >
+        <IconRedo className="h-[13px] w-[13px]" />
+      </button>
+      <div className="mx-0.5 h-3 w-px bg-neutral-200" />
+    </>
+  );
+}
+
 function MainMapActions() {
   const { t } = useTranslation('panels');
   const campaign = useCampaign();
@@ -271,6 +312,7 @@ function MainMapActions() {
 
   return (
     <div className="flex flex-wrap items-center justify-center gap-1" data-tour="map-actions">
+      {!isTaskMode && <HistoryControls />}
       <SliceCommentButton address={address} hint={hotkeyTip('shift+c')} />
       <CustomMapControls catalog={catalog} toggleTitle={hotkeyTip('o')} />
       <VectorLayerControls catalog={catalog} toggleTitle={hotkeyTip('v')} />
@@ -319,14 +361,51 @@ function taskProbeClick(event: MapClickEvent): void {
  * continental view of a dense campaign is a query nobody wants. Unexplained,
  * that reads as a campaign nobody has worked on, so it is explained.
  */
-function AnnotationZoomNotice() {
+function AnnotationToolNotice() {
   const { t } = useTranslation('panels');
   const drawsShapes = useDrawsShapes();
   const showAnnotations = useImageryStore((s) => s.showAnnotations);
   const zoom = useCameraZoom(mainCamera);
+  const isExplore = useCampaignStore((s) => s.workMode === 'explore');
+  const tool = useWorkStore((s) => s.tool);
+  const hasSelection = useWorkStore((s) => s.edit !== null || s.selection.length > 0);
+  const selectedLabelId = useWorkStore((s) => s.selectedLabelId);
+  const draftOpen = useWorkStore(
+    (s) => s.draft.phase === 'draft' || s.draft.phase === 'committing'
+  );
+  const labels = useLabels();
+  const selectedLabel = labels.find((label) => label.id === selectedLabelId);
 
-  if (!drawsShapes || !showAnnotations || annotationsVisibleAt(zoom)) return null;
-  return <StatusPill>{t('mainMap.zoomIn')}</StatusPill>;
+  if (drawsShapes && showAnnotations && !annotationsVisibleAt(zoom)) {
+    return <StatusPill>{t('mainMap.zoomIn')}</StatusPill>;
+  }
+  if (
+    drawsShapes &&
+    selectedLabel &&
+    !draftOpen &&
+    (tool === 'annotate' || tool === 'labelVector')
+  ) {
+    return (
+      <StatusPill>
+        <span data-testid="label-hint">
+          <span className="font-semibold">{capitalizeFirst(selectedLabel.name)}</span>{' '}
+          {tool === 'labelVector'
+            ? t('labelHint.vector')
+            : t(`labelHint.draw.${selectedLabel.geometry_type}`)}
+        </span>
+      </StatusPill>
+    );
+  }
+  if (isExplore && (tool === 'pan' || (tool === 'edit' && !hasSelection))) {
+    return (
+      <StatusPill>
+        <span data-testid="map-tool-hint">
+          {t(tool === 'pan' ? 'mainMap.panHint' : 'mainMap.editHint')}
+        </span>
+      </StatusPill>
+    );
+  }
+  return null;
 }
 
 /** Why a just-drawn shape is not saved yet, and how to finish it. */
@@ -380,7 +459,7 @@ function MapNotice({ waitingForRegistration }: { waitingForRegistration: boolean
       </Delayed>
     );
   }
-  return <AnnotationZoomNotice />;
+  return <AnnotationToolNotice />;
 }
 
 export function MainMapBody() {

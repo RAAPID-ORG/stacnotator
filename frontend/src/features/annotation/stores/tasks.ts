@@ -18,7 +18,6 @@ import { taskLandingCollectionId } from '../campaign/imageryNav';
 import type { GeoFeature, LonLat } from '~/shared/map/types';
 import { campaignState, useCampaignStore } from './campaign';
 import { useImageryStore } from './imagery';
-import { usePrefsStore } from './prefs';
 import { useWorkStore } from './work';
 
 /** Where the page is pointed. Only tasks mode moves it; Explore leaves the
@@ -225,11 +224,8 @@ function publishSelection(catalog: ImageryCatalog): void {
   const scope = task ? `task:${task.id}` : null;
 
   if (task && imagery.emptyScope !== scope) {
-    const { view, taskStartCollectionId } = useCampaignStore.getState();
     const start = taskLandingCollectionId(
-      catalog,
-      taskStartCollectionId,
-      view ? usePrefsStore.getState().pinnedStart[view.id] : undefined,
+      useCampaignStore.getState().taskStartCollectionId,
       imagery.address?.collectionId ?? null
     );
     imagery.resetForTask(catalog, start, scope!);

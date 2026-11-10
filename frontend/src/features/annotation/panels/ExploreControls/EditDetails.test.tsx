@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import * as api from '~/api/client';
-import { makeAnnotation, makeCampaign, makeSettings } from '~/features/annotation/testing/fixtures';
+import {
+  apiSuccess,
+  makeAnnotation,
+  makeCampaign,
+  makeSettings,
+} from '~/features/annotation/testing/fixtures';
 import { seedCampaign } from '../../testing/seed';
 import { usePrefsStore } from '../../stores/prefs';
 import { useWorkStore } from '../../stores/work';
@@ -85,7 +90,113 @@ describe('EditDetails label', () => {
     open([TREE]);
     render(<EditDetails />);
     expect(chip(TREE.id).textContent).toMatch(/tree/i);
-    expect(screen.queryByTestId('edit-details-save')).toBeNull();
+    expect(screen.getByTestId<HTMLButtonElement>('edit-details-save').disabled).toBe(true);
+  });
+
+  describe('EditDetails comments', () => {
+    beforeEach(() => {
+      vi.mocked(api.updateAnnotation).mockReset();
+      seedCampaign(makeCampaign({ id: 5, settings: makeSettings({ labels: [TREE] }) }), {
+        mode: 'explore',
+        currentUserId: 'u1',
+      });
+      useWorkStore.setState({
+        tool: 'edit',
+        edit: {
+          annotation: makeAnnotation({ id: 7, comment: 'Original comment' }),
+          geometry: SAVED,
+          pending: null,
+          busy: false,
+        },
+        selection: [7],
+      });
+    });
+    afterEach(() => useWorkStore.getState().resetAll());
+
+    it('saves and clears a comment without custom fields or changing other annotation details', async () => {
+      vi.mocked(api.updateAnnotation)
+        .mockResolvedValueOnce(apiSuccess(makeAnnotation({ id: 7, comment: 'Updated comment' })))
+        .mockResolvedValueOnce(apiSuccess(makeAnnotation({ id: 7, comment: '' })));
+      render(<EditDetails />);
+      const comment = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Comment' });
+      expect(comment.value).toBe('Original comment');
+
+      fireEvent.change(comment, { target: { value: 'Updated comment' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+      await waitFor(() =>
+        expect(useWorkStore.getState().edit?.annotation.comment).toBe('Updated comment')
+      );
+      expect(api.updateAnnotation).toHaveBeenLastCalledWith({
+        path: { campaign_id: 5, annotation_id: 7 },
+        body: { comment: 'Updated comment' },
+        throwOnError: true,
+      });
+
+      fireEvent.change(comment, { target: { value: '' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+      await waitFor(() => expect(useWorkStore.getState().edit?.annotation.comment).toBe(''));
+      expect(api.updateAnnotation).toHaveBeenLastCalledWith(
+        expect.objectContaining({ body: { comment: '' } })
+      );
+    });
+
+    it('allows commenting on an older shape with newly required unanswered fields', async () => {
+      seedCampaign(
+        makeCampaign({
+          id: 5,
+          settings: makeSettings({
+            labels: [TREE],
+            form_fields: [{ id: 1, title: 'Condition', type: 'text', required: true }],
+          }),
+        })
+      );
+      useWorkStore.setState({
+        tool: 'edit',
+        edit: {
+          annotation: makeAnnotation({ id: 7 }),
+          geometry: SAVED,
+          pending: null,
+          busy: false,
+        },
+        selection: [7],
+      });
+      vi.mocked(api.updateAnnotation).mockResolvedValueOnce(
+        apiSuccess(makeAnnotation({ id: 7, comment: 'Needs review' }))
+      );
+      render(<EditDetails />);
+
+      fireEvent.change(screen.getByRole('textbox', { name: 'Comment' }), {
+        target: { value: 'Needs review' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+      await waitFor(() =>
+        expect(api.updateAnnotation).toHaveBeenCalledWith(
+          expect.objectContaining({ body: { comment: 'Needs review' } })
+        )
+      );
+    });
+
+    it("shows comments without allowing changes to another annotator's read-only shape", () => {
+      useWorkStore.setState({
+        edit: {
+          annotation: makeAnnotation({
+            id: 7,
+            created_by_user_id: 'another-user',
+            comment: 'Existing note',
+          }),
+          geometry: SAVED,
+          pending: null,
+          busy: false,
+        },
+      });
+      render(<EditDetails />);
+
+      const comment = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Comment' });
+      expect(comment.value).toBe('Existing note');
+      expect(comment.disabled).toBe(true);
+      expect(screen.queryByRole('button', { name: 'Save changes' })).toBeNull();
+    });
   });
 
   it("colours the chips as the map paints the shapes, with the viewer's style", () => {

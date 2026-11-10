@@ -16,6 +16,11 @@ function lastAnnotateRequest(requests: CapturedRequest[]): CapturedRequest | und
 }
 
 test.describe('Annotation Submission', () => {
+  test('undo and redo controls are not offered in task mode', async ({ annotationPage: page }) => {
+    await expect(page.getByRole('button', { name: 'Undo labelling action' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Redo labelling action' })).toHaveCount(0);
+  });
+
   test('submitting a label sends correct task_id and label_id', async ({ annotationPage, api }) => {
     const page = annotationPage;
 

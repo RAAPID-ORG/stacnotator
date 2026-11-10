@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { updateAnnotation, type AnnotationOut } from '~/api/client';
+import { Textarea } from '~/shared/ui/forms';
 import type { FormValues } from '../../campaign/annotation';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
@@ -24,6 +25,7 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
   const campaign = useCampaign();
   const [labelId, setLabelId] = useState<number | null>(annotation.label_id);
   const [values, setValues] = useState<FormValues>(annotation.form_values ?? {});
+  const [comment, setComment] = useState(annotation.comment ?? '');
   const [flagComment, setFlagComment] = useState(annotation.flag_comment ?? '');
   const [saving, setSaving] = useState(false);
   const showAlert = useLayoutStore((s) => s.showAlert);
@@ -33,7 +35,9 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
   const labels = extendedLabels(campaign).map((label) => labelSwatch(label, labelStyles[label.id]));
   const selectable = labelsForGeometry(labels, wktToGeometry(annotation.geometry_wkt));
   const fields = campaign.settings.form_fields;
-  const dirty = !formValuesEqual(values, annotation.form_values ?? {});
+  const answersDirty = !formValuesEqual(values, annotation.form_values ?? {});
+  const commentDirty = comment !== (annotation.comment ?? '');
+  const dirty = answersDirty || commentDirty;
 
   /** Picking a label saves it, as the flag does: the map paints the shape by its
    *  label, so a pick waiting on a separate save looked done and was not. */
@@ -46,27 +50,26 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
 
   const save = async (labelId: number | null): Promise<boolean> => {
     if (labelId === null) return false;
-    const { ok, missing } = validateForm(fields, values);
-    if (!ok) {
-      showAlert(t('editDetails.missingRequired', { fields: missing.join(', ') }), 'error');
-      return false;
+    const answersChanged = labelId !== annotation.label_id || answersDirty;
+    if (answersChanged) {
+      const { ok, missing } = validateForm(fields, values);
+      if (!ok) {
+        showAlert(t('editDetails.missingRequired', { fields: missing.join(', ') }), 'error');
+        return false;
+      }
     }
+    const body = {
+      ...(answersChanged ? { label_id: labelId, form_values: values } : {}),
+      ...(commentDirty ? { comment } : {}),
+    };
     setSaving(true);
     try {
       const result = await updateAnnotation({
         path: { campaign_id: campaign.id, annotation_id: annotation.id },
-        // The full answer set, because the backend re-checks required fields
-        // against the new label; {} clears them.
-        body: { label_id: labelId, form_values: values },
+        body,
+        throwOnError: true,
       });
-      // The shared session is what the geometry save will send back, so it
-      // learns about this write immediately - server copy when there is one,
-      // otherwise the fields we just wrote.
-      useWorkStore
-        .getState()
-        .setEditAnnotation(
-          result.data ?? { ...annotation, label_id: labelId, form_values: values }
-        );
+      useWorkStore.getState().setEditAnnotation(result.data);
       // The label decides how the map paints it, so the overlay has to learn
       // about the new one; the geometry is the session's, untouched here.
       const geometry = useWorkStore.getState().edit?.geometry;
@@ -126,6 +129,19 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
         </div>
       )}
 
+      <label className="flex flex-col gap-1 text-[11px] text-neutral-600">
+        {t('editDetails.comment')}
+        <Textarea
+          size="sm"
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          disabled={saving || readOnly}
+          placeholder={t('task.commentPlaceholder')}
+          rows={3}
+          maxLength={5000}
+        />
+      </label>
+
       <label
         hidden={readOnly}
         className="flex items-center gap-1.5 cursor-pointer select-none"
@@ -164,7 +180,7 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
         />
       )}
 
-      {!readOnly && fields.length > 0 && (
+      {!readOnly && (
         <button
           type="button"
           data-testid="edit-details-save"

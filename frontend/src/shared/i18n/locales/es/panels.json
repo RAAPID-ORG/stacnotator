@@ -24,7 +24,6 @@
     "timeseries": "Sondear serie temporal"
   },
   "explore": {
-    "tools": "Herramientas",
     "shortcuts": "Atajos",
     "labels": "Etiquetas",
     "customizeStyles": "Personalizar estilos de etiquetas",
@@ -79,6 +78,7 @@
     "width": "Grosor"
   },
   "editDetails": {
+    "comment": "Comentario",
     "finishReshapeFirst": "Confirma (Enter) o cancela (Esc) el cambio de forma antes de cambiar la etiqueta.",
     "missingRequired": "Faltan campos obligatorios: {{fields}}",
     "updated": "Anotación actualizada correctamente",
@@ -121,6 +121,8 @@
     "answerToSave": "Responde para guardar: {{fields}}",
     "answerHelp": "Tab cambia de pregunta, Enter guarda.",
     "pickLabel": "Elige una etiqueta en el panel de controles (o pulsa su número) para empezar a dibujar",
+    "panHint": "Elige la herramienta Anotar (R) para seguir dibujando.",
+    "editHint": "Haz clic en una anotación del mapa para editarla.",
     "loadingImagery": "Cargando imágenes",
     "hideDrawnTitle": "Ocultar objetos dibujados (Shift+X)",
     "showDrawnTitle": "Mostrar objetos dibujados (Shift+X)"
@@ -165,8 +167,8 @@
   },
   "collections": {
     "label": "Colecciones",
-    "pinnedStart": "Mostrar esta colección primero en cada tarea (seleccionada)",
-    "pinStart": "Mostrar esta colección primero en cada tarea"
+    "pinnedStart": "Abrir esta fuente en esta colección primero (seleccionada)",
+    "pinStart": "Abrir esta fuente en esta colección primero"
   },
   "layers": {
     "sources": "Fuentes de imágenes",
