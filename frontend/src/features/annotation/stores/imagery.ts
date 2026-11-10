@@ -28,7 +28,10 @@ export interface ImageryState extends ImageryNavState {
   /** Location whose 204s populate `empties`. Empty imagery is spatial, so one
    *  task's result must not leak into another's date selector. */
   emptyScope: string | null;
+  /** Whether the visualization editor is open over the main map. */
+  vizEditorOpen: boolean;
 
+  toggleVizEditor: (open?: boolean) => void;
   setAddress: (address: SliceAddress | null) => void;
   rememberWindowSlice: (collectionId: number, sliceIndex: number, byUser?: boolean) => void;
   markEmpty: (collectionId: number, sliceIndex: number) => void;
@@ -137,7 +140,9 @@ export const useImageryStore = create<ImageryState>((set) => ({
   viewSnapshots: {},
   windowSlices: {},
   emptyScope: null,
+  vizEditorOpen: false,
 
+  toggleVizEditor: (open) => set((s) => ({ vizEditorOpen: open ?? !s.vizEditorOpen })),
   setAddress: (address) => set((s) => land(s, address)),
 
   rememberWindowSlice: (collectionId, sliceIndex, byUser = false) =>

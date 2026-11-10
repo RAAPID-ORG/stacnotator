@@ -47,6 +47,7 @@
     "nextCollection": "Colección siguiente",
     "cycleSource": "Cambiar de fuente de imágenes",
     "cycleVisualization": "Cambiar de visualización",
+    "adjustVisualization": "Ajustar visualización",
     "toggleOverlay": "Mostrar u ocultar la capa superpuesta",
     "cycleOverlays": "Cambiar de capa superpuesta",
     "toggleVector": "Mostrar u ocultar la capa vectorial",

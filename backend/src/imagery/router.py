@@ -17,6 +17,9 @@ from src.imagery.schemas import (
     ImageryViewOrderUpdate,
     ImageryViewOut,
     ImageryViewUpdate,
+    VisualizationEdit,
+    VisualizationFromEdit,
+    VisualizationOut,
 )
 from src.planet import scene_search
 from src.planet.schemas import PlanetSceneLayersIn, PlanetSceneSearchIn, PlanetSceneSearchOut
@@ -129,6 +132,42 @@ def mint_planet_scene_layers(
     api_key, series = scene_search.scene_source(db, campaign.id, source_id)
     release(db)
     return scene_search.mint_planet_scene_layers(api_key, series, payload.bbox, payload.slice_ids)
+
+
+@router.patch("/imagery/visualizations/{visualization_id}", response_model=VisualizationOut)
+def edit_visualization(
+    campaign_id: int,
+    visualization_id: int,
+    payload: VisualizationEdit,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    """Save an edit made on the map to how a visualization is drawn, for everyone in
+    the campaign (campaign admin only). Every STAC collection drawing it takes the edit
+    over its own parameters. The edit cannot touch compositing or masking, so the
+    provider stays and no mosaic needs registering."""
+    viz = service.edit_visualization(db, campaign, visualization_id, payload)
+    db.commit()
+    return VisualizationOut.model_validate(viz)
+
+
+@router.post(
+    "/imagery/sources/{source_id}/visualizations",
+    response_model=VisualizationOut,
+    status_code=201,
+)
+def create_visualization_from_edit(
+    campaign_id: int,
+    source_id: int,
+    payload: VisualizationFromEdit,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    """Add a visualization made on the map to the source, for everyone in the campaign
+    (campaign admin only): an existing one with an edit applied."""
+    viz = service.create_visualization_from_edit(db, campaign, source_id, payload)
+    db.commit()
+    return VisualizationOut.model_validate(viz)
 
 
 @router.post("/views", response_model=ImageryViewOut, status_code=201)

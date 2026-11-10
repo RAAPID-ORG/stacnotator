@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import { IconPlus } from '~/shared/ui/Icons';
 import { useTranslation } from 'react-i18next';
 import { useLayoutStore } from '../../../stores/layout';
 import { type ImageryCatalog } from '../../../campaign/imagery';
@@ -8,6 +9,7 @@ import { usePrefsStore } from '../../../stores/prefs';
 import { useImageryStore } from '../../../stores/imagery';
 import { HeaderSelect, type HeaderSelectOption } from '../../../components/HeaderSelect';
 import { rememberLastAddress } from '../../../keymap';
+import { isStacCollection, ownCopy } from '../../../campaign/visualizationEdits';
 
 const BASEMAP_PREFIX = 'basemap-';
 
@@ -69,6 +71,30 @@ export function LayerSelector({ catalog, sourceIds, title, expanded = false }: L
     setShowBasemap(false);
   };
 
+  const editable = (source: (typeof sources)[number]) =>
+    source.collections.some(isStacCollection) && source.visualizations.length > 0;
+
+  const addTo = (sourceId: number) => {
+    const source = catalog.sources.get(sourceId);
+    if (!source) return;
+    const shown = !showBasemap && address?.sourceId === sourceId ? Number(address.vizId) : NaN;
+    const from = source.visualizations.some((viz) => viz.id === shown)
+      ? shown
+      : source.visualizations[0].id;
+    const id = -Date.now();
+    const prefs = usePrefsStore.getState();
+    prefs.setVisualizationEdit(
+      id,
+      ownCopy(source, prefs.visualizationEdits, from, t('vizEditor.newName'))
+    );
+    const target = addressFor(catalog, sourceId, String(id), address);
+    if (!target) return;
+    rememberLastAddress(address);
+    setAddress(target);
+    setShowBasemap(false);
+    useImageryStore.getState().toggleVizEditor(true);
+  };
+
   if (expanded) {
     return (
       <div data-tour="layer-selector" className="select-none">
@@ -82,20 +108,33 @@ export function LayerSelector({ catalog, sourceIds, title, expanded = false }: L
             const active = !showBasemap && address?.sourceId === source.id;
             return (
               <div key={source.id}>
-                <label
-                  className={`flex min-w-0 cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 text-[11px] ${active ? 'font-medium text-brand-700' : 'text-neutral-700 hover:bg-neutral-50'}`}
-                >
-                  <input
-                    type="radio"
-                    name={radioName}
-                    checked={active}
-                    onChange={() => handleChange(`${source.id}:${viz.id}`)}
-                    className="h-3 w-3 shrink-0 cursor-pointer accent-brand-600"
-                  />
-                  <span className="truncate" title={source.name}>
-                    {source.name}
-                  </span>
-                </label>
+                <div className="flex min-w-0 items-center">
+                  <label
+                    className={`flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 text-[11px] ${active ? 'font-medium text-brand-700' : 'text-neutral-700 hover:bg-neutral-50'}`}
+                  >
+                    <input
+                      type="radio"
+                      name={radioName}
+                      checked={active}
+                      onChange={() => handleChange(`${source.id}:${viz.id}`)}
+                      className="h-3 w-3 shrink-0 cursor-pointer accent-brand-600"
+                    />
+                    <span className="truncate" title={source.name}>
+                      {source.name}
+                    </span>
+                  </label>
+                  {editable(source) && (
+                    <button
+                      type="button"
+                      title={t('layers.addVisualization')}
+                      aria-label={t('layers.addVisualization')}
+                      onClick={() => addTo(source.id)}
+                      className="flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
+                    >
+                      <IconPlus className="h-2.5 w-2.5" />
+                    </button>
+                  )}
+                </div>
                 <div
                   role="group"
                   aria-label={t('layers.visualizations', { source: source.name })}
@@ -148,6 +187,14 @@ export function LayerSelector({ catalog, sourceIds, title, expanded = false }: L
       group: source.name,
     }))
   );
+  const groupActions = new Map(
+    sources
+      .filter(editable)
+      .map((source) => [
+        source.name,
+        { title: t('layers.addVisualization'), onClick: () => addTo(source.id) },
+      ])
+  );
   for (const basemap of catalog.basemaps.values()) {
     options.push({
       value: `${BASEMAP_PREFIX}${basemap.id}`,
@@ -170,6 +217,7 @@ export function LayerSelector({ catalog, sourceIds, title, expanded = false }: L
         title={title}
         forcedOpen={forcedOpen === 'layer-selector'}
         menuTourName="layer-selector-menu"
+        groupActions={groupActions}
         icon={
           <svg width="11" height="11" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
             <path d="M10 2L2 6L10 10L18 6L10 2Z" />

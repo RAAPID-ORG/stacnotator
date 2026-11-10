@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { IconChevronDown } from '~/shared/ui/Icons';
+import { IconChevronDown, IconPlus } from '~/shared/ui/Icons';
 
 const MAX_LIST_HEIGHT_PX = 300;
 const CLOSE_DELAY_MS = 80;
@@ -44,6 +44,8 @@ export interface HeaderSelectProps {
   inline?: boolean;
   onInlineChange?: (inline: boolean) => void;
   label?: string;
+  /** A small "+" in a group's heading, keyed by the group's name. */
+  groupActions?: Map<string, { title: string; onClick: () => void }>;
 }
 
 /** Options in listed order, cut into their consecutive groups. */
@@ -94,6 +96,7 @@ export function HeaderSelect({
   inline = false,
   onInlineChange,
   label,
+  groupActions,
 }: HeaderSelectProps) {
   const { t } = useTranslation('annotation');
   const radioName = useId();
@@ -221,8 +224,25 @@ export function HeaderSelect({
                 className={inline ? 'flex max-w-full flex-wrap gap-0.5' : undefined}
               >
                 {section.group && (
-                  <div className="px-3 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
-                    {section.group}
+                  <div className="flex w-full items-center gap-1 pl-3 pr-1.5 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
+                    <span className="min-w-0 flex-1 truncate" title={section.group}>
+                      {section.group}
+                    </span>
+                    {groupActions?.has(section.group) && (
+                      <button
+                        type="button"
+                        title={groupActions.get(section.group)!.title}
+                        aria-label={groupActions.get(section.group)!.title}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={() => {
+                          setSelfOpen(false);
+                          groupActions.get(section.group!)!.onClick();
+                        }}
+                        className="flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
+                      >
+                        <IconPlus className="h-2.5 w-2.5" />
+                      </button>
+                    )}
                   </div>
                 )}
                 {section.items.map((option) => {

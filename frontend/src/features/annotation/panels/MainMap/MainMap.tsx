@@ -38,6 +38,7 @@ import { usePrefsStore } from '../../stores/prefs';
 import { useMapFocus, useTasksStore } from '../../stores/tasks';
 import { MAX_PROBES, useSavedAnnotations, useWorkStore } from '../../stores/work';
 import { CollectionPicker } from './controls/CollectionPicker';
+import { VisualizationEditor, VisualizationEditorToggle } from './controls/VisualizationEditor';
 import { CustomMapControls } from './controls/CustomMapControls';
 import { CustomMapLegend } from './controls/CustomMapLegend';
 import { LayerSelector } from './controls/LayerSelector';
@@ -314,6 +315,7 @@ function MainMapActions() {
     <div className="flex flex-wrap items-center justify-center gap-1" data-tour="map-actions">
       {!isTaskMode && <HistoryControls />}
       <SliceCommentButton address={address} hint={hotkeyTip('shift+c')} />
+      <VisualizationEditorToggle title={hotkeyTip('k', t('vizEditor.toggle'))} />
       <CustomMapControls catalog={catalog} toggleTitle={hotkeyTip('o')} />
       <VectorLayerControls catalog={catalog} toggleTitle={hotkeyTip('v')} />
       <ViewControls
@@ -636,6 +638,7 @@ export function MainMapBody() {
           }}
         />
         <CustomMapLegend catalog={catalog} />
+        <VisualizationEditor />
         {!imagery.showBasemap && <ImageryLegend catalog={catalog} address={address} />}
         <CenterCrosshair />
         {!isMobile && showSliceNavigation && <SliceNavigation />}

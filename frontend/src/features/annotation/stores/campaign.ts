@@ -11,6 +11,7 @@ import {
   withSceneSearch,
   type ImageryCatalog,
 } from '../campaign/imagery';
+import { withVisualizationEdits } from '../campaign/visualizationEdits';
 import {
   canModifyAnnotation,
   extendedLabels,
@@ -91,6 +92,13 @@ export function startCollectionFor(
   );
 }
 
+/** The campaign's imagery as this viewer draws it, with their own visualization
+ *  edits applied. */
+export function catalogFor(campaign: CampaignOutFull): ImageryCatalog {
+  const edits = usePrefsStore.getState().visualizationEdits;
+  return withVisualizationEdits(buildImageryCatalog(campaign), campaign, edits);
+}
+
 export const useCampaignStore = create<CampaignState>((set, get) => ({
   campaign: null,
   catalog: null,
@@ -103,7 +111,7 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
   originTask: null,
 
   setCampaign: (campaign) => {
-    const catalog = buildImageryCatalog(campaign);
+    const catalog = catalogFor(campaign);
     const current = get().view;
     const kept = campaign.imagery_views.find((v) => v.id === current?.id) ?? null;
     set({ campaign, catalog, view: kept ?? current });
@@ -175,6 +183,16 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
     set({ view, taskStartCollectionId: start });
   },
 }));
+
+// An edit redraws the map as it is made: the catalog is what every layer reads.
+usePrefsStore.subscribe((prefs, previous) => {
+  if (prefs.visualizationEdits === previous.visualizationEdits) return;
+  const { campaign, catalog } = useCampaignStore.getState();
+  if (!campaign || !catalog) return;
+  useCampaignStore.setState({
+    catalog: withVisualizationEdits(catalog, campaign, prefs.visualizationEdits),
+  });
+});
 
 /** Sent with every Explore create, linking the shape to the task it was found
  *  near. */

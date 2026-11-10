@@ -13,11 +13,18 @@ interface SegmentedControlProps<T extends string> {
   value: T;
   onChange: (value: T) => void;
   'aria-label': string;
-  /** `bar` is the flat, borderless strip used in a page's top bar. */
-  size?: 'form' | 'bar';
+  /** `bar` is the flat, borderless strip used in a page's top bar; `compact` fills
+   *  its row with short, small-type segments, for dense panels. */
+  size?: 'form' | 'bar' | 'compact';
   title?: string;
   'data-testid'?: string;
 }
+
+const SEGMENT_SIZE = {
+  form: 'h-7 px-2.5 text-xs',
+  bar: 'h-6 px-2.5 text-xs',
+  compact: 'h-5 flex-1 justify-center px-2 text-[10px]',
+};
 
 /** A choice between a few peers, shown side by side as one control. */
 export const SegmentedControl = <T extends string>({
@@ -34,7 +41,7 @@ export const SegmentedControl = <T extends string>({
     aria-label={ariaLabel}
     title={title}
     data-testid={testId}
-    className={`inline-flex shrink-0 rounded-md p-0.5 ${
+    className={`rounded-md p-0.5 ${size === 'compact' ? 'flex w-full' : 'inline-flex shrink-0'} ${
       size === 'bar' ? 'bg-neutral-100' : 'border border-neutral-200 bg-neutral-50'
     }`}
   >
@@ -50,7 +57,7 @@ export const SegmentedControl = <T extends string>({
           title={segmentTitle}
           onClick={() => onChange(option)}
           className={`inline-flex items-center gap-1.5 rounded transition-colors cursor-pointer disabled:cursor-not-allowed disabled:text-neutral-300 ${
-            size === 'bar' ? 'h-6 px-2.5 text-xs' : 'h-7 px-2.5 text-xs'
+            SEGMENT_SIZE[size]
           } ${
             selected
               ? `bg-white text-neutral-900 shadow-sm ${size === 'bar' ? '' : 'ring-1 ring-neutral-200'}`

@@ -602,6 +602,11 @@ function mapBindings(): Binding[] {
       help: t('keymap.cycleVisualization'),
       run: () => imagery().cycleVizAction(catalog, 1),
     },
+    {
+      key: 'k',
+      help: t('keymap.adjustVisualization'),
+      run: () => imagery().toggleVizEditor(),
+    },
 
     {
       key: 'o',

@@ -171,6 +171,7 @@
     "pinStart": "Abrir esta fuente en esta colección primero"
   },
   "layers": {
+    "addVisualization": "Añadir una visualización propia",
     "sources": "Fuentes de imágenes",
     "visualizations": "Visualizaciones de {{source}}",
     "basemaps": "Mapas base"
@@ -288,5 +289,52 @@
     "showImagery": "Mostrar estas imágenes",
     "all": "Todas las anotaciones",
     "conflict": "Conflicto"
+  },
+  "vizEditor": {
+    "newName": "Mi visualización",
+    "toggle": "Ajustar visualización",
+    "title": "Ajustar visualización",
+    "close": "Cerrar",
+    "edited": "Editada",
+    "name": "Nombre",
+    "bands": "Bandas",
+    "mode": {
+      "rgb": "RGB",
+      "single": "Una banda",
+      "index": "Índice"
+    },
+    "red": "R",
+    "green": "G",
+    "blue": "B",
+    "band": "Banda {{channel}}",
+    "expression": "Expresión de bandas",
+    "expressionPlaceholder": "(B08-B04)/(B08+B04)",
+    "nothingToDraw": "Elige al menos una banda o escribe una expresión para dibujar algo.",
+    "range": "Rango de valores",
+    "min": "Mín",
+    "max": "Máx",
+    "colormap": "Mapa de colores",
+    "greyscale": "Escala de grises",
+    "colour": "Color",
+    "gamma": "Brillo",
+    "contrast": "Contraste",
+    "saturation": "Saturación",
+    "advanced": "Avanzado",
+    "resampling": "Remuestreo",
+    "resamplingDefault": "Predeterminado",
+    "nodata": "Valor sin datos",
+    "colorFormula": "Fórmula de color",
+    "formulaPlaceholder": "gamma RGB 1.5, saturation 1.2",
+    "resetTitle": "Volver a como la dibuja esta campaña",
+    "saveForEveryone": "Guardar para todos",
+    "applyToAll": "Guardar para todos…",
+    "applyToAllTitle": "Guardar esta visualización para todos en la campaña",
+    "deleteTitle": "Eliminar esta visualización tuya",
+    "onlyYou": "Solo tú ves tus cambios.",
+    "onlyYouAdded": "Solo tú ves esta visualización.",
+    "confirmTitle": "¿Guardar para todos?",
+    "confirmEdit": "Todas las personas de esta campaña verán {{name}} dibujada así.",
+    "confirmCreate": "Todas las personas de esta campaña podrán elegir {{name}}.",
+    "saveFailed": "No se pudo guardar la visualización"
   }
 }

@@ -1,9 +1,9 @@
 import { listTasks, getCampaignWithImageryWindows, listTaskSets } from '~/api/client';
-import { buildImageryCatalog } from './campaign/imagery';
 import { restoreSnapshot } from './campaign/imageryNav';
 import { layoutForView } from './canvas/grid';
 import { openingWorkMode, seedFilter } from './campaign/tasks';
 import {
+  catalogFor,
   startCollectionFor,
   toPolicyContext,
   useCampaignStore,
@@ -48,7 +48,7 @@ export async function loadCampaign(
   if (!campaign) throw new Error(`loadCampaign: no data for ${campaignId}`);
   const tasks = tasksRes.data?.tasks ?? [];
   const taskSets = setsRes.data ?? [];
-  const catalog = buildImageryCatalog(campaign);
+  const catalog = catalogFor(campaign);
   const view = campaign.imagery_views[0] ?? null;
 
   const filter = seedFilter(tasks, taskSets, options.currentUserId, options.now, {
