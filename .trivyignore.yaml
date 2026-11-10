@@ -109,3 +109,29 @@ vulnerabilities:
     purls: *sqlite
     statement: *sqlite-statement
     expired_at: 2027-05-09
+
+  - id: CVE-2026-112321
+    purls: &krb5
+      - pkg:deb/debian/libgssapi-krb5-2
+      - pkg:deb/debian/libk5crypto3
+      - pkg:deb/debian/libkrb5-3
+      - pkg:deb/debian/libkrb5support0
+    statement: &krb5-statement >-
+      Affects the krb5 KDC and kadmind servers only; the images ship just the
+      client libraries and never run a KDC or kadmind.
+    expired_at: 2027-05-09
+
+  - id: CVE-2026-112322
+    purls: *krb5
+    statement: *krb5-statement
+    expired_at: 2027-05-09
+
+  - id: CVE-2026-112323
+    purls: *krb5
+    statement: *krb5-statement
+    expired_at: 2027-05-09
+
+  - id: CVE-2026-119079
+    purls: *krb5
+    statement: *krb5-statement
+    expired_at: 2027-05-09
