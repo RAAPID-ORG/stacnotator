@@ -13,6 +13,7 @@ import {
   type LabelStyle,
 } from '../campaign/labelStyle';
 import type { ExtendedLabel } from '../campaign/annotation';
+import { probeGeometry, type Probe } from '../campaign/probes';
 import type { OriginTask, WorkMode } from '../stores/campaign';
 import type { GeoFeature, LayerId, LayerSpec, LonLat, StyleSpec } from '~/shared/map/types';
 
@@ -137,7 +138,7 @@ export interface ComposeState extends ImageryNavState {
   crosshairColor?: string | null;
   draftFeatures?: GeoFeature[];
   draftLabelId?: number | null;
-  probePoints?: LonLat[];
+  probes?: Probe[];
   /** The probe a click moves, drawn larger so it is obvious which one that is. */
   activeProbe?: number | null;
   /** Explore marks the task the annotator came from. */
@@ -385,13 +386,13 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
     });
   }
 
-  if (!isWindow && state.probePoints?.length) {
+  if (!isWindow && state.probes?.length) {
     layers.push({
       kind: 'features',
       id: PROBE_LAYER_ID,
-      features: state.probePoints.map((point, index) => ({
+      features: state.probes.map((point, index) => ({
         id: probeFeatureId(index),
-        geometry: { type: 'Point', coordinates: point },
+        geometry: probeGeometry(point),
       })),
       // Marker colour matches the chart series for the same probe, which is
       // what makes "this line is that dot" readable at a glance; the active
@@ -400,6 +401,14 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
         const index = probeIndexOf(feature.id) ?? 0;
         const isActive = index === state.activeProbe;
         return {
+          stroke: { color: probeColor(index), width: isActive ? 3 : 1.5 },
+          fill: { color: `${probeColor(index)}20` },
+          text: {
+            label: String(index + 1),
+            color: probeColor(index),
+            haloColor: '#ffffff',
+            offsetY: -12,
+          },
           circle: {
             radius: isActive ? 7 : 5,
             fill: { color: probeColor(index) },

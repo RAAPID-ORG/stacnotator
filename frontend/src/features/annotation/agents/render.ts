@@ -23,6 +23,8 @@ import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import { createLayer, destroyLayer } from '~/shared/map/layers';
 import type { LayerSpec } from '~/shared/map/types';
 import type { ImageryCatalog } from '../campaign/imagery';
+import { wktToGeometry } from '../campaign/annotation';
+import { geometryLocation } from '../campaign/probes';
 import { sliceRaster } from '../campaign/tileUrls';
 import { probeColor } from '../map/compose';
 import { collectSeriesLabels, formatDateLabel } from '../panels/Timeseries/chartData';
@@ -451,7 +453,7 @@ async function drawChart(
   place: Place,
   { task, campaign, stage, probes = [] }: RenderInput
 ): Promise<DrawnCell> {
-  const points = [{ lat: task.lat, lon: task.lon }, ...probes];
+  const points = [geometryLocation(wktToGeometry(task.geometry_wkt)), ...probes];
   const data = await Promise.all(
     points.map(async (point) => (await timeSeriesCache.get(campaign.id, ids, point)) ?? {})
   );
@@ -533,7 +535,10 @@ async function drawChart(
     meta: {
       ...place,
       kind: 'timeseries',
-      label: ['time series', cell.remove_cloudy ? 'cloudy removed' : 'grey dots cloudy']
+      label: [
+        'type' in points[0] ? 'time series (task polygon mean)' : 'time series',
+        cell.remove_cloudy ? 'cloudy removed' : 'grey dots cloudy',
+      ]
         .concat(cell.smoothed ? ['smoothed'] : [])
         .join(', '),
       series: lines.map((line) => ({

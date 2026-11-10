@@ -2929,6 +2929,23 @@ export type MoveTasksToSetResult = {
 };
 
 /**
+ * MultiPolygonGeometry
+ */
+export type MultiPolygonGeometry = {
+    /**
+     * Type
+     */
+    type: 'MultiPolygon';
+    /**
+     * Coordinates
+     */
+    coordinates: Array<Array<Array<[
+        number,
+        number
+    ]>>>;
+};
+
+/**
  * NextTasksOut
  */
 export type NextTasksOut = {
@@ -3551,6 +3568,23 @@ export type PolicyAudience = {
      * User Ids
      */
     user_ids?: Array<string>;
+};
+
+/**
+ * PolygonGeometry
+ */
+export type PolygonGeometry = {
+    /**
+     * Type
+     */
+    type: 'Polygon';
+    /**
+     * Coordinates
+     */
+    coordinates: Array<Array<[
+        number,
+        number
+    ]>>;
 };
 
 /**
@@ -5660,6 +5694,20 @@ export type VisualizerViewOut = {
      * Imagery Renew At
      */
     imagery_renew_at?: string | null;
+};
+
+/**
+ * ZonalTimeseriesRequest
+ */
+export type ZonalTimeseriesRequest = {
+    /**
+     * Geometry
+     */
+    geometry: ({
+        type: 'Polygon';
+    } & PolygonGeometry) | ({
+        type: 'MultiPolygon';
+    } & MultiPolygonGeometry);
 };
 
 /**
@@ -9133,6 +9181,40 @@ export type GetTimeseriesDataResponses = {
 };
 
 export type GetTimeseriesDataResponse = GetTimeseriesDataResponses[keyof GetTimeseriesDataResponses];
+
+export type GetZonalTimeseriesDataData = {
+    body: ZonalTimeseriesRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Timeseries Id
+         */
+        timeseries_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/timeseries/{timeseries_id}/data';
+};
+
+export type GetZonalTimeseriesDataErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetZonalTimeseriesDataError = GetZonalTimeseriesDataErrors[keyof GetZonalTimeseriesDataErrors];
+
+export type GetZonalTimeseriesDataResponses = {
+    /**
+     * Successful Response
+     */
+    200: TimeseriesDataResponse;
+};
+
+export type GetZonalTimeseriesDataResponse = GetZonalTimeseriesDataResponses[keyof GetZonalTimeseriesDataResponses];
 
 export type DeleteTimeseriesData = {
     body?: never;

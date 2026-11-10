@@ -4,6 +4,7 @@ from pydantic import ValidationError
 from src.timeseries.schemas import (
     TimeseriesCreate,
     TimeseriesOut,
+    ZonalTimeseriesRequest,
     parse_ym,
     timeseries_options,
     ym_range_to_dates,
@@ -117,11 +118,113 @@ def test_parse_ym_invalid(ym):
         parse_ym(ym)
 
 
-def test_ym_range_spans_full_months():
-    assert ym_range_to_dates("202401", "202403") == ("2024-01-01", "2024-03-31")
-    assert ym_range_to_dates("202304", "202304") == ("2023-04-01", "2023-04-30")
+def test_ym_range_ends_the_day_after_the_end_month():
+    """filterDate excludes its end, so the whole last month needs the next month's
+    first day."""
+    assert ym_range_to_dates("202401", "202403") == ("2024-01-01", "2024-04-01")
+    assert ym_range_to_dates("202304", "202304") == ("2023-04-01", "2023-05-01")
 
 
-def test_ym_range_handles_leap_february():
-    assert ym_range_to_dates("202402", "202402") == ("2024-02-01", "2024-02-29")
-    assert ym_range_to_dates("202302", "202302") == ("2023-02-01", "2023-02-28")
+def test_ym_range_crosses_into_the_next_year_after_december():
+    assert ym_range_to_dates("202301", "202312") == ("2023-01-01", "2024-01-01")
+
+
+def test_ym_range_keeps_leap_day_of_february():
+    assert ym_range_to_dates("202402", "202402") == ("2024-02-01", "2024-03-01")
+    assert ym_range_to_dates("202302", "202302") == ("2023-02-01", "2023-03-01")
+
+
+def _square(x: float, y: float, size: float) -> list[list[float]]:
+    return [[x, y], [x + size, y], [x + size, y + size], [x, y + size], [x, y]]
+
+
+def _zone(geometry):
+    return ZonalTimeseriesRequest.model_validate({"geometry": geometry})
+
+
+@pytest.mark.parametrize(
+    "geometry",
+    [
+        {"type": "Polygon", "coordinates": [_square(0, 0, 0.01)]},
+        {
+            "type": "Polygon",
+            "coordinates": [_square(0, 0, 0.01), _square(0.002, 0.002, 0.002)],
+        },
+        {
+            "type": "MultiPolygon",
+            "coordinates": [[_square(0, 0, 0.01)], [_square(0.02, 0, 0.01)]],
+        },
+        {"type": "Polygon", "coordinates": [_square(179.99, 89.98, 0.01)]},
+    ],
+)
+def test_zone_accepts_polygons_with_holes_and_parts(geometry):
+    assert _zone(geometry).geometry_json() == geometry
+
+
+@pytest.mark.parametrize(
+    ("geometry", "message"),
+    [
+        ({"type": "Point", "coordinates": [0, 0]}, "tag"),
+        ({"type": "Polygon", "coordinates": []}, "at least 1"),
+        ({"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [0, 0]]]}, "at least 4"),
+        ({"type": "Polygon", "coordinates": [[[0, 0], [0.01, 0], [0.01, 0.01], [0, 0.01]]]}, "end"),
+        ({"type": "Polygon", "coordinates": [_square(180, 0, 0.01)]}, "within"),
+        ({"type": "Polygon", "coordinates": [_square(0, 90, 0.01)]}, "within"),
+        (
+            {"type": "Polygon", "coordinates": [[[0, 0, 5], [0.01, 0], [0.01, 0.01], [0, 0]]]},
+            "at most 2",
+        ),
+        (
+            {
+                "type": "Polygon",
+                "coordinates": [[[0, 0], [0.01, 0.01], [0.01, 0], [0, 0.01], [0, 0]]],
+            },
+            "Self-intersection",
+        ),
+        (
+            {"type": "Polygon", "coordinates": [_square(0, 0, 0.01), _square(0.5, 0.5, 0.01)]},
+            "not valid",
+        ),
+        (
+            {
+                "type": "MultiPolygon",
+                "coordinates": [[_square(0, 0, 0.01)], [_square(0.005, 0, 0.01)]],
+            },
+            "not valid",
+        ),
+        ({"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [2, 0], [0, 0]]]}, "not valid"),
+        ({"type": "Polygon", "coordinates": [_square(0, 0, 0.03)]}, "km2"),
+        (
+            {
+                "type": "Polygon",
+                "coordinates": [[[-179, 0], [179, 0], [179, 0.001], [-179, 0.001], [-179, 0]]],
+            },
+            "longitude",
+        ),
+        (
+            {"type": "MultiPolygon", "coordinates": [[_square(i, 0, 0.001)] for i in range(11)]},
+            "11",
+        ),
+    ],
+)
+def test_zone_rejects_unusable_geometry(geometry, message):
+    with pytest.raises(ValidationError, match=message):
+        _zone(geometry)
+
+
+def test_zone_rejects_non_finite_coordinates():
+    ring = _square(0, 0, 0.01)
+    ring[1] = [float("nan"), 0]
+    with pytest.raises(ValidationError, match="finite"):
+        _zone({"type": "Polygon", "coordinates": [ring]})
+
+
+def test_zone_bounds_vertex_count():
+    import math
+
+    ring = [
+        [0.01 * math.cos(2 * math.pi * i / 1000), 0.01 * math.sin(2 * math.pi * i / 1000)]
+        for i in range(1000)
+    ]
+    with pytest.raises(ValidationError, match="1001 vertices"):
+        _zone({"type": "Polygon", "coordinates": [[*ring, ring[0]]]})

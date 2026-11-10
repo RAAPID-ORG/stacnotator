@@ -1,4 +1,4 @@
-"""Pulling one point's index time series out of Earth Engine.
+"""Pulling a point's or a polygon's index time series out of Earth Engine.
 
 This is the only place an index formula meets real imagery. Sources have already
 normalised band names and reflectance scaling, so nothing here is sensor-aware:
@@ -17,6 +17,12 @@ from src.timeseries.indices import SpectralIndex
 from src.timeseries.sources import TimeseriesSource, offers
 
 _VALUE_BAND = "value"
+_CLEAR_BAND = "clear"
+# The zone cap in schemas.py keeps a series near 1e5 pixels per image; ten times that
+# leaves room for boundary pixels without letting a reduction run away. bestEffort
+# stays off so an oversized zone fails instead of being averaged at a coarser scale.
+_ZONE_MAX_PIXELS = 1_000_000
+_ZONE_TILE_SCALE = 2
 
 
 class TimeseriesFetchError(Exception):
@@ -117,12 +123,17 @@ def fetch_index_series(
         lambda image: image.addBands(index_image(image, index))
     )
 
+    region_data = _get_info(
+        collection.select([_VALUE_BAND, "cloud"]).getRegion(point, source.scale_m)
+    )
+    return _region_data_to_dataframe(region_data)
+
+
+def _get_info(computed: Any) -> Any:
     # The EE client retries 429s with backoff internally; if it still fails we
     # surface a domain error rather than letting the raw stack trace propagate.
     try:
-        region_data = (
-            collection.select([_VALUE_BAND, "cloud"]).getRegion(point, source.scale_m).getInfo()
-        )
+        return computed.getInfo()
     except (ee.EEException, HttpError) as exc:
         status = getattr(getattr(exc, "resp", None), "status", None)
         message = str(exc)
@@ -130,4 +141,76 @@ def fetch_index_series(
             raise RateLimited(message) from exc
         raise UpstreamFailed(message) from exc
 
-    return _region_data_to_dataframe(region_data)
+
+def zone_observation(image: Any, index: SpectralIndex, region: Any, scale_m: int) -> Any:
+    # One feature per image: the area-weighted mean of the per-pixel index over the
+    # zone's clear pixels, with cloud 0. Only when no clear pixel is left is it the
+    # mean over every unmasked pixel, with cloud 1, so the chart's cloud filter hides
+    # an image only when the whole zone is cloudy. value is null when the zone has no
+    # unmasked pixel at all, and the caller drops those.
+    value = index_image(image, index)
+    clear = value.updateMask(image.select("cloud").eq(0)).rename(_CLEAR_BAND)
+    means = ee.Dictionary(
+        value.addBands(clear).reduceRegion(
+            reducer=ee.Reducer.mean(),
+            geometry=region,
+            # Reduce in each image's own CRS at the source's resolution: a merged
+            # Landsat record and Sentinel-2 tiles span UTM zones, and band math can
+            # leave the index image's default projection ambiguous.
+            crs=image.select(index.roles[0]).projection(),
+            scale=scale_m,
+            bestEffort=False,
+            maxPixels=_ZONE_MAX_PIXELS,
+            tileScale=_ZONE_TILE_SCALE,
+        )
+    )
+    no_clear = ee.Algorithms.IsEqual(means.get(_CLEAR_BAND), None)
+    return ee.Feature(
+        None,
+        {
+            "time": image.get("system:time_start"),
+            "value": ee.Algorithms.If(no_clear, means.get(_VALUE_BAND), means.get(_CLEAR_BAND)),
+            "cloud": ee.Algorithms.If(no_clear, 1, 0),
+        },
+    )
+
+
+def zone_series(
+    source: TimeseriesSource,
+    index: SpectralIndex,
+    geometry: dict[str, Any],
+    start_date: str,
+    end_date: str,
+) -> Any:
+    if not offers(source, index):
+        raise ValueError(f"{source.key} cannot supply the bands {index.key} needs")
+
+    # GeoJSON edges are straight in longitude/latitude, which is how the map drew them.
+    region = ee.Geometry(geometry, geodesic=False)
+    observations = ee.FeatureCollection(
+        source.build(start_date, end_date, region).map(
+            lambda image: zone_observation(image, index, region, source.scale_m)
+        )
+    ).filter(ee.Filter.notNull(["value"]))
+    return observations.reduceColumns(ee.Reducer.toList(3), ["time", "value", "cloud"]).get("list")
+
+
+def _zone_rows_to_dataframe(rows: list) -> pd.DataFrame:
+    df = pd.DataFrame(rows, columns=["time", "values", "cloud"])
+    if df.empty:
+        return pd.DataFrame({"time": [], "values": [], "cloud": []})
+    df["time"] = pd.to_datetime(df["time"], unit="ms")
+    df["cloud"] = df["cloud"].astype(int)
+    return df.sort_values("time").reset_index(drop=True)
+
+
+def fetch_zonal_index_series(
+    source: TimeseriesSource,
+    index: SpectralIndex,
+    geometry: dict[str, Any],
+    start_date: str,
+    end_date: str,
+) -> pd.DataFrame:
+    return _zone_rows_to_dataframe(
+        _get_info(zone_series(source, index, geometry, start_date, end_date))
+    )

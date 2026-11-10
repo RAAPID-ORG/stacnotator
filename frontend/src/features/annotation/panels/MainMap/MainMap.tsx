@@ -17,12 +17,14 @@ import { applyCameraTarget, fitAnnotations, focusCameraTarget, mainCamera } from
 import { annotationsVisibleAt, composeLayers, type ComposeState } from '../../map/compose';
 import { MapView, type MapAnchor } from '~/shared/map/MapView';
 import { CenterCrosshair } from '../../components/CenterCrosshair';
+import { ProbeModeControl } from '../../components/ProbeModeControl';
+import type { Probe } from '../../campaign/probes';
 import { PillSpinner, StatusPill } from '../../components/StatusPill';
 import { ImageryRegistrationNotice } from '../../components/ImageryRegistrationNotice';
 import { ImageryLegend } from '../../components/ImageryLegend';
 import { Delayed } from '~/shared/ui/Delayed';
 import { setForegroundMapLoading, useForegroundLoading } from '~/shared/map/tileLoading';
-import type { LonLat, MapClickEvent } from '~/shared/map/types';
+import type { MapClickEvent } from '~/shared/map/types';
 import {
   useCampaign,
   useCampaignStore,
@@ -53,7 +55,7 @@ import { useSceneAutoLoad, useSceneSliceLayers } from '../../stores/scenes';
 import { useIsMobile } from '~/shared/utils/useIsMobile';
 
 /** Stable empty array: a fresh [] each render would recompose the layers. */
-const EMPTY_PROBES: LonLat[] = [];
+const EMPTY_PROBES: Probe[] = [];
 
 /** Keeps the leader camera on the shared focus. Working zoom is read at move
  *  time so cycling imagery never yanks a camera the user just positioned. */
@@ -76,14 +78,14 @@ function useFocusCamera(mode: WorkMode, workingZoom: number | null): void {
  *  the way back off the map lives in the header both share. */
 function ClearProbes() {
   const { t } = useTranslation('panels');
-  const probeCount = useWorkStore((s) => s.probePoints.length);
+  const probeCount = useWorkStore((s) => s.probes.length);
   if (probeCount === 0) return null;
 
   return (
     <button
       type="button"
       onMouseDown={(e) => e.stopPropagation()}
-      onClick={() => useWorkStore.getState().clearProbePoints()}
+      onClick={() => useWorkStore.getState().clearProbes()}
       title={t('probes.clearN', { count: probeCount })}
       aria-label={t('probes.clearAll')}
       data-testid="clear-probes"
@@ -104,7 +106,7 @@ function ProbeToggle({ title, addTitle }: { title: string; addTitle: string }) {
   const { t } = useTranslation('panels');
   const active = useWorkStore((s) => s.tool === 'timeseries');
   const armed = useWorkStore((s) => s.probeAddArmed);
-  const atCap = useWorkStore((s) => s.probePoints.length >= MAX_PROBES);
+  const atCap = useWorkStore((s) => s.probes.length >= MAX_PROBES);
 
   const segment = 'flex h-6 items-center justify-center rounded-md cursor-pointer';
   const off = 'text-neutral-300 hover:bg-neutral-100 hover:text-neutral-500';
@@ -123,6 +125,7 @@ function ProbeToggle({ title, addTitle }: { title: string; addTitle: string }) {
       >
         <IconProbe className="h-[13px] w-[13px]" />
       </button>
+      {active && <ProbeModeControl />}
       <button
         type="button"
         onMouseDown={(e) => e.stopPropagation()}
@@ -368,6 +371,8 @@ function AnnotationToolNotice() {
   const zoom = useCameraZoom(mainCamera);
   const isExplore = useCampaignStore((s) => s.workMode === 'explore');
   const tool = useWorkStore((s) => s.tool);
+  const probeMode = useWorkStore((s) => s.probeMode);
+  const pendingProbe = useWorkStore((s) => s.pendingProbe !== null);
   const hasSelection = useWorkStore((s) => s.edit !== null || s.selection.length > 0);
   const selectedLabelId = useWorkStore((s) => s.selectedLabelId);
   const draftOpen = useWorkStore(
@@ -376,6 +381,15 @@ function AnnotationToolNotice() {
   const labels = useLabels();
   const selectedLabel = labels.find((label) => label.id === selectedLabelId);
 
+  if (tool === 'timeseries') {
+    return (
+      <StatusPill>
+        <span data-testid="probe-hint">
+          {pendingProbe ? t('probes.loadingPolygon') : t(`probes.hints.${probeMode}`)}
+        </span>
+      </StatusPill>
+    );
+  }
   if (drawsShapes && showAnnotations && !annotationsVisibleAt(zoom)) {
     return <StatusPill>{t('mainMap.zoomIn')}</StatusPill>;
   }
@@ -480,8 +494,10 @@ export function MainMapBody() {
   // drawing feature's wiring is mounted.
   const { interactions, onMapClick: drawingClick } = useDrawingInteractions();
   const onMapClick = drawsShapes ? drawingClick : taskProbeClick;
-  const probePoints = useWorkStore((s) => (s.probeMarkerHidden ? EMPTY_PROBES : s.probePoints));
+  const probes = useWorkStore((s) => (s.probeMarkerHidden ? EMPTY_PROBES : s.probes));
   const activeProbe = useWorkStore((s) => s.activeProbe);
+  const lastProbe = probes.at(-1);
+  const lastPoint = Array.isArray(lastProbe) ? lastProbe : undefined;
   const focus = useMapFocus();
   const originTask = useCampaignStore((s) => s.originTask);
   const { containerRef, width, height } = useContainerSize();
@@ -535,7 +551,7 @@ export function MainMapBody() {
       crosshairColor: focus?.crosshairColor ?? null,
       draftFeatures,
       draftLabelId: draft.phase === 'idle' ? null : draft.labelId,
-      probePoints,
+      probes,
       activeProbe,
       originTask,
     };
@@ -550,7 +566,7 @@ export function MainMapBody() {
     focus,
     draftFeatures,
     draft,
-    probePoints,
+    probes,
     activeProbe,
     originTask,
   ]);
@@ -614,9 +630,9 @@ export function MainMapBody() {
         ref={containerRef}
         data-crosshair-lon={focus?.center?.[0]}
         data-crosshair-lat={focus?.center?.[1]}
-        data-probe-lon={probePoints.at(-1)?.[0]}
-        data-probe-lat={probePoints.at(-1)?.[1]}
-        data-probe-count={probePoints.length}
+        data-probe-lon={lastPoint?.[0]}
+        data-probe-lat={lastPoint?.[1]}
+        data-probe-count={probes.length}
         data-map-loading={mapLoading}
         // How many annotations this map is drawing itself because the tiles do
         // not carry them yet, and the version of the tiles it is drawing.
