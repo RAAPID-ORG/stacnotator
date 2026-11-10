@@ -9,7 +9,7 @@ import type {
   NamedVizParams,
   StacBrowserCollectionData,
 } from './types';
-import { createId, emptyVizParams, isPlanetSceneConfig } from './types';
+import { createId, emptySource, emptyVizParams, isPlanetSceneConfig } from './types';
 
 export interface EditableGenerationSeries {
   id: string;
@@ -200,6 +200,56 @@ const coverModeOf = (config: ImageryGenerationConfig) =>
 
 const lastDay = (end: Date) => toDateStr(new Date(end.getTime() - 86_400_000));
 
+/** How a STAC collection is searched and drawn, apart from its dates. */
+export type StacSearchSettings = Omit<
+  ImageryGenerationConfig,
+  Exclude<keyof GenerationRecipe, 'hasCloudCover'>
+>;
+
+/** One window of a STAC collection. ``cover`` is the index of the slice that
+ *  stands for the window, or a dedicated slice searched with the cover settings. */
+export function stacCollection(
+  search: StacSearchSettings,
+  window: { name: string; slices: ImagerySlice[]; cover: number | ImagerySlice },
+  seriesId?: string,
+  sasToken?: string | null
+): CollectionItem {
+  const dedicated = typeof window.cover !== 'number';
+  const cloudy = search.hasCloudCover;
+  return {
+    id: createId(),
+    name: window.name,
+    generationSeriesId: seriesId,
+    slices: typeof window.cover === 'number' ? window.slices : [window.cover, ...window.slices],
+    coverSliceIndex:
+      typeof window.cover === 'number'
+        ? Math.max(0, Math.min(window.cover, window.slices.length - 1))
+        : 0,
+    hasDedicatedCover: dedicated,
+    data: {
+      type: 'stac_browser' as const,
+      catalogUrl: search.catalogUrl,
+      stacCollectionId: search.stacCollectionId,
+      isMpc: search.isMpc,
+      tiler: search.tiler,
+      // Only meaningful when the items carry eo:cloud_cover. Persisting it
+      // otherwise makes the tiler ingest filter on a property the items lack,
+      // dropping every item; the search query is gated the same way.
+      maxCloudCover: cloudy ? search.maxCloudCover : undefined,
+      itemSort: search.itemSort,
+      visualizations: search.visualizations,
+      coverVisualizations: dedicated ? search.coverVisualizations : undefined,
+      coverMaxCloudCover: dedicated && cloudy ? search.coverMaxCloudCover : undefined,
+      coverItemSort: dedicated ? search.coverItemSort : undefined,
+      searchQuery: search.searchQuery,
+      coverSearchQuery: dedicated ? search.coverSearchQuery : undefined,
+      internalStorage: search.internalStorage,
+      sasToken: sasToken ?? undefined,
+      vizUrls: search.visualizations.map((v) => ({ vizName: v.name, url: '' })),
+    },
+  };
+}
+
 /** The period a generator covers, cut into windows of slices, each window
  *  searched and rendered the same way. Dates are whole months: ``startDate`` and
  *  ``endDate`` are YYYY-MM, the range ending with the end date's month. */
@@ -213,7 +263,6 @@ export function generateStacCollections(
   const start = new Date(Date.UTC(startY, startM - 1, 1));
   const end = new Date(Date.UTC(endY, endM, 1));
   const custom = coverModeOf(config) === 'custom';
-  const cloudy = config.hasCloudCover;
 
   return periods(start, end, config.collectionPeriodInterval, config.collectionPeriodUnit).map(
     ([windowStart, windowEnd]) => {
@@ -235,43 +284,24 @@ export function generateStacCollections(
       }));
       const windowFirst = toDateStr(windowStart);
       const windowLast = lastDay(windowEnd);
-      const cover: ImagerySlice = {
-        id: createId(),
-        name: formatSliceLabel(windowFirst, windowLast, config.slicePeriodUnit, 0),
-        startDate: windowFirst,
-        endDate: windowLast,
-      };
-      return {
-        id: createId(),
-        name: formatWindowLabel(windowFirst, windowLast, config.collectionPeriodUnit),
-        generationSeriesId: seriesId,
-        slices: custom ? [cover, ...slices] : slices,
-        coverSliceIndex: custom
-          ? 0
-          : Math.max(0, Math.min(config.coverSliceNth - 1, slices.length - 1)),
-        hasDedicatedCover: custom,
-        data: {
-          type: 'stac_browser' as const,
-          catalogUrl: config.catalogUrl,
-          stacCollectionId: config.stacCollectionId,
-          isMpc: config.isMpc,
-          tiler: config.tiler,
-          // Only meaningful when the items carry eo:cloud_cover. Persisting it
-          // otherwise makes the tiler ingest filter on a property the items lack,
-          // dropping every item; the search query is gated the same way.
-          maxCloudCover: cloudy ? config.maxCloudCover : undefined,
-          itemSort: config.itemSort,
-          visualizations: config.visualizations,
-          coverVisualizations: custom ? config.coverVisualizations : undefined,
-          coverMaxCloudCover: custom && cloudy ? config.coverMaxCloudCover : undefined,
-          coverItemSort: custom ? config.coverItemSort : undefined,
-          searchQuery: config.searchQuery,
-          coverSearchQuery: custom ? config.coverSearchQuery : undefined,
-          internalStorage: config.internalStorage,
-          sasToken: sasToken ?? undefined,
-          vizUrls: config.visualizations.map((v) => ({ vizName: v.name, url: '' })),
+      const cover = custom
+        ? {
+            id: createId(),
+            name: formatSliceLabel(windowFirst, windowLast, config.slicePeriodUnit, 0),
+            startDate: windowFirst,
+            endDate: windowLast,
+          }
+        : config.coverSliceNth - 1;
+      return stacCollection(
+        config,
+        {
+          name: formatWindowLabel(windowFirst, windowLast, config.collectionPeriodUnit),
+          slices,
+          cover,
         },
-      };
+        seriesId,
+        sasToken
+      );
     }
   );
 }
@@ -290,4 +320,21 @@ export function recipeOf(config: ImageryGenerationConfig): GenerationRecipe {
     coverMode: coverModeOf(config),
     coverSliceNth: config.coverSliceNth,
   };
+}
+
+/** A new source holding what a generator or a single-item pick produced, with the
+ *  visualizations of its first collection. */
+export function sourceFromGenerated(
+  collections: CollectionItem[],
+  generationSeries: ImageryGenerationSeries | undefined,
+  name: string
+): ImagerySource {
+  const first = collections[0];
+  const vizs = first?.data.type === 'stac_browser' ? first.data.visualizations : [];
+  const source = emptySource();
+  source.name = name;
+  if (vizs.length > 0) source.visualizations = vizs.map((v) => ({ name: v.name }));
+  source.generationSeries = generationSeries ? [generationSeries] : [];
+  source.collections = collections;
+  return source;
 }

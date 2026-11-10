@@ -28,6 +28,9 @@ class Http:
     def patch(self, path: str, json: Any = None) -> Any:
         return self._request("PATCH", path, json=json)
 
+    def put(self, path: str, json: Any = None) -> Any:
+        return self._request("PUT", path, json=json)
+
     def post(
         self,
         path: str,
@@ -48,6 +51,8 @@ class Http:
                 )
         if not response.ok:
             raise ApiError(response.status_code, _error_detail(response))
+        if response.status_code == 204:
+            return None
         try:
             return response.json()
         except ValueError as exc:

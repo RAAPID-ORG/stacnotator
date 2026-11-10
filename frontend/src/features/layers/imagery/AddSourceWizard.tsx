@@ -3,13 +3,15 @@ import { Trans, useTranslation } from 'react-i18next';
 import { Modal } from '~/shared/ui/Modal';
 import { Input, Button } from '~/shared/ui/forms';
 import { IconStac, IconChevronRight } from '~/shared/ui/Icons';
-import { CatalogBrowser, MPC_PRESETS } from './CatalogBrowser';
-import type { CatalogBrowserPreset, CatalogBrowserResult } from './CatalogBrowser';
+import { CatalogBrowser } from './CatalogBrowser';
+import type { CatalogBrowserResult } from './CatalogBrowser';
+import { MPC_PRESETS, type CatalogBrowserPreset } from './mpcPresets';
 import { CollectionEditor } from './CollectionEditor';
 import { PlanetBrowser } from './PlanetBrowser';
 import { PlanetSceneBrowser } from './PlanetSceneBrowser';
-import type { CollectionItem, ImagerySource, NamedVizParams } from './types';
+import type { CollectionItem, ImagerySource } from './types';
 import { emptyManualCollection, emptySource } from './types';
+import { sourceFromGenerated } from './generation';
 import type { ImageryController } from './controller';
 
 interface AddSourceWizardProps {
@@ -67,21 +69,8 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
   };
 
   const finalizeFromCatalog = async (result: CatalogBrowserResult, fallbackName: string) => {
-    const { collections, generationSeries } = result;
-    if (collections.length === 0) return;
-    const first = collections[0];
-    const vizNames: NamedVizParams[] | undefined =
-      first.data.type === 'stac_browser' ? first.data.visualizations : undefined;
-
-    const src = emptySource();
-    src.name = fallbackName;
-    if (vizNames && vizNames.length > 0) {
-      src.visualizations = vizNames.map((v) => ({ name: v.name }));
-    }
-    src.generationSeries = generationSeries ? [generationSeries] : [];
-    src.collections = collections;
-
-    await added(src);
+    if (result.collections.length === 0) return;
+    await added(sourceFromGenerated(result.collections, result.generationSeries, fallbackName));
   };
 
   if (step.kind === 'configure-preset') {

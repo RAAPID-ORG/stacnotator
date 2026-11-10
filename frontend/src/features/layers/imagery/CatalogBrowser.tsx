@@ -22,9 +22,14 @@ import { VizTabs } from './VizTabs';
 import { compositingMethods, servingTiler, noTilerNote } from './tilerCapabilities';
 import { useProjectTilers } from '~/shared/hooks/useProjectTilers';
 import { CoverSearchParams } from './CoverSearchParams';
-import { COLLECTION_PRESETS, presetVizParams } from './collectionPresets';
+import {
+  collectionDefaults,
+  MPC_API_URL,
+  type CollectionDefaults,
+  type CatalogBrowserPreset,
+  type TemporalPattern,
+} from './mpcPresets';
 import { followingCoverParams, setVisualization } from './visualizations';
-import type { BandPreset } from './collectionPresets';
 import { StacQueryEditor } from './StacQueryEditor';
 import { SasTokenField } from './SasTokenField';
 import { readSasToken } from './sasToken';
@@ -38,14 +43,6 @@ import { Button, DateField, Input, Select } from '~/shared/ui/forms';
 import { extractErrorMessage, handleError } from '~/shared/utils/errorHandler';
 
 type Step = 'catalog' | 'collection' | 'configure';
-
-type TemporalPattern =
-  | 'monthly-weekly'
-  | 'monthly-monthly'
-  | 'weekly-weekly'
-  | 'yearly-monthly'
-  | 'yearly-yearly'
-  | 'custom';
 
 interface TemporalPatternOption {
   id: Exclude<TemporalPattern, 'custom'>;
@@ -103,32 +100,6 @@ const TEMPORAL_PATTERNS: TemporalPatternOption[] = [
     sliceUnit: 'years',
   },
 ];
-
-export interface CatalogBrowserPreset {
-  /** STAC collection ID within MPC (e.g. 'sentinel-2-l2a') */
-  stacCollectionId: string;
-  /** Human label */
-  label: string;
-  /** Temporal pattern to preselect; falls back to the form defaults (monthly/weekly) */
-  temporalPattern?: Exclude<TemporalPattern, 'custom'>;
-  /** Cover to preselect; falls back to a generated cover for cloud-bearing collections */
-  coverMode?: 'nth' | 'custom';
-}
-
-/** Presets that map directly to MPC STAC collections */
-export const MPC_PRESETS: CatalogBrowserPreset[] = [
-  { stacCollectionId: 'sentinel-2-l2a', label: 'Sentinel-2 L2A' },
-  { stacCollectionId: 'landsat-c2-l2', label: 'Landsat C2 L2' },
-  { stacCollectionId: 'hls2-s30', label: 'HLS Sentinel-2 (S30)' },
-  { stacCollectionId: 'hls2-l30', label: 'HLS Landsat (L30)' },
-  // NAIP flies each state roughly every 2-3 years and carries no cloud metadata, so
-  // sub-yearly windows produce empty slices and a composited cover buys nothing.
-  { stacCollectionId: 'naip', label: 'NAIP', temporalPattern: 'yearly-yearly', coverMode: 'nth' },
-  { stacCollectionId: 'sentinel-1-grd', label: 'Sentinel-1 GRD' },
-  { stacCollectionId: 'cop-dem-glo-30', label: 'Copernicus DEM 30m' },
-];
-
-const MPC_API_URL = 'https://planetarycomputer.microsoft.com/api/stac/v1';
 
 interface CatalogBrowserProps {
   projectId: number;
@@ -457,24 +428,7 @@ export const CatalogBrowser = ({
           if (col.item_assets && Object.keys(col.item_assets).length > 0) {
             setAvailableAssets(col.item_assets);
           }
-          // Pre-fill visualizations from known presets
-          const initialVizs = buildInitialVisualizations(col.id);
-          setVisualizations(initialVizs);
-          setActiveVizIndex(0);
-          // Default to cloud cover sort when available
-          if (col.has_cloud_cover) {
-            setItemSort('cloud_cover_asc');
-            setCoverItemSort('cloud_cover_asc');
-          }
-          if (preset.temporalPattern) {
-            applyTemporalPattern(preset.temporalPattern);
-          }
-          const coverMode = preset.coverMode ?? (col.has_cloud_cover ? 'custom' : 'nth');
-          setCoverMode(coverMode);
-          if (coverMode === 'custom') {
-            setCoverVisualizations(buildInitialVisualizations(col.id, 'first'));
-            setActiveCoverVizIndex(0);
-          }
+          applyDefaults(collectionDefaults(col, preset));
           setStep('configure');
         })
         .catch((e: unknown) => {
@@ -546,45 +500,15 @@ export const CatalogBrowser = ({
     selectCatalog(cat, customCatalogIsPrivate ? typedSas : null);
   };
 
-  /** Build pre-configured visualizations from known collection presets.
-   *  Returns True Color + False Color (if available), with bands/rescale/colorFormula pre-filled.
-   *  Falls back to a single empty "True Color" viz if no presets exist. */
-  const buildInitialVisualizations = (
-    collectionId: string,
-    compositingOverride?: string
-  ): NamedVizParams[] => {
-    const presets = COLLECTION_PRESETS[collectionId];
-    if (!presets || presets.length === 0) {
-      return [
-        {
-          name: 'True Color',
-          vizParams: {
-            ...emptyVizParams(),
-            ...(compositingOverride ? { compositing: compositingOverride } : {}),
-          },
-        },
-      ];
-    }
-
-    const trueColor = presets.find((p) => p.label.toLowerCase().includes('true color'));
-    const falseColor = presets.find((p) => p.label.toLowerCase().includes('false color'));
-
-    const buildViz = (preset: BandPreset): NamedVizParams => {
-      return {
-        name: preset.label,
-        vizParams: presetVizParams(preset, collectionId, {
-          ...emptyVizParams(),
-          ...(compositingOverride ? { compositing: compositingOverride } : {}),
-        }),
-      };
-    };
-
-    const vizs: NamedVizParams[] = [];
-    if (trueColor) vizs.push(buildViz(trueColor));
-    if (falseColor) vizs.push(buildViz(falseColor));
-    // Fallback: if neither found, use first preset
-    if (vizs.length === 0) vizs.push(buildViz(presets[0]));
-    return vizs;
+  const applyDefaults = (defaults: CollectionDefaults) => {
+    setVisualizations(defaults.visualizations);
+    setActiveVizIndex(0);
+    setItemSort(defaults.itemSort);
+    setCoverItemSort(defaults.coverItemSort);
+    setCoverMode(defaults.coverMode);
+    setCoverVisualizations(defaults.coverVisualizations);
+    setActiveCoverVizIndex(0);
+    if (defaults.temporalPattern) applyTemporalPattern(defaults.temporalPattern);
   };
 
   const selectCollection = (col: StacCollectionOut) => {
@@ -592,24 +516,8 @@ export const CatalogBrowser = ({
     setStep('configure');
     setQuery('');
     setError('');
-    // Pre-fill visualizations from known presets (True Color + False Color if available)
-    const initialVizs = buildInitialVisualizations(col.id);
-    setVisualizations(initialVizs);
-    setActiveVizIndex(0);
-    // Default to cloud cover sort when available
-    const defaultSort = col.has_cloud_cover ? 'cloud_cover_asc' : 'date_desc';
-    setItemSort(defaultSort);
+    applyDefaults(collectionDefaults(col));
     setCoverMaxCloudCover(90);
-    setCoverItemSort(defaultSort);
-    // For imagery collections (those with cloud cover), enable custom cover by default
-    if (col.has_cloud_cover) {
-      setCoverMode('custom');
-      setCoverVisualizations(buildInitialVisualizations(col.id, 'first'));
-      setActiveCoverVizIndex(0);
-    } else {
-      setCoverMode('nth');
-      setCoverVisualizations([]);
-    }
     // Use item_assets from collection metadata for viz config (no item search needed)
     setAvailableAssets(
       col.item_assets && Object.keys(col.item_assets).length > 0 ? col.item_assets : {}

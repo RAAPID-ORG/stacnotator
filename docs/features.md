@@ -271,6 +271,7 @@ Models can label task campaigns as annotators of their own:
 - **Prerendering** - an agent's default views are drawn ahead for its next two tasks, so a steady workflow gets its bundle without waiting.
 - **Agents page** - `.../campaigns/<id>/agents` lists the owner's agents with their progress, lets an agent take over its siblings' queued work, and frees unfinished tasks.
 - **Plugin for Claude Code and Codex** - adding the `RAAPID-ORG/stacnotator` marketplace and installing `stacnotator` installs the MCP server (`stacnotator-mcp`, run through uvx) and the skill that teaches an agent (or a team of subagents) how to look at a point step by step and label it.
+- **Campaign setup by agents** - the same MCP server creates a campaign (area, labels, guide, Planetary Computer imagery with every window, slice and cover spelled out, basemaps, time series), adds tasks from points, GeoJSON or sampling, edits an existing campaign's settings and imagery, and previews the first tasks once imagery is registered. Each of `create_campaign`, `add_tasks`, `edit_campaign` and `edit_imagery` is offered only when the user grants it with `STACNOTATOR_MCP_ALLOW`. Areas are looked up as administrative units in geoBoundaries. The agent asks for the area, period and labels rather than assuming them, and changes nothing until the user accepts the full proposal in the chat. Imagery is built with the campaign wizard's own presets and collection builder.
 
 See `docs/agentic-labelling.md` for setup and how it works.
 

@@ -1,13 +1,13 @@
 # Agentic labelling
 
-A model can label the tasks of a campaign, alone or as a team of subagents. It works
-through the `stacnotator` MCP server in the SDK: it looks at packed images of the imagery
-around each task, asks for more detail when a point is unclear, and submits labels like any
-other annotator.
+A model can set up a new campaign and label the tasks of a campaign, alone or as a team of
+subagents. It works through the `stacnotator` MCP server in the SDK: it looks at packed
+images of the imagery around each task, asks for more detail when a point is unclear, and
+submits labels like any other annotator.
 
 ## Setup
 
-Install the plugin, which brings the labelling skill and the MCP server. You need
+Install the plugin, which brings the labelling and campaign setup skills and the MCP server. You need
 [uv](https://docs.astral.sh/uv/); there is nothing to clone or run yourself.
 
 Claude Code:
@@ -32,13 +32,63 @@ draws the images. The first start takes a minute while uv installs the SDK.
 Other MCP clients: run
 `uvx --from "stacnotator-sdk[agent] @ git+https://github.com/RAAPID-ORG/stacnotator#subdirectory=sdk" stacnotator-mcp`
 over stdio and give the model
-[`sdk/skills/stacnotator-labelling/SKILL.md`](../sdk/skills/stacnotator-labelling/SKILL.md).
+[`sdk/skills/stacnotator-labelling/SKILL.md`](../sdk/skills/stacnotator-labelling/SKILL.md)
+and [`sdk/skills/stacnotator-campaign-setup/SKILL.md`](../sdk/skills/stacnotator-campaign-setup/SKILL.md).
 
 On a bare Linux machine Chromium may also need system libraries:
 `uvx playwright install-deps chromium` (needs sudo).
 
 A campaign with point tasks needs a sample extent set: it is the red box drawn around each
 point so the model knows what it is labelling.
+
+## Setting up a campaign
+
+Tools that create or change campaigns are off unless you grant them. The MCP server offers
+only the ones named in `STACNOTATOR_MCP_ALLOW`, comma-separated, out of:
+
+| tool | what it does |
+| --- | --- |
+| `create_campaign` | creates a campaign with its area, labels, guide, imagery and time series |
+| `add_tasks` | adds tasks from GeoJSON, or random or grid sampling |
+| `edit_campaign` | changes an existing campaign's settings, such as its name, guide, labels, area or form fields |
+| `edit_imagery` | adds, replaces or removes an existing campaign's imagery sources and sets its basemaps |
+
+Set the variable before you start the client, for example
+`STACNOTATOR_MCP_ALLOW=create_campaign,add_tasks claude`, or in Windows PowerShell
+`$env:STACNOTATOR_MCP_ALLOW="create_campaign,add_tasks"; claude`. A model never sees a tool you did
+not grant, and the server instructions tell it to report that instead of making the change
+another way. This is a limit of the tool set, not a permission: the SDK login is your own
+session, so a model with shell access could still call the API with it.
+
+Ask in plain words, e.g. "set up a campaign to label maize vs other crops in Nakuru county,
+Kenya". The skill does not fill in what you left open. It asks where (an administrative unit
+or an exact box), when (years and season, with dates it proposes from the crop calendar for
+you to confirm), the labels and how tasks are placed. Administrative units are looked up in
+[geoBoundaries](https://www.geoboundaries.org) (gbOpen) with `find_area`, which reads one
+country and level at a time as simplified GeoJSON; the skill shows you the matching units
+and their boundary year before using one.
+
+It then puts the whole proposal to you in the chat: area, labels, guide, every imagery
+window with its slices and cover, basemaps, time series and tasks. Only after you accept it
+does it:
+
+1. create the campaign in a project you administer,
+2. add tasks from GeoJSON (points or polygons), or random or grid sampling inside the unit's
+   outline or across the campaign box,
+3. wait until the imagery is registered and draw the first tasks' views as a preview,
+4. give you the campaign's link.
+
+Changing an existing campaign works the same way: the skill reads it with `get_campaign`,
+proposes the change and calls `edit_campaign` or `edit_imagery` once you accept.
+
+Imagery is described by recipes over the Planetary Computer collections the campaign wizard
+offers as presets. A recipe spells out each window, its slices and its cover as date ranges,
+so the agent chooses the dates that tell the labels apart, such as the months around a crop's
+peak in each year. The headless page builds each window with the wizard's own presets and
+collection builder (`layers/imagery/recipe.ts`), so an agent-made source is searched and drawn
+exactly like one made in the wizard. `edit_imagery` merges recipes into the campaign's
+imagery by source name: a recipe with a stored source's name replaces it in place, so the
+views that show it keep it, and sources it does not name stay as they are.
 
 ## Running a labelling run
 
@@ -90,7 +140,10 @@ sequenceDiagram
   of the app in its own browser context per agent (so agents do not share tile connections)
   and calls `window.stacnotatorAgent` on it. The page draws with the same catalog, tile URLs,
   Planet scene search and time series code as the annotation page and returns the images.
-  It signs in with the SDK login, which the MCP server hands to the page on request.
+  It signs in with the SDK login, which the MCP server hands to the page on request. For
+  campaign setup it opens `/agent-render?project=<id>` instead, which exposes
+  `window.stacnotatorSetup` to list the setup options, build a new campaign's imagery and
+  merge recipes into an existing campaign's imagery.
 - **Campaign context and default views come from the page**, built from the campaign it
   loaded: sources with collections and slices, basemaps, time series, labels, form fields
   and the guide.
@@ -135,6 +188,9 @@ and how to install the plugin, and the campaign overview links to it under the t
 
 ## Limits
 
+- Agents set up imagery only from the Planetary Computer presets. Other catalogs, Planet,
+  custom maps and vector layers are added by a person in the app; `edit_imagery` keeps them
+  as they are.
 - Everything runs on the machine of whoever runs the MCP server: each agent's page is a
   Chromium renderer drawing several maps at once, so many parallel agents are bound by that
   machine's memory and CPU.

@@ -154,7 +154,7 @@ export async function renderView(input: RenderInput): Promise<RenderedImage> {
             ...place(rect),
             kind: kindOf(cell),
             label: 'no image',
-            warning: err instanceof Error ? err.message : String(err),
+            warning: extractErrorMessage(err, String(err)),
           },
         })
       );
