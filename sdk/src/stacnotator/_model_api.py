@@ -1,8 +1,7 @@
-"""The model APIs a labelling run can talk to, behind one small interface.
+"""The model API a labelling run talks to: the OpenAI Responses API.
 
-A provider opens sessions. A session is one conversation: it keeps its own history and
-takes the next turn's user content or tool results. Supporting another API means adding a
-provider here and naming it in PROVIDERS; the runner does not change.
+A session is one conversation: it keeps its own history and takes the next turn's user
+content or tool results.
 """
 
 import asyncio
@@ -57,29 +56,9 @@ class ContentBlockedError(Exception):
 
 class Session(Protocol):
     async def send(
-        self, items: Sequence[UserTurn | ToolResult], force_tool: str | None = None
-    ) -> ModelReply: ...
-
-
-class Provider(Protocol):
-    def session(
-        self, instructions: str, tools: list[ToolSpec], reasoning: str | None
-    ) -> Session: ...
-
-    async def check(self) -> None:
-        """Make one tiny call, so a wrong model name or sign-in fails before any work."""
-
-
-@dataclass
-class ProviderConfig:
-    model: str
-    base_url: str | None = None
-    api_key_env: str = "OPENAI_API_KEY"
-    # Sign in with Microsoft Entra ID for this token scope instead of an API key.
-    entra_scope: str | None = None
-    # The resource's tenant, when it is not the one you signed in to by default.
-    entra_tenant: str | None = None
-    image_detail: str = "high"
+        self, items: Sequence[UserTurn | ToolResult], only: Sequence[str] | None = None
+    ) -> ModelReply:
+        """only: the tools the model must choose from this turn."""
 
 
 class OpenAIResponses:
@@ -87,28 +66,26 @@ class OpenAIResponses:
     their v1 endpoint (https://<resource>.openai.azure.com/openai/v1/), and any other
     service that implements it."""
 
-    def __init__(self, client: Any, model: str, image_detail: str = "high"):
+    def __init__(
+        self, client: Any, model: str, reasoning: str | None = None, image_detail: str = "high"
+    ):
         self._client = client
         self._model = model
+        self._reasoning = reasoning
         self._image_detail = image_detail
 
-    def session(self, instructions: str, tools: list[ToolSpec], reasoning: str | None) -> Session:
-        return _ResponsesSession(self, instructions, tools, reasoning)
+    def session(self, instructions: str, tools: list[ToolSpec]) -> Session:
+        return _ResponsesSession(self, instructions, tools)
 
     async def check(self) -> None:
+        """Make one tiny call, so a wrong model name or sign-in fails before any work."""
         await self._client.responses.create(
             model=self._model, input="Reply OK.", max_output_tokens=16, store=False
         )
 
 
 class _ResponsesSession:
-    def __init__(
-        self,
-        api: OpenAIResponses,
-        instructions: str,
-        tools: list[ToolSpec],
-        reasoning: str | None,
-    ):
+    def __init__(self, api: OpenAIResponses, instructions: str, tools: list[ToolSpec]):
         self._api = api
         self._instructions = instructions
         self._tools = [
@@ -121,11 +98,10 @@ class _ResponsesSession:
             }
             for tool in tools
         ]
-        self._reasoning = reasoning
         self._previous: str | None = None
 
     async def send(
-        self, items: Sequence[UserTurn | ToolResult], force_tool: str | None = None
+        self, items: Sequence[UserTurn | ToolResult], only: Sequence[str] | None = None
     ) -> ModelReply:
         import openai
 
@@ -133,15 +109,15 @@ class _ResponsesSession:
             "model": self._api._model,
             "instructions": self._instructions,
             "input": [self._item(item) for item in items],
-            "tools": self._tools,
+            "tools": [tool for tool in self._tools if not only or tool["name"] in only],
             "store": True,
         }
         if self._previous:
             params["previous_response_id"] = self._previous
-        if self._reasoning:
-            params["reasoning"] = {"effort": self._reasoning}
-        if force_tool:
-            params["tool_choice"] = {"type": "function", "name": force_tool}
+        if self._api._reasoning:
+            params["reasoning"] = {"effort": self._api._reasoning}
+        if only:
+            params["tool_choice"] = "required"
         try:
             response = await self._api._client.responses.create(**params)
         except openai.BadRequestError as exc:
@@ -213,21 +189,24 @@ def _entra_token(scope: str, tenant: str | None) -> Callable[[], Awaitable[str]]
     return token
 
 
-def _openai(config: ProviderConfig) -> Provider:
+def openai_client(
+    base_url: str | None,
+    api_key_env: str = "OPENAI_API_KEY",
+    entra_scope: str | None = None,
+    entra_tenant: str | None = None,
+) -> Any:
+    """entra_scope: sign in with Microsoft Entra ID for this token scope instead of an API
+    key; entra_tenant: the resource's tenant, when it is not your default one."""
     from openai import AsyncOpenAI
 
     api_key: str | Callable[[], Awaitable[str]]
-    if config.entra_scope:
-        api_key = _entra_token(config.entra_scope, config.entra_tenant)
+    if entra_scope:
+        api_key = _entra_token(entra_scope, entra_tenant)
     else:
-        key = os.environ.get(config.api_key_env)
+        key = os.environ.get(api_key_env)
         if not key:
             raise ValueError(
-                f"Set {config.api_key_env} to the API key, or sign in with Entra ID (--entra)."
+                f"Set {api_key_env} to the API key, or sign in with Entra ID (--entra)."
             )
         api_key = key
-    client = AsyncOpenAI(base_url=config.base_url, api_key=api_key, max_retries=6, timeout=600)
-    return OpenAIResponses(client, config.model, config.image_detail)
-
-
-PROVIDERS: dict[str, Callable[[ProviderConfig], Provider]] = {"openai": _openai}
+    return AsyncOpenAI(base_url=base_url, api_key=api_key, max_retries=6, timeout=600)

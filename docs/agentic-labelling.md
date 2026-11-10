@@ -59,14 +59,14 @@ tasks, or use the Agents page.
 `stacnotator-label` does the same work without a coding agent: it calls a model API
 directly, which is cheaper to run at scale and needs no Claude Code, Codex or Copilot
 session. It uses the MCP server's tools in its own process, so views are drawn by the same
-headless pages; only the decision on each task goes to the model.
+headless pages, and labels go through the same `submit_label` and `skip_task`.
 
 ```bash
 uvx --from "stacnotator-sdk[api] @ git+https://github.com/RAAPID-ORG/stacnotator#subdirectory=sdk" \
   stacnotator-label run --url https://your-stacnotator.example.org --campaign 172 \
   --instructions rules.md \
   --base-url https://<resource>.openai.azure.com/openai/v1/ --model gpt-6-astra --entra \
-  --agents 4 --tasks-per-agent 25 --votes 2 --reasoning medium --arbiter-reasoning high \
+  --agents 4 --tasks-per-agent 25 --reasoning medium \
   --log run.jsonl
 ```
 
@@ -78,22 +78,18 @@ uvx --from "stacnotator-sdk[api] @ git+https://github.com/RAAPID-ORG/stacnotator
 - **One conversation per task.** Each task starts a new conversation with the task and its
   first look, so images never pile up across tasks. The model asks for more views and
   probes time series as often as it needs, within `--max-turns` replies, then calls
-  `decide`; the runner submits the label or skip.
-- **Votes.** With `--votes 2` or more, independent sessions label each task from the same
-  first look. When they agree, their label is submitted with the mean confidence; when they
-  disagree, another session (reasoning `--arbiter-reasoning`) gets their labels and reasons,
-  looks again and decides. The comment keeps every vote's reasoning, up to the 5000
-  character limit.
+  `submit_label` or `skip_task`; on its last reply it can only call those two. When the
+  backend rejects a label (an unknown label, a missing required form field), the error goes
+  back to the model to correct.
 - **First look.** `--first-look views.json` sets the 1-4 views every task opens with (the
   view syntax of `get_views`); without it, the built-in overview.
-- **Missing tiles.** A first look with tiles that were still loading is drawn again
-  every 10 seconds for up to `--imagery-wait` seconds (`--view-wait` for later views). When
-  the first look still misses tiles, the model is told which cells and the label is flagged
-  for review.
+- **Missing tiles.** The render page waits up to 30 seconds for a view's tiles. When the
+  first look still misses tiles, the model is told which cells, can ask for them again with
+  `get_views`, and the label is flagged for review.
 - **Content filters.** When the API refuses a turn's images (Azure does for some scenes),
   the turn is sent again without them and the label is flagged for review; when it refuses
   even that, the task is skipped with the reason.
-- **Model APIs.** `--provider openai` (the default) is the OpenAI Responses API: OpenAI,
+- **Model API.** The runner uses the OpenAI Responses API: OpenAI,
   Azure OpenAI and Azure AI Foundry through their v1 endpoint, or any service that implements
   it. `--model` is the model or Azure deployment name. Authentication is the API key in
   `OPENAI_API_KEY` (or `--api-key-env`), or `--entra` for Microsoft Entra ID through
@@ -101,7 +97,7 @@ uvx --from "stacnotator-sdk[api] @ git+https://github.com/RAAPID-ORG/stacnotator
   resource). When the resource is in another tenant than your default one, pass
   `--entra-tenant <tenant id>` (you must be able to sign in to it). A run starts with one
   tiny call to the model, so a wrong deployment name or sign-in stops it before any agent is
-  registered. Another API is one more provider in `sdk/src/stacnotator/_model_api.py`.
+  registered.
 - **Image limits.** Views are fitted to `--max-image-edge-px` and `--max-image-megapixels`
   (2048 px and 4 MP by default); set them to what your model takes in without downscaling.
 - **Stopping and resuming.** Agents keep their unfinished tasks when a run stops. Resume with
@@ -175,7 +171,9 @@ sequenceDiagram
 - **Missing tiles.** A cell whose tiles were still loading when it was drawn carries
   `tiles_missing`, and the page does not keep that drawing, so asking for the same view again
   fetches them. Failed tiles only carry a `warning`: they are usually a date with no scene
-  there, which drawing again never fills.
+  there, which drawing again never fills. Expired MPC mosaics are not one of those: before
+  drawing, the page reads the campaign again once the backend says its mosaics are due for
+  renewal, and waits while they register, so a long run never draws with stale tile URLs.
 - **Preloading.** Every `next_task` draws the agent's default views for its next two tasks in
   the background, so a steady loop gets its images without waiting. Default views live in
   the MCP server's memory and reset when it restarts.
