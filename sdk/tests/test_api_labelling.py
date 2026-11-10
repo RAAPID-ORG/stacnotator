@@ -6,7 +6,7 @@ import pytest
 from mcp.server.mcpserver import Image
 from mcp.server.mcpserver.exceptions import ToolError
 
-from stacnotator import agent_mcp, agent_runner
+from stacnotator import agent_mcp, api_labelling
 from stacnotator._model_api import (
     ContentBlockedError,
     ModelReply,
@@ -68,8 +68,8 @@ def call(name: str, **arguments) -> ModelReply:
     return ModelReply("", [ToolCall(f"c-{name}", name, arguments)])
 
 
-def labeller(model, **kwargs) -> agent_runner.Labeller:
-    return agent_runner.Labeller(model, "Rules: crops are green.", CONTEXT, [], **kwargs)
+def labeller(model, **kwargs) -> api_labelling.Labeller:
+    return api_labelling.Labeller(model, "Rules: crops are green.", CONTEXT, [], **kwargs)
 
 
 @pytest.fixture
@@ -92,7 +92,7 @@ def server(monkeypatch):
         return '{"ok": true}'
 
     tools = {"get_views": get_views, "submit_label": submit_label, "skip_task": skip_task}
-    monkeypatch.setattr(agent_runner, "TOOLS", tools)
+    monkeypatch.setattr(api_labelling, "TOOLS", tools)
     monkeypatch.setattr(agent_mcp, "skip_task", skip_task)
     return calls
 
@@ -124,7 +124,7 @@ def test_the_last_turn_may_only_finish(server):
     )
     answer = asyncio.run(labeller(model, max_turns=2).label(AGENT, TASK, bundle()))
 
-    assert model.only == [None, agent_runner.FINISH_TOOLS]
+    assert model.only == [None, api_labelling.FINISH_TOOLS]
     assert answer.arguments["label_id"] is None and server[-1][0] == "skip_task"
 
 
@@ -138,7 +138,7 @@ def test_images_the_content_filter_refuses_are_left_out_and_the_label_flagged(se
     asyncio.run(labeller(model).label(AGENT, TASK, bundle()))
 
     retried = model.sent[1][0]
-    assert retried.images == [] and agent_runner.IMAGES_WITHHELD in retried.text
+    assert retried.images == [] and api_labelling.IMAGES_WITHHELD in retried.text
     assert server[-1][1]["flagged_for_review"]
 
 
@@ -153,9 +153,9 @@ def test_a_task_the_filter_refuses_even_without_images_is_skipped(server):
 
 def test_view_tools_hide_the_arguments_the_runner_binds():
     tools = asyncio.run(agent_mcp.server.list_tools())
-    specs = {spec.name: spec for spec in agent_runner.tool_specs(tools)}
+    specs = {spec.name: spec for spec in api_labelling.tool_specs(tools)}
 
-    assert set(specs) == set(agent_runner.TOOLS)
+    assert set(specs) == set(api_labelling.TOOLS)
     for spec in specs.values():
         assert not {"agent_id", "task_id"} & set(spec.parameters["properties"])
         assert not {"agent_id", "task_id"} & set(spec.parameters.get("required", []))
@@ -203,8 +203,8 @@ def test_a_failing_model_stops_the_run_before_any_agent_is_registered(monkeypatc
         raise AssertionError("signed in despite the failed check")
 
     monkeypatch.setattr(agent_mcp, "login", login)
-    options = agent_runner.RunOptions(
+    options = api_labelling.RunOptions(
         url="https://x", campaign_id=1, agent_ids=[], instructions="rules"
     )
-    with pytest.raises(agent_runner.LabellingError, match="404 deployment not found"):
-        asyncio.run(agent_runner.run(options, Refusing()))
+    with pytest.raises(api_labelling.LabellingError, match="404 deployment not found"):
+        asyncio.run(api_labelling.run(options, Refusing()))

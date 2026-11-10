@@ -20,7 +20,7 @@ api = ["stacnotator-sdk[agent]", "openai>=2", "azure-identity>=1.19"]
 
 [project.scripts]
 stacnotator-mcp = "stacnotator.agent_mcp:main"
-stacnotator-label = "stacnotator.agent_runner:main"
+stacnotator-label = "stacnotator.api_labelling:main"
 
 [dependency-groups]
 dev = [
