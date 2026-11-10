@@ -195,6 +195,30 @@ test.describe('Explore renders', () => {
   test('default active tool is Annotate', async ({ annotationPage }) => {
     await expect(tool(annotationPage, 'Annotate (R)')).toHaveClass(ACTIVE);
   });
+
+  test('a shape comment saves and remains when reopened from its annotation link', async ({
+    annotationPage: page,
+    api,
+  }) => {
+    const url = `/projects/7/campaigns/42/annotate?mode=explore&annotation=${EXPLORE_ANN_CENTER.id}`;
+    await page.goto(url);
+    const comment = controls(page).getByRole('textbox', { name: 'Comment', exact: true });
+    await expect(comment).toBeVisible();
+    await comment.fill('Trees partly obscured by cloud');
+    await Promise.all([
+      waitForUpdate(page),
+      controls(page).getByRole('button', { name: 'Save changes', exact: true }).click(),
+    ]);
+    const update = api.requests.find(
+      (request) =>
+        request.method === 'PUT' &&
+        request.pathname.endsWith(`/annotations/${EXPLORE_ANN_CENTER.id}`)
+    );
+    expect(update?.body).toEqual({ comment: 'Trees partly obscured by cloud' });
+    await expect(controls(page).getByRole('button', { name: 'Save changes' })).toBeDisabled();
+    await page.goto(url);
+    await expect(comment).toHaveValue('Trees partly obscured by cloud');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -223,14 +247,22 @@ test.describe('Tools and label selection', () => {
   });
 
   test('1 / 2 / 3 select the label, show ✓, and switch to Annotate', async ({ annotationPage }) => {
+    const hint = annotationPage.locator('[data-panel-role="main-map"]').getByTestId('label-hint');
     await annotationPage.keyboard.press('1');
     await expect(tool(annotationPage, 'Annotate (R)')).toHaveClass(ACTIVE);
     await expect(controls(annotationPage)).toContainText('✓ Tree');
-    await expect(controls(annotationPage)).toContainText('click the map to draw a point');
+    await expect(hint).toHaveText('Tree - click the map to draw a point.');
+    await expect(controls(annotationPage).getByTestId('label-hint')).toHaveCount(0);
 
     await annotationPage.keyboard.press('2');
     await expect(controls(annotationPage)).toContainText('✓ Field');
-    await expect(controls(annotationPage)).toContainText('click the map to draw a polygon');
+    await expect(hint).toHaveText(
+      'Field - click the map to draw a polygon. Click the first point or press Enter to finish.'
+    );
+    await annotationPage.keyboard.press('3');
+    await expect(hint).toHaveText('Road - click the map to draw a line.');
+    await annotationPage.keyboard.press('p');
+    await expect(hint).toHaveCount(0);
   });
 
   test('label rows show the geometry icon per type', async ({ annotationPage }) => {

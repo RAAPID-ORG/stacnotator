@@ -1,6 +1,7 @@
 import { IconProbe, IconRedo, IconUndo } from '~/shared/ui/Icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
+import { capitalizeFirst } from '~/shared/utils/utility';
 import { useShallow } from 'zustand/react/shallow';
 import { SliceCommentButton } from '../../chrome/SliceComments';
 import { SliceNavigation } from '../../chrome/SliceNavigation';
@@ -27,6 +28,7 @@ import {
   useCampaignStore,
   useCatalog,
   useDrawsShapes,
+  useLabels,
   type WorkMode,
 } from '../../stores/campaign';
 import { useImageryStore } from '../../stores/imagery';
@@ -367,9 +369,32 @@ function AnnotationToolNotice() {
   const isExplore = useCampaignStore((s) => s.workMode === 'explore');
   const tool = useWorkStore((s) => s.tool);
   const hasSelection = useWorkStore((s) => s.edit !== null || s.selection.length > 0);
+  const selectedLabelId = useWorkStore((s) => s.selectedLabelId);
+  const draftOpen = useWorkStore(
+    (s) => s.draft.phase === 'draft' || s.draft.phase === 'committing'
+  );
+  const labels = useLabels();
+  const selectedLabel = labels.find((label) => label.id === selectedLabelId);
 
   if (drawsShapes && showAnnotations && !annotationsVisibleAt(zoom)) {
     return <StatusPill>{t('mainMap.zoomIn')}</StatusPill>;
+  }
+  if (
+    drawsShapes &&
+    selectedLabel &&
+    !draftOpen &&
+    (tool === 'annotate' || tool === 'labelVector')
+  ) {
+    return (
+      <StatusPill>
+        <span data-testid="label-hint">
+          <span className="font-semibold">{capitalizeFirst(selectedLabel.name)}</span>{' '}
+          {tool === 'labelVector'
+            ? t('labelHint.vector')
+            : t(`labelHint.draw.${selectedLabel.geometry_type}`)}
+        </span>
+      </StatusPill>
+    );
   }
   if (isExplore && (tool === 'pan' || (tool === 'edit' && !hasSelection))) {
     return (

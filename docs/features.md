@@ -141,7 +141,7 @@ Hotkey & Shortcut drive. Complete annotation process can be done without using a
 - Custom label definitions with name and geometry type constraint (colors are auto-derived per label)
 - Number keys for quick label selection (two-digit input buffered for lists longer than 9)
 - Confidence scoring per annotation
-- Comments/remarks field
+- Comments/remarks field. In Explore, select a drawn shape with Pan or Edit, enter its comment, and choose **Save changes**.
 - Annotations can be flagged for review (`F`) with a flag comment, filterable in review
 
 ### Undo and Redo

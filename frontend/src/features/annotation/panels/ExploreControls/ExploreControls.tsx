@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { capitalizeFirst } from '~/shared/utils/utility';
 import { IconChevronRight } from '~/shared/ui/Icons';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import {
@@ -186,7 +185,6 @@ export function ExploreControls() {
   const labels = extendedLabels(campaign);
   const fields = campaign.settings.form_fields;
   const labelGroupActive = isLabelGroupActive(activeFieldIndex, fields.length);
-  const selectedLabel = labels.find((l) => l.id === selectedLabelId) ?? null;
   const draftLabel =
     draft.phase === 'idle' ? null : (labels.find((l) => l.id === draft.labelId) ?? null);
   // A shape with no questions to answer is saved as soon as it is drawn; the
@@ -355,20 +353,6 @@ export function ExploreControls() {
                     activeFieldIndex={activeFieldIndex}
                   />
                 </div>
-              )}
-
-              {selectedLabel && (
-                <p
-                  className="text-[11px] text-neutral-500 leading-relaxed"
-                  data-testid="label-hint"
-                >
-                  <span className="font-medium text-neutral-700">
-                    {capitalizeFirst(selectedLabel.name)}
-                  </span>{' '}
-                  {tool === 'labelVector'
-                    ? t('labelHint.vector')
-                    : t(`labelHint.draw.${selectedLabel.geometry_type}`)}
-                </p>
               )}
             </>
           )

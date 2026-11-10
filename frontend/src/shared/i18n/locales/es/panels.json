@@ -78,6 +78,7 @@
     "width": "Grosor"
   },
   "editDetails": {
+    "comment": "Comentario",
     "finishReshapeFirst": "Confirma (Enter) o cancela (Esc) el cambio de forma antes de cambiar la etiqueta.",
     "missingRequired": "Faltan campos obligatorios: {{fields}}",
     "updated": "Anotación actualizada correctamente",

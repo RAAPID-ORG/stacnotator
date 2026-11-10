@@ -77,6 +77,7 @@
     "width": "Width"
   },
   "editDetails": {
+    "comment": "Comment",
     "finishReshapeFirst": "Confirm (Enter) or cancel (Esc) the reshape before changing the label.",
     "missingRequired": "Missing required: {{fields}}",
     "updated": "Annotation updated successfully",
