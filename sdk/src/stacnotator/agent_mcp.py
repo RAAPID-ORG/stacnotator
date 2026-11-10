@@ -13,15 +13,16 @@ import contextlib
 import functools
 import json
 import os
-import re
 import subprocess
 from collections.abc import Callable
 from typing import Any, Literal
 from urllib.parse import urlparse
+from uuid import uuid4
 
 from mcp.server.mcpserver import Image, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import ConfigDict
+from shapely.wkt import loads
 from typing_extensions import Required, TypedDict
 
 from stacnotator import _credentials
@@ -608,7 +609,7 @@ async def create_campaign(
         "timeseries_configs": timeseries,
     }
     campaign = await _api(_http().post, "/campaigns/", _without_none(body))
-    if guide:
+    if guide is not None:
         await _api(_http().patch, f"/campaigns/{campaign['id']}", {"guide_markdown": guide})
     return _json(
         {
@@ -712,6 +713,7 @@ def _imagery_summary(source: dict[str, Any]) -> dict[str, Any]:
                 "collection": (col.get("search") or {}).get("stac_collection_id"),
                 "slices": [f"{s['start_date']} to {s['end_date']}" for s in col["slices"]],
                 "cover_slice_index": col["cover_slice_index"],
+                "has_dedicated_cover": col["has_dedicated_cover"],
             }
             for col in source["collections"]
         ],
@@ -750,16 +752,12 @@ async def get_campaign(campaign_id: int) -> str:
     )
 
 
-_POINT = re.compile(r"(-?\d+(?:\.\d+)?(?:[eE]-?\d+)?)\s+(-?\d+(?:\.\d+)?(?:[eE]-?\d+)?)")
-
-
 def _preview_task(task: dict[str, Any]) -> dict[str, Any]:
-    coords = [(float(x), float(y)) for x, y in _POINT.findall(task["geometry_wkt"])]
-    xs, ys = [x for x, _ in coords], [y for _, y in coords]
+    centroid = loads(task["geometry_wkt"]).centroid
     return {
         "task_id": task["id"],
-        "lon": (min(xs) + max(xs)) / 2,
-        "lat": (min(ys) + max(ys)) / 2,
+        "lon": centroid.x,
+        "lat": centroid.y,
         "geometry_wkt": task["geometry_wkt"],
     }
 
@@ -784,7 +782,7 @@ async def preview_campaign(
     tasks = (await _api(_http().get, f"/campaigns/{campaign_id}/tasks"))["tasks"]
     if not tasks:
         raise ToolError("The campaign has no tasks yet: add_tasks first.")
-    key = f"preview:{campaign_id}"
+    key = f"preview:{campaign_id}:{uuid4()}"
     try:
         views = await _browsers().call(key, campaign_id, "defaultViews")
         out: list[str | Image] = []

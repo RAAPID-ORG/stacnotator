@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-agent = ["mcp>=2.2,<3", "playwright>=1.47"]
+agent = ["mcp>=2.2,<3", "playwright>=1.47", "shapely>=2.1.2"]
 
 [project.scripts]
 stacnotator-mcp = "stacnotator.agent_mcp:main"
@@ -30,6 +30,8 @@ dev = [
     # The agent MCP server is type-checked and tested with the rest of the SDK.
     "mcp>=2.2,<3",
     "playwright>=1.47",
+    "shapely>=2.1.2",
+    "types-shapely>=2.1.0",
 ]
 
 [build-system]

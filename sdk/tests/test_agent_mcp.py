@@ -185,14 +185,17 @@ def test_login_reuses_a_saved_login_for_the_same_deployment(browsers, monkeypatc
 
 
 @responses.activate
-def test_create_campaign_builds_imagery_on_the_page_and_sets_the_guide(browsers):
+@pytest.mark.parametrize("guide", ["# G", "", None])
+def test_create_campaign_builds_imagery_on_the_page_and_sets_the_guide(browsers, guide):
     created = responses.post(
         f"{BASE}/api/campaigns/", json={"id": 40, "registration_status": "registering"}
     )
     patched = responses.patch(f"{BASE}/api/campaigns/40", json={})
     responses.get(f"{BASE}/api/campaigns/40/task-sets", json=[])
     recipe = {"collection": "sentinel-2-l2a", "windows": []}
-    settings = {"name": "Crops", "labels": [{"id": 1, "name": "Maize"}], "guide_markdown": "# G"}
+    settings = {"name": "Crops", "labels": [{"id": 1, "name": "Maize"}]}
+    if guide is not None:
+        settings["guide_markdown"] = guide
 
     result = json.loads(asyncio.run(agent_mcp.create_campaign(3, settings, [recipe])))
 
@@ -201,7 +204,10 @@ def test_create_campaign_builds_imagery_on_the_page_and_sets_the_guide(browsers)
     assert body["name"] == "Crops"
     assert body["settings"] == {"labels": [{"id": 1, "name": "Maize"}]}
     assert body["imagery_editor_state"]["sources"][0]["name"] == "Sentinel-2 L2A"
-    assert json.loads(patched.calls[0].request.body) == {"guide_markdown": "# G"}
+    if guide is None:
+        assert not patched.calls
+    else:
+        assert json.loads(patched.calls[0].request.body) == {"guide_markdown": guide}
     assert result["url"] == f"{BASE}/projects/3/campaigns/40"
 
 
@@ -228,7 +234,18 @@ def test_add_tasks_samples_into_a_new_task_set(browsers):
 
 
 @responses.activate
-def test_preview_waits_for_registration_then_draws_task_centres(browsers):
+@pytest.mark.parametrize(
+    ("wkt", "center"),
+    [
+        ("POINT (30 1)", (30.0, 1.0)),
+        ("POLYGON ((30 1, 36 1, 30 7, 30 1))", (32.0, 3.0)),
+        (
+            "POLYGON ((0 0, 6 0, 6 6, 0 6, 0 0), (0.5 0.5, 0.5 2.5, 2.5 2.5, 2.5 0.5, 0.5 0.5))",
+            (3.1875, 3.1875),
+        ),
+    ],
+)
+def test_preview_waits_for_registration_then_draws_task_centres(browsers, wkt, center):
     summary = responses.get(
         f"{BASE}/api/campaigns/40/summary", json={"registration_status": "registering"}
     )
@@ -236,7 +253,6 @@ def test_preview_waits_for_registration_then_draws_task_centres(browsers):
         asyncio.run(agent_mcp.preview_campaign(40, 1000, 1.0))
 
     summary.body = json.dumps({"registration_status": "ready"})
-    wkt = "POLYGON ((30 1, 32 1, 32 3, 30 3, 30 1))"
     responses.get(
         f"{BASE}/api/campaigns/40/tasks", json={"tasks": [{"id": 5, "geometry_wkt": wkt}]}
     )
@@ -244,8 +260,91 @@ def test_preview_waits_for_registration_then_draws_task_centres(browsers):
     text, *_ = asyncio.run(agent_mcp.preview_campaign(40, 1000, 1.0))
 
     task = json.loads(text)["task"]
-    assert (task["task_id"], task["lon"], task["lat"]) == (5, 31.0, 2.0)
-    assert browsers.closed == ["preview:40"]
+    assert task["task_id"] == 5
+    assert (task["lon"], task["lat"]) == pytest.approx(center)
+    assert len(browsers.closed) == 1
+
+
+@responses.activate
+def test_concurrent_previews_keep_their_pages_until_they_finish(browsers, monkeypatch):
+    responses.get(f"{BASE}/api/campaigns/40/summary", json={"registration_status": "ready"})
+    responses.get(
+        f"{BASE}/api/campaigns/40/tasks",
+        json={"tasks": [{"id": 5, "geometry_wkt": "POINT (30 1)"}]},
+    )
+    call = browsers.call
+    keys = set()
+
+    async def run():
+        rendering = asyncio.Event()
+        other_finished = asyncio.Event()
+
+        async def overlapping_call(key, campaign_id, method, *args):
+            keys.add(key)
+            if method == "render" and not rendering.is_set():
+                rendering.set()
+                await other_finished.wait()
+                if key in browsers.closed:
+                    raise RuntimeError("The preview page was closed during rendering")
+            return await call(key, campaign_id, method, *args)
+
+        monkeypatch.setattr(browsers, "call", overlapping_call)
+        first = asyncio.create_task(agent_mcp.preview_campaign(40, 1000, 1.0))
+        await rendering.wait()
+        try:
+            second = await agent_mcp.preview_campaign(40, 1000, 1.0)
+        finally:
+            other_finished.set()
+        return await first, second
+
+    async def with_timeout():
+        return await asyncio.wait_for(run(), timeout=5)
+
+    results = asyncio.run(with_timeout())
+
+    assert all(any(isinstance(item, Image) for item in result) for result in results)
+    assert len(keys) == 2
+    assert set(browsers.closed) == keys
+
+
+@responses.activate
+@pytest.mark.parametrize("dedicated", [False, True])
+def test_get_campaign_identifies_dedicated_covers(browsers, dedicated):
+    responses.get(
+        f"{BASE}/api/campaigns/40",
+        json={
+            "id": 40,
+            "project_id": 3,
+            "imagery_sources": [
+                {
+                    "name": "Sentinel-2",
+                    "visualizations": [{"name": "True Color"}],
+                    "collections": [
+                        {
+                            "name": "2026",
+                            "search": {"stac_collection_id": "sentinel-2-l2a"},
+                            "slices": [{"start_date": "2026-01-01", "end_date": "2026-12-31"}],
+                            "cover_slice_index": 0,
+                            "has_dedicated_cover": dedicated,
+                        }
+                    ],
+                }
+            ],
+            "basemaps": [],
+            "time_series": [],
+        },
+    )
+    responses.get(f"{BASE}/api/campaigns/40/task-sets", json=[])
+
+    result = json.loads(asyncio.run(agent_mcp.get_campaign(40)))
+
+    assert result["imagery"][0]["windows"][0] == {
+        "name": "2026",
+        "collection": "sentinel-2-l2a",
+        "slices": ["2026-01-01 to 2026-12-31"],
+        "cover_slice_index": 0,
+        "has_dedicated_cover": dedicated,
+    }
 
 
 async def _tool_names():
