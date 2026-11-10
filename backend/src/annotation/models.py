@@ -1,6 +1,6 @@
 from datetime import datetime as dt_datetime
 from typing import TYPE_CHECKING
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import sqlalchemy as sa
 from geoalchemy2.elements import WKBElement, WKTElement
@@ -26,6 +26,28 @@ from src.geometry import geometry_column
 
 if TYPE_CHECKING:
     from src.tasks.models import Task
+
+
+class AnnotationAction(Base):
+    __tablename__ = "annotation_actions"
+    __table_args__ = (
+        Index("idx_annotation_actions_created_at", "created_at"),
+        {"schema": "data"},
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    campaign_id: Mapped[int] = mapped_column(
+        ForeignKey("data.campaigns.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("auth.users.id", ondelete="CASCADE"), nullable=False
+    )
+    before: Mapped[list[dict]] = mapped_column(JSONB, nullable=False)
+    after: Mapped[list[dict]] = mapped_column(JSONB, nullable=False)
+    undone: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    created_at: Mapped[dt_datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
 
 class DeletedAnnotation(Base):

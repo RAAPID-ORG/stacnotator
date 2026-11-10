@@ -234,6 +234,30 @@ export type AgentsOverviewOut = {
 };
 
 /**
+ * AnnotationActionOut
+ */
+export type AnnotationActionOut = {
+    /**
+     * Annotations
+     */
+    annotations: Array<AnnotationOut>;
+    /**
+     * Deleted Ids
+     */
+    deleted_ids: Array<number>;
+};
+
+/**
+ * AnnotationActionRequest
+ */
+export type AnnotationActionRequest = {
+    /**
+     * Undo
+     */
+    undo: boolean;
+};
+
+/**
  * AnnotationChangeOut
  *
  * One annotation another session created or edited, small enough to poll
@@ -7638,6 +7662,40 @@ export type GetCampaignStatisticsResponses = {
 
 export type GetCampaignStatisticsResponse = GetCampaignStatisticsResponses[keyof GetCampaignStatisticsResponses];
 
+export type ReplayAnnotationActionData = {
+    body: AnnotationActionRequest;
+    path: {
+        /**
+         * Action Id
+         */
+        action_id: string;
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/annotation-actions/{action_id}';
+};
+
+export type ReplayAnnotationActionErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReplayAnnotationActionError = ReplayAnnotationActionErrors[keyof ReplayAnnotationActionErrors];
+
+export type ReplayAnnotationActionResponses = {
+    /**
+     * Successful Response
+     */
+    200: AnnotationActionOut;
+};
+
+export type ReplayAnnotationActionResponse = ReplayAnnotationActionResponses[keyof ReplayAnnotationActionResponses];
+
 export type AnnotateTaskData = {
     body: TaskAnswerCreate;
     path: {
@@ -7765,6 +7823,12 @@ export type ListAnnotationsForCampaignResponse = ListAnnotationsForCampaignRespo
 
 export type CreateAnnotationData = {
     body: AnnotationCreate;
+    headers?: {
+        /**
+         * X-Annotation-History
+         */
+        'X-Annotation-History'?: boolean;
+    };
     path: {
         /**
          * Campaign Id
@@ -7795,6 +7859,12 @@ export type CreateAnnotationResponse = CreateAnnotationResponses[keyof CreateAnn
 
 export type BatchCreateAnnotationsData = {
     body: BatchCreateAnnotationsRequest;
+    headers?: {
+        /**
+         * X-Annotation-History
+         */
+        'X-Annotation-History'?: boolean;
+    };
     path: {
         /**
          * Campaign Id
@@ -7825,6 +7895,12 @@ export type BatchCreateAnnotationsResponse2 = BatchCreateAnnotationsResponses[ke
 
 export type DeleteAnnotationData = {
     body?: never;
+    headers?: {
+        /**
+         * X-Annotation-History
+         */
+        'X-Annotation-History'?: boolean;
+    };
     path: {
         /**
          * Campaign Id
@@ -7895,6 +7971,12 @@ export type GetAnnotationResponse = GetAnnotationResponses[keyof GetAnnotationRe
 
 export type UpdateAnnotationData = {
     body: AnnotationUpdate;
+    headers?: {
+        /**
+         * X-Annotation-History
+         */
+        'X-Annotation-History'?: boolean;
+    };
     path: {
         /**
          * Annotation Id
@@ -7929,6 +8011,12 @@ export type UpdateAnnotationResponse = UpdateAnnotationResponses[keyof UpdateAnn
 
 export type BatchDeleteAnnotationsData = {
     body: BatchDeleteAnnotationsRequest;
+    headers?: {
+        /**
+         * X-Annotation-History
+         */
+        'X-Annotation-History'?: boolean;
+    };
     path: {
         /**
          * Campaign Id

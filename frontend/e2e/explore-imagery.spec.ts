@@ -24,7 +24,10 @@ async function loadExploreMulti(page: Page, api: ApiCapture): Promise<void> {
   );
   await page.goto('/projects/7/campaigns/42/annotate?mode=explore');
   await page.waitForSelector('[data-tour="toolbar"]', { timeout: 15_000 });
-  await page.locator('[title="Pan (P)"]').waitFor({ state: 'visible', timeout: 10_000 });
+  await page.getByRole('button', { name: 'Pan (P)', exact: true }).waitFor({
+    state: 'visible',
+    timeout: 10_000,
+  });
   await page
     .locator('[data-testid="viewport-center"]')
     .first()

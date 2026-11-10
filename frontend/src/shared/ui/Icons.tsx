@@ -33,6 +33,18 @@ export const IconPlus = ({ className = 'w-4 h-4' }: IconProps) => (
   </svg>
 );
 
+export const IconUndo = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <path d="M7 3L3 7l4 4M3 7h8a5 5 0 010 10H8" />
+  </svg>
+);
+
+export const IconRedo = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <path d="M13 3l4 4-4 4m4-4H9a5 5 0 000 10h3" />
+  </svg>
+);
+
 export const IconCheck = ({ className = 'w-4 h-4' }: IconProps) => (
   <svg {...defaults} className={className}>
     <path d="M4 10.5l4 4L16 6" />

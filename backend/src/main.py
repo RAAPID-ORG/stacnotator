@@ -356,7 +356,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS", "PATCH", "DELETE", "PUT"],
     allow_headers=["*"],
-    expose_headers=["X-Request-ID", "X-Response-Time-ms"],
+    expose_headers=["X-Request-ID", "X-Response-Time-ms", "X-Annotation-Action"],
     max_age=86400,
 )
 

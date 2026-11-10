@@ -24,7 +24,6 @@
     "timeseries": "Probe time series"
   },
   "explore": {
-    "tools": "Tools",
     "shortcuts": "Shortcuts",
     "labels": "Labels",
     "customizeStyles": "Customize label styles",
@@ -120,6 +119,8 @@
     "answerToSave": "Answer to save: {{fields}}",
     "answerHelp": "Tab moves between questions, Enter saves.",
     "pickLabel": "Pick a label in the controls panel (or press its number) to start drawing",
+    "panHint": "Choose the Annotate tool (R) to draw more.",
+    "editHint": "Click an annotation on the map to edit it.",
     "loadingImagery": "Loading imagery",
     "hideDrawnTitle": "Hide drawn objects (Shift+X)",
     "showDrawnTitle": "Show drawn objects (Shift+X)"

@@ -68,6 +68,7 @@ import {
 } from './stores/layout';
 import { usePrefsStore } from './stores/prefs';
 import { useTasksStore } from './stores/tasks';
+import { trackLabellingHistory } from './stores/history';
 import {
   focusTimedTask,
   noteTaskActivity,
@@ -161,6 +162,7 @@ export function AnnotationPage() {
 
   useCampaignBreadcrumbs(projectId, campaignId, campaign?.name, t('page.breadcrumb'));
   useEffect(() => useCampaignStore.getState().setMobile(isMobile), [isMobile]);
+  useEffect(() => trackLabellingHistory(campaignId), [campaignId, currentUserId]);
 
   // ------------------------------------------------------------------
   // Time on task

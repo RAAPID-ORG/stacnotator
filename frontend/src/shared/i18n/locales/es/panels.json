@@ -24,7 +24,6 @@
     "timeseries": "Sondear serie temporal"
   },
   "explore": {
-    "tools": "Herramientas",
     "shortcuts": "Atajos",
     "labels": "Etiquetas",
     "customizeStyles": "Personalizar estilos de etiquetas",
@@ -121,6 +120,8 @@
     "answerToSave": "Responde para guardar: {{fields}}",
     "answerHelp": "Tab cambia de pregunta, Enter guarda.",
     "pickLabel": "Elige una etiqueta en el panel de controles (o pulsa su número) para empezar a dibujar",
+    "panHint": "Elige la herramienta Anotar (R) para seguir dibujando.",
+    "editHint": "Haz clic en una anotación del mapa para editarla.",
     "loadingImagery": "Cargando imágenes",
     "hideDrawnTitle": "Ocultar objetos dibujados (Shift+X)",
     "showDrawnTitle": "Mostrar objetos dibujados (Shift+X)"

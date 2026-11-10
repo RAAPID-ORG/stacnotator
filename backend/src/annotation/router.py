@@ -16,11 +16,14 @@ from fastapi import (
 )
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.orm import Session, joinedload
 
-from src.annotation import export, ingest, service, spatial, sync
+from src.annotation import export, history, ingest, service, spatial, sync
 from src.annotation.models import Annotation
 from src.annotation.schemas import (
+    AnnotationActionOut,
+    AnnotationActionRequest,
     AnnotationChangeOut,
     AnnotationChangesOut,
     AnnotationCreate,
@@ -45,6 +48,8 @@ from src.campaigns.dependencies import require_campaign_access, require_campaign
 from src.campaigns.models import Campaign
 from src.database import get_db
 from src.routing import attachment_headers
+from src.tasks.completion import attach_counts_toward_completion
+from src.tasks.models import Task
 from src.tasks.schemas import TaskStatusOut, TaskSubmitResponse
 from src.tile_bulkhead import tile_slot
 
@@ -55,6 +60,36 @@ router = APIRouter(
 )
 
 logger = logging.getLogger(__name__)
+
+
+@router.post(
+    "/campaigns/{campaign_id}/annotation-actions/{action_id}",
+    response_model=AnnotationActionOut,
+)
+def replay_annotation_action(
+    action_id: UUID,
+    request: AnnotationActionRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
+    campaign: Campaign = Depends(require_campaign_access),
+) -> AnnotationActionOut:
+    ids, deleted = history.replay(db, campaign, user.id, action_id, undo=request.undo)
+    annotations = list(
+        db.scalars(
+            select(Annotation)
+            .where(Annotation.id.in_(ids), Annotation.campaign_id == campaign.id)
+            .options(
+                joinedload(Annotation.creator),
+                joinedload(Annotation.task).selectinload(Task.assignments),
+            )
+            .order_by(Annotation.id)
+        ).all()
+    )
+    attach_counts_toward_completion(db, campaign, annotations)
+    return AnnotationActionOut(
+        annotations=annotations,
+        deleted_ids=deleted,
+    )
 
 
 # ============================================================================
@@ -111,7 +146,11 @@ async def ingest_annotations_from_geojson(
 # ============================================================================
 
 
-@router.post("/campaigns/{campaign_id}/annotations", response_model=AnnotationOut)
+@router.post(
+    "/campaigns/{campaign_id}/annotations",
+    response_model=AnnotationOut,
+    dependencies=[Depends(history.track_history)],
+)
 def create_annotation(
     campaign_id: int,
     annotation: AnnotationCreate,
@@ -130,6 +169,7 @@ def create_annotation(
 @router.post(
     "/campaigns/{campaign_id}/annotations/batch-create",
     response_model=BatchCreateAnnotationsResponse,
+    dependencies=[Depends(history.track_history)],
 )
 def batch_create_annotations(
     campaign_id: int,
@@ -151,7 +191,11 @@ def batch_create_annotations(
     return BatchCreateAnnotationsResponse(created_count=len(created))
 
 
-@router.put("/campaigns/{campaign_id}/annotations/{annotation_id}", response_model=AnnotationOut)
+@router.put(
+    "/campaigns/{campaign_id}/annotations/{annotation_id}",
+    response_model=AnnotationOut,
+    dependencies=[Depends(history.track_history)],
+)
 def update_annotation(
     annotation_id: int,
     annotation_update: AnnotationUpdate,
@@ -176,6 +220,7 @@ def update_annotation(
 @router.delete(
     "/campaigns/{campaign_id}/annotations/{annotation_id}",
     response_model=TaskStatusOut | None,
+    dependencies=[Depends(history.track_history)],
 )
 def delete_annotation(
     campaign_id: int,
@@ -201,6 +246,7 @@ def delete_annotation(
 @router.post(
     "/campaigns/{campaign_id}/annotations/batch-delete",
     response_model=BatchDeleteAnnotationsResponse,
+    dependencies=[Depends(history.track_history)],
 )
 def batch_delete_annotations(
     campaign_id: int,

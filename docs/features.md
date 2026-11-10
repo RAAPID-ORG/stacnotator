@@ -134,6 +134,7 @@ Hotkey & Shortcut drive. Complete annotation process can be done without using a
 - Point, polygon, and line drawing
 - Edit mode for modifying existing geometries
 - Pan/navigate mode
+- Explore tools are icons with names and shortcuts on hover. The main map shows drawing guidance in Pan and selection guidance in Edit.
 
 ### Labels
 
@@ -142,6 +143,13 @@ Hotkey & Shortcut drive. Complete annotation process can be done without using a
 - Confidence scoring per annotation
 - Comments/remarks field
 - Annotations can be flagged for review (`F`) with a flag comment, filterable in review
+
+### Undo and Redo
+
+- In Explore mode, buttons in the main map header and `Ctrl/Cmd+Z` undo saved labelling actions; `Ctrl/Cmd+Shift+Z` or `Ctrl+Y` redo them. Text inputs keep their native undo behavior. Task mode has no undo/redo controls or history recording.
+- Covers drawn shapes, geometry and detail edits, imagery notes, and bulk labelling or deletion in Explore. A bulk request is one action.
+- History keeps the last 100 actions while the annotation page stays open, for up to 24 hours. Leaving the page clears it, and a new saved action clears redo.
+- Undo restores original annotation IDs, authorship, answers and task status. It refuses to overwrite annotations changed since the action and checks current permissions.
 
 ### Shared Annotation View
 

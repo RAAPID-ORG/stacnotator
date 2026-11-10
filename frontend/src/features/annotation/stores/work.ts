@@ -197,7 +197,7 @@ interface WorkState {
    *  past what an overlay should draw. */
   refreshTiles: () => void;
   /** Draw these over the tiles until the tiles carry them. */
-  recordWrites: (writes: DeltaWrite[]) => void;
+  recordWrites: (writes: DeltaWrite[], restoreDeleted?: boolean) => void;
   /** Stop drawing these: gone from the database, still in the tiles. */
   recordDeletes: (ids: number[]) => void;
   /** Pick up what other annotators have done since the last poll. */
@@ -481,7 +481,8 @@ export const useWorkStore = create<WorkState>((set, get) => {
     setEditBusy: (busy) => set((s) => (s.edit ? { edit: { ...s.edit, busy } } : {})),
     refreshTiles: () =>
       set((s) => ({ tileRefreshes: s.tileRefreshes + 1, delta: rotate(s.delta) })),
-    recordWrites: (writes) => applyDelta((d) => withWrites(d, writes)),
+    recordWrites: (writes, restoreDeleted) =>
+      applyDelta((d) => withWrites(d, writes, restoreDeleted)),
     // A deleted annotation leaves nothing to edit: its handles and confirm go too.
     recordDeletes: (ids) => {
       const editing = get().edit?.annotation.id;
@@ -495,13 +496,23 @@ export const useWorkStore = create<WorkState>((set, get) => {
 
     syncRemoteAnnotations: async () => {
       try {
+        const { campaign } = campaignState();
+        const revision = get().annotationRevision;
         const result = await getAnnotationChanges({
-          path: { campaign_id: campaignState().campaign.id },
+          path: { campaign_id: campaign.id },
           query: {
             since: get().syncCursor,
             include_tasks: useImageryStore.getState().showTaskAnnotations,
           },
         });
+        // A write during the request makes its answer stale. Keep the cursor
+        // so the next poll can pick up restores without undoing a newer edit.
+        if (
+          useCampaignStore.getState().campaign !== campaign ||
+          get().annotationRevision !== revision
+        ) {
+          return;
+        }
         const data = result.data;
         if (!data) return;
         set({ syncCursor: data.server_time });
@@ -518,7 +529,8 @@ export const useWorkStore = create<WorkState>((set, get) => {
             labelId: change.label_id ?? null,
             geometry: wktToGeometry(change.geometry_wkt),
             origin: change.created_by_user_id === mine ? 'local' : 'remote',
-          }))
+          })),
+          true
         );
         // After the writes: an annotation created and then deleted inside one
         // poll window arrives as both, and the delete is the later word.

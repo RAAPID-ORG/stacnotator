@@ -1,4 +1,11 @@
 {
+  "history": {
+    "undo": "Deshacer la acción de etiquetado",
+    "redo": "Rehacer la acción de etiquetado",
+    "undoFailed": "No se pudo deshacer la acción de etiquetado",
+    "redoFailed": "No se pudo rehacer la acción de etiquetado",
+    "busy": "Espera a que termine la acción de deshacer o rehacer antes de cambiar las anotaciones."
+  },
   "keymap": {
     "answerField": "Responder el campo enfocado",
     "cycleFields": "Recorrer los campos del formulario",

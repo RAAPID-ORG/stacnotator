@@ -35,6 +35,7 @@ import { useImageryStore } from './stores/imagery';
 import { useLayoutStore } from './stores/layout';
 import { usePrefsStore } from './stores/prefs';
 import { currentTask, useTasksStore } from './stores/tasks';
+import { historyAvailable, replayLabelling } from './stores/history';
 import { useWorkStore, type Tool } from './stores/work';
 import {
   finishDrawTask,
@@ -772,6 +773,31 @@ export function canEnterMode(mode: WorkMode): boolean {
   );
 }
 
+function historyBindings(): Binding[] {
+  return [
+    ...['ctrl+z', 'meta+z'].map(
+      (key): Binding => ({
+        key,
+        help: key === 'ctrl+z' ? t('history.undo') : undefined,
+        helpKey: 'Ctrl/Cmd+Z',
+        group: 'edit',
+        when: () => historyAvailable(true),
+        run: () => void replayLabelling(true),
+      })
+    ),
+    ...['ctrl+shift+z', 'meta+shift+z', 'ctrl+y'].map(
+      (key): Binding => ({
+        key,
+        help: key === 'ctrl+shift+z' ? t('history.redo') : undefined,
+        helpKey: 'Ctrl/Cmd+Shift+Z / Ctrl+Y',
+        group: 'edit',
+        when: () => historyAvailable(false),
+        run: () => void replayLabelling(false),
+      })
+    ),
+  ];
+}
+
 export function pageKeymap(): Binding[] {
   const { workMode, isMobile } = campaignState();
   // Drawing is the one surface that edits data by pointer - mobile gets the
@@ -784,6 +810,7 @@ export function pageKeymap(): Binding[] {
         ? drawTaskBindings()
         : taskBindings();
   return [
+    ...(workMode === 'explore' ? historyBindings() : []),
     ...tag(editing, 'edit'),
     ...tag(formFieldBindings(), 'form'),
     ...tag(mode, 'mode'),

@@ -106,6 +106,15 @@ class AnnotationOut(AnnotationFromTaskOut):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AnnotationActionRequest(BaseModel):
+    undo: bool
+
+
+class AnnotationActionOut(BaseModel):
+    annotations: list[AnnotationOut]
+    deleted_ids: list[int]
+
+
 AnnotationSort = Literal[
     "default",
     "id-asc",

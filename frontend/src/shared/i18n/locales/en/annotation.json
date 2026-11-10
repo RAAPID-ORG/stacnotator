@@ -1,4 +1,11 @@
 {
+  "history": {
+    "undo": "Undo labelling action",
+    "redo": "Redo labelling action",
+    "undoFailed": "Could not undo the labelling action",
+    "redoFailed": "Could not redo the labelling action",
+    "busy": "Wait for undo/redo to finish before changing annotations."
+  },
   "keymap": {
     "answerField": "Answer the focused field",
     "cycleFields": "Cycle form fields",
