@@ -104,6 +104,16 @@ class RenderBrowsers:
             "([method, args]) => window.stacnotatorSetup[method](...args)", [method, list(args)]
         )
 
+    async def close(self, key: str) -> None:
+        opening = self._pages.pop(key, None)
+        if opening is None:
+            return
+        try:
+            page = await opening
+        except Exception:
+            return
+        await page.context.close()
+
     async def open_watch_window(self, agents_url: str | None = None) -> None:
         if self._watch is not None and not self._watch.is_closed():
             await self._watch.bring_to_front()

@@ -108,7 +108,8 @@ class CampaignSettings(TypedDict, total=False):
     and agents read. task_output: classify (a label per task) or draw (shapes per task).
     sample_extent_meters: the square drawn around each task. form_fields: extra questions
     per task, in the campaign's form field schema. embedding_year: year of satellite
-    embeddings for similarity search. labelling_policy: who labels each task and how
+    embeddings for similarity search. In an edit, null clears sample_extent_meters or
+    embedding_year. labelling_policy: who labels each task and how
     their answers are agreed."""
 
     __pydantic_config__ = ConfigDict(extra="forbid")  # type: ignore[misc]
@@ -120,9 +121,9 @@ class CampaignSettings(TypedDict, total=False):
     bbox_north: float
     guide_markdown: str
     task_output: Literal["classify", "draw"]
-    sample_extent_meters: float
+    sample_extent_meters: float | None
     form_fields: list[dict[str, Any]]
-    embedding_year: int
+    embedding_year: int | None
     labelling_policy: dict[str, Any]
 
 
@@ -795,6 +796,9 @@ async def preview_campaign(
         raise ToolError(str(exc)) from exc
     except Exception as exc:
         raise ToolError(f"The render browser failed: {exc}") from exc
+    finally:
+        # The page reads the campaign once, so a later preview after an edit needs a new one.
+        await _browsers().close(key)
     return out
 
 

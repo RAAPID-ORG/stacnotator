@@ -121,9 +121,13 @@ export function retainMatchingIds(
   generated: CollectionItem[],
   previous: CollectionItem[]
 ): CollectionItem[] {
-  const previousByRange = new Map(previous.map((c) => [collectionRangeKey(c), c]));
+  const previousByRange = new Map<string, CollectionItem[]>();
+  for (const c of previous) {
+    const key = collectionRangeKey(c);
+    previousByRange.set(key, [...(previousByRange.get(key) ?? []), c]);
+  }
   return generated.map((collection) => {
-    const match = previousByRange.get(collectionRangeKey(collection));
+    const match = previousByRange.get(collectionRangeKey(collection))?.shift();
     if (!match) return collection;
     const slicesByRange = new Map<string, ImagerySlice[]>();
     for (const slice of match.slices) {

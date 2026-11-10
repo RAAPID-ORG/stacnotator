@@ -113,12 +113,18 @@ describe('mergedImagery', () => {
     };
     const [merged] = mergedImagery(
       { sources: [source], basemaps: [] },
-      [{ ...recipe, windows: [season(2024, 0), season(2025, 0)] }],
+      [
+        {
+          ...recipe,
+          windows: [season(2024, 0), { ...season(2024, 1), name: 'again' }, season(2025, 0)],
+        },
+      ],
       [s2]
     ).sources;
     expect(merged.crosshair_hex6).toBe('00ff00');
     expect(merged.collections.map((c) => [c.id, c.slices.map((s) => s.id)])).toEqual([
       [100, [101, 102]],
+      [undefined, [undefined, undefined]],
       [undefined, [undefined, undefined]],
     ]);
   });

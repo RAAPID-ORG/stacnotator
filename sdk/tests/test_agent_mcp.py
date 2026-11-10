@@ -25,6 +25,7 @@ class FakeBrowsers:
         self.calls = []
         self.shown = []
         self.watching = []
+        self.closed = []
 
     async def call(self, agent_id, campaign_id, method, *args):
         self.calls.append((method, *args))
@@ -54,6 +55,9 @@ class FakeBrowsers:
 
     async def open_watch_window(self, agents_url=None):
         self.watching.append(agents_url)
+
+    async def close(self, key):
+        self.closed.append(key)
 
 
 @pytest.fixture
@@ -241,6 +245,7 @@ def test_preview_waits_for_registration_then_draws_task_centres(browsers):
 
     task = json.loads(text)["task"]
     assert (task["task_id"], task["lon"], task["lat"]) == (5, 31.0, 2.0)
+    assert browsers.closed == ["preview:40"]
 
 
 async def _tool_names():
