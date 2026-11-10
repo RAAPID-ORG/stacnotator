@@ -94,6 +94,27 @@ explains what you are looking at and where to follow progress; closing it does n
 agents, and `watch_agents` reopens it. If you stop a run early, ask it to free the agents'
 tasks, or use the Agents page.
 
+### Recording a run
+
+The MCP server saves a versioned JSONL log of returned task views, extra views,
+time-series probes and submitted answers, independently of the watch window.
+Each event includes its timestamp, agent and task, action, arguments, result,
+returned images (base64 JPEGs), and any recorded error. Image metadata retains the
+centres, zooms and pixel selections needed to reconstruct navigation later.
+Submitted explanations are included; private model reasoning and conversation
+outside tool calls are not captured. An image returned to a client is not proof
+that its model processed it.
+
+`register_agent` and `watch_agents` return the log path. Logs live in
+`~/.config/stacnotator/recordings/` (or under `STACNOTATOR_CONFIG_DIR`), one file
+per server session and deployment. The log is the output: visualization and replay
+are separate consumers, not part of this implementation. A recording failure is
+reported without retrying an already-saved annotation.
+
+Files are readable only by their owner and contain no SDK credentials, but imagery,
+locations and submitted explanations can be sensitive. Images can use substantial
+disk space; delete unwanted recordings and share only with authorized people.
+
 ## Labelling through a model API
 
 `stacnotator-label` does the same work without a coding agent: it calls a model API
@@ -199,15 +220,22 @@ sequenceDiagram
   an agent, and every view is fitted to that by shrinking its cells.
 - **Step by step per point.** `next_task` returns a light first look (a few dates spread over
   the season, zoomed on the point, the time series and a basemap pair); the agent then calls
-  `get_views` on the same point as often as it needs for other dates, zooms, cell sizes,
-  visualizations or basemaps. Drawn views are cached, so asking again costs nothing.
+  `get_views` as often as it needs for other dates, zooms, cell sizes, visualizations or
+  basemaps. To explore elsewhere, it first zooms out, picks a relevant patch in the
+  returned image, then sets `center: {reply, image, x, y}` on a view and increases zoom.
+  Every cell looks there unless it overrides `center`; the agent can inspect more dates,
+  basemaps and charts there, pick again on the resulting images, or omit `center` to return
+  to the assigned task. Coordinates are optional, not required. The red task marker stays
+  at the original location, and task pixel statistics are omitted if its whole sample
+  extent is outside the cell. Drawn views are cached by their full specification, including
+  centre, so different locations do not reuse each other's images.
 - **Probing.** `probe_timeseries` is the agent's timeseries tool: it clicks up to 6 places
   as pixels of an image it was shown (or as lat/lon), and gets the time series there
   charted beside the task's. Every reply with images is numbered, and a pixel names its
   reply and image. The MCP server keeps the views behind the agent's last 8 replies, at the
   size they were drawn and with the task they are centred on, and refuses a pick on any
   other reply or task rather than resolving it against the wrong image. The page finds the
-  cell under each pixel and turns the pixel into a place with that cell's zoom and
+  cell under each pixel and turns the pixel into a place with that cell's centre, zoom and
   OpenLayers' own resolution, the inverse of how the cell was drawn. The reply redraws the
   clicked cells with each point marked at the pixel it resolved to, so the agent can check
   its aim and click again.

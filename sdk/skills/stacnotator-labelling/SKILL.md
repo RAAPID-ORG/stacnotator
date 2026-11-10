@@ -40,7 +40,8 @@ Read the guide, `labels` and `form_fields` first. Then:
    dates to compare side by side in one view at one zoom, context and close up in one view
    via per-cell `zoom`, a second view only where cell size must differ. Repeat only for
    something new. Typical needs: the months around a change in the time series (covers or
-   finer slices); higher zoom or a basemap close up for a small point; neighbouring dates
+   finer slices); zoom out to find nearby fields, then open a selected field at higher zoom
+   and browse its imagery (see Exploring nearby); higher zoom or a basemap close up for a small point; neighbouring dates
    for clouds; another `visualization`; the chart with `remove_cloudy` and `smoothed`.
 3. Optional: `probe_timeseries` when comparing places helps - fields nearby that look like
    the task, or like each class (see Probing).
@@ -97,6 +98,41 @@ candidate label), then probe them to see whether their seasons match the task's.
   on that reply's image (its new `reply` number, image 1), correcting `x`, `y`.
 - `meta.probes` gives each point's `lat`, `lon` and `east_m`/`north_m` from the task;
   values are in `series[].rows` per `point`.
+
+## Exploring nearby
+
+Use imagery, not just time series, to investigate surrounding fields. First ask for a
+wide view (lower `zoom`). Pick a promising patch in that returned image, then give
+`get_views` a `center` and a higher zoom:
+
+```json
+[{"center": {"reply": 123456, "image": 1, "x": 310, "y": 120},
+  "zoom": 18, "columns": 2, "cell_px": 512,
+  "cells": [{"slice_id": 132}, {"slice_id": 133}]}]
+```
+
+Use the real reply number and pixels from the image you received, not these example
+values. No latitude/longitude is needed. The selected location becomes the centre for
+every cell in this view. Inspect different dates, visualizations, basemaps or its time
+series there; select another pixel on the new image to move again, or select its centre
+pixel to stay there while changing dates or zoom. A cell can override `center` to mix
+locations in one grid. Omit `center` to return to the assigned task.
+
+The red box still marks the original task at its actual position; it may now be outside
+the view. Never label the nearby field instead of the assigned task. `meta.cells[].center`
+reports where each cell looks, `task_in_view` says whether the point task is visible, and
+`inside_box` is present only when its whole sample extent is in frame. Probing a pixel on
+these images works exactly as on the original task images. Default views cannot have a
+fixed centre because they must follow each new task.
+
+## Recording
+
+The MCP server records returned views, exploration requests, time-series probes and
+submitted answers in a local JSONL log, independently of the watch window.
+`register_agent` and `watch_agents` return its path. It preserves actual returned images,
+locations and submitted explanations, not private reasoning or the surrounding
+conversation. Include the evidence for your decision in the submitted comment.
+Ask before sharing recordings.
 
 ## Labels
 

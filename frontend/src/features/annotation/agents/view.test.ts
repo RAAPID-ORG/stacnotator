@@ -1,8 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { fitCellPx, shortDateRange } from './view';
+import { checkView, fitCellPx, shortDateRange } from './view';
 
 const LIMITS = { max_edge_px: 1568, max_megapixels: 1.15 };
 const covers = (n: number) => Array.from({ length: n }, (_, i) => ({ slice_id: i }));
+
+it('rejects exploration centres outside the map instead of rendering another location', () => {
+  for (const center of [
+    { lat: NaN, lon: 0 },
+    { lat: 90, lon: 0 },
+    { lat: 0, lon: 181 },
+  ]) {
+    expect(() => checkView({ cells: [{ slice_id: 1 }], center })).toThrow(/center/);
+    expect(() => checkView({ cells: [{ slice_id: 1, center }] })).toThrow(/center/);
+  }
+});
 
 describe('fitCellPx', () => {
   it('keeps the asked size when the image fits', () => {

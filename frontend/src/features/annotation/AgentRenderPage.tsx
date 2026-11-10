@@ -24,6 +24,7 @@ import {
   probeView,
   type ProbeInput,
   type ProbeOptions,
+  type LocatedProbe,
 } from './agents/probe';
 import { hasMissingTiles, renderView, type RenderedImage } from './agents/render';
 import {
@@ -44,6 +45,7 @@ interface AgentPageApi {
   context(): CampaignContext;
   defaultViews(): ViewSpec[];
   render(task: AgentTask, views: ViewSpec[], limits: ImageLimits): Promise<RenderedView[]>;
+  locate(task: AgentTask, points: ProbeInput[]): LocatedProbe[];
   /** Draws in the background, one view at a time, so a later render is instant. */
   preload(tasks: AgentTask[], views: ViewSpec[], limits: ImageLimits): void;
   /** Time series at points the agent picked, beside the task's, with the map cells they
@@ -129,6 +131,7 @@ function createApi(campaign: CampaignOutFull, stage: HTMLElement): AgentPageApi 
     context: () => context,
     defaultViews: () => defaultViews(context),
     render: (task, views, limits) => Promise.all(views.map((view) => draw(task, view, limits))),
+    locate: (task, points) => points.map((point) => locateProbe(task, point)),
     preload: (tasks, views, limits) => {
       void (async () => {
         for (const task of tasks) for (const view of views) await draw(task, view, limits);
@@ -218,6 +221,7 @@ function renewingApi(first: CampaignOutFull, stage: HTMLElement): AgentPageApi {
     context: () => api.context(),
     defaultViews: () => api.defaultViews(),
     render: async (...args) => (await current()).render(...args),
+    locate: (...args) => api.locate(...args),
     preload: (...args) => void current().then((a) => a.preload(...args)),
     probe: async (...args) => (await current()).probe(...args),
   };

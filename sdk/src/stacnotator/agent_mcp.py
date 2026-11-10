@@ -9,10 +9,10 @@ this process runs; nothing is rendered on the server.
 
 import asyncio
 import base64
-import contextlib
 import functools
 import itertools
 import json
+import logging
 import os
 import secrets
 import subprocess
@@ -29,17 +29,21 @@ from typing_extensions import Required, TypedDict
 
 from stacnotator import _credentials
 from stacnotator._http import Http
+from stacnotator._recording import Recording
 from stacnotator._render_browsers import ChromiumMissingError, RenderBrowsers, install_chromium
 from stacnotator.campaign import Campaign
 from stacnotator.client import Client
 from stacnotator.client import login as sdk_login
 from stacnotator.errors import NotLoggedInError, StacnotatorError
 
+log = logging.getLogger(__name__)
+
 
 class ViewCell(TypedDict, total=False):
     """Exactly one of slice_id (optionally with visualization), basemap_id or
     timeseries_ids; zoom overrides the view's zoom for this cell only. Time series cells
     take remove_cloudy (drop cloud-flagged observations) and smoothed (Savitzky-Golay line).
+    center overrides the view's centre: pick a pixel of an earlier image or give lat/lon.
     """
 
     slice_id: int
@@ -49,17 +53,20 @@ class ViewCell(TypedDict, total=False):
     remove_cloudy: bool
     smoothed: bool
     zoom: float
+    center: "ProbePoint"
 
 
 class ViewSpec(TypedDict, total=False):
-    """One packed image: cells in a grid, each centred on the task point.
+    """One packed image: cells in a grid, centred on the task unless center is given.
     columns 1-8 (default 4), cell_px 96-1024 (default 320), zoom 1-22 (default 15),
-    at most 36 cells. Cells shrink until the image fits the agent's image limits."""
+    at most 36 cells. center picks a pixel of an earlier image (reply, image, x, y),
+    or lat/lon. A cell can override center. Cells shrink to fit the image limits."""
 
     cells: Required[list[ViewCell]]
     columns: int
     cell_px: int
     zoom: float
+    center: "ProbePoint"
 
 
 class RecipeSlice(TypedDict, total=False):
@@ -176,6 +183,7 @@ _agents: dict[str, dict[str, Any]] = {}
 _default_views: dict[str, list[ViewSpec]] = {}
 _current_tasks: dict[str, dict[str, Any]] = {}
 _image_limits: dict[str, dict[str, float]] = {}
+_label_names: dict[str, dict[int, str]] = {}
 # The views behind the images of each agent's recent replies, by reply number, at the size
 # they were drawn and with the task they are centred on, so a probe's pixel can be turned
 # back into a place.
@@ -221,6 +229,17 @@ def _browsers() -> RenderBrowsers:
 @functools.cache
 def _render_browsers(app_url: str) -> RenderBrowsers:
     return RenderBrowsers(app_url, lambda: asyncio.to_thread(_http().token))
+
+
+def _recording() -> Recording:
+    if _session_url is None:
+        raise ToolError(NO_DEPLOYMENT)
+    return _recordings(_session_url)
+
+
+@functools.cache
+def _recordings(app_url: str) -> Recording:
+    return Recording()
 
 
 def _full_url(url: str) -> str:
@@ -301,12 +320,59 @@ def _without_none(body: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in body.items() if value is not None}
 
 
+def _point_inputs(agent_id: str, task_id: int, points: list[ProbePoint]) -> list[dict[str, Any]]:
+    kept = _replies.get(agent_id, {})
+    inputs: list[dict[str, Any]] = []
+    for point in points:
+        if {"reply", "image", "x", "y"} == point.keys():
+            number, image = point["reply"], point["image"]
+            if number not in kept:
+                raise ToolError(
+                    f"Reply {number} is not one of your last {KEPT_REPLIES} replies: pick on a"
+                    " recent one, or call get_views again."
+                )
+            reply_task, shown = kept[number]
+            if reply_task != task_id:
+                raise ToolError(f"Reply {number} was drawn for task {reply_task}, not {task_id}.")
+            if not isinstance(image, int) or not 1 <= image <= len(shown):
+                count = f"{len(shown)} image{'' if len(shown) == 1 else 's'}"
+                raise ToolError(f"Reply {number} has no image {image}: it had {count}.")
+            inputs.append({"view": shown[image - 1], **point})
+        elif {"lat", "lon"} == point.keys():
+            inputs.append(dict(point))
+        else:
+            raise ToolError('Each point is {"reply", "image", "x", "y"} or {"lat", "lon"}.')
+    return inputs
+
+
+async def _located_views(
+    agent_id: str, task: dict[str, Any], views: list[ViewSpec]
+) -> list[ViewSpec]:
+    located: list[dict[str, Any]] = [
+        {**view, "cells": [dict(cell) for cell in view["cells"]]} for view in views
+    ]
+    targets = [
+        target for view in located for target in [view, *view["cells"]] if "center" in target
+    ]
+    if targets:
+        points = _point_inputs(agent_id, task["task_id"], [target["center"] for target in targets])
+        centers = await _on_page(agent_id, "locate", task, points)
+        for target, center in zip(targets, centers, strict=True):
+            target["center"] = {key: center[key] for key in ("lat", "lon", "from") if key in center}
+    return cast(list[ViewSpec], located)
+
+
+def _check_defaults(views: list[ViewSpec]) -> None:
+    if not 1 <= len(views) <= 4:
+        raise ToolError("Pass 1-4 views.")
+    if any("center" in target for view in views for target in [view, *view["cells"]]):
+        raise ToolError("Default views follow each task. Use center only in get_views.")
+
+
 def _pack(
     summary: dict[str, Any], rendered: list[dict[str, Any]], agent_id: str | None = None
-) -> list[str | Image]:
-    """The summary and one entry per view as text, then the drawn images in order. Each view
-    entry names the image it corresponds to, since failed views have none."""
-    images: list[str | Image] = []
+) -> tuple[dict[str, Any], list[Image]]:
+    images: list[Image] = []
     views = []
     shown: list[ViewSpec] = []
     for view in rendered:
@@ -328,18 +394,60 @@ def _pack(
         for old in list(kept)[:-KEPT_REPLIES]:
             del kept[old]
         reply = {"reply": number}
-    return [_json({**reply, **summary, "views": views}), *images]
+    return {**reply, **summary, "views": views}, images
 
 
 async def _bundle(
-    agent_id: str, summary: dict[str, Any], rendered: list[dict[str, Any]]
+    agent_id: str,
+    summary: dict[str, Any],
+    rendered: list[dict[str, Any]],
+    action: str,
+    request: dict[str, Any],
 ) -> list[str | Image]:
     drawn = [view["image_base64"] for view in rendered if "image_base64" in view]
-    agent = await _agent(agent_id)
-    # Watching is a side show: a closed window never fails the agent's call.
-    with contextlib.suppress(Exception):
-        await _browsers().show(agent["name"], summary["task"]["task_id"], drawn)
-    return _pack(summary, rendered, agent_id)
+    result, images = _pack(summary, rendered, agent_id)
+    error = await _record_step(agent_id, summary["task"], action, request, result, drawn)
+    if error:
+        result["recording_error"] = error
+    try:
+        await _browsers().show(_agents[agent_id]["name"], summary["task"]["task_id"], drawn)
+    except Exception:
+        log.exception("Could not update the agent watch window")
+    return [_json(result), *images]
+
+
+async def _record_step(
+    agent_id: str,
+    task: dict[str, Any],
+    action: str,
+    request: dict[str, Any],
+    result: dict[str, Any],
+    images: list[str] | None = None,
+    error: str | None = None,
+) -> str | None:
+    agent = _agents.get(agent_id, {"agent_id": agent_id, "name": agent_id})
+    event = {
+        "agent": {key: agent[key] for key in ("agent_id", "name", "campaign_id") if key in agent},
+        "task": task,
+        "action": action,
+        "request": request,
+        "result": result,
+        "images": images or [],
+    }
+    if error:
+        event["error"] = error
+    label_id = request.get("label_id")
+    label = _label_names.get(agent_id, {}).get(label_id) if isinstance(label_id, int) else None
+    if label is not None:
+        event["label_name"] = label
+    recording = _recording()
+    async with recording.lock:
+        try:
+            await asyncio.to_thread(recording.append, event)
+        except (OSError, ValueError) as exc:
+            log.error("Could not save agent recording %s: %s", recording.path, exc)
+            return str(exc)
+    return None
 
 
 @server.tool(structured_output=False)
@@ -356,7 +464,14 @@ async def login(url: str) -> str:
     except StacnotatorError as exc:
         raise ToolError(str(exc)) from exc
     if url != _session_url:
-        for state in (_agents, _default_views, _current_tasks, _image_limits, _replies):
+        for state in (
+            _agents,
+            _default_views,
+            _current_tasks,
+            _image_limits,
+            _replies,
+            _label_names,
+        ):
             state.clear()
     _session_url = url
     _signed_in_http.cache_clear()
@@ -401,15 +516,19 @@ async def register_agent(
     your other agents on the campaign that still have work queued.
     default_views: up to 4 views next_task returns for every task, drawn ahead for the
     tasks after it. Omit for a built-in overview; change later with set_default_views.
-    watch_window: open a window on the user's screen showing every agent's latest views.
-    On by default; pass false only when the user does not want it.
+    watch_window: open the window showing the agents' latest views.
+    On by default; pass false only when the user does not want it. Recording is independent
+    of this window.
 
     Returns the agent (keep agent_id), the campaign context (guide, labels, form fields,
     imagery slices, basemaps, time series), the default views and agents_page, the URL to
-    give the user for following progress. When the render browser cannot start,
+    give the user for following progress, and recording, the local JSONL log path.
+    When the render browser cannot start,
     render_browser says why instead: follow it, and never register again.
     """
     limits = _limits(max_image_edge_px, max_image_megapixels)
+    if default_views is not None:
+        _check_defaults(default_views)
     async with _registering:
         agent = await _api(
             _http().post,
@@ -432,6 +551,7 @@ async def register_agent(
     page = _agents_page(agent)
     try:
         context = await _on_page(agent_id, "context")
+        _label_names[agent_id] = {label["id"]: label["name"] for label in context["labels"]}
         views = await _views_of(agent_id)
     except ToolError as exc:
         # The agent exists either way: registering again would make a second one.
@@ -439,9 +559,28 @@ async def register_agent(
         return _json({"agent": agent, "agents_page": page, "render_browser": note})
     if watch_window:
         # A machine without a screen, or a user who closed the window, must not fail a run.
-        with contextlib.suppress(Exception):
+        try:
             await _browsers().open_watch_window(page)
-    return _json({"agent": agent, "agents_page": page, "context": context, "default_views": views})
+        except Exception as exc:
+            return _json(
+                {
+                    "agent": agent,
+                    "agents_page": page,
+                    "context": context,
+                    "default_views": views,
+                    "watch_error": str(exc),
+                    "recording": str(_recording().path),
+                }
+            )
+    return _json(
+        {
+            "agent": agent,
+            "agents_page": page,
+            "context": context,
+            "default_views": views,
+            "recording": str(_recording().path),
+        }
+    )
 
 
 @server.tool(structured_output=False)
@@ -449,7 +588,9 @@ async def campaign_context(agent_id: str) -> str:
     """The agent's campaign: guide_markdown, labels (use their ids), form_fields, imagery
     sources with collections and slices (slice ids, dates, visualizations, max_native_zoom),
     basemaps and time series. Read it before labelling."""
-    return _json(await _on_page(agent_id, "context"))
+    context = await _on_page(agent_id, "context")
+    _label_names[agent_id] = {label["id"]: label["name"] for label in context["labels"]}
+    return _json(context)
 
 
 @server.tool(structured_output=False)
@@ -457,8 +598,7 @@ async def set_default_views(agent_id: str, views: list[ViewSpec]) -> str:
     """Replace the agent's default views (1-4): what next_task returns for every task and
     what is drawn ahead for the tasks after it. Set them once the first tasks show what is
     worth looking at in this campaign; one-off detail belongs in get_views."""
-    if not 1 <= len(views) <= 4:
-        raise ToolError("Pass 1-4 views.")
+    _check_defaults(views)
     _default_views[agent_id] = views
     return _json(views)
 
@@ -478,8 +618,8 @@ async def next_task(agent_id: str) -> list[str | Image]:
     """The agent's next open task with its default views drawn. The same views are drawn
     ahead for the tasks after it, so this is usually quick.
 
-    Returns JSON {reply, task, remaining, views}, then the images; probe_timeseries picks
-    pixels by reply and image number. Each view entry has its spec and
+    Returns JSON {reply, task, remaining, views}, then the images; get_views centers and
+    probe_timeseries pick pixels by reply and image number. Each view entry has its spec and
     either image (1-based position among the returned images) with meta (per-cell captions,
     zoom, meters_per_pixel, time series values) or an error. task null means every assigned
     task is done. The same task is returned until it is labelled or skipped.
@@ -494,21 +634,41 @@ async def next_task(agent_id: str) -> list[str | Image]:
     limits = _limits_of(agent_id)
     rendered = await _on_page(agent_id, "render", task, views, limits)
     await _on_page(agent_id, "preload", upcoming, views, limits)
-    return await _bundle(agent_id, {"task": task, "remaining": result["remaining"]}, rendered)
+    return await _bundle(
+        agent_id,
+        {"task": task, "remaining": result["remaining"]},
+        rendered,
+        "next_task",
+        {"views": views},
+    )
 
 
 @server.tool(structured_output=False)
 async def get_views(agent_id: str, task_id: int, views: list[ViewSpec]) -> list[str | Image]:
     """Draw more views of the agent's current task: other dates, finer slices, higher zoom,
     other visualizations or basemaps. Pack everything you need next into this one call, up
-    to 8 views; same return shape as next_task."""
+    to 8 views; same return shape as next_task.
+
+    Explore nearby: first zoom out, find a relevant patch, then set a view's center to
+    {"reply": N, "image": 1, "x": X, "y": Y} from that returned image and increase zoom.
+    Pixels are measured in the returned image's own size, from its top-left corner;
+    meta.cells[].rect gives cell bounds. No geographic coordinates needed. A cell can
+    override center, or center can be {"lat", "lon"}. Browse any dates or visualizations
+    there; pick again on the resulting images to move or zoom further. Omit center to
+    return to the task. The red marker always marks the original task, not the new centre.
+    """
     task = _current_tasks.get(agent_id)
     if task is None or task["task_id"] != task_id:
         raise ToolError(f"Task {task_id} is not this agent's current task: call next_task.")
     if not 1 <= len(views) <= 8:
         raise ToolError("Pass 1-8 views.")
-    rendered = await _on_page(agent_id, "render", task, views, _limits_of(agent_id))
-    return await _bundle(agent_id, {"task": task}, rendered)
+    try:
+        located = await _located_views(agent_id, task, views)
+        rendered = await _on_page(agent_id, "render", task, located, _limits_of(agent_id))
+    except ToolError as exc:
+        await _record_step(agent_id, task, "get_views", {"views": views}, {}, error=str(exc))
+        raise
+    return await _bundle(agent_id, {"task": task}, rendered, "get_views", {"views": views})
 
 
 @server.tool(structured_output=False)
@@ -542,34 +702,19 @@ async def probe_timeseries(
         raise ToolError(f"Task {task_id} is not this agent's current task: call next_task.")
     if not 1 <= len(points) <= 6:
         raise ToolError("Pass 1-6 points.")
-    kept = _replies.get(agent_id, {})
-    probes: list[dict[str, Any]] = []
-    for point in points:
-        if {"reply", "image", "x", "y"} == point.keys():
-            number, image = point["reply"], point["image"]
-            if number not in kept:
-                raise ToolError(
-                    f"Reply {number} is not one of your last {KEPT_REPLIES} replies: pick on a"
-                    " recent one, or call get_views again."
-                )
-            reply_task, shown = kept[number]
-            if reply_task != task_id:
-                raise ToolError(f"Reply {number} was drawn for task {reply_task}, not {task_id}.")
-            if not 1 <= image <= len(shown):
-                count = f"{len(shown)} image{'' if len(shown) == 1 else 's'}"
-                raise ToolError(f"Reply {number} has no image {image}: it had {count}.")
-            probes.append({"view": shown[image - 1], **point})
-        elif {"lat", "lon"} == point.keys():
-            probes.append(dict(point))
-        else:
-            raise ToolError('Each point is {"reply", "image", "x", "y"} or {"lat", "lon"}.')
     options = _without_none(
         {"timeseries_ids": timeseries_ids, "remove_cloudy": remove_cloudy, "smoothed": smoothed}
     )
-    rendered = await _on_page(agent_id, "probe", task, probes, options, _limits_of(agent_id))
-    if "error" in rendered:
-        raise ToolError(rendered["error"])
-    return await _bundle(agent_id, {"task": task}, [rendered])
+    request = {"points": points, **options}
+    try:
+        probes = _point_inputs(agent_id, task_id, points)
+        rendered = await _on_page(agent_id, "probe", task, probes, options, _limits_of(agent_id))
+        if "error" in rendered:
+            raise ToolError(rendered["error"])
+    except ToolError as exc:
+        await _record_step(agent_id, task, "probe_timeseries", request, {}, error=str(exc))
+        raise
+    return await _bundle(agent_id, {"task": task}, [rendered], "probe_timeseries", request)
 
 
 @server.tool(structured_output=False)
@@ -620,8 +765,18 @@ async def skip_task(agent_id: str, task_id: int, comment: str) -> str:
 
 async def _annotate(agent_id: str, task_id: int, body: dict[str, Any]) -> str:
     # A skip is label_id None, sent as null.
-    result = await _api(_http().post, f"/agents/{agent_id}/tasks/{task_id}/annotate", body)
+    current = _current_tasks.get(agent_id)
+    task = current if current and current["task_id"] == task_id else {"task_id": task_id}
+    action = "skip_task" if body["label_id"] is None else "submit_label"
+    try:
+        result = await _api(_http().post, f"/agents/{agent_id}/tasks/{task_id}/annotate", body)
+    except ToolError as exc:
+        await _record_step(agent_id, task, action, body, {}, error=str(exc))
+        raise
     _current_tasks.pop(agent_id, None)
+    error = await _record_step(agent_id, task, action, body, result)
+    if error:
+        result = {**result, "recording_error": error}
     return _json(result)
 
 
@@ -887,7 +1042,8 @@ async def preview_campaign(
         for task in tasks[: max(1, min(task_count, 5))]:
             agent_task = _preview_task(task)
             rendered = await _browsers().call(key, campaign_id, "render", agent_task, views, limits)
-            out += _pack({"task": agent_task}, rendered)
+            result, images = _pack({"task": agent_task}, rendered)
+            out += [_json(result), *images]
     except ChromiumMissingError as exc:
         raise ToolError(str(exc)) from exc
     except Exception as exc:
@@ -900,16 +1056,15 @@ async def preview_campaign(
 
 @server.tool(structured_output=False)
 async def watch_agents() -> str:
-    """Open the window on the user's screen showing the latest views of every agent as they
-    are drawn, or bring it to the front. register_agent opens it already, so this is for
-    reopening it after the user closed it."""
+    """Open the window showing the agents' latest views, or bring it to the front.
+    Closing the window never stops agents or recording."""
     try:
         await _browsers().open_watch_window()
     except ChromiumMissingError as exc:
         raise ToolError(str(exc)) from exc
     except Exception as exc:
         raise ToolError(f"Could not open the watch window: {exc}") from exc
-    return "The watch window is open."
+    return _json({"watch": "open", "recording": str(_recording().path)})
 
 
 @server.tool(structured_output=False)

@@ -23,14 +23,21 @@ NEXT_TASK = {**TASK, "task_id": 6, "annotation_number": 2}
 class FakeBrowsers:
     def __init__(self):
         self.calls = []
-        self.shown = []
         self.watching = []
         self.closed = []
+
+    @property
+    def recorded(self):
+        return agent_mcp._recording().read()
 
     async def call(self, agent_id, campaign_id, method, *args):
         self.calls.append((method, *args))
         if method == "defaultViews":
             return [DEFAULT_VIEW]
+        if method == "context":
+            return {"labels": [{"id": 1, "name": "Forest"}]}
+        if method == "locate":
+            return [{"lat": 1.6, "lon": 30.1} for _ in args[1]]
         if method == "render":
             _, views, _limits = args
             return [
@@ -57,7 +64,7 @@ class FakeBrowsers:
         return {"sources": [{"name": "Sentinel-2 L2A"}], "basemaps": []}
 
     async def show(self, agent, task_id, images):
-        self.shown.append((agent, task_id, len(images)))
+        pass
 
     async def open_watch_window(self, agents_url=None):
         self.watching.append(agents_url)
@@ -78,6 +85,8 @@ def browsers(monkeypatch):
     agent_mcp._current_tasks.clear()
     agent_mcp._image_limits.clear()
     agent_mcp._replies.clear()
+    agent_mcp._label_names.clear()
+    agent_mcp._recordings.cache_clear()
     yield fake
     agent_mcp._signed_in_http.cache_clear()
 
@@ -104,12 +113,102 @@ def test_next_task_draws_the_task_and_preloads_the_ones_after_it(browsers):
     assert image.data == IMAGE_BYTES
     assert ("render", TASK, [DEFAULT_VIEW], limits) in browsers.calls
     assert ("preload", [NEXT_TASK], [DEFAULT_VIEW], limits) in browsers.calls
-    assert browsers.shown == [("scout-a-1a2b3c", 5, 1)]
+    event = browsers.recorded[0]
+    assert event["action"] == "next_task"
+    assert event["task"] == TASK
+    assert event["images"] == [base64.b64encode(IMAGE_BYTES).decode()]
+    assert event["result"] == summary
 
 
 def test_get_views_only_draws_the_current_task(browsers):
     with pytest.raises(ToolError, match="call next_task"):
         asyncio.run(agent_mcp.get_views(AGENT, 5, [DEFAULT_VIEW]))
+
+
+@responses.activate
+def test_exploration_resolves_pixels_and_keeps_the_task_and_requested_views(browsers):
+    reply = _start_task([TASK])
+    pick = {"reply": reply, "image": 1, "x": 230, "y": 120}
+    views = [{"center": pick, "zoom": 18, "cells": [{"slice_id": 7}, {"basemap_id": 2}]}]
+    text, _ = asyncio.run(agent_mcp.get_views(AGENT, 5, views))
+    locate, render = browsers.calls[-2:]
+    assert locate == (
+        "locate",
+        TASK,
+        [{"view": {**DEFAULT_VIEW, "columns": 4, "cell_px": 300}, **pick}],
+    )
+    assert render[1] == TASK
+    assert render[2][0]["center"] == {"lat": 1.6, "lon": 30.1}
+    assert views[0]["center"] == pick
+    assert browsers.recorded[-1]["request"] == {"views": views}
+    resolved_reply = json.loads(text)["reply"]
+    asyncio.run(
+        agent_mcp.get_views(
+            AGENT,
+            5,
+            [
+                {
+                    "cells": [
+                        {
+                            "slice_id": 8,
+                            "center": {"reply": resolved_reply, "image": 1, "x": 150, "y": 150},
+                        }
+                    ]
+                }
+            ],
+        )
+    )
+    assert browsers.calls[-2][2][0]["view"]["center"] == {"lat": 1.6, "lon": 30.1}
+
+    with pytest.raises(ToolError, match="Default views"):
+        asyncio.run(agent_mcp.set_default_views(AGENT, views))
+
+
+@responses.activate
+def test_exploration_rejects_an_old_task_and_records_the_failure(browsers):
+    reply = _start_task([TASK, NEXT_TASK])
+    asyncio.run(agent_mcp.next_task(AGENT))
+    with pytest.raises(ToolError, match="drawn for task 5, not 6"):
+        asyncio.run(
+            agent_mcp.get_views(
+                AGENT,
+                6,
+                [{"center": {"reply": reply, "image": 1, "x": 100, "y": 100}, **DEFAULT_VIEW}],
+            )
+        )
+    assert browsers.recorded[-1]["error"]
+    assert browsers.recorded[-1]["task"] == NEXT_TASK
+
+
+@responses.activate
+def test_successful_answer_is_recorded_after_submission(browsers):
+    _start_task([TASK])
+    agent_mcp._label_names[AGENT] = {1: "Forest"}
+    responses.post(f"{BASE}/api/agents/{AGENT}/tasks/5/annotate", json={"status": "saved"})
+    asyncio.run(agent_mcp.submit_label(AGENT, 5, 1, 4, "Dense canopy"))
+    event = browsers.recorded[-1]
+    assert event["action"] == "submit_label"
+    assert event["label_name"] == "Forest"
+    assert event["request"]["comment"] == "Dense canopy"
+    assert event["task"] == TASK
+    assert event["result"] == {"status": "saved"}
+    assert AGENT not in agent_mcp._current_tasks
+
+
+@responses.activate
+def test_recording_failure_does_not_repeat_or_undo_a_saved_answer(browsers, monkeypatch, caplog):
+    _start_task([TASK])
+    responses.post(f"{BASE}/api/agents/{AGENT}/tasks/5/annotate", json={"status": "saved"})
+
+    def full(_event):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(agent_mcp._recording(), "append", full)
+    result = json.loads(asyncio.run(agent_mcp.submit_label(AGENT, 5, 1, 4, "Dense canopy")))
+    assert result == {"status": "saved", "recording_error": "disk full"}
+    assert AGENT not in agent_mcp._current_tasks
+    assert sum(call.request.url.endswith("/annotate") for call in responses.calls) == 1
+    assert "Could not save agent recording" in caplog.text
 
 
 def _start_task(tasks):

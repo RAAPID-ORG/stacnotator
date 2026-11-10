@@ -53,6 +53,41 @@ describe('locateProbe', () => {
     expect(probe.lat).toBeCloseTo(TASK.lat, 9);
   });
 
+  it('explores from a zoomed-out pick and probes the new viewport, not the task', () => {
+    const overview = { cells: [{ slice_id: 1 }], zoom: 12, cell_px: 400, columns: 1 };
+    const field = locateProbe(TASK, { view: overview, reply: 7, image: 1, x: 310, y: 120 });
+    const closeup = { ...overview, center: { lat: field.lat, lon: field.lon }, zoom: 18 };
+    const second = locateProbe(TASK, { view: closeup, reply: 8, image: 1, x: 210, y: 190 });
+    const [lon, lat] = pixelToLonLat([field.lon, field.lat], 18, 400, 400, 210, 190);
+    expect(second.lon).toBeCloseTo(lon, 9);
+    expect(second.lat).toBeCloseTo(lat, 9);
+    expect(second.cell?.center).toEqual(closeup.center);
+
+    const probed = probeView([second], [5], {}, { max_edge_px: 1200, max_megapixels: 1 });
+    expect(probed.cells[0].center).toEqual(closeup.center);
+    const again = locateProbe(TASK, {
+      view: probed,
+      reply: 9,
+      image: 1,
+      x: probed.cell_px! / 2,
+      y: probed.cell_px! / 2,
+    });
+    expect(again.lon).toBeCloseTo(field.lon, 9);
+    expect(again.lat).toBeCloseTo(field.lat, 9);
+  });
+
+  it('uses a cell override when comparing two locations in one image', () => {
+    const differentPlaces = {
+      ...view,
+      center: { lat: 51, lon: 3 },
+      cells: [{ slice_id: 1 }, { slice_id: 1, center: { lat: TASK.lat, lon: TASK.lon } }],
+    };
+    const nearby = locateProbe(TASK, { view: differentPlaces, reply: 7, image: 1, x: 200, y: 200 });
+    const task = locateProbe(TASK, { view: differentPlaces, reply: 7, image: 1, x: 600, y: 200 });
+    expect(nearby.lon).toBeCloseTo(3, 9);
+    expect(task.lon).toBeCloseTo(TASK.lon, 9);
+  });
+
   it('refuses pixels on a chart or outside the image', () => {
     expect(() => locateProbe(TASK, { view, reply: 7, image: 1, x: 10, y: 450 })).toThrow(
       /time series/

@@ -12,6 +12,12 @@ export interface AgentTask {
   geometry_wkt: string;
 }
 
+export interface ViewCenter {
+  lat: number;
+  lon: number;
+  from?: { reply: number; image: number; x: number; y: number; cell: number };
+}
+
 /** One panel of a view: exactly one of a slice, a basemap or a time series chart. */
 export interface ViewCell {
   slice_id?: number;
@@ -22,6 +28,7 @@ export interface ViewCell {
   remove_cloudy?: boolean;
   smoothed?: boolean;
   zoom?: number;
+  center?: ViewCenter;
 }
 
 export interface ViewSpec {
@@ -29,7 +36,11 @@ export interface ViewSpec {
   columns?: number;
   cell_px?: number;
   zoom?: number;
+  center?: ViewCenter;
 }
+
+export const viewCenter = (task: AgentTask, view: ViewSpec, cell: ViewCell): ViewCenter =>
+  cell.center ?? view.center ?? { lat: task.lat, lon: task.lon };
 
 /** The largest image the agent's model takes in without shrinking it. Views are fitted
  *  to it, so what the model sees is exactly what was drawn. */
@@ -62,6 +73,20 @@ export function checkView(view: ViewSpec): void {
     throw new Error(`a view holds 1-${MAX_CELLS} cells`);
   if (columns < 1 || columns > 8) throw new Error('columns must be 1-8');
   if (cellPx < MIN_CELL_PX || cellPx > 1024) throw new Error('cell_px must be 96-1024');
+  for (const center of [view.center, ...view.cells.map((cell) => cell.center)]) {
+    if (
+      center &&
+      (!Number.isFinite(center.lat) ||
+        !Number.isFinite(center.lon) ||
+        Math.abs(center.lat) > 85.05112878 ||
+        Math.abs(center.lon) > 180)
+    )
+      throw new Error('center must be a finite lat/lon inside the Web Mercator map');
+  }
+  for (const zoom of [view.zoom, ...view.cells.map((cell) => cell.zoom)]) {
+    if (zoom !== undefined && (!Number.isFinite(zoom) || zoom < 1 || zoom > 22))
+      throw new Error('zoom must be 1-22');
+  }
   for (const cell of view.cells) {
     const kinds = [cell.slice_id, cell.basemap_id, cell.timeseries_ids].filter((v) => v != null);
     if (kinds.length !== 1)
