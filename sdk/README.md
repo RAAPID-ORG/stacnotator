@@ -232,7 +232,11 @@ codex plugin add stacnotator@stacnotator
 ```
 
 It bundles the labelling skill and the MCP server (`stacnotator-mcp`, run through `uvx`).
-Setup for other clients and how it works: [docs/agentic-labelling.md](../docs/agentic-labelling.md).
+To label through a model API instead of a coding agent (OpenAI, Azure OpenAI or Azure AI
+Foundry), install the `api` extra and run `stacnotator-label run` with a file of labelling
+instructions.
+Setup for other clients, the model API runner and how it works:
+[docs/agentic-labelling.md](../docs/agentic-labelling.md).
 
 ## API summary
 

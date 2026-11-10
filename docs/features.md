@@ -272,6 +272,7 @@ Models can label task campaigns as annotators of their own:
 - **Prerendering** - an agent's default views are drawn ahead for its next two tasks, so a steady workflow gets its bundle without waiting.
 - **Agents page** - `.../campaigns/<id>/agents` lists the owner's agents with their progress, lets an agent take over its siblings' queued work, and frees unfinished tasks.
 - **Plugin for Claude Code and Codex** - adding the `RAAPID-ORG/stacnotator` marketplace and installing `stacnotator` installs the MCP server (`stacnotator-mcp`, run through uvx) and the skill that teaches an agent (or a team of subagents) how to look at a point step by step and label it.
+- **Labelling through a model API** - `stacnotator-label` in the SDK runs the agents with a model API instead of a coding agent (OpenAI Responses API: OpenAI, Azure OpenAI, Azure AI Foundry), one conversation per task, with the labelling rules from an instructions file. The model submits through the same `submit_label` and `skip_task` tools, so the backend's checks apply and their errors go back to it.
 
 See `docs/agentic-labelling.md` for setup and how it works.
 

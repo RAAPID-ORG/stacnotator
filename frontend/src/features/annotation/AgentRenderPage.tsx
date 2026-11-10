@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { getCampaignWithImageryWindows, type CampaignOutFull } from '~/api/client';
+import { RUN_POLL_MS } from '~/api/queryClient';
 import { authManager } from '~/features/auth';
 import type { AuthAdapter } from '~/features/auth/core/authAdapter';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
@@ -11,7 +12,7 @@ import {
   type ProbeInput,
   type ProbeOptions,
 } from './agents/probe';
-import { renderView, type RenderedImage } from './agents/render';
+import { hasMissingTiles, renderView, type RenderedImage } from './agents/render';
 import {
   campaignContext,
   checkView,
@@ -84,7 +85,10 @@ function createApi(campaign: CampaignOutFull, stage: HTMLElement): AgentPageApi 
         return renderView({ task, view, limits, campaign, catalog, stage });
       })
       .then(
-        (image): RenderedView => ({ view, ...image }),
+        (image): RenderedView => {
+          if (hasMissingTiles(image)) drawn.delete(key);
+          return { view, ...image };
+        },
         (err: unknown): RenderedView => {
           drawn.delete(key);
           return { view, error: extractErrorMessage(err, 'Rendering failed') };
@@ -146,6 +150,53 @@ function createApi(campaign: CampaignOutFull, stage: HTMLElement): AgentPageApi 
   };
 }
 
+const loadCampaign = (campaignId: number) =>
+  getCampaignWithImageryWindows({ path: { campaign_id: campaignId }, throwOnError: true }).then(
+    ({ data }) => data
+  );
+
+const imageryDue = (campaign: CampaignOutFull) =>
+  campaign.registration_status === 'registering' ||
+  (!!campaign.imagery_renew_at && Date.parse(campaign.imagery_renew_at) <= Date.now());
+
+// The page stays open for a whole run, but MPC tile URLs expire: reading the campaign again
+// when the backend says they are due renews them, and nothing is drawn until that is done.
+function renewingApi(first: CampaignOutFull, stage: HTMLElement): AgentPageApi {
+  let campaign = first;
+  let api = createApi(campaign, stage);
+  let refreshing: Promise<void> | null = null;
+
+  const refresh = async () => {
+    let next = await loadCampaign(campaign.id);
+    while (next.registration_status === 'registering') {
+      await new Promise((resolve) => setTimeout(resolve, RUN_POLL_MS));
+      next = await loadCampaign(campaign.id);
+    }
+    campaign = next;
+    api = createApi(campaign, stage);
+  };
+
+  const current = async () => {
+    if (imageryDue(campaign)) {
+      refreshing ??= refresh()
+        .catch(() => {})
+        .finally(() => {
+          refreshing = null;
+        });
+    }
+    await refreshing;
+    return api;
+  };
+
+  return {
+    context: () => api.context(),
+    defaultViews: () => api.defaultViews(),
+    render: async (...args) => (await current()).render(...args),
+    preload: (...args) => void current().then((a) => a.preload(...args)),
+    probe: async (...args) => (await current()).probe(...args),
+  };
+}
+
 /**
  * A page with no interface that the MCP server keeps open in a headless browser, one per
  * agent. The server calls `window.stacnotatorAgent` to draw views and reads the images
@@ -169,9 +220,9 @@ export default function AgentRenderPage() {
     }
     authManager.registerProvider(injectedTokenAdapter);
     authManager.setActiveProvider(INJECTED_PROVIDER);
-    getCampaignWithImageryWindows({ path: { campaign_id: campaignId }, throwOnError: true })
-      .then(({ data }) => {
-        window.stacnotatorAgent = createApi(data, stageRef.current!);
+    loadCampaign(campaignId)
+      .then((campaign) => {
+        window.stacnotatorAgent = renewingApi(campaign, stageRef.current!);
         setStatus('ready');
       })
       .catch((err) => fail(extractErrorMessage(err, 'Could not load the campaign')));
