@@ -171,9 +171,9 @@ sequenceDiagram
 - **Missing tiles.** A cell whose tiles were still loading when it was drawn carries
   `tiles_missing`, and the page does not keep that drawing, so asking for the same view again
   fetches them. Failed tiles only carry a `warning`: they are usually a date with no scene
-  there, which drawing again never fills. Expired MPC mosaics are not one of those: before
-  drawing, the page reads the campaign again once the backend says its mosaics are due for
-  renewal, and waits while they register, so a long run never draws with stale tile URLs.
+  there, which drawing again never fills.
+- **Imagery renewal.** MPC tile URLs expire. Before drawing, the page reads the campaign again
+  once the backend says its mosaics are due for renewal, and waits while they register.
 - **Preloading.** Every `next_task` draws the agent's default views for its next two tasks in
   the background, so a steady loop gets its images without waiting. Default views live in
   the MCP server's memory and reset when it restarts.
