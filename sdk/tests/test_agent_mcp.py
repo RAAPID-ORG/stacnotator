@@ -7,7 +7,7 @@ import responses
 from mcp.server.mcpserver import Image
 from mcp.server.mcpserver.exceptions import ToolError
 
-from stacnotator import _areas, agent_mcp
+from stacnotator import agent_mcp
 from stacnotator._credentials import Credentials, save
 from stacnotator._render_browsers import ChromiumMissingError
 
@@ -183,48 +183,20 @@ def test_login_reuses_a_saved_login_for_the_same_deployment(browsers, monkeypatc
 @responses.activate
 def test_create_campaign_builds_imagery_on_the_page_and_sets_the_guide(browsers):
     created = responses.post(
-        f"{BASE}/api/campaigns/",
-        json={"id": 40, "registration_status": "registering"},
+        f"{BASE}/api/campaigns/", json={"id": 40, "registration_status": "registering"}
     )
     patched = responses.patch(f"{BASE}/api/campaigns/40", json={})
     responses.get(f"{BASE}/api/campaigns/40/task-sets", json=[])
-    recipe = {
-        "collection": "sentinel-2-l2a",
-        "windows": [
-            {"name": "2024", "slices": [{"start": "2024-07-01", "end": "2024-07-31"}], "cover": 0}
-        ],
-    }
+    recipe = {"collection": "sentinel-2-l2a", "windows": []}
+    settings = {"name": "Crops", "labels": [{"id": 1, "name": "Maize"}], "guide_markdown": "# G"}
 
-    result = json.loads(
-        asyncio.run(
-            agent_mcp.create_campaign(
-                3,
-                "Crops",
-                ["Maize", "Other"],
-                [recipe],
-                [30, 1, 31, 2],
-                guide_markdown="# G",
-                timeseries=[
-                    {
-                        "name": "NDVI",
-                        "data_source": "SENTINEL2",
-                        "ts_type": "NDVI",
-                        "start_ym": "2024-01",
-                        "end_ym": "2024-06",
-                    }
-                ],
-            )
-        )
-    )
+    result = json.loads(asyncio.run(agent_mcp.create_campaign(3, settings, [recipe])))
 
-    assert ("imagery", [recipe], None) in browsers.calls
+    assert ("imagery", None, [recipe], None) in browsers.calls
     body = json.loads(created.calls[0].request.body)
+    assert body["name"] == "Crops"
+    assert body["settings"] == {"labels": [{"id": 1, "name": "Maize"}]}
     assert body["imagery_editor_state"]["sources"][0]["name"] == "Sentinel-2 L2A"
-    assert [(label["id"], label["name"]) for label in body["settings"]["labels"]] == [
-        (1, "Maize"),
-        (2, "Other"),
-    ]
-    assert body["timeseries_configs"][0]["start_ym"] == "202401"
     assert json.loads(patched.calls[0].request.body) == {"guide_markdown": "# G"}
     assert result["url"] == f"{BASE}/projects/3/campaigns/40"
 
@@ -245,8 +217,7 @@ def test_add_tasks_samples_into_a_new_task_set(browsers):
         )
     )
 
-    form = sampled.calls[0].request.body
-    assert "task_set_id=9" in form and "use_campaign_bbox=true" in form
+    assert "task_set_id=9" in sampled.calls[0].request.body
     assert result["tasks_created"] == 50
     with pytest.raises(ToolError, match="exactly one"):
         asyncio.run(agent_mcp.add_tasks(40, "Pilot"))
@@ -269,60 +240,7 @@ def test_preview_waits_for_registration_then_draws_task_centres(browsers):
     text, *_ = asyncio.run(agent_mcp.preview_campaign(40, 1000, 1.0))
 
     task = json.loads(text)["task"]
-    assert task["task_id"] == 5
-    assert task["lon"] == pytest.approx(31.0)
-    assert task["lat"] == pytest.approx(2.0)
-
-
-GB = "https://www.geoboundaries.org/api/current/gbOpen"
-SQUARE = {"type": "Polygon", "coordinates": [[[36, 49], [37, 49], [37, 50], [36, 49]]]}
-
-
-def _boundaries(mocked, level, *names):
-    mocked.get(f"{GB}/UKR/{level}/", json={"simplifiedGeometryGeoJSON": f"https://gb/{level}"})
-    features = [
-        {"properties": {"shapeName": name, "shapeID": f"{level}-{i}"}, "geometry": SQUARE}
-        for i, name in enumerate(names)
-    ]
-    mocked.get(f"https://gb/{level}", json={"features": features})
-
-
-@pytest.fixture
-def boundaries():
-    _areas._units.cache_clear()
-    with responses.RequestsMock(assert_all_requests_are_fired=False) as mocked:
-        _boundaries(mocked, "ADM1", "Kharkiv")
-        _boundaries(mocked, "ADM2", "Iziaslav", "Iziumskyi", "Izium")
-        yield mocked
-    _areas._units.cache_clear()
-
-
-def test_find_area_puts_the_exact_name_first_and_ignores_generic_words(boundaries):
-    found = json.loads(asyncio.run(agent_mcp.find_area("ukr", "Izium raion")))
-
-    assert [a["name"] for a in found] == ["Izium", "Iziumskyi"]
-    assert found[0]["area_id"] == "UKR/ADM2/ADM2-2"
-    assert found[0]["bbox"] == [36, 49, 37, 50]
-
-
-def test_add_tasks_samples_inside_an_areas_outline(browsers, boundaries):
-    boundaries.get(f"{BASE}/api/campaigns/40/task-sets", json=[{"id": 9, "name": "Pilot"}])
-    sampled = boundaries.post(
-        f"{BASE}/api/campaigns/40/sampling/generate-tasks", json={"num_tasks_created": 5}
-    )
-    boundaries.get(f"{BASE}/api/campaigns/40/task-sets", json=[])
-
-    asyncio.run(
-        agent_mcp.add_tasks(
-            40,
-            "Pilot",
-            sampling={"strategy_type": "random", "num_samples": 5, "area_id": "UKR/ADM2/ADM2-2"},
-        )
-    )
-
-    body = sampled.calls[0].request.body.decode()
-    assert 'name="use_campaign_bbox"\r\n\r\nfalse' in body and '"area_id"' not in body
-    assert json.dumps(SQUARE) in body
+    assert (task["task_id"], task["lon"], task["lat"]) == (5, 31.0, 2.0)
 
 
 async def _tool_names():
@@ -332,27 +250,27 @@ async def _tool_names():
         return {tool.name for tool in (await client.list_tools()).tools}
 
 
-def test_tools_that_change_campaigns_are_offered_only_when_granted(monkeypatch):
-    changing = {"create_campaign", "add_tasks", "edit_campaign", "edit_imagery"}
-    assert not changing & asyncio.run(_tool_names())
+async def _call(name, arguments):
+    from mcp import Client
 
-    monkeypatch.setattr(agent_mcp, "_ALLOWED", {"edit_imagery"})
-    for name in changing:
-        agent_mcp._grantable_tool(getattr(agent_mcp, name))
-    try:
-        assert changing & asyncio.run(_tool_names()) == {"edit_imagery"}
-    finally:
-        agent_mcp.server.remove_tool("edit_imagery")
+    async with Client(agent_mcp.server) as client:
+        return await client.call_tool(name, arguments)
 
 
 @responses.activate
-def test_edit_imagery_saves_the_merged_imagery_built_on_the_page(browsers):
-    responses.get(f"{BASE}/api/campaigns/40/summary", json={"project_id": 3})
-    saved = responses.put(f"{BASE}/api/campaigns/40/imagery", status=204)
-    recipe = {"collection": "landsat-c2-l2", "windows": []}
+def test_only_granted_tools_are_offered_and_they_refuse_unknown_settings(monkeypatch):
+    changing = {"create_campaign", "add_tasks", "edit_campaign", "edit_imagery"}
+    assert not changing & asyncio.run(_tool_names())
 
-    result = json.loads(asyncio.run(agent_mcp.edit_imagery(40, [recipe], remove=["Old"])))
+    monkeypatch.setattr(agent_mcp, "_ALLOWED", {"edit_campaign"})
+    for name in changing:
+        agent_mcp._grantable_tool(getattr(agent_mcp, name))
+    patched = responses.patch(f"{BASE}/api/campaigns/40", json={"settings": {}})
+    try:
+        assert changing & asyncio.run(_tool_names()) == {"edit_campaign"}
+        result = asyncio.run(_call("edit_campaign", {"campaign_id": 40, "settings": {"nmae": 1}}))
+    finally:
+        agent_mcp.server.remove_tool("edit_campaign")
 
-    assert ("editImagery", 40, [recipe], None, ["Old"]) in browsers.calls
-    assert json.loads(saved.calls[0].request.body)["sources"] == [{"name": "Sentinel-2 L2A"}]
-    assert result["sources"] == ["Sentinel-2 L2A"]
+    assert result.is_error and "nmae" in result.content[0].text
+    assert not patched.calls

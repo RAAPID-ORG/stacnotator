@@ -61,34 +61,24 @@ another way. This is a limit of the tool set, not a permission: the SDK login is
 session, so a model with shell access could still call the API with it.
 
 Ask in plain words, e.g. "set up a campaign to label maize vs other crops in Nakuru county,
-Kenya". The skill does not fill in what you left open. It asks where (an administrative unit
-or an exact box), when (years and season, with dates it proposes from the crop calendar for
-you to confirm), the labels and how tasks are placed. Administrative units are looked up in
-[geoBoundaries](https://www.geoboundaries.org) (gbOpen) with `find_area`, which reads one
-country and level at a time as simplified GeoJSON; the skill shows you the matching units
-and their boundary year before using one.
-
-It then puts the whole proposal to you in the chat: area, labels, guide, every imagery
-window with its slices and cover, basemaps, time series and tasks. Only after you accept it
-does it:
-
-1. create the campaign in a project you administer,
-2. add tasks from GeoJSON (points or polygons), or random or grid sampling inside the unit's
-   outline or across the campaign box,
-3. wait until the imagery is registered and draw the first tasks' views as a preview,
-4. give you the campaign's link.
-
-Changing an existing campaign works the same way: the skill reads it with `get_campaign`,
-proposes the change and calls `edit_campaign` or `edit_imagery` once you accept.
+Kenya". The skill does not fill in what you left open: it asks for the area (a box, which it
+may propose for you to confirm), the years and season (proposing dates from the crop
+calendar for you to confirm), the labels and how tasks are placed. It then puts the whole
+proposal to you in the chat and, only once you accept it, creates the campaign, adds tasks
+(your GeoJSON, or random or grid sampling across the box), waits until the imagery is
+registered, draws the first tasks' views as a preview and gives you the link. Changing an
+existing campaign works the same way, through `get_campaign` and then `edit_campaign` or
+`edit_imagery`.
 
 Imagery is described by recipes over the Planetary Computer collections the campaign wizard
-offers as presets. A recipe spells out each window, its slices and its cover as date ranges,
-so the agent chooses the dates that tell the labels apart, such as the months around a crop's
-peak in each year. The headless page builds each window with the wizard's own presets and
-collection builder (`layers/imagery/recipe.ts`), so an agent-made source is searched and drawn
-exactly like one made in the wizard. `edit_imagery` merges recipes into the campaign's
-imagery by source name: a recipe with a stored source's name replaces it in place, so the
-views that show it keep it, and sources it does not name stay as they are.
+offers as presets. A recipe spells out each window, its slices and its cover as date ranges.
+The headless page builds them with the wizard's own presets and collection builder
+(`layers/imagery/recipe.ts`), so an agent-made source is searched and drawn like one made in
+the wizard. `edit_imagery` merges recipes by source name: a recipe with a stored source's
+name replaces its windows, visualizations and cloud cover, but the source keeps its id and
+display settings, and windows and slices with unchanged dates keep theirs, so views, layouts
+and registrations hold. A source made with the wizard's generator becomes plain windows when
+replaced. Sources a recipe does not name stay as they are.
 
 ## Running a labelling run
 

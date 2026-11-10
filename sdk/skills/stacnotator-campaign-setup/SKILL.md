@@ -1,6 +1,6 @@
 ---
 name: stacnotator-campaign-setup
-description: Set up a new STACNotator campaign or change an existing one through the stacnotator MCP server - area (looked up in geoBoundaries), period, labels, guide, satellite imagery, basemaps, time series and tasks - agreed with the user as one proposal, then preview it. Use when asked to create, set up, prepare or change a STACNotator campaign or its imagery.
+description: Set up a new STACNotator campaign or change an existing one through the stacnotator MCP server - area, period, labels, guide, satellite imagery, basemaps, time series and tasks - agreed with the user as one proposal, then preview it. Use when asked to create, set up, prepare or change a STACNotator campaign or its imagery.
 ---
 
 # Setting up a STACNotator campaign
@@ -22,63 +22,47 @@ the chat.
 
 1. `list_projects()`: the campaign goes in a project where `is_admin` is true. Ask which one
    when the user did not say.
-2. **Pin down where.** Ask which area, as an administrative unit or an exact box. For a
-   unit, look it up with `find_area(country, name, level?, within?)` (geoBoundaries, one
-   country and level at a time) and show the user the matches: name, level, bbox and
-   boundary year. The campaign's area is the `bbox` of the unit they pick; keep its
-   `area_id` for sampling tasks inside its outline. Any other box comes only from the
-   user. Keep the area to what they care about: a state is fine to sample tasks in, but every task
-   needs imagery, so ask before going larger than a few counties or districts.
-3. **Pin down when.** Ask for the year or years and the season. When the user does not
-   know the dates that tell the labels apart, propose them from the crop calendar or the
-   years of the change, say why, and let them confirm.
-4. **Pin down what.** Ask for the labels and what each means, how tasks are made (how
-   many, sampled randomly or on a grid, inside the unit's outline or the whole box, or
-   the user's own points), and whether they want time series.
-5. `setup_options(project_id)`: imagery collections with their visualizations, basemaps,
-   and time series sources and types. A `render_browser` note: ask the user before
+2. **Pin down where, when and what.** Ask for the area as a box (west, south, east, north),
+   or name the place and propose a box for them to confirm; keep it to a few counties or
+   districts unless they ask for more, since every task needs imagery. Ask for the years
+   and season; when they do not know which dates tell the labels apart, propose them from
+   the crop calendar or the years of the change and say why. Ask for the labels and what
+   each means, how many tasks and how they are placed (random or grid in the box, or their
+   own points), and whether they want time series.
+3. `setup_options(project_id)`: imagery collections with their visualizations, basemaps,
+   and time series sources and types. On a `render_browser` note, ask the user before
    `install_render_browsers`.
-6. **Put the full proposal to the user** in one message and ask them to accept it or say
-   what to change:
-   - name and project
-   - area: the unit (name, level, source and year) or the box
-   - labels, task output and label geometry
-   - every imagery source: collection, visualizations, max cloud cover, and each window
-     with its slices and cover, as dates
-   - basemaps, time series (source, index, months)
-   - the guide, in full
-   - tasks: task set name, count and how they are placed
-   Revise until they explicitly accept. Silence or "looks interesting" is not acceptance.
-7. `create_campaign(...)` with the `bbox` and exactly the accepted values. It
-   returns `campaign_id`, `url` and the task sets.
-8. `add_tasks(campaign_id, task_set, ...)` as accepted, with exactly one of `geojson`
-   (a FeatureCollection; the user's points become Point features) or `sampling`
-   (`{"strategy_type": "random", "num_samples": 100, "seed": 1, "area_id": "..."}` or
-   `{"strategy_type": "grid", "spacing_km": 5}`). With an
-   `area_id`, tasks fall inside the unit's outline; without one, anywhere in the box.
-9. `get_campaign(campaign_id)` about every 30 seconds until `registration_status` is
-   `ready`. On `failed`, report `registration_errors` to the user.
-10. `preview_campaign(campaign_id, max_image_edge_px, max_image_megapixels)`: check that
-    the imagery shows what the labels need (cloud-free dates, a zoom where the classes
-    differ). If it does not, propose a change (see below).
-11. Give the user the campaign `url`. To label it with agents, use the labelling skill.
+4. **Put the full proposal to the user** in one message: name and project, box, labels and
+   task output, every imagery source (collection, visualizations, max cloud cover, each
+   window with its slices and cover as dates), basemaps, time series, the guide in full,
+   and the tasks. Revise until they explicitly accept; silence or "looks interesting" is
+   not acceptance.
+5. `create_campaign(project_id, settings, imagery, basemaps?, timeseries?)` with exactly the
+   accepted values, then `add_tasks(campaign_id, task_set, ...)` with `geojson` (the user's
+   points as a FeatureCollection) or `sampling` (`{"strategy_type": "random",
+   "num_samples": 100, "seed": 1}` or `{"strategy_type": "grid", "spacing_km": 5}`).
+6. `get_campaign(campaign_id)` about every 30 seconds until `registration_status` is
+   `ready`; on `failed`, report `registration_errors`.
+7. `preview_campaign(campaign_id, max_image_edge_px, max_image_megapixels)`: check the
+   imagery shows what the labels need (cloud-free dates, a zoom where the classes differ);
+   if not, propose a change.
+8. Give the user the campaign `url`. The first time they open it they set up the workspace
+   (the first view and its layout) before people can annotate; agents do not need it. To
+   label with agents, use the labelling skill.
 
-Anything the user wants different afterwards, or anything you would add that was not in
-the accepted proposal (another task set, another source), is a new proposal: put it to
-them and wait for acceptance again.
+Anything beyond the accepted proposal, afterwards or added by you, is a new proposal: put
+it to the user and wait for acceptance again.
 
 ## Changing an existing campaign
 
-1. `get_campaign(campaign_id)`: its settings (labels with their ids), imagery sources with
-   their windows and slices, basemaps, time series and task sets.
-2. Propose the change as a before and after, and wait for acceptance.
-3. Settings: `edit_campaign(campaign_id, settings)` with only what changes. `labels` is the full
-   list: keep each existing label's id (renaming keeps it), give new ones the next free ids,
-   and never drop one.
-4. Imagery: `edit_imagery(campaign_id, imagery?, remove?, basemaps?)`. A recipe named like a
-   stored source replaces it; any other recipe is added; `remove` deletes sources by name;
-   sources you do not name stay as they are. Changed imagery registers again, so follow
-   with steps 9 and 10.
+Read it with `get_campaign(campaign_id)`, propose the change as a before and after, and
+wait for acceptance. Settings: `edit_campaign(campaign_id, settings)` with only what
+changes. Imagery: `edit_imagery(campaign_id, imagery?, remove?, basemaps?)`. A recipe named
+like a stored source becomes exactly that recipe, so list every window it should keep, as
+`get_campaign` shows them; other recipes are added and sources you do not name stay as
+they are. Replacing a source the user made with the generator turns it into plain windows
+they can no longer re-cut with it: say so first. Changed imagery registers again, so
+follow with steps 6 and 7.
 
 ## Choosing imagery
 

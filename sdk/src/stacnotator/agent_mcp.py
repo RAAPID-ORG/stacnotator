@@ -21,9 +21,10 @@ from urllib.parse import urlparse
 
 from mcp.server.mcpserver import Image, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
+from pydantic import ConfigDict
 from typing_extensions import Required, TypedDict
 
-from stacnotator import _areas, _credentials
+from stacnotator import _credentials
 from stacnotator._http import Http
 from stacnotator._render_browsers import ChromiumMissingError, RenderBrowsers, install_chromium
 from stacnotator.campaign import Campaign
@@ -90,7 +91,7 @@ class ImageryRecipe(TypedDict, total=False):
 
 class TimeseriesSpec(TypedDict, total=False):
     """A time series chart sampled at each task. data_source: a key from setup_options'
-    timeseries sources; ts_type: one of that source's index_keys. start_ym, end_ym: YYYY-MM."""
+    timeseries sources; ts_type: one of that source's index_keys. start_ym, end_ym: YYYYMM."""
 
     name: Required[str]
     data_source: Required[str]
@@ -99,16 +100,40 @@ class TimeseriesSpec(TypedDict, total=False):
     end_ym: Required[str]
 
 
+class CampaignSettings(TypedDict, total=False):
+    """A new campaign needs name, labels and the bbox; an edit gives only what changes.
+    labels: every label, [{"id", "name", "geometry_type": "point"|"polygon"|"line"}], ids
+    from 1; a label keeps its id when renamed and cannot be removed. bbox_west, _south,
+    _east, _north: WGS84 degrees, all four together. guide_markdown: the guide labellers
+    and agents read. task_output: classify (a label per task) or draw (shapes per task).
+    sample_extent_meters: the square drawn around each task. form_fields: extra questions
+    per task, in the campaign's form field schema. embedding_year: year of satellite
+    embeddings for similarity search. labelling_policy: who labels each task and how
+    their answers are agreed."""
+
+    __pydantic_config__ = ConfigDict(extra="forbid")  # type: ignore[misc]
+    name: str
+    labels: list[dict[str, Any]]
+    bbox_west: float
+    bbox_south: float
+    bbox_east: float
+    bbox_north: float
+    guide_markdown: str
+    task_output: Literal["classify", "draw"]
+    sample_extent_meters: float
+    form_fields: list[dict[str, Any]]
+    embedding_year: int
+    labelling_policy: dict[str, Any]
+
+
 class SamplingSpec(TypedDict, total=False):
-    """random: num_samples points. grid: a lattice spacing_km apart. Drawn inside the
-    outline of area_id (from find_area) when given, else across the campaign box. seed
-    makes either reproducible."""
+    """random: num_samples points. grid: a lattice spacing_km apart. Drawn across the
+    campaign box; seed makes either reproducible."""
 
     strategy_type: Required[Literal["random", "grid"]]
     num_samples: int
     spacing_km: float
     seed: int
-    area_id: str
 
 
 server = MCPServer(
@@ -120,8 +145,8 @@ server = MCPServer(
         "missing, tell the user it was not granted and never make the change another way, "
         "such as through the SDK or the API. Before any such change, follow the "
         "stacnotator-campaign-setup skill: never invent the area, the period or the labels; "
-        "ask the user, look regions up with find_area and make the change only once they "
-        "accept your proposal. Then get_campaign until imagery is ready -> "
+        "ask the user and make the change only once they accept your proposal. Then "
+        "get_campaign until imagery is ready -> "
         "preview_campaign. To label: register one agent per worker, read the campaign "
         "guide in its context, then loop next_task -> (get_views) -> submit_label or "
         "skip_task, always passing your own agent_id."
@@ -526,15 +551,6 @@ def _campaign_url(project_id: int, campaign_id: int) -> str:
     return f"{_session_url}/projects/{project_id}/campaigns/{campaign_id}"
 
 
-def _area(area_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
-    try:
-        return _areas.get(area_id)
-    except _areas.AreaError as exc:
-        raise ToolError(str(exc)) from exc
-
-
-_BBOX_FIELDS = ("bbox_west", "bbox_south", "bbox_east", "bbox_north")
-
 # Tools that create or change campaigns are served only when the user names them in
 # STACNOTATOR_MCP_ALLOW (comma-separated), so a model only has the ones it was given.
 _ALLOWED = {name.strip() for name in os.environ.get("STACNOTATOR_MCP_ALLOW", "").split(",")}
@@ -565,100 +581,34 @@ async def setup_options(project_id: int) -> str:
     return _json(options)
 
 
-@server.tool(structured_output=False)
-async def find_area(
-    country: str, name: str, level: str | None = None, within: str | None = None
-) -> str:
-    """Look up an administrative unit (state, province, county, district) in geoBoundaries,
-    the default reference for where a campaign is. country: ISO 3166-1 alpha-3, like USA
-    or UKR. name: the unit's name; words like County or Oblast are ignored. level: ADM1
-    (states, provinces, oblasts) to ADM5; ADM1 and ADM2 are searched when omitted. within:
-    the ADM1 unit it lies in, to tell apart same-named units. Returns up to 10 matches with
-    its bbox for a campaign's area and an area_id for sampling tasks inside its outline,
-    and the boundary's source and year: show the user which unit you mean, and its year, before
-    using one."""
-    try:
-        found = await asyncio.to_thread(_areas.find, country, name, level, within)
-    except _areas.AreaError as exc:
-        raise ToolError(str(exc)) from exc
-    except Exception as exc:
-        raise ToolError(f"Could not read geoBoundaries: {exc}") from exc
-    if not found:
-        raise ToolError(
-            f'No unit of {country} matches "{name}". Try another spelling, level or the '
-            "local name, or ask the user for a bounding box."
-        )
-    return _json(found)
-
-
 @_grantable_tool
 async def create_campaign(
     project_id: int,
-    name: str,
-    labels: list[str],
+    settings: CampaignSettings,
     imagery: list[ImageryRecipe],
-    bbox: list[float],
-    guide_markdown: str | None = None,
     basemaps: list[str] | None = None,
     timeseries: list[TimeseriesSpec] | None = None,
-    label_geometry: Literal["point", "polygon", "line"] = "polygon",
-    task_output: Literal["classify", "draw"] = "classify",
-    sample_extent_meters: float | None = None,
-    form_fields: list[dict[str, Any]] | None = None,
-    embedding_year: int | None = None,
 ) -> str:
     """Create a new campaign. Only call it once the user has accepted your whole proposal.
-
-    bbox: [west, south, east, north] in WGS84 degrees, from find_area or as the user gave
-    it. labels: class
-    names, given ids 1..n in order. imagery: one recipe per source, its windows, slices and
-    covers chosen for what the labels need to see. guide_markdown: the annotation guide
-    labellers and agents read. basemaps: names from setup_options, all of them when
-    omitted. label_geometry: what a label is drawn as in draw tasks and Explore.
-    task_output: classify (pick a label per task) or draw (draw shapes per task).
-    sample_extent_meters: the square drawn around each task, when it has one.
-    form_fields: extra questions per task, in the campaign's form field schema.
-    embedding_year: year of satellite embeddings for similarity search, when wanted.
+    imagery: one recipe per source, its windows, slices and covers chosen for what the
+    labels need to see. basemaps: names from setup_options, all of them when omitted.
     Mosaic registration starts in the background; get_campaign says when it is done."""
-    if not labels:
-        raise ToolError("Give at least one label.")
     if not imagery:
         raise ToolError("Give at least one imagery recipe.")
-    editor_state = await _on_setup_page(project_id, "imagery", imagery, basemaps)
-    body = _without_none(
-        {
-            "name": name,
-            "project_id": project_id,
-            "settings": _without_none(
-                {
-                    "labels": [
-                        {"id": i, "name": label, "geometry_type": label_geometry}
-                        for i, label in enumerate(labels, start=1)
-                    ],
-                    **dict(zip(_BBOX_FIELDS, bbox, strict=True)),
-                    "embedding_year": embedding_year,
-                    "sample_extent_meters": sample_extent_meters,
-                    "form_fields": form_fields,
-                    "task_output": task_output,
-                }
-            ),
-            "imagery_editor_state": editor_state,
-            "timeseries_configs": timeseries
-            and [
-                {
-                    **ts,
-                    "start_ym": ts["start_ym"].replace("-", ""),
-                    "end_ym": ts["end_ym"].replace("-", ""),
-                }
-                for ts in timeseries
-            ],
-        }
-    )
-    campaign = await _api(_http().post, "/campaigns/", body)
-    if guide_markdown:
-        await _api(
-            _http().patch, f"/campaigns/{campaign['id']}", {"guide_markdown": guide_markdown}
-        )
+    guide = settings.pop("guide_markdown", None)
+    body = {
+        "name": settings.pop("name", None),
+        "project_id": project_id,
+        "labelling_policy": settings.pop("labelling_policy", None),
+        "settings": settings,
+        "imagery_editor_state": await _on_setup_page(
+            project_id, "imagery", None, imagery, basemaps
+        ),
+        "timeseries_configs": timeseries,
+    }
+    campaign = await _api(_http().post, "/campaigns/", _without_none(body))
+    if guide:
+        await _api(_http().patch, f"/campaigns/{campaign['id']}", {"guide_markdown": guide})
     return _json(
         {
             "campaign_id": campaign["id"],
@@ -670,14 +620,9 @@ async def create_campaign(
 
 
 @_grantable_tool
-async def edit_campaign(campaign_id: int, settings: dict[str, Any]) -> str:
+async def edit_campaign(campaign_id: int, settings: CampaignSettings) -> str:
     """Change an existing campaign's settings. Read the current values with get_campaign
-    first and agree the change with the user. settings holds only what changes, out of:
-    name, guide_markdown, labels, bbox_west/south/east/north (all four together),
-    task_output, sample_extent_meters, form_fields, embedding_year, labelling_policy.
-    labels is the full list [{"id", "name", "geometry_type"}]: keep each existing label's
-    id (renaming keeps it) and give new ones the next free ids; a label cannot be removed.
-    Imagery is changed with edit_imagery."""
+    first and agree the change with the user. Imagery is changed with edit_imagery."""
     campaign = await _api(_http().patch, f"/campaigns/{campaign_id}", settings)
     return _json({"campaign_id": campaign_id, "settings": campaign["settings"]})
 
@@ -694,7 +639,8 @@ async def edit_imagery(
 
     imagery: recipes, as in create_campaign. A recipe whose source name (its name, else
     the collection's label) matches a stored source replaces that source's windows,
-    visualizations and cloud cover; any other is added. remove: names of sources to
+    visualizations and cloud cover, so list every window it should keep; windows with
+    unchanged dates keep their registration. Any other recipe is added. remove: names of sources to
     delete. Sources you do not name are kept as they are. basemaps: names from
     setup_options that replace the campaign's basemaps; omitted, they are kept. Changed
     imagery registers again in the background; get_campaign says when it is done."""
@@ -702,7 +648,7 @@ async def edit_imagery(
         raise ToolError("Pass imagery, remove or basemaps.")
     summary = await _api(_http().get, f"/campaigns/{campaign_id}/summary")
     state = await _on_setup_page(
-        summary["project_id"], "editImagery", campaign_id, imagery or [], basemaps, remove
+        summary["project_id"], "imagery", campaign_id, imagery or [], basemaps, remove
     )
     await _api(_http().put, f"/campaigns/{campaign_id}/imagery", state)
     return _json(
@@ -723,35 +669,26 @@ async def add_tasks(
 ) -> str:
     """Add tasks to a campaign's task set, created when no set has that name. Pass exactly
     one of geojson (a FeatureCollection of points or polygons) or sampling (points drawn
-    in an area_id's outline or across the campaign box). Agree
-    the task set, the count and where they go with the user first."""
+    across the campaign box). Agree the task set, the count and where they go with the
+    user first."""
     if (geojson is None) == (sampling is None):
         raise ToolError("Pass exactly one of geojson or sampling.")
     campaign = Campaign(_http(), {"id": campaign_id})
-    outline = None
-    if sampling is not None and "area_id" in sampling:
-        _, outline = await asyncio.to_thread(_area, sampling["area_id"])
 
     def run() -> int:
         try:
-            if sampling is not None:
-                task_set_id = campaign._task_set_id(task_set, create_missing=True)
-                region = outline and {
-                    "region_file": ("area.geojson", json.dumps(outline), "application/geo+json")
-                }
-                result = _http().post(
-                    f"/campaigns/{campaign_id}/sampling/generate-tasks",
-                    data={
-                        "strategy": json.dumps(
-                            {k: v for k, v in sampling.items() if k != "area_id"}
-                        ),
-                        "task_set_id": str(task_set_id),
-                        "use_campaign_bbox": "false" if outline else "true",
-                    },
-                    files=region or None,
-                )
-                return int(result["num_tasks_created"])
-            return campaign.upload_tasks(geojson or {}, task_set, create_missing=True)
+            if geojson is not None:
+                return campaign.upload_tasks(geojson, task_set, create_missing=True)
+            task_set_id = campaign._task_set_id(task_set, create_missing=True)
+            result = _http().post(
+                f"/campaigns/{campaign_id}/sampling/generate-tasks",
+                data={
+                    "strategy": json.dumps(sampling),
+                    "task_set_id": str(task_set_id),
+                    "use_campaign_bbox": "true",
+                },
+            )
+            return int(result["num_tasks_created"])
         except ValueError as exc:
             raise ToolError(str(exc)) from exc
 

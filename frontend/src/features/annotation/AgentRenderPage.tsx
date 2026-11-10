@@ -9,12 +9,12 @@ import { authManager } from '~/features/auth';
 import type { AuthAdapter } from '~/features/auth/core/authAdapter';
 import { MPC_API_URL } from '~/features/layers/imagery/mpcPresets';
 import {
-  imageryEditorState,
   mergedImagery,
   setupOptions,
   type ImageryRecipe,
   type StacCollectionInfo,
 } from '~/features/layers/imagery/recipe';
+import { DEFAULT_BASEMAPS } from '~/features/layers/imagery/types';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import { buildImageryCatalog } from './campaign/imagery';
 import { renderView, type RenderedImage } from './agents/render';
@@ -39,12 +39,11 @@ interface AgentPageApi {
 }
 
 /** Expands imagery recipes into what the campaign wizard would have saved, for a new
- *  campaign or merged into an existing campaign's imagery. */
+ *  campaign (campaignId null) or merged into an existing campaign's imagery. */
 interface AgentSetupApi {
   options(): ReturnType<typeof setupOptions>;
-  imagery(recipes: ImageryRecipe[], basemaps?: string[]): ImageryEditorStateCreate;
-  editImagery(
-    campaignId: number,
+  imagery(
+    campaignId: number | null,
     recipes: ImageryRecipe[],
     basemaps?: string[],
     remove?: string[]
@@ -120,8 +119,12 @@ function createApi(campaign: CampaignOutFull, stage: HTMLElement): AgentPageApi 
 function createSetupApi(collections: StacCollectionInfo[]): AgentSetupApi {
   return {
     options: setupOptions,
-    imagery: (recipes, basemaps) => imageryEditorState(recipes, collections, basemaps),
-    editImagery: async (campaignId, recipes, basemaps, remove) => {
+    imagery: async (campaignId, recipes, basemaps, remove) => {
+      if (campaignId === null) {
+        return mergedImagery({ sources: [], basemaps: [] }, recipes, collections, {
+          basemaps: basemaps ?? DEFAULT_BASEMAPS.map((b) => b.name),
+        });
+      }
       const { data } = await getCampaignWithImageryWindows({
         path: { campaign_id: campaignId },
         throwOnError: true,
