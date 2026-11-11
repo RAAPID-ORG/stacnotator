@@ -315,13 +315,13 @@ async def proxy_slice_tile(
 def _planet_source_lookup(source_id: int, owner: LayerOwner):
     """Resolve a Planet source to the key its minted layers are fetched with.
 
-    Keyed by source rather than layer, since scene layers are minted per place looked
-    at and would rarely share a cache entry. The layer id comes
-    from the client because nothing about a viewport search is stored. That is safe but
-    not free: it lets a viewer of this campaign render any layer the campaign's own
-    Planet key can see, which is that organization's own imagery. It cannot reach the
-    key, another organization's layers, or anything but Planet's tile host, since the
-    template is built here rather than sent in.
+    Keyed by source rather than layer, since scene layers are minted per place looked at
+    and would rarely share a cache entry. The layer id comes from the client because
+    nothing about a viewport search is stored. That is safe but not free: it lets a
+    viewer of this campaign render any layer the campaign's own Planet key can see, which
+    is that organization's own imagery. It cannot reach the key, another organization's
+    layers, or anything but Planet's tile host, since the template is built here rather
+    than sent in.
     """
 
     def lookup(db: Session) -> TileTarget:
