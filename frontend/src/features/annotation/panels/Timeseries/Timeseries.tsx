@@ -3,21 +3,21 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TimeseriesWindow } from '../../campaign/timeseries';
 import { Spinner } from '~/shared/ui/Spinner';
-import type { LonLat } from '~/shared/map/types';
+import {
+  locationKey,
+  probeLocation,
+  type Probe,
+  type TimeseriesLocation,
+} from '../../campaign/probes';
 import { useWorkStore } from '../../stores/work';
 import { useMapFocus } from '../../stores/tasks';
 import { Chart, type ChartPoint } from './TimeseriesChart';
-import { timeSeriesCache, type LatLon, type TimeSeriesData } from './cache';
-import { handleError } from '~/shared/utils/errorHandler';
+import { timeSeriesCache, type TimeSeriesData } from './cache';
+import { extractErrorMessage, handleError } from '~/shared/utils/errorHandler';
 
 export interface TimeseriesPanelProps {
   window: TimeseriesWindow;
 }
-
-const toLatLon = (point: LonLat | null | undefined): LatLon | null =>
-  point ? { lat: point[1], lon: point[0] } : null;
-
-const pointKey = (p: LatLon) => `${p.lat},${p.lon}`;
 
 /**
  * The locations this chart compares: in Tasks the task's own point first, then
@@ -27,15 +27,15 @@ const pointKey = (p: LatLon) => `${p.lat},${p.lon}`;
  * A probe's suffix is its number alone: the legend repeats every series name
  * once per probe, and spelling out "(probe 2)" each time crowded it out.
  */
-function chartPoints(taskCenter: LatLon | null, probes: LonLat[]): ChartPoint[] {
-  const points: ChartPoint[] = taskCenter
-    ? [{ key: pointKey(taskCenter), latLon: taskCenter, label: '', probeIndex: null }]
+function chartPoints(taskLocation: TimeseriesLocation | null, probes: Probe[]): ChartPoint[] {
+  const points: ChartPoint[] = taskLocation
+    ? [{ key: locationKey(taskLocation), location: taskLocation, label: '', probeIndex: null }]
     : [];
   probes.forEach((probe, index) => {
-    const latLon = { lat: probe[1], lon: probe[0] };
+    const location = probeLocation(probe);
     points.push({
-      key: pointKey(latLon),
-      latLon,
+      key: locationKey(location),
+      location,
       label: ` ${index + 1}`,
       probeIndex: index,
     });
@@ -57,20 +57,16 @@ export function TimeseriesPanel({ window: tsWindow }: TimeseriesPanelProps) {
   const isExplore = mode === 'explore';
 
   const focus = useMapFocus();
-  const probePoints = useWorkStore((s) => s.probePoints);
+  const probes = useWorkStore((s) => s.probes);
   const points = useMemo(
-    () => chartPoints(isExplore ? null : toLatLon(focus?.center), probePoints),
-    [isExplore, focus?.center, probePoints]
+    () => chartPoints(isExplore ? null : (focus?.timeseriesLocation ?? null), probes),
+    [isExplore, focus?.timeseriesLocation, probes]
   );
   const pointsKey = points.map((p) => p.key).join('|');
 
   // Stable identity: the prefetch effect keys on this array, and mapFocus only
   // publishes a new `upcoming` when the points themselves change.
-  const upcoming = focus?.upcoming;
-  const prefetchCoordinates = useMemo(
-    () => (upcoming ?? []).map((p) => ({ lat: p[1], lon: p[0] })),
-    [upcoming]
-  );
+  const upcoming = isExplore ? undefined : focus?.upcomingTimeseriesLocations;
 
   const [data, setData] = useState<Record<string, TimeSeriesData>>({});
   const [loadingCount, setLoadingCount] = useState(0);
@@ -90,14 +86,14 @@ export function TimeseriesPanel({ window: tsWindow }: TimeseriesPanelProps) {
 
     for (const point of points) {
       timeSeriesCache
-        .get(campaignId, ids, point.latLon)
+        .get(campaignId, ids, point.location)
         .then((result) => {
           if (cancelled || !result) return;
           setData((prev) => ({ ...prev, [point.key]: result }));
         })
         .catch((err) => {
           handleError(err, 'Failed to load time series data', { showUser: false });
-          if (!cancelled) setError(err instanceof Error ? err : new Error('Unknown error'));
+          if (!cancelled) setError(new Error(extractErrorMessage(err)));
         })
         .finally(() => {
           if (!cancelled) setLoadingCount((n) => n - 1);
@@ -112,9 +108,9 @@ export function TimeseriesPanel({ window: tsWindow }: TimeseriesPanelProps) {
   }, [campaignId, ids, pointsKey]);
 
   useEffect(() => {
-    if (ids.length === 0 || prefetchCoordinates.length === 0) return;
-    timeSeriesCache.prefetch(campaignId, ids, prefetchCoordinates);
-  }, [campaignId, ids, prefetchCoordinates]);
+    if (ids.length === 0 || !upcoming?.length) return;
+    timeSeriesCache.prefetch(campaignId, ids, upcoming);
+  }, [campaignId, ids, upcoming]);
 
   // Only what the chart is currently asked to draw, so a removed probe's rows
   // leave with it rather than lingering in the cache-shaped state.
@@ -129,7 +125,9 @@ export function TimeseriesPanel({ window: tsWindow }: TimeseriesPanelProps) {
     return (
       <div className="flex-1 flex flex-col bg-white p-2 min-h-0 overflow-hidden">
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-[10px] text-red-600">{t('timeseries.loadFailed')}</p>
+          <p role="alert" className="text-[10px] text-red-600">
+            {t('timeseries.loadFailed')} {error.message}
+          </p>
         </div>
       </div>
     );
@@ -163,6 +161,16 @@ export function TimeseriesPanel({ window: tsWindow }: TimeseriesPanelProps) {
 
   return (
     <div className="flex-1 flex flex-col bg-white p-2 min-h-0 overflow-hidden relative">
+      {error && (
+        <p role="alert" className="text-[10px] text-red-600">
+          {t('timeseries.loadFailed')} {error.message}
+        </p>
+      )}
+      {points.some((point) => 'type' in point.location) && (
+        <p className="text-[10px] text-neutral-500" title={t('timeseries.zonalHelp')}>
+          {t('timeseries.zonalMean')}
+        </p>
+      )}
       {isLoading && (
         <div className="absolute top-2 right-2 z-10">
           <div className="flex items-center gap-1.5 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md shadow-sm border border-neutral-200">

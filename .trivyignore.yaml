@@ -110,8 +110,7 @@ vulnerabilities:
     statement: *sqlite-statement
     expired_at: 2027-05-09
 
-  # Triage reference: https://web.mit.edu/kerberos/advisories/MITKRB5-SA-2026-001.txt
-  - id: CVE-2026-112315
+  - id: CVE-2026-112321
     purls: &krb5
       - pkg:deb/debian/libgssapi-krb5-2
       - pkg:deb/debian/libk5crypto3
@@ -120,6 +119,26 @@ vulnerabilities:
     statement: &krb5-statement >-
       Affects the krb5 KDC and kadmind servers only; the images ship just the
       client libraries and never run a KDC or kadmind.
+    expired_at: 2027-05-09
+
+  - id: CVE-2026-112322
+    purls: *krb5
+    statement: *krb5-statement
+    expired_at: 2027-05-09
+
+  - id: CVE-2026-112323
+    purls: *krb5
+    statement: *krb5-statement
+    expired_at: 2027-05-09
+
+  - id: CVE-2026-119079
+    purls: *krb5
+    statement: *krb5-statement
+    expired_at: 2027-05-09
+
+  - id: CVE-2026-112315
+    purls: *krb5
+    statement: *krb5-statement
     expired_at: 2027-05-09
 
   - id: CVE-2026-112316
@@ -147,29 +166,11 @@ vulnerabilities:
     statement: *krb5-statement
     expired_at: 2027-05-09
 
-  - id: CVE-2026-112321
-    purls: *krb5
-    statement: *krb5-statement
-    expired_at: 2027-05-09
-
-  - id: CVE-2026-112322
-    purls: *krb5
-    statement: *krb5-statement
-    expired_at: 2027-05-09
-
-  - id: CVE-2026-112323
-    purls: *krb5
-    statement: *krb5-statement
-    expired_at: 2027-05-09
-
-  - id: CVE-2026-119079
-    purls: *krb5
-    statement: *krb5-statement
-    expired_at: 2027-05-09
-
   - id: CVE-2026-107364
     purls: *krb5
-    statement: *krb5-statement
+    statement: >-
+      Targets server-side Kerberos ASN.1 decoding. The services use client
+      libraries only and do not accept Kerberos or GSS-API authentication.
     expired_at: 2027-05-09
 
   - id: CVE-2026-71200
@@ -177,16 +178,17 @@ vulnerabilities:
     statement: *krb5-statement
     expired_at: 2027-05-09
 
-  - id: CVE-2026-71199
-    purls: *krb5
-    statement: >-
-      Needs Kerberos CAMMAC authentication-indicator checks; the services never
-      accept Kerberos authentication or run a KDC.
-    expired_at: 2027-05-09
-
   - id: CVE-2026-118380
     purls: *krb5
     statement: >-
-      Affects RPCSEC_GSS servers; libgssrpc is not installed and the services
-      do not serve GSS-RPC.
+      Requires an RPCSEC_GSS application server. Neither libgssrpc nor kadmind
+      is installed in the images, and the services do not serve GSS-RPC.
+    expired_at: 2027-05-09
+
+  - id: CVE-2026-71199
+    purls: *krb5
+    statement: >-
+      Requires validating CAMMAC authorization data in a KDC or application
+      server. The services do not accept Kerberos authentication or validate
+      CAMMAC data.
     expired_at: 2027-05-09

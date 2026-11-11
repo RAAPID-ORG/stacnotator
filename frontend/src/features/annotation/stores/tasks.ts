@@ -6,6 +6,7 @@ import {
   type TaskSetOut,
 } from '~/api/client';
 import { geometryCentroid, squareAround, wktToGeometry } from '../campaign/annotation';
+import { geometryLocation, type TimeseriesLocation } from '../campaign/probes';
 import type { ImageryCatalog } from '../campaign/imagery';
 import {
   applyTaskFilter,
@@ -33,6 +34,8 @@ export interface MapFocus {
   /** Centres the focus is about to move to, so panels that fetch per-point
    *  data can warm their caches without reaching into the task list. */
   upcoming: LonLat[];
+  timeseriesLocation: TimeseriesLocation;
+  upcomingTimeseriesLocations: TimeseriesLocation[];
 }
 
 const PREFETCH_AHEAD = 3;
@@ -139,7 +142,9 @@ function sameFocus(a: MapFocus | null, b: MapFocus | null): boolean {
     a.center[1] === b.center[1] &&
     sameExtent(a.extent, b.extent) &&
     a.crosshairColor === b.crosshairColor &&
-    samePoints(a.upcoming, b.upcoming)
+    samePoints(a.upcoming, b.upcoming) &&
+    JSON.stringify(a.timeseriesLocation) === JSON.stringify(b.timeseriesLocation) &&
+    JSON.stringify(a.upcomingTimeseriesLocations) === JSON.stringify(b.upcomingTimeseriesLocations)
   );
 }
 
@@ -163,13 +168,16 @@ function deriveFocus(state: TasksState, task: TaskOut | null, catalog: ImageryCa
   const hex = sourceId != null ? catalog.sources.get(sourceId)?.crosshair_hex6 : null;
   const settings = useCampaignStore.getState().campaign?.settings;
   const center = geometryCentroid(geometry);
+  const upcoming = state.visibleTasks
+    .slice(state.currentIndex + 1, state.currentIndex + 1 + PREFETCH_AHEAD)
+    .map((t) => wktToGeometry(t.geometry_wkt));
   return {
     center,
     extent: focusExtent(geometry, center, settings?.sample_extent_meters ?? null),
     crosshairColor: hex ? `#${hex}` : null,
-    upcoming: state.visibleTasks
-      .slice(state.currentIndex + 1, state.currentIndex + 1 + PREFETCH_AHEAD)
-      .map((t) => geometryCentroid(wktToGeometry(t.geometry_wkt))),
+    upcoming: upcoming.map(geometryCentroid),
+    timeseriesLocation: geometryLocation(geometry),
+    upcomingTimeseriesLocations: upcoming.map(geometryLocation),
   };
 }
 
@@ -231,7 +239,7 @@ function publishSelection(catalog: ImageryCatalog): void {
     imagery.resetForTask(catalog, start, scope!);
     // Probes are comparisons at this task's location; the next task's map
     // is a different place, so they do not follow it.
-    useWorkStore.getState().clearProbePoints();
+    useWorkStore.getState().clearProbes();
   } else {
     imagery.setEmptyScope(scope);
   }

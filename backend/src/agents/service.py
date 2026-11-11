@@ -65,7 +65,8 @@ def register_agent(
     if len(owned_agents(db, campaign.id, owner)) >= MAX_AGENTS_PER_OWNER:
         raise HTTPException(
             status_code=409,
-            detail=f"At most {MAX_AGENTS_PER_OWNER} agents per person in a campaign",
+            detail=f"At most {MAX_AGENTS_PER_OWNER} agents per person in a campaign. Remove "
+            "agents you no longer need on the campaign's Agents page or with remove_agent.",
         )
     if campaign.sample_extent_meters is None and _has_point_tasks(db, campaign.id):
         raise HTTPException(
@@ -346,6 +347,22 @@ def release_tasks(db: Session, owner: User, role: Role, agents: list[LabellingAg
     touch_tasks(db, deleted)
     db.commit()
     return released + len(deleted)
+
+
+def remove_agent(db: Session, agent_id: UUID, owner: User) -> None:
+    """Retire an agent: its unfinished tasks are freed and it stops counting toward the
+    limit. Its user row goes too unless it labelled or skipped something, since an
+    annotation never loses its author; then it stays, like any former annotator."""
+    agent, _, role = get_agent(db, agent_id, owner)
+    release_tasks(db, owner, role, [agent])
+    db.delete(agent)
+    db.flush()
+    db.execute(
+        delete(User).where(
+            User.id == agent_id, ~exists().where(Annotation.created_by_user_id == User.id)
+        )
+    )
+    db.commit()
 
 
 def submit_annotation(

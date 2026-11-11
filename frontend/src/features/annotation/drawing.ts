@@ -19,6 +19,7 @@ import {
   type GeometryType,
 } from './campaign/annotation';
 import { resolveLabelStyle, toDraftStyleSpec } from './campaign/labelStyle';
+import { isZonalGeometry } from './campaign/probes';
 import { isAnnotationLayer, PROBE_LAYER_ID, probeIndexOf, vectorLayerId } from './map/compose';
 import type { Bbox, BoxHit, DrawShape, InteractionSpec, MapClickEvent } from '~/shared/map/types';
 import {
@@ -242,30 +243,38 @@ async function handleDrawEnd(geometry: GeoJSON.Geometry): Promise<void> {
 }
 
 /**
- * A click while the timeseries tool is armed. Empty map moves the active probe
- * (or drops the first one); a click on a marker picks that probe up, and a
- * second click on the one already active takes it off the chart. Adding
- * another is the + control's job, so comparing places never depends on
- * clicking in exactly the right order.
+ * A click while the timeseries tool is armed. A click moves the active probe
+ * (or drops the first one) and Shift+click always adds another, even inside an
+ * existing polygon probe. In Point mode a plain click on a probe picks it up,
+ * and a second click on the one already active takes it off the chart.
  */
 export function handleProbeClick(event: MapClickEvent): void {
   const work = useWorkStore.getState();
-  const hit = event.layerId === PROBE_LAYER_ID ? probeIndexOf(event.featureId) : null;
-  if (hit === null) work.probeAt(event.lonLat);
-  else if (hit === work.activeProbe) work.removeProbePoint(hit);
-  else work.selectProbePoint(hit);
+  const add = event.shiftKey;
+  if (work.probeMode === 'point') {
+    const hit = !add && event.layerId === PROBE_LAYER_ID ? probeIndexOf(event.featureId) : null;
+    if (hit === null) work.probeAt(event.lonLat, add);
+    else if (hit === work.activeProbe) work.removeProbe(hit);
+    else work.selectProbe(hit);
+  } else if (
+    work.probeMode === 'select' &&
+    isAnnotationLayer(event.layerId) &&
+    event.featureId != null
+  ) {
+    void work.probeAnnotation(Number(event.featureId), add);
+  }
 }
 
 /** A click on the map, routed by tool. */
 export async function handleMapClick(event: MapClickEvent): Promise<void> {
-  // Shift belongs to the box gestures; a click that ends one is not a click.
-  if (event.shiftKey) return;
   const work = useWorkStore.getState();
-
+  // The probe tool has no box gesture, so Shift there means "add a probe".
   if (work.tool === 'timeseries') {
     handleProbeClick(event);
     return;
   }
+  // Shift belongs to the box gestures; a click that ends one is not a click.
+  if (event.shiftKey) return;
 
   // Pan opens an annotation for reading: the details panel fills in, and the
   // on-map controls come with it, but no vertex handles - editing is the edit
@@ -343,6 +352,8 @@ export function useDrawingInteractions(): {
 } {
   const drawsShapes = useDrawsShapes();
   const tool = useWorkStore((s) => s.tool);
+  const probeMode = useWorkStore((s) => s.probeMode);
+  const probeSketchVersion = useWorkStore((s) => s.probeSketchVersion);
   const selectedLabelId = useWorkStore((s) => s.selectedLabelId);
   const edit = useWorkStore((s) => s.edit);
   const labelStyles = usePrefsStore((s) => s.labelStyles);
@@ -383,6 +394,17 @@ export function useDrawingInteractions(): {
   const onMapClick = useCallback((event: MapClickEvent) => void handleMapClick(event), []);
 
   const spec = useMemo<InteractionSpec | undefined>(() => {
+    if (tool === 'timeseries' && probeMode === 'draw') {
+      return {
+        draw: {
+          shape: 'Polygon',
+          resetKey: probeSketchVersion,
+          onDrawEnd: (geometry, { shiftKey }) => {
+            if (isZonalGeometry(geometry)) useWorkStore.getState().probeAt(geometry, shiftKey);
+          },
+        },
+      };
+    }
     // Classify tasks have no drawing tools: their map is the task's.
     if (!drawsShapes) return undefined;
 
@@ -427,6 +449,8 @@ export function useDrawingInteractions(): {
   }, [
     drawsShapes,
     tool,
+    probeMode,
+    probeSketchVersion,
     label,
     sketchStyle,
     edit?.annotation.id,

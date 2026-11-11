@@ -1,13 +1,14 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, type ComponentType } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { IconInfo } from '~/shared/ui/Icons';
 
 interface InfoPopoverProps {
   children: React.ReactNode;
+  Icon?: ComponentType<{ className?: string }>;
 }
 
-export const InfoPopover = ({ children }: InfoPopoverProps) => {
+export const InfoPopover = ({ children, Icon = IconInfo }: InfoPopoverProps) => {
   const { t } = useTranslation();
   const ref = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -51,7 +52,7 @@ export const InfoPopover = ({ children }: InfoPopoverProps) => {
         className="inline-flex items-center cursor-pointer shrink-0"
         title={t('infoPopover.showDetails')}
       >
-        <IconInfo className="w-3.5 h-3.5 text-neutral-400 hover:text-brand-600 transition-colors" />
+        <Icon className="w-3.5 h-3.5 text-neutral-400 hover:text-brand-600 transition-colors" />
       </button>
       {pos &&
         createPortal(

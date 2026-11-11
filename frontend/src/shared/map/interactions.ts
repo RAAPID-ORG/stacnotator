@@ -15,7 +15,7 @@ import Translate from 'ol/interaction/Translate';
 import DragBox from 'ol/interaction/DragBox';
 import Extent from 'ol/interaction/Extent';
 import Snap from 'ol/interaction/Snap';
-import { altKeyOnly, always, noModifierKeys, shiftKeyOnly } from 'ol/events/condition';
+import { altKeyOnly, always, never, noModifierKeys, shiftKeyOnly } from 'ol/events/condition';
 import type MapBrowserEvent from 'ol/MapBrowserEvent';
 import type { Coordinate } from 'ol/coordinate';
 import { Circle as CircleStyle, Fill, Stroke, Style } from 'ol/style';
@@ -26,6 +26,7 @@ import { LAYER_ID_PROP, featurePropsOf, layerFeatureId, toOlStyle } from './laye
 import type {
   Bbox,
   BoxHit,
+  DrawFinish,
   DrawShape,
   GeoFeature,
   InteractionSpec,
@@ -150,7 +151,9 @@ function sameGeoFeature(a: GeoFeature, b: GeoFeature): boolean {
 function sameDraw(a: InteractionSpec['draw'], b: InteractionSpec['draw']): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
-  return a.shape === b.shape && sameStyle(a.sketchStyle, b.sketchStyle);
+  return (
+    a.shape === b.shape && a.resetKey === b.resetKey && sameStyle(a.sketchStyle, b.sketchStyle)
+  );
 }
 
 function sameEdit(a: InteractionSpec['edit'], b: InteractionSpec['edit']): boolean {
@@ -196,7 +199,7 @@ export function configsEqual(
 }
 
 interface Callbacks {
-  onDrawEnd?: (g: GeoJSON.Geometry) => void;
+  onDrawEnd?: (g: GeoJSON.Geometry, finish: DrawFinish) => void;
   onGeometryChange?: (g: GeoJSON.Geometry) => void;
   onBox?: (bbox: Bbox, hits: BoxHit[]) => void;
   onBoxChange?: (bbox: Bbox) => void;
@@ -303,6 +306,7 @@ function setup(map: OLMap, spec: InteractionSpec, sketchLayer: SketchLayer): Att
     // the annotation the caller renders. The sketch is scratch surface only -
     // the committed result is drawn from the caller's own layer spec.
     let sketch: Feature<Geometry> | null = null;
+    let finishedWithShift = false;
     // OL treats the first *and* the last vertex of a polygon as its finish
     // point: it closes on a click near either and pins the sketch cursor to
     // them, so after every click the cursor stuck on the vertex just placed.
@@ -319,8 +323,12 @@ function setup(map: OLMap, spec: InteractionSpec, sketchLayer: SketchLayer): Att
       style: sketchStyleOf(sketchStyle ?? DEFAULT_SKETCH_STYLE),
       snapTolerance: shape === 'Polygon' ? 1 : CLOSE_TOLERANCE_PX,
       clickTolerance: CLICK_TOLERANCE_PX,
+      // OL's default turns Shift+press into freehand drawing, which would swallow
+      // the Shift on a closing click that means "add as another probe".
+      freehandCondition: never,
       condition: (e) => {
         if (!closesPolygonAt(e)) return noModifierKeys(e);
+        finishedWithShift = shiftKeyOnly(e);
         draw.finishDrawing();
         return false;
       },
@@ -339,7 +347,9 @@ function setup(map: OLMap, spec: InteractionSpec, sketchLayer: SketchLayer): Att
       // Read indirectly so a config-equal re-attach mid-sketch (a fresh,
       // un-memoized callback prop) invokes the latest callback, not a stale
       // one captured when this handler was created.
-      if (geometry) attached.callbacks.onDrawEnd?.(toGeo(geometry));
+      if (geometry)
+        attached.callbacks.onDrawEnd?.(toGeo(geometry), { shiftKey: finishedWithShift });
+      finishedWithShift = false;
     });
     map.addInteraction(draw);
     interactions.push(draw);
@@ -360,6 +370,7 @@ function setup(map: OLMap, spec: InteractionSpec, sketchLayer: SketchLayer): Att
       if (e.key !== 'Enter' || !sketchIsFinishable(shape, sketch?.getGeometry())) return;
       e.preventDefault();
       e.stopPropagation();
+      finishedWithShift = e.shiftKey;
       draw.finishDrawing();
     };
     window.addEventListener('keydown', sketchKeyHandler, true);

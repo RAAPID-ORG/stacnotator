@@ -3,18 +3,29 @@ import { Trans, useTranslation } from 'react-i18next';
 import { IconCheck, IconPlus, IconSettings } from '~/shared/ui/Icons';
 import type { ImageryController } from './controller';
 import { sourceRegistration } from './controller';
-import { AddSourceWizard } from './AddSourceWizard';
+import { AddSourceWizard, type WizardStep } from './AddSourceWizard';
+import { SourceEditor } from './SourceEditor';
 import { describeExpiry, expiresSoon, sourceAccessExpiry } from './sasToken';
 
 interface SourcesTabProps {
   controller: ImageryController;
-  /** Open the shared source editor for the given source id. */
-  onEditSource: (sourceId: string) => void;
 }
 
-export const SourcesTab = ({ controller, onEditSource }: SourcesTabProps) => {
+/** A source opened for editing; `createdBy` is the wizard step that just made it,
+ *  which is where Back returns to. */
+interface Editing {
+  id: string;
+  createdBy?: WizardStep;
+}
+
+export const SourcesTab = ({ controller }: SourcesTabProps) => {
   const { t } = useTranslation('imagery');
-  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizard, setWizard] = useState<WizardStep | null>(null);
+  const [editing, setEditing] = useState<Editing | null>(null);
+  const editingSource = editing
+    ? (controller.state.sources.find((s) => s.id === editing.id) ?? null)
+    : null;
+  const createdBy = editing?.createdBy;
 
   const sources = controller.state.sources;
   const expiring = sources.flatMap((source) => {
@@ -31,7 +42,7 @@ export const SourcesTab = ({ controller, onEditSource }: SourcesTabProps) => {
             <button
               key={source.id}
               type="button"
-              onClick={() => onEditSource(source.id)}
+              onClick={() => setEditing({ id: source.id })}
               title={
                 registration
                   ? t('sources.configureProgress', {
@@ -68,7 +79,7 @@ export const SourcesTab = ({ controller, onEditSource }: SourcesTabProps) => {
 
         <button
           type="button"
-          onClick={() => setWizardOpen(true)}
+          onClick={() => setWizard({ kind: 'pick-preset' })}
           className="flex items-center justify-center rounded-lg border-2 border-dashed border-neutral-300 hover:border-brand-400 hover:bg-brand-50/30 transition-all cursor-pointer px-4 py-3 shrink-0"
         >
           <IconPlus className="w-4 h-4 text-neutral-400" />
@@ -94,14 +105,31 @@ export const SourcesTab = ({ controller, onEditSource }: SourcesTabProps) => {
         </div>
       )}
 
-      {wizardOpen && (
+      {wizard && (
         <AddSourceWizard
           controller={controller}
-          onClose={() => setWizardOpen(false)}
-          onCreated={(sourceId) => {
-            setWizardOpen(false);
-            onEditSource(sourceId);
+          initialStep={wizard}
+          onClose={() => setWizard(null)}
+          onCreated={(id, step) => {
+            setWizard(null);
+            setEditing({ id, createdBy: step });
           }}
+        />
+      )}
+
+      {editingSource && (
+        <SourceEditor
+          source={editingSource}
+          controller={controller}
+          onClose={() => setEditing(null)}
+          onBack={
+            createdBy
+              ? () => {
+                  setEditing(null);
+                  void controller.removeSource(editingSource.id).then(() => setWizard(createdBy));
+                }
+              : undefined
+          }
         />
       )}
     </>

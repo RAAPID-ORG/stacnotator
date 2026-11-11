@@ -276,7 +276,7 @@ test.describe('Timeseries probe in Explore', () => {
     // The tool stays armed, like every other tool: the next click moves this
     // probe rather than silently doing nothing.
     await expect(
-      annotationPage.getByRole('button', { name: 'Probe time series', exact: true })
+      annotationPage.getByRole('button', { name: 'Probe time series (T)', exact: true })
     ).toHaveAttribute('aria-pressed', 'true');
   });
 
@@ -297,7 +297,7 @@ test.describe('Timeseries probe in Explore', () => {
       .toBe(true);
   });
 
-  test('+ adds a probe alongside the first so several locations can be compared', async ({
+  test('Shift+click adds a probe alongside the first so several locations can be compared', async ({
     annotationPage,
   }) => {
     const map = annotationPage.locator('[data-probe-count]');
@@ -306,8 +306,7 @@ test.describe('Timeseries probe in Explore', () => {
     await clickMapCenter(annotationPage);
     await expect(map).toHaveAttribute('data-probe-count', '1');
 
-    await annotationPage.getByTestId('probe-add').click();
-    await clickMapAt(annotationPage, 150, 80);
+    await clickMapAt(annotationPage, 150, 80, { shift: true });
     await expect(map).toHaveAttribute('data-probe-count', '2');
 
     await annotationPage.getByTestId('clear-probes').click();

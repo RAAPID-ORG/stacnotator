@@ -1,11 +1,9 @@
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ImageryController } from './controller';
 import { SourcesTab } from './SourcesTab';
 import { BasemapList } from './BasemapList';
 import { CustomMapsEditor } from '~/features/layers/CustomMapsEditor';
 import { VectorLayersEditor } from '~/features/layers/VectorLayersEditor';
-import { SourceEditor } from './SourceEditor';
 
 interface ImagerySetupProps {
   controller: ImageryController;
@@ -13,12 +11,6 @@ interface ImagerySetupProps {
 
 export const ImagerySetup = ({ controller }: ImagerySetupProps) => {
   const { t } = useTranslation('imagery');
-  // Single source-editor instance shared by every entry point (Sources list and
-  // the add-source wizard) so a source can be opened for editing from anywhere.
-  const [editingSourceId, setEditingSourceId] = useState<string | null>(null);
-  const editingSource = editingSourceId
-    ? (controller.state.sources.find((s) => s.id === editingSourceId) ?? null)
-    : null;
 
   return (
     <div className="space-y-8">
@@ -27,7 +19,7 @@ export const ImagerySetup = ({ controller }: ImagerySetupProps) => {
           <h3 className="section-heading">{t('setup.title')}</h3>
           <p className="section-description">{t('setup.description')}</p>
         </div>
-        <SourcesTab controller={controller} onEditSource={setEditingSourceId} />
+        <SourcesTab controller={controller} />
       </section>
 
       <BasemapList controller={controller} />
@@ -69,14 +61,6 @@ export const ImagerySetup = ({ controller }: ImagerySetupProps) => {
           </div>
         )}
       </section>
-
-      {editingSource && (
-        <SourceEditor
-          source={editingSource}
-          controller={controller}
-          onClose={() => setEditingSourceId(null)}
-        />
-      )}
     </div>
   );
 };

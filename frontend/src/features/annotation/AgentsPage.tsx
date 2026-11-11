@@ -7,6 +7,7 @@ import {
   listAgentsOptions,
   listAgentsQueryKey,
   releaseAgentTasksMutation,
+  removeAgentMutation,
   updateAgentMutation,
 } from '~/api/queries';
 import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
@@ -21,6 +22,8 @@ const AGENTS_REFRESH_MS = 5000;
 // An agent working normally labels within minutes; longer than this and its run is
 // probably over, which is what makes its unfinished tasks worth freeing.
 const STALLED_MS = 5 * 60 * 1000;
+const actionCls =
+  'inline-flex items-center h-7 px-2.5 text-[11px] font-medium rounded-md transition-colors text-red-600 hover:bg-red-50';
 const headerCls =
   'px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider';
 
@@ -67,6 +70,16 @@ export const AgentsPage = () => {
     meta: { errorMessage: t('agents.releaseFailed') },
     onSuccess: () => {
       setReleaseTarget(null);
+      return refresh();
+    },
+  });
+
+  const [removeTarget, setRemoveTarget] = useState<AgentOut | null>(null);
+  const remove = useMutation({
+    ...removeAgentMutation(),
+    meta: { errorMessage: t('agents.removeFailed') },
+    onSuccess: () => {
+      setRemoveTarget(null);
       return refresh();
     },
   });
@@ -170,16 +183,23 @@ export const AgentsPage = () => {
                           }
                         />
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
                         {agent.remaining > 0 && (
                           <button
                             type="button"
                             onClick={() => setReleaseTarget(agent)}
-                            className="inline-flex items-center h-7 px-2.5 text-[11px] font-medium rounded-md transition-colors text-red-600 hover:bg-red-50"
+                            className={actionCls}
                           >
                             {t('agents.freeUnfinished', { count: agent.remaining })}
                           </button>
                         )}
+                        <button
+                          type="button"
+                          onClick={() => setRemoveTarget(agent)}
+                          className={actionCls}
+                        >
+                          {t('agents.remove.action')}
+                        </button>
                       </td>
                     </tr>
                   );
@@ -213,6 +233,18 @@ export const AgentsPage = () => {
           });
         }}
         onCancel={() => setReleaseTarget(null)}
+      />
+      <ConfirmDialog
+        isOpen={removeTarget !== null}
+        title={t('agents.remove.title', { name: removeTarget?.name })}
+        description={t('agents.remove.description')}
+        confirmText={t('agents.remove.confirm')}
+        isDangerous
+        isLoading={remove.isPending}
+        onConfirm={() => {
+          if (removeTarget) remove.mutate({ path: { agent_id: removeTarget.agent_id } });
+        }}
+        onCancel={() => setRemoveTarget(null)}
       />
     </div>
   );

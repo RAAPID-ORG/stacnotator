@@ -1,3 +1,6 @@
+from collections.abc import Callable
+
+import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
@@ -15,6 +18,7 @@ from src.timeseries.schemas import (
     TimeseriesDataResponse,
     TimeseriesOptionsOut,
     TimeseriesWindowRenameRequest,
+    ZonalTimeseriesRequest,
     timeseries_options,
     ym_range_to_dates,
 )
@@ -55,19 +59,14 @@ def rename_timeseries_window(
     service.rename_timeseries_window(campaign_id, window_id, request.name, db)
 
 
-@router.get(
-    "/campaigns/{campaign_id}/timeseries/{timeseries_id}/data",
-    response_model=TimeseriesDataResponse,
-)
-def get_timeseries_data(
+def _series_data(
     campaign_id: int,
     timeseries_id: int,
-    latitude: float,
-    longitude: float,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_access),
-):
-    """A series' values at a point, fetched from its provider."""
+    db: Session,
+    fetch: Callable[[str, str, str, str], pd.DataFrame],
+) -> TimeseriesDataResponse:
+    """Look up a campaign's series, release the DB connection, then run `fetch`
+    (ts_type, data_source, start, end) against Earth Engine with errors mapped."""
     timeseries = service.get_timeseries_by_id(timeseries_id, db)
     if timeseries.campaign_id != campaign_id:
         raise HTTPException(status_code=404, detail="Timeseries not found")
@@ -91,14 +90,7 @@ def get_timeseries_data(
         )
 
     try:
-        timeseries_data_df = service.get_timeseries_data(
-            ts_type=ts_type,
-            data_source=data_source,
-            latitude=latitude,
-            longitude=longitude,
-            start_date=start,
-            end_date=end,
-        )
+        timeseries_data_df = fetch(ts_type, data_source, start, end)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RateLimited as exc:
@@ -114,6 +106,63 @@ def get_timeseries_data(
 
     return TimeseriesDataResponse(
         timeseries_id=timeseries_id, data=timeseries_data_df.to_dict(orient="records")
+    )
+
+
+@router.get(
+    "/campaigns/{campaign_id}/timeseries/{timeseries_id}/data",
+    response_model=TimeseriesDataResponse,
+)
+def get_timeseries_data(
+    campaign_id: int,
+    timeseries_id: int,
+    latitude: float,
+    longitude: float,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_access),
+):
+    """A series' values at a point, fetched from its provider."""
+    return _series_data(
+        campaign_id,
+        timeseries_id,
+        db,
+        lambda ts_type, data_source, start, end: service.get_timeseries_data(
+            ts_type=ts_type,
+            data_source=data_source,
+            latitude=latitude,
+            longitude=longitude,
+            start_date=start,
+            end_date=end,
+        ),
+    )
+
+
+@router.post(
+    "/campaigns/{campaign_id}/timeseries/{timeseries_id}/data",
+    response_model=TimeseriesDataResponse,
+)
+def get_zonal_timeseries_data(
+    campaign_id: int,
+    timeseries_id: int,
+    request: ZonalTimeseriesRequest,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_access),
+):
+    """A series' per-image mean over a polygon. Each point is the mean of the index
+    over the polygon's clear pixels (cloud 0), or over all its pixels when every one
+    is cloudy (cloud 1); images with no unmasked pixel in the polygon are left out."""
+    geometry = request.geometry_json()
+    return _series_data(
+        campaign_id,
+        timeseries_id,
+        db,
+        lambda ts_type, data_source, start, end: service.get_zonal_timeseries_data(
+            ts_type=ts_type,
+            data_source=data_source,
+            geometry=geometry,
+            start_date=start,
+            end_date=end,
+        ),
     )
 
 

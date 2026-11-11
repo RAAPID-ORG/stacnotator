@@ -28,6 +28,9 @@ class Http:
     def patch(self, path: str, json: Any = None) -> Any:
         return self._request("PATCH", path, json=json)
 
+    def delete(self, path: str) -> Any:
+        return self._request("DELETE", path)
+
     def put(self, path: str, json: Any = None) -> Any:
         return self._request("PUT", path, json=json)
 

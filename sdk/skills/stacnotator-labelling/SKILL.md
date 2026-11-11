@@ -27,6 +27,7 @@ progress, switch take-over and free tasks.
 | `set_default_views(agent_id, views)`, `set_image_limits(...)` | change the first look; restore limits after a restart |
 | `submit_label(agent_id, task_id, label_id, confidence, comment, form_values?, flagged_for_review?, flag_comment?)`, `skip_task(agent_id, task_id, comment)` | finish the task |
 | `release_tasks(campaign_id, agent_id?)`, `watch_agents()` | free unfinished tasks; reopen the watch window the user closed |
+| `remove_agent(agent_id)` | remove a test or crashed agent so it stops counting toward the per-campaign limit; its labels stay |
 
 Image limits: the largest image your model takes in without downscaling. You know them.
 

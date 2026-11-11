@@ -216,6 +216,36 @@ test('saving a new source shows an orange off-canvas warning before persisting',
   await page.getByRole('button', { name: 'Discard', exact: true }).click();
 });
 
+test('Back from a just-created source returns to the wizard step and drops the source', async ({
+  annotationPage: page,
+}) => {
+  await page.route(/\/api\/campaigns\/\d+(\/detailed)?(\?.*)?$/, (route) =>
+    route.fulfill({ json: { ...MOCK_CAMPAIGN, viewer_is_admin: true, imagery_sources: [] } })
+  );
+  await page.route(/\/api\/campaigns\/\d+\/(custom-maps|vector-layers)(\?.*)?$/, (route) =>
+    route.fulfill({ json: [] })
+  );
+  await page.goto('/projects/7/campaigns/42/settings?tab=imagery');
+  await page.getByRole('button', { name: 'Create source', exact: true }).click();
+  await page.getByRole('button', { name: /Custom \(other\)/ }).click();
+  await page.getByRole('button', { name: /No - I have raw XYZ tile URLs/ }).click();
+  const urlField = page.getByPlaceholder('https://.../tiles/{z}/{x}/{y}', { exact: true });
+  await urlField.fill('https://tiles.example.com/test/{z}/{x}/{y}.png');
+  const wizard = page.getByRole('dialog');
+  await wizard.getByPlaceholder('Slice 1', { exact: true }).fill('January');
+  await wizard.locator('input[type="date"]').nth(0).fill('2024-01-01');
+  await wizard.locator('input[type="date"]').nth(1).fill('2024-01-31');
+  await page.getByRole('button', { name: 'Add source', exact: true }).click();
+
+  await expect(page.getByRole('heading', { name: 'Edit source' })).toBeVisible();
+  await page.getByRole('button', { name: '← Back', exact: true }).click();
+
+  await expect(urlField).toBeVisible();
+  await page.getByRole('dialog').getByRole('button', { name: 'Close' }).first().click();
+  await expect(page.getByRole('button', { name: 'Create source', exact: true })).toBeVisible();
+  await expect(page.getByTitle('Click to configure')).toHaveCount(0);
+});
+
 for (const mode of ['tasks', 'explore']) {
   test(`${mode}: source order saves on the view and selects the first source after reload`, async ({
     annotationPage: page,

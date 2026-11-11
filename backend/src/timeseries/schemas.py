@@ -1,7 +1,18 @@
-from calendar import monthrange
 from datetime import date
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, computed_field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    computed_field,
+    field_validator,
+    model_validator,
+)
+from pyproj import Geod
+from shapely.geometry import LinearRing as ShapelyLinearRing
+from shapely.geometry import shape
+from shapely.validation import explain_validity
 
 from src.timeseries.indices import INDICES, INDICES_BY_KEY, SpectralIndex, index_for, render_formula
 from src.timeseries.sources import (
@@ -25,12 +36,14 @@ def parse_ym(ym: str) -> tuple[int, int]:
 
 
 def ym_range_to_dates(start_ym: str, end_ym: str) -> tuple[str, str]:
-    """ISO date range: first day of the start month to last day of the end month."""
+    """ISO date range from the first day of the start month to the first day after
+    the end month, since Earth Engine's filterDate excludes its end date."""
     start_year, start_month = parse_ym(start_ym)
     end_year, end_month = parse_ym(end_ym)
+    after_year, after_month = (end_year + 1, 1) if end_month == 12 else (end_year, end_month + 1)
     return (
         date(start_year, start_month, 1).isoformat(),
-        date(end_year, end_month, monthrange(end_year, end_month)[1]).isoformat(),
+        date(after_year, after_month, 1).isoformat(),
     )
 
 
@@ -191,3 +204,112 @@ class TimeseriesBulkCreateResponse(BaseModel):
 class TimeseriesDataResponse(BaseModel):
     timeseries_id: int
     data: list[dict]  # dataframe serialized as dict (orient="records")
+
+
+# ============================================================================
+# Zonal (polygon) series request
+# ============================================================================
+
+MAX_ZONE_AREA_KM2 = 50.0
+MAX_ZONE_VERTICES = 1000
+MAX_ZONE_PARTS = 10
+# Earth Engine draws the edges straight in longitude/latitude, so a ring spanning more
+# than half the globe goes the long way round, where a geodesic area would measure the
+# short way across the antimeridian and undercount it.
+MAX_ZONE_LONGITUDE_SPAN = 180.0
+
+_GEOD = Geod(ellps="WGS84")
+
+# [longitude, latitude]. A list rather than a tuple so the generated client accepts
+# GeoJSON's number[] positions; the ranges are checked in _check_rings.
+Position = Annotated[
+    list[Annotated[float, Field(allow_inf_nan=False)]], Field(min_length=2, max_length=2)
+]
+LinearRing = Annotated[list[Position], Field(min_length=4)]
+PolygonCoordinates = Annotated[list[LinearRing], Field(min_length=1)]
+
+
+def _check_rings(polygons: list[list[list[list[float]]]]) -> None:
+    for polygon in polygons:
+        for ring in polygon:
+            for longitude, latitude in ring:
+                if not -180 <= longitude <= 180 or not -90 <= latitude <= 90:
+                    raise ValueError(
+                        "Positions must be [longitude, latitude] within [-180, 180] and [-90, 90]"
+                    )
+            if ring[0] != ring[-1]:
+                raise ValueError("Each polygon ring must end at its first position")
+
+
+def _ring_area_m2(ring: list[list[float]]) -> float:
+    # Geod joins vertices with geodesics; short interpolated lon/lat segments
+    # approximate the straight edges used by Earth Engine's geodesic=False.
+    dense = ShapelyLinearRing(ring).segmentize(0.1)
+    longitude, latitude = dense.coords.xy
+    return abs(_GEOD.polygon_area_perimeter(longitude, latitude)[0])
+
+
+class PolygonGeometry(BaseModel):
+    type: Literal["Polygon"]
+    coordinates: PolygonCoordinates
+
+    @model_validator(mode="after")
+    def rings_valid(self) -> "PolygonGeometry":
+        _check_rings([self.coordinates])
+        return self
+
+
+class MultiPolygonGeometry(BaseModel):
+    type: Literal["MultiPolygon"]
+    coordinates: Annotated[list[PolygonCoordinates], Field(min_length=1, max_length=MAX_ZONE_PARTS)]
+
+    @model_validator(mode="after")
+    def rings_valid(self) -> "MultiPolygonGeometry":
+        _check_rings(self.coordinates)
+        return self
+
+
+ZoneGeometry = Annotated[PolygonGeometry | MultiPolygonGeometry, Field(discriminator="type")]
+
+
+class ZonalTimeseriesRequest(BaseModel):
+    geometry: ZoneGeometry
+
+    @model_validator(mode="after")
+    def validate_zone(self) -> "ZonalTimeseriesRequest":
+        polygons = (
+            [self.geometry.coordinates]
+            if isinstance(self.geometry, PolygonGeometry)
+            else self.geometry.coordinates
+        )
+        vertices = sum(len(ring) for polygon in polygons for ring in polygon)
+        if vertices > MAX_ZONE_VERTICES:
+            raise ValueError(f"Polygon has {vertices} vertices; at most {MAX_ZONE_VERTICES}")
+
+        longitudes = [position[0] for polygon in polygons for ring in polygon for position in ring]
+        if max(longitudes) - min(longitudes) > MAX_ZONE_LONGITUDE_SPAN:
+            raise ValueError(
+                f"Polygon spans more than {MAX_ZONE_LONGITUDE_SPAN:g} degrees of longitude"
+            )
+
+        geom = shape(self.geometry_json())
+        # Validity also rules out zero-area rings, holes outside their shell and
+        # overlapping parts.
+        if not geom.is_valid:
+            raise ValueError(f"Polygon is not valid: {explain_validity(geom)}")
+
+        area_km2 = (
+            sum(
+                _ring_area_m2(polygon[0]) - sum(_ring_area_m2(hole) for hole in polygon[1:])
+                for polygon in polygons
+            )
+            / 1e6
+        )
+        if area_km2 > MAX_ZONE_AREA_KM2:
+            raise ValueError(
+                f"Polygon covers {area_km2:.1f} km2; at most {MAX_ZONE_AREA_KM2:g} km2"
+            )
+        return self
+
+    def geometry_json(self) -> dict[str, Any]:
+        return self.geometry.model_dump(mode="json")

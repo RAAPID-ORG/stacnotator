@@ -39,8 +39,7 @@
     "toggleFlag": "Alternar marca de revisión",
     "submit": "Enviar",
     "submitFailed": "No se pudo enviar la anotación",
-    "probeTool": "Herramienta de sonda de serie temporal: luego haz clic en el mapa para mover la sonda",
-    "addProbe": "Añadir otra sonda de serie temporal",
+    "probeTool": "Herramienta de sonda de serie temporal: haz clic en el mapa para mover la sonda, Shift+clic para añadir otra",
     "previousSlice": "Corte anterior",
     "nextSlice": "Corte siguiente",
     "previousCollection": "Colección anterior",
@@ -84,6 +83,7 @@
     "loadFailed": "No se pudieron cargar los agentes",
     "updateFailed": "No se pudo actualizar el agente",
     "releaseFailed": "No se pudieron liberar las tareas del agente",
+    "removeFailed": "No se pudo quitar el agente",
     "loadError": "No se pudieron cargar los agentes.",
     "empty": "Todavía no hay agentes.",
     "columns": {
@@ -122,6 +122,12 @@
       "toPool": "Vuelven al grupo abierto de la campaña. Las tareas ya etiquetadas u omitidas se quedan como están.",
       "confirm": "Liberar tareas"
     },
+    "remove": {
+      "action": "Quitar",
+      "title": "¿Quitar {{name}}?",
+      "description": "Sus tareas sin terminar se liberan y deja de contar para tu límite de agentes. Las tareas que ya etiquetó u omitió se quedan como están.",
+      "confirm": "Quitar agente"
+    },
     "howTo": {
       "title": "Etiquetado con agentes",
       "intro": "Un agente de etiquetado es una cuenta de anotador a través de la cual trabaja un modelo. Revisa una tarea a la vez (algunas fechas repartidas a lo largo de la temporada, la serie temporal, un mapa base), pide vistas más cercanas o distintas cuando un punto no queda claro y envía una etiqueta con un nivel de confianza y su razonamiento. Sus etiquetas son anotaciones normales, así que aparecen en las estadísticas de la campaña y en la revisión como las de cualquier otra persona. Una ejecución es temporal, por lo que los agentes no aparecen entre los miembros del proyecto; están aquí.",
@@ -131,7 +137,7 @@
       "exampleCampaign": "cultivos de invierno",
       "run": "Inicia tu sesión, registra un agente por trabajador, reparte los puntos a partes iguales entre ellos y los procesa. Se abre una ventana en tu pantalla que muestra lo que mira cada agente; cerrarla no los detiene y esta página conserva el progreso en cualquier caso.",
       "setup": "Los agentes también pueden crear una campaña, añadir sus tareas o cambiar su configuración y sus imágenes, pero solo con las herramientas que les concedas. Están desactivadas por defecto. Para concederlas, abre tu editor desde una terminal con STACNOTATOR_MCP_ALLOW indicando las herramientas que puede usar:",
-      "roles": "Las tareas que puede recibir un agente dependen de tu rol en el proyecto: los administradores de la campaña reparten tareas del grupo abierto de la campaña; los demás miembros, solo las tareas que tienen asignadas. Vuelve aquí para seguir el progreso, desactivar la asunción de trabajo o liberar las tareas sin terminar si detienes una ejecución antes de tiempo; lo que ya se haya etiquetado u omitido se mantiene."
+      "roles": "Las tareas que puede recibir un agente dependen de tu rol en el proyecto: los administradores de la campaña reparten tareas del grupo abierto de la campaña; los demás miembros, solo las tareas que tienen asignadas. Vuelve aquí para seguir el progreso, desactivar la asunción de trabajo, liberar las tareas sin terminar si detienes una ejecución antes de tiempo o quitar los agentes que ya no necesites; lo que ya se haya etiquetado u omitido se mantiene."
     }
   },
   "gates": {

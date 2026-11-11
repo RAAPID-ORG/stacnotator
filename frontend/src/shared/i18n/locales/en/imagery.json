@@ -364,6 +364,7 @@
     "done": "Done",
     "title": "Edit source",
     "deleteSource": "Delete source",
+    "backTitle": "Remove this new source and go back to where you added it",
     "namePlaceholder": "Source name…",
     "defaultZoom": "Default zoom",
     "defaultZoomTooltip": "Default zoom level for map windows using this source.",

@@ -17,12 +17,13 @@ import type { ImageryController } from './controller';
 interface AddSourceWizardProps {
   controller: ImageryController;
   onClose: () => void;
-  /** Called with the new source id right after it's created, so the caller can
-   *  open it for editing immediately. */
-  onCreated?: (sourceId: string) => void;
+  /** Called with the new source id right after it's created, and the step that
+   *  created it, so the caller can open it for editing and come back here. */
+  onCreated?: (sourceId: string, step: WizardStep) => void;
+  initialStep?: WizardStep;
 }
 
-type WizardStep =
+export type WizardStep =
   | { kind: 'pick-preset' }
   | { kind: 'configure-preset'; preset: CatalogBrowserPreset }
   | { kind: 'planet-mosaics' }
@@ -43,15 +44,20 @@ const PRESET_BLURBS = {
 
 const isBlurbId = (id: string): id is keyof typeof PRESET_BLURBS => id in PRESET_BLURBS;
 
-export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWizardProps) => {
+export const AddSourceWizard = ({
+  controller,
+  onClose,
+  onCreated,
+  initialStep = { kind: 'pick-preset' },
+}: AddSourceWizardProps) => {
   const { t } = useTranslation('imagery');
-  const [step, setStep] = useState<WizardStep>({ kind: 'pick-preset' });
+  const [step, setStep] = useState<WizardStep>(initialStep);
 
   /** Every flow finishes the same way: the source is created, then handed to the
    *  caller so it can be opened for editing. */
   const added = async (source: ImagerySource) => {
     await controller.addSource(source);
-    if (onCreated) onCreated(source.id);
+    if (onCreated) onCreated(source.id, step);
     else onClose();
   };
 

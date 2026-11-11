@@ -41,12 +41,24 @@
     "closeSaveFailed": "No se pudo guardar. Vuelve a intentarlo o responde lo que falta."
   },
   "probes": {
-    "help": "Haz clic en el mapa para mover la sonda activa. Haz clic en otra para seleccionarla, o vuelve a hacer clic en ella para quitarla del gráfico.",
-    "atCap": "Como máximo {{max}} sondas a la vez",
-    "addTitle": "Añadir otra sonda (Shift+T)",
-    "addAnother": "Añadir otra sonda",
-    "armed": "Haz clic en el mapa...",
-    "add": "Añadir sonda",
+    "help": "Haz clic en el mapa para colocar o mover la sonda activa, o Shift+clic para añadir otra y comparar. En el modo Punto, haz clic en una sonda para activarla o en la activa para quitarla. Los polígonos muestran el índice medio de sus píxeles sin nubes; las observaciones totalmente nubladas aparecen al desactivar Quitar nubosos.",
+    "mode": "Geometría de la sonda",
+    "point": "Punto",
+    "draw": "Dibujar polígono",
+    "select": "Seleccionar guardado",
+    "titles": {
+      "point": "Punto: el índice en un píxel. Haz clic para colocarla o moverla, Shift+clic para añadir otra.",
+      "draw": "Dibujar polígono: el índice medio en un área que dibujas, hasta 50 km². Mantén Shift al terminar para añadirla como otra sonda. No guarda una anotación.",
+      "select": "Seleccionar guardado: el índice medio de una anotación poligonal guardada. Haz clic en una para sondearla, Shift+clic para añadirla como otra sonda."
+    },
+    "hints": {
+      "point": "Haz clic para colocar o mover la sonda, Shift+clic para añadir otra.",
+      "draw": "Haz clic en los vértices y después en el primero o pulsa Enter para terminar (con Shift para añadir otra sonda). Escape cancela.",
+      "select": "Haz clic en un polígono guardado para sondear su área, Shift+clic para añadirlo como otra sonda."
+    },
+    "selectPolygonOnly": "Selecciona una anotación poligonal, no un punto ni una línea.",
+    "loadPolygonFailed": "No se pudo cargar el polígono para su serie temporal.",
+    "loadingPolygon": "Cargando polígono...",
     "clearTitle": "Quitar todas las sondas",
     "clear": "Borrar",
     "clearCount": "Borrar ({{count}})",
@@ -214,6 +226,8 @@
     "updating": "Actualizando...",
     "legendInfo": "Explicación de la leyenda de la serie temporal",
     "chartOptions": "Opciones del gráfico",
+    "zonalMean": "Polígonos: índice medio de píxeles sin nubes",
+    "zonalHelp": "Cada observación poligonal promedia el índice de los píxeles válidos sin nubes a la resolución de la fuente. Si ninguno está despejado, la media de píxeles válidos se marca como nubosa. Se excluyen los píxeles sin datos.",
     "showSeries": "Mostrar {{name}}",
     "hideSeries": "Ocultar {{name}}",
     "resetZoom": "Restablecer zoom",

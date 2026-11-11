@@ -1,10 +1,8 @@
-import { getTimeseriesData } from '~/api/client';
+import { getTimeseriesData, getZonalTimeseriesData } from '~/api/client';
 import { handleError } from '~/shared/utils/errorHandler';
+import { locationKey, type TimeseriesLocation } from '../../campaign/probes';
 
-export interface LatLon {
-  lat: number;
-  lon: number;
-}
+export type { LatLon } from '../../campaign/probes';
 
 export interface TimeSeriesRow {
   time: string;
@@ -24,11 +22,22 @@ interface CacheEntry {
 const CACHE_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
 const MAX_CACHE_SIZE = 10; // keep last 10 locations
 
+function position2d(position: GeoJSON.Position): [number, number] {
+  if (position.length !== 2 || !position.every(Number.isFinite)) {
+    throw new Error('Time-series coordinates must contain a finite longitude and latitude');
+  }
+  return [position[0], position[1]];
+}
+
 // Keyed by point AND the requested series, so two windows fetching different
 // series at the same point don't share (and clobber) one entry.
-function cacheKeyFor(timeseriesIds: number[], coordinate: LatLon): string {
+function cacheKeyFor(
+  campaignId: number,
+  timeseriesIds: number[],
+  coordinate: TimeseriesLocation
+): string {
   const ids = [...timeseriesIds].sort((a, b) => a - b).join(',');
-  return `${coordinate.lat.toFixed(6)},${coordinate.lon.toFixed(6)}|${ids}`;
+  return `${campaignId}|${locationKey(coordinate)}|${ids}`;
 }
 
 export class TimeSeriesCache {
@@ -52,14 +61,36 @@ export class TimeSeriesCache {
   private async fetchFromAPI(
     campaignId: number,
     timeseriesIds: number[],
-    coordinate: LatLon
+    coordinate: TimeseriesLocation
   ): Promise<TimeSeriesData> {
     const results = await Promise.all(
       timeseriesIds.map(async (tsId) => {
-        const { data } = await getTimeseriesData({
-          path: { campaign_id: campaignId, timeseries_id: tsId },
-          query: { latitude: coordinate.lat, longitude: coordinate.lon },
-        });
+        const path = { campaign_id: campaignId, timeseries_id: tsId };
+        const { data } =
+          'type' in coordinate
+            ? await getZonalTimeseriesData({
+                path,
+                body: {
+                  geometry:
+                    coordinate.type === 'Polygon'
+                      ? {
+                          type: 'Polygon',
+                          coordinates: coordinate.coordinates.map((ring) => ring.map(position2d)),
+                        }
+                      : {
+                          type: 'MultiPolygon',
+                          coordinates: coordinate.coordinates.map((polygon) =>
+                            polygon.map((ring) => ring.map(position2d))
+                          ),
+                        },
+                },
+                throwOnError: true,
+              })
+            : await getTimeseriesData({
+                path,
+                query: { latitude: coordinate.lat, longitude: coordinate.lon },
+                throwOnError: true,
+              });
         const rows: TimeSeriesRow[] = Array.isArray(data?.data)
           ? data.data.map((item) => ({
               time: String(item.time),
@@ -80,11 +111,11 @@ export class TimeSeriesCache {
   async get(
     campaignId: number,
     timeseriesIds: number[],
-    coordinate: LatLon | null
+    coordinate: TimeseriesLocation | null
   ): Promise<TimeSeriesData | null> {
     if (!coordinate || timeseriesIds.length === 0) return null;
 
-    const cacheKey = cacheKeyFor(timeseriesIds, coordinate);
+    const cacheKey = cacheKeyFor(campaignId, timeseriesIds, coordinate);
 
     const cached = this.cache.get(cacheKey);
     if (cached && this.isValid(cached)) return cached.data;
@@ -110,11 +141,11 @@ export class TimeSeriesCache {
   /** Prefetch data for upcoming locations (fire-and-forget). A failed
    *  prefetch just means that point re-fetches on demand when the user
    *  actually reaches it, so failures are logged, not surfaced. */
-  prefetch(campaignId: number, timeseriesIds: number[], coordinates: LatLon[]): void {
+  prefetch(campaignId: number, timeseriesIds: number[], coordinates: TimeseriesLocation[]): void {
     for (const coordinate of coordinates) {
       if (!coordinate || timeseriesIds.length === 0) continue;
 
-      const cacheKey = cacheKeyFor(timeseriesIds, coordinate);
+      const cacheKey = cacheKeyFor(campaignId, timeseriesIds, coordinate);
       const cached = this.cache.get(cacheKey);
       if ((cached && this.isValid(cached)) || this.pendingRequests.has(cacheKey)) continue;
 
