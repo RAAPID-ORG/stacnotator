@@ -1,6 +1,7 @@
 """What the tile proxy does around the upstream fetch: who it serves, DB handling,
 and what it lets back out to the browser."""
 
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -8,7 +9,8 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from src import net_guard
+from src import main, net_guard
+from src.config import get_settings
 from src.imagery import proxy_router
 from src.imagery.models import ProviderKey
 from src.imagery.proxy_router import (
@@ -67,7 +69,7 @@ def upstream(monkeypatch):
         )
 
     _serve_basemap(monkeypatch, "https://p/{z}/{x}/{y}?k={api_key}", stub.log)
-    monkeypatch.setattr(proxy_router._client, "get", fake_get)
+    monkeypatch.setattr(proxy_router, "_fetch", fake_get)
     return stub
 
 
@@ -119,6 +121,69 @@ def test_a_non_image_content_type_is_not_echoed(upstream):
     assert resp.headers["x-content-type-options"] == "nosniff"
 
 
+def test_planet_scene_layers_of_one_source_share_one_lookup(upstream):
+    """Scene layers are minted per place looked at; the lookup is cached per source."""
+    client = TestClient(app)
+    for layer in ("sceneA", "sceneB", "sceneC"):
+        path = f"/api/campaigns/{CAMPAIGN_ID}/imagery/sources/5/planet-layers/{layer}/tiles/5/1/2"
+        assert client.get(path).status_code == 200
+
+    assert upstream.log.count("db") == 1
+    assert upstream.log.count("fetch") == 3
+
+
+def test_a_tile_is_never_gzipped(upstream):
+    """Imagery is already compressed, so gzip would only cost CPU."""
+    upstream.content = b"0" * 64_000
+
+    resp = TestClient(app).get(TILE_PATH, headers={"Accept-Encoding": "gzip"})
+
+    assert resp.status_code == 200
+    assert "content-encoding" not in resp.headers
+
+
+def test_a_worker_out_of_cpu_refuses_tiles_but_still_answers_the_api(upstream, monkeypatch):
+    monkeypatch.setattr(main, "loop_overloaded", lambda: True)
+    client = TestClient(app)
+
+    assert client.get(TILE_PATH).status_code == 503
+    assert client.get("/api/no-such-route").status_code == 404
+    assert upstream.log == []
+
+
+def test_light_traffic_keeps_to_one_pool_and_a_busy_pool_is_passed_over(monkeypatch):
+    """Light traffic reuses one pool's warm connections, and a pool whose connections
+    hang on a slow host does not make other tiles queue behind it."""
+    used: list[int] = []
+
+    def pool(i):
+        async def get(url):
+            used.append(i)
+            return "ok"
+
+        return SimpleNamespace(get=get)
+
+    monkeypatch.setattr(proxy_router, "_clients", [pool(0), pool(1), pool(2)])
+    monkeypatch.setattr(proxy_router, "_in_flight", [0, 0, 0])
+
+    async def scenario():
+        for _ in range(5):
+            await proxy_router._fetch("u")
+        proxy_router._in_flight[0] = 16  # stuck on a slow host
+        await proxy_router._fetch("u")
+
+    asyncio.run(scenario())
+    assert used == [0, 0, 0, 0, 0, 1]
+
+
+def test_the_upstream_budget_is_spread_over_small_pools():
+    """httpcore rescans a pool on every request at a cost quadratic in its size."""
+    sizes = [client._transport._pool._max_connections for client in proxy_router._clients]
+
+    assert max(sizes) <= 32
+    assert sum(sizes) >= get_settings().TILE_UPSTREAM_MAX_CONCURRENCY
+
+
 def test_an_internal_basemap_url_is_never_fetched(monkeypatch):
     """A campaign admin owns this URL, so the proxy is an SSRF hole without the guard.
     Nothing is stubbed here - the real guarded client has to refuse the connection."""
@@ -149,24 +214,32 @@ class TestWhoTheProxyServes:
         )
 
     def test_a_visualizer_session_reads_the_visualizers_own_route(self):
-        require_visualizer_tile_access(self._visualizer_session(), visualizer_id=self.VISUALIZER)
+        asyncio.run(
+            require_visualizer_tile_access(
+                self._visualizer_session(), visualizer_id=self.VISUALIZER
+            )
+        )
 
     def test_a_visualizer_session_cannot_read_the_campaign_it_links_from(self):
         with pytest.raises(HTTPException) as exc:
-            require_tile_access(self._visualizer_session(), campaign_id=self.LINKED_CAMPAIGN)
+            asyncio.run(
+                require_tile_access(self._visualizer_session(), campaign_id=self.LINKED_CAMPAIGN)
+            )
 
         assert exc.value.status_code == 403
 
     def test_a_visualizer_session_cannot_read_another_visualizer(self):
         with pytest.raises(HTTPException) as exc:
-            require_visualizer_tile_access(self._visualizer_session(), visualizer_id=99)
+            asyncio.run(
+                require_visualizer_tile_access(self._visualizer_session(), visualizer_id=99)
+            )
 
         assert exc.value.status_code == 403
 
     def test_a_users_session_still_reads_their_campaigns(self):
         request = self._request(sub="user", owners=[str(self.LINKED_CAMPAIGN)])
 
-        require_tile_access(request, campaign_id=self.LINKED_CAMPAIGN)
+        asyncio.run(require_tile_access(request, campaign_id=self.LINKED_CAMPAIGN))
 
 
 class TestServes:

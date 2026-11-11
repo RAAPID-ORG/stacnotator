@@ -81,7 +81,7 @@ def _stub_upstream(monkeypatch) -> dict:
         captured["url"] = str(url)
         return FakeResp()
 
-    monkeypatch.setattr(proxy_router._client, "get", fake_get)
+    monkeypatch.setattr(proxy_router, "_fetch", fake_get)
     return captured
 
 

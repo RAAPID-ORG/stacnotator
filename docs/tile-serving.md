@@ -87,6 +87,8 @@ Neither of these involves an external tiler; they only share the z/x/y URL shape
 
 Every DB-touching tile route on the backend (annotation MVT, the key proxy) must acquire a slot from a per-worker semaphore (`TILE_DB_SLOTS`, default half the DB pool) before opening a session (`backend/src/tile_bulkhead.py`). This caps tile traffic's share of the connection pool so a burst of tile requests degrades to 503s (rendered as empty tiles) instead of starving the API.
 
+Tiles share each worker's CPU with the API, so the same module also turns proxy tiles away (503; the map retries a failed tile twice within about a second, then again when its layer is next shown) while the worker's event loop runs more than `TILE_SHED_LOOP_LAG_MS` late: a late loop is the worker being out of CPU, which is the moment everything else on it would start waiting too. Upstream fetches go through many small httpx pools rather than one big one, because httpcore's per-request pool bookkeeping grows with the square of the pool size; each fetch takes the least busy pool, so light traffic keeps reusing one pool's warm connections.
+
 ## STAC Search vs Visualization
 
 Setting up imagery from a STAC catalog involves two distinct concerns:

@@ -52,17 +52,31 @@ router = APIRouter(tags=["Imagery Tiles"])
 # Guarded: the template is a stored, campaign-admin-supplied URL, so the fetch is
 # only as trustworthy as whatever that admin typed.
 #
-# httpx defaults to 100 connections, which on its own capped the proxy well below the
-# upstream bulkhead it now sits behind. The two are sized together so the semaphore is
-# the thing that queues, not the connection pool silently underneath it.
+# Many small pools rather than one large one: httpcore rescans a pool on every request
+# start and finish at a cost quadratic in its size. The bulkhead semaphore caps the total.
+_POOL_CONNECTIONS = 16
 _settings = get_settings()
-_client = net_guard.guarded_async_client(
-    timeout=15.0,
-    limits=httpx.Limits(
-        max_connections=_settings.TILE_UPSTREAM_MAX_CONCURRENCY,
-        max_keepalive_connections=max(32, _settings.TILE_UPSTREAM_MAX_CONCURRENCY // 4),
-    ),
-)
+_clients = [
+    net_guard.guarded_async_client(
+        timeout=15.0,
+        limits=httpx.Limits(
+            max_connections=_POOL_CONNECTIONS, max_keepalive_connections=_POOL_CONNECTIONS
+        ),
+    )
+    for _ in range(max(1, -(-_settings.TILE_UPSTREAM_MAX_CONCURRENCY // _POOL_CONNECTIONS)))
+]
+_in_flight = [0] * len(_clients)
+
+
+async def _fetch(url: httpx.URL) -> httpx.Response:
+    # Least busy, first on a tie: light traffic stays on one pool's warm connections,
+    # load spreads evenly, and a pool stuck on a slow host is passed over.
+    i = min(range(len(_clients)), key=_in_flight.__getitem__)
+    _in_flight[i] += 1
+    try:
+        return await _clients[i].get(url)
+    finally:
+        _in_flight[i] -= 1
 
 
 @dataclass(frozen=True)
@@ -149,11 +163,13 @@ def _assert_scope(request: Request, owner: LayerOwner) -> None:
         raise HTTPException(status_code=403, detail="No access to this imagery")
 
 
-def require_tile_access(request: Request, campaign_id: int = Path(...)) -> None:
+# Async: the check is pure CPU, and a sync dependency would take a threadpool slot the
+# sync API routes need.
+async def require_tile_access(request: Request, campaign_id: int = Path(...)) -> None:
     _assert_scope(request, LayerOwner(campaign_id=campaign_id))
 
 
-def require_visualizer_tile_access(request: Request, visualizer_id: int = Path(...)) -> None:
+async def require_visualizer_tile_access(request: Request, visualizer_id: int = Path(...)) -> None:
     _assert_scope(request, LayerOwner(visualizer_id=visualizer_id))
 
 
@@ -180,7 +196,7 @@ async def _proxy(target: TileTarget, z: int, x: int, y: int) -> Response:
         )
     try:
         async with tile_upstream_slot():
-            resp = await _client.get(url)
+            resp = await _fetch(url)
         resp.raise_for_status()
     except net_guard.UnsafeUrlError as e:
         raise HTTPException(status_code=502, detail=f"Upstream tile URL rejected: {e}") from e
@@ -296,24 +312,23 @@ async def proxy_slice_tile(
     return await _proxy(target, z, x, y)
 
 
-def _planet_layer_lookup(source_id: int, layer_id: str, owner: LayerOwner):
-    """Resolve a runtime-minted Planet layer to its template and the source's key.
+def _planet_source_lookup(source_id: int, owner: LayerOwner):
+    """Resolve a Planet source to the key its minted layers are fetched with.
 
-    The layer id comes from the client because nothing about a viewport search is
-    stored. That is safe but not free: it lets a viewer of this campaign render any
-    layer the campaign's own Planet key can see, which is that organization's own
-    imagery. It cannot reach the key, another organization's layers, or anything but
-    Planet's tile host, since the template is built here rather than sent in.
+    Keyed by source rather than layer, since scene layers are minted per place looked at
+    and would rarely share a cache entry. The layer id comes from the client because
+    nothing about a viewport search is stored. That is safe but not free: it lets a
+    viewer of this campaign render any layer the campaign's own Planet key can see, which
+    is that organization's own imagery. It cannot reach the key, another organization's
+    layers, or anything but Planet's tile host, since the template is built here rather
+    than sent in.
     """
 
     def lookup(db: Session) -> TileTarget:
         source = db.get(ImagerySource, source_id)
         if source is None or source.owner != owner:
             raise HTTPException(status_code=404, detail="Imagery source not found")
-        try:
-            return TileTarget(planet_tiles.layer_template(layer_id), source.provider_key)
-        except planet_tiles.UnexpectedTileLink as e:
-            raise HTTPException(status_code=400, detail="Not a Planet layer id") from e
+        return TileTarget("", source.provider_key)
 
     return lookup
 
@@ -330,12 +345,16 @@ async def proxy_planet_layer_tile(
     x: int,
     y: int,
 ) -> Response:
+    try:
+        template = planet_tiles.layer_template(layer_id)
+    except planet_tiles.UnexpectedTileLink as e:
+        raise HTTPException(status_code=400, detail="Not a Planet layer id") from e
     owner = LayerOwner(campaign_id=campaign_id)
-    target = await _resolve(
-        ("planet-layer", owner.tile_scope, source_id, layer_id),
-        _planet_layer_lookup(source_id, layer_id, owner),
+    source = await _resolve(
+        ("planet-source", owner.tile_scope, source_id),
+        _planet_source_lookup(source_id, owner),
     )
-    return await _proxy(target, z, x, y)
+    return await _proxy(TileTarget(template, source.key), z, x, y)
 
 
 @router.get(

@@ -117,9 +117,13 @@ _resolve_sizing() {
     # whole request, so connections sit idle most of their life and you need many more
     # of them than the query load suggests. Undersizing does not throttle gracefully: it
     # churns, because everything above pool_size is rebuilt per checkout.
+    #
+    # 4 vCPU / 8Gi is the largest consumption-plan container and the only way up while the
+    # backend is pinned to one replica. Tile proxying is its biggest CPU consumer, so this
+    # is what decides how many people and agents can browse imagery at once.
     if [ "$ENV" = "dev" ]; then
-        # Steady 20x4 = 80, peak 30x4 + 2x4 = 128 of 859.
-        BACKEND_CPU=2 BACKEND_MEM=4Gi BACKEND_MIN=1 BACKEND_MAX=1 BACKEND_WORKERS=4
+        # Steady 20x6 = 120, peak 30x6 + 2x4 = 188 of 859.
+        BACKEND_CPU=4 BACKEND_MEM=8Gi BACKEND_MIN=1 BACKEND_MAX=1 BACKEND_WORKERS=6
         BACKEND_POOL_SIZE=20 BACKEND_MAX_OVERFLOW=10
         # Dev is where the load tests run, and attributing them afterwards needs the
         # whole mix, not just the tail. Prod keeps to slow requests only.
@@ -127,8 +131,8 @@ _resolve_sizing() {
         TILER_CPU=4 TILER_MEM=8Gi TILER_MIN=1 TILER_MAX=1 TILER_WORKERS=4
         TILER_DB_MAX_CONN=2
     else
-        # Steady 20x4 = 80, peak 30x4 + 4x4 = 136 of 859.
-        BACKEND_CPU=2 BACKEND_MEM=4Gi BACKEND_MIN=1 BACKEND_MAX=1 BACKEND_WORKERS=4
+        # Steady 20x6 = 120, peak 30x6 + 4x4 = 196 of 859.
+        BACKEND_CPU=4 BACKEND_MEM=8Gi BACKEND_MIN=1 BACKEND_MAX=1 BACKEND_WORKERS=6
         BACKEND_POOL_SIZE=20 BACKEND_MAX_OVERFLOW=10
         BACKEND_TIMING_LOG=false
         TILER_CPU=4 TILER_MEM=8Gi TILER_MIN=1 TILER_MAX=1 TILER_WORKERS=4
