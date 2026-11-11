@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type {
   BasemapCreate,
@@ -10,7 +9,6 @@ import type {
 import { mapSourceOutToFe, useDraftController } from '~/features/layers/imagery/controller';
 import { basemapToBackend, sourceToBackend } from '~/features/layers/imagery/draftSync';
 import { BasemapList } from '~/features/layers/imagery/BasemapList';
-import { SourceEditor } from '~/features/layers/imagery/SourceEditor';
 import { SourcesTab } from '~/features/layers/imagery/SourcesTab';
 import { DEFAULT_BASEMAPS, type ImageryStepState } from '~/features/layers/imagery/types';
 
@@ -71,21 +69,15 @@ export function OwnImagery({
     campaignBbox: bbox,
     allowsPrivateCatalogs: false,
   });
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const editing = editingId ? (state.sources.find((s) => s.id === editingId) ?? null) : null;
 
   return (
     <div className="space-y-6">
       {area ? (
-        <SourcesTab controller={controller} onEditSource={setEditingId} />
+        <SourcesTab controller={controller} />
       ) : (
         <p className="rounded-lg border border-dashed border-neutral-200 px-4 py-4 text-center text-xs text-neutral-500">
           {t('ownImagery.chooseAreaFirst')}
         </p>
-      )}
-
-      {editing && (
-        <SourceEditor source={editing} controller={controller} onClose={() => setEditingId(null)} />
       )}
     </div>
   );

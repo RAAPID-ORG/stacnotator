@@ -47,7 +47,7 @@ describe('SourcesTab registration progress', () => {
       42
     );
 
-    render(<SourcesTab controller={controller} onEditSource={() => {}} />);
+    render(<SourcesTab controller={controller} />);
 
     const bars = screen.getAllByTestId('source-registration-progress');
     expect(bars.map((b) => [b.dataset.registered, b.dataset.total])).toEqual([
@@ -85,14 +85,14 @@ describe('SourcesTab registration progress', () => {
       ],
       42
     );
-    render(<SourcesTab controller={scenes} onEditSource={() => {}} />);
+    render(<SourcesTab controller={scenes} />);
 
     expect(screen.queryByTestId('source-registration-progress')).toBeNull();
   });
 
   it('stays quiet for sources that have nothing to register yet', () => {
     const drafted = controllerWith([source('new-source', 'Draft', { sliceCount: 3 })], 42);
-    render(<SourcesTab controller={drafted} onEditSource={() => {}} />);
+    render(<SourcesTab controller={drafted} />);
 
     expect(screen.queryByTestId('source-registration-progress')).toBeNull();
   });

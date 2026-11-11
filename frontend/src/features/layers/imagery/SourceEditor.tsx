@@ -38,6 +38,9 @@ interface SourceEditorProps {
   source: ImagerySource;
   controller: ImageryController;
   onClose: () => void;
+  /** Set right after the add-source wizard created this source: undoes the add
+   *  and returns to the wizard step that made it. */
+  onBack?: () => void;
 }
 
 type AddCollectionStep =
@@ -127,7 +130,7 @@ function SourceRegistration({
   );
 }
 
-export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps) => {
+export const SourceEditor = ({ source, controller, onClose, onBack }: SourceEditorProps) => {
   const { t } = useTranslation(['imagery', 'common']);
   const [editingCollectionId, setEditingCollectionId] = useState<string | null>(null);
   const [addStep, setAddStep] = useState<AddCollectionStep>(null);
@@ -457,13 +460,24 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
       maxWidth="max-w-xl"
       footer={
         <div className="flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={() => void handleRemoveSource()}
-            className="text-xs text-red-500 hover:text-red-700 transition-colors cursor-pointer"
-          >
-            {t('sourceEditor.deleteSource')}
-          </button>
+          {onBack ? (
+            <button
+              type="button"
+              onClick={onBack}
+              title={t('sourceEditor.backTitle')}
+              className="text-xs text-neutral-500 hover:text-neutral-700 cursor-pointer"
+            >
+              {t('wizard.back')}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void handleRemoveSource()}
+              className="text-xs text-red-500 hover:text-red-700 transition-colors cursor-pointer"
+            >
+              {t('sourceEditor.deleteSource')}
+            </button>
+          )}
           <div className="flex items-center gap-3">
             <Button variant="primary" size="sm" onClick={onClose}>
               {t('sourceEditor.done')}

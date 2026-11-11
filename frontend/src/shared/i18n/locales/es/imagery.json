@@ -379,6 +379,7 @@
     "done": "Listo",
     "title": "Editar fuente",
     "deleteSource": "Eliminar fuente",
+    "backTitle": "Quitar esta fuente nueva y volver a donde la añadiste",
     "namePlaceholder": "Nombre de la fuente…",
     "defaultZoom": "Zoom predeterminado",
     "defaultZoomTooltip": "Nivel de zoom predeterminado para las ventanas de mapa que usan esta fuente.",
