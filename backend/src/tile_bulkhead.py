@@ -52,9 +52,43 @@ def _upstream_semaphore() -> asyncio.Semaphore:
 
 
 def reset_for_tests() -> None:
-    global _slots, _upstream_slots
+    global _slots, _upstream_slots, _lag_watch, _loop_lag_ms
     _slots = None
     _upstream_slots = None
+    _lag_watch = None
+    _loop_lag_ms = 0.0
+
+
+# How late this worker's event loop runs. A late loop means the worker is out of CPU,
+# and then every request on it waits, the API included. Tiles are the one load that can
+# get there and the one that degrades gracefully, so they are refused while it lasts.
+# A count cap cannot stand in for this: whether 100 tiles in flight is too many depends
+# on the CPU and on how slow the provider is that day.
+_LAG_SAMPLE_S = 0.05
+_lag_watch: asyncio.Task | None = None
+_loop_lag_ms = 0.0
+
+
+async def _watch_loop_lag() -> None:
+    global _loop_lag_ms
+    loop = asyncio.get_running_loop()
+    while True:
+        started = loop.time()
+        await asyncio.sleep(_LAG_SAMPLE_S)
+        late_ms = (loop.time() - started - _LAG_SAMPLE_S) * 1000
+        # Rises at once, falls over a few samples, so one quick sample in the middle of
+        # an overload does not reopen the gate.
+        _loop_lag_ms = max(late_ms, _loop_lag_ms * 0.7)
+
+
+def loop_overloaded() -> bool:
+    """Whether new tiles should be refused because this worker is out of CPU."""
+    global _lag_watch
+    loop = asyncio.get_running_loop()
+    if _lag_watch is None or _lag_watch.done() or _lag_watch.get_loop() is not loop:
+        _lag_watch = loop.create_task(_watch_loop_lag())
+    limit = get_settings().TILE_SHED_LOOP_LAG_MS
+    return bool(limit) and _loop_lag_ms > limit
 
 
 @asynccontextmanager

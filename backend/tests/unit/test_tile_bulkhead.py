@@ -1,4 +1,5 @@
 import asyncio
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -236,3 +237,37 @@ def test_the_two_budgets_are_independent(monkeypatch):
                 pass
 
     asyncio.run(main())
+
+
+def _lag_settings(limit: float):
+    return lambda: SimpleNamespace(TILE_SHED_LOOP_LAG_MS=limit)
+
+
+def test_a_stalled_event_loop_turns_tiles_away_until_it_recovers(monkeypatch):
+    """A worker out of CPU shows up as a late loop, and every request on that loop waits.
+    Tiles are refused while that lasts and admitted again once it passes."""
+    monkeypatch.setattr(tile_bulkhead, "get_settings", _lag_settings(150))
+
+    async def main() -> tuple[bool, bool]:
+        tile_bulkhead.loop_overloaded()
+        await asyncio.sleep(0)
+        time.sleep(0.4)  # nothing else runs, as when every core is busy
+        await asyncio.sleep(0.06)
+        stalled = tile_bulkhead.loop_overloaded()
+        await asyncio.sleep(1.0)
+        return stalled, tile_bulkhead.loop_overloaded()
+
+    assert asyncio.run(main()) == (True, False)
+
+
+def test_the_lag_gate_can_be_switched_off(monkeypatch):
+    monkeypatch.setattr(tile_bulkhead, "get_settings", _lag_settings(0))
+
+    async def main() -> bool:
+        tile_bulkhead.loop_overloaded()
+        await asyncio.sleep(0)
+        time.sleep(0.4)
+        await asyncio.sleep(0.06)
+        return tile_bulkhead.loop_overloaded()
+
+    assert asyncio.run(main()) is False

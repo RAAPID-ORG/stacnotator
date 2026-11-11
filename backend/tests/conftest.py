@@ -43,14 +43,18 @@ def sample_settings_data(sample_labels):
 
 
 @pytest.fixture(autouse=True)
-def _clear_tile_target_cache():
-    """The proxy caches a tile's upstream target per process, which otherwise carries a
-    layer's URL from one test into the next and makes failures depend on test order."""
+def _clear_tile_state():
+    """The proxy caches a tile's upstream target and the bulkhead its loop-lag reading per
+    process, which otherwise carry from one test into the next and make failures depend
+    on test order."""
+    from src import tile_bulkhead
     from src.imagery.proxy_router import reset_target_cache
 
     reset_target_cache()
+    tile_bulkhead.reset_for_tests()
     yield
     reset_target_cache()
+    tile_bulkhead.reset_for_tests()
 
 
 def make_policy(**axes):

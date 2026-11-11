@@ -44,7 +44,7 @@ from src.sampling_design.router import router as sampling_design_router
 from src.stac_browser.router import router as stac_browser_router
 from src.tasks.embeddings import EMBEDDING_RUN
 from src.tasks.router import router as tasks_router
-from src.tile_bulkhead import TileCapacityError
+from src.tile_bulkhead import TileCapacityError, loop_overloaded
 from src.timeseries.router import router as timeseries_router
 from src.visualizers.router import router as visualizers_router
 
@@ -166,11 +166,18 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         limit = settings.MAX_INFLIGHT_TILE_REQUESTS if is_tile else settings.MAX_INFLIGHT_REQUESTS
         current = cls._tile_inflight if is_tile else cls._inflight
 
-        if limit and current >= limit and path not in cls._ALWAYS_ADMIT:
+        reason = None
+        if path not in cls._ALWAYS_ADMIT:
+            if limit and current >= limit:
+                reason = "inflight"
+            elif is_tile and loop_overloaded():
+                reason = "loop-lag"
+        if reason:
             logger.warning(
-                "Shedding request | %s %s inflight=%d limit=%d tile=%s request_id=%s",
+                "Shedding request | %s %s reason=%s inflight=%d limit=%d tile=%s request_id=%s",
                 request.method,
                 path,
+                reason,
                 current,
                 limit,
                 is_tile,
@@ -269,9 +276,22 @@ class SecurityHeadersMiddleware:
         await self.app(scope, receive, send_stamped)
 
 
+class ApiGZipMiddleware(GZipMiddleware):
+    """GZip for API responses, never for proxied imagery: PNG, JPEG and WebP are already
+    compressed, so gzipping them only burned CPU on the hottest path."""
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and _is_proxy_tile(scope["path"]):
+            await self.app(scope, receive, send)
+            return
+        await super().__call__(scope, receive, send)
+
+
 app.add_middleware(RequestContextMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(GZipMiddleware, minimum_size=1024)
+# Level 6 compresses JSON nearly as small as starlette's default of 9 at a fraction of
+# the CPU, which matters for the big unpaginated lists (tasks, annotations).
+app.add_middleware(ApiGZipMiddleware, minimum_size=1024, compresslevel=6)
 
 
 @app.exception_handler(HTTPException)
