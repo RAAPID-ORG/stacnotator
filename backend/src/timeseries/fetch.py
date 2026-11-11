@@ -18,9 +18,8 @@ from src.timeseries.sources import TimeseriesSource, offers
 
 _VALUE_BAND = "value"
 _CLEAR_BAND = "clear"
-# The zone cap in schemas.py keeps a series near 1e5 pixels per image; ten times that
-# leaves room for boundary pixels without letting a reduction run away. bestEffort
-# stays off so an oversized zone fails instead of being averaged at a coarser scale.
+# A 50 km2 zone is 5e5 pixels at 10 m. Leave headroom for boundary pixels;
+# bestEffort stays off rather than silently coarsening large requests.
 _ZONE_MAX_PIXELS = 1_000_000
 _ZONE_TILE_SCALE = 2
 

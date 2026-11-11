@@ -193,7 +193,7 @@ def test_zone_accepts_polygons_with_holes_and_parts(geometry):
             "not valid",
         ),
         ({"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [2, 0], [0, 0]]]}, "not valid"),
-        ({"type": "Polygon", "coordinates": [_square(0, 0, 0.03)]}, "km2"),
+        ({"type": "Polygon", "coordinates": [_square(0, 0, 0.07)]}, "km2"),
         (
             {
                 "type": "Polygon",
@@ -228,3 +228,34 @@ def test_zone_bounds_vertex_count():
     ]
     with pytest.raises(ValidationError, match="1001 vertices"):
         _zone({"type": "Polygon", "coordinates": [[*ring, ring[0]]]})
+
+
+def test_zone_accepts_a_large_field_below_fifty_square_kilometres():
+    geometry = {"type": "Polygon", "coordinates": [_square(0, 0, 0.06)]}
+    assert _zone(geometry).geometry_json() == geometry
+
+
+def test_zone_rejects_oppositely_wound_parts_whose_combined_area_exceeds_limit():
+    geometry = {
+        "type": "MultiPolygon",
+        "coordinates": [[_square(0, 0, 0.05)], [list(reversed(_square(0.1, 0, 0.05)))]],
+    }
+    with pytest.raises(ValidationError, match="km2"):
+        _zone(geometry)
+
+
+@pytest.mark.parametrize("reverse_hole", [False, True])
+def test_zone_subtracts_holes_regardless_of_winding(reverse_hole):
+    shell = _square(0, 0, 0.07)
+    hole = _square(0.01, 0.01, 0.05)
+    geometry = {"type": "Polygon", "coordinates": [shell, hole[::-1] if reverse_hole else hole]}
+    assert _zone(geometry).geometry_json() == geometry
+
+
+def test_zone_measures_long_straight_edges_instead_of_shortcutting_over_the_pole():
+    geometry = {
+        "type": "Polygon",
+        "coordinates": [[[-90, 70], [90, 70], [90, 70.001], [-90, 70.001], [-90, 70]]],
+    }
+    with pytest.raises(ValidationError, match="km2"):
+        _zone(geometry)

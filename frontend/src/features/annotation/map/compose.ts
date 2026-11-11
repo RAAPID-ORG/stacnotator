@@ -139,6 +139,7 @@ export interface ComposeState extends ImageryNavState {
   draftFeatures?: GeoFeature[];
   draftLabelId?: number | null;
   probes?: Probe[];
+  probesInteractive?: boolean;
   /** The probe a click moves, drawn larger so it is obvious which one that is. */
   activeProbe?: number | null;
   /** Explore marks the task the annotator came from. */
@@ -390,6 +391,7 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
     layers.push({
       kind: 'features',
       id: PROBE_LAYER_ID,
+      decorative: !state.probesInteractive,
       features: state.probes.map((point, index) => ({
         id: probeFeatureId(index),
         geometry: probeGeometry(point),

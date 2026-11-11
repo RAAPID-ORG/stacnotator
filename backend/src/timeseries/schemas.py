@@ -10,6 +10,7 @@ from pydantic import (
     model_validator,
 )
 from pyproj import Geod
+from shapely.geometry import LinearRing as ShapelyLinearRing
 from shapely.geometry import shape
 from shapely.validation import explain_validity
 
@@ -209,11 +210,7 @@ class TimeseriesDataResponse(BaseModel):
 # Zonal (polygon) series request
 # ============================================================================
 
-# A zone is a labelled field or a few fields, not a region. 10 km2 is 1e5 pixels per
-# image at Sentinel-2's 10 m, the finest source, and keeps a whole series inside one
-# interactive Earth Engine request; the vertex and part caps bound request size and
-# the cost of rasterising the region once per image.
-MAX_ZONE_AREA_KM2 = 10.0
+MAX_ZONE_AREA_KM2 = 50.0
 MAX_ZONE_VERTICES = 1000
 MAX_ZONE_PARTS = 10
 # Earth Engine draws the edges straight in longitude/latitude, so a ring spanning more
@@ -242,6 +239,14 @@ def _check_rings(polygons: list[list[list[list[float]]]]) -> None:
                     )
             if ring[0] != ring[-1]:
                 raise ValueError("Each polygon ring must end at its first position")
+
+
+def _ring_area_m2(ring: list[list[float]]) -> float:
+    # Geod joins vertices with geodesics; short interpolated lon/lat segments
+    # approximate the straight edges used by Earth Engine's geodesic=False.
+    dense = ShapelyLinearRing(ring).segmentize(0.1)
+    longitude, latitude = dense.coords.xy
+    return abs(_GEOD.polygon_area_perimeter(longitude, latitude)[0])
 
 
 class PolygonGeometry(BaseModel):
@@ -293,7 +298,13 @@ class ZonalTimeseriesRequest(BaseModel):
         if not geom.is_valid:
             raise ValueError(f"Polygon is not valid: {explain_validity(geom)}")
 
-        area_km2 = abs(_GEOD.geometry_area_perimeter(geom)[0]) / 1e6
+        area_km2 = (
+            sum(
+                _ring_area_m2(polygon[0]) - sum(_ring_area_m2(hole) for hole in polygon[1:])
+                for polygon in polygons
+            )
+            / 1e6
+        )
         if area_km2 > MAX_ZONE_AREA_KM2:
             raise ValueError(
                 f"Polygon covers {area_km2:.1f} km2; at most {MAX_ZONE_AREA_KM2:g} km2"

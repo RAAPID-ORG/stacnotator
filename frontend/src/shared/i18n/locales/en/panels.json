@@ -48,7 +48,7 @@
     "select": "Select saved",
     "hints": {
       "point": "Click the map to place or move a point probe.",
-      "draw": "Click vertices, then the first vertex or Enter to finish a polygon probe (up to 10 km²). Escape cancels. This does not save an annotation.",
+      "draw": "Click vertices, then the first vertex or Enter to finish a polygon probe (up to 50 km²). Escape cancels. This does not save an annotation.",
       "select": "Click a saved polygon annotation to probe its full area. No polygon is drawn in this mode."
     },
     "selectPolygonOnly": "Select a polygon annotation, not a point or line.",

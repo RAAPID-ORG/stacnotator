@@ -496,6 +496,9 @@ export function MainMapBody() {
   const onMapClick = drawsShapes ? drawingClick : taskProbeClick;
   const probes = useWorkStore((s) => (s.probeMarkerHidden ? EMPTY_PROBES : s.probes));
   const activeProbe = useWorkStore((s) => s.activeProbe);
+  const probesInteractive = useWorkStore(
+    (s) => s.tool === 'timeseries' && !(s.probeMode === 'select' && s.probeAddArmed)
+  );
   const lastProbe = probes.at(-1);
   const lastPoint = Array.isArray(lastProbe) ? lastProbe : undefined;
   const focus = useMapFocus();
@@ -553,6 +556,7 @@ export function MainMapBody() {
       draftLabelId: draft.phase === 'idle' ? null : draft.labelId,
       probes,
       activeProbe,
+      probesInteractive,
       originTask,
     };
     return composeLayers({ catalog, mode, drawsShapes }, state);
@@ -568,6 +572,7 @@ export function MainMapBody() {
     draft,
     probes,
     activeProbe,
+    probesInteractive,
     originTask,
   ]);
 

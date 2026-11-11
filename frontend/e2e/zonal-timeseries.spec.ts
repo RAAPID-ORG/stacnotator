@@ -37,7 +37,7 @@ test('task mode can draw a polygon probe and reports its validation error beside
     if (route.request().method() !== 'POST') return route.fallback();
     return route.fulfill({
       status: 422,
-      json: { detail: [{ msg: 'Polygon area exceeds the 10 km² limit' }] },
+      json: { detail: [{ msg: 'Polygon area exceeds the 50 km² limit' }] },
     });
   });
   await page.reload();
@@ -45,7 +45,7 @@ test('task mode can draw a polygon probe and reports its validation error beside
   await page.getByTestId('probe-toggle').click();
   await page.getByRole('radio', { name: 'Draw polygon', exact: true }).click();
   await Promise.all([page.waitForRequest(isZonalRequest), drawPolygon(page, triangle)]);
-  await expect(page.getByRole('alert')).toContainText('Polygon area exceeds the 10 km² limit');
+  await expect(page.getByRole('alert')).toContainText('Polygon area exceeds the 50 km² limit');
   await expect(page.locator('[data-tour^="timeseries:"] canvas')).toBeVisible();
 });
 
@@ -174,4 +174,32 @@ test('Select saved loads the full saved polygon and empty-map clicks do not star
   ]);
   await expect(page.locator('[data-probe-count]')).toHaveAttribute('data-probe-count', '0');
   expect(api.filter(/\/annotations$/).filter((r) => r.method === 'POST')).toEqual([]);
+});
+
+test('polygon probes allow Pan, Edit, and Add Select saved to reach covered annotations', async ({
+  annotationPage: page,
+}) => {
+  await openExplore(page);
+  await page.keyboard.press('2');
+  await Promise.all([waitForCreate(page), drawPolygon(page, triangle)]);
+  await page.getByRole('button', { name: 'Probe time series (T)', exact: true }).click();
+  await page.getByRole('radio', { name: 'Select saved', exact: true }).click();
+  await Promise.all([page.waitForRequest(isZonalRequest), clickMapCenter(page)]);
+  await expect(page.locator('[data-probe-count]')).toHaveAttribute('data-probe-count', '1');
+
+  const annotationRead = () =>
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' && /\/annotations\/9100$/.test(response.url())
+    );
+  for (const tool of ['Pan (P)', 'Edit (E)']) {
+    await page.getByRole('button', { name: tool, exact: true }).click();
+    await Promise.all([annotationRead(), clickMapCenter(page)]);
+    await expect(page.locator('[data-probe-count]')).toHaveAttribute('data-probe-count', '1');
+    await page.getByRole('button', { name: 'Probe time series (T)', exact: true }).click();
+  }
+
+  await page.getByTestId('probe-add').click();
+  await Promise.all([annotationRead(), clickMapCenter(page)]);
+  await expect(page.locator('[data-probe-count]')).toHaveAttribute('data-probe-count', '2');
 });

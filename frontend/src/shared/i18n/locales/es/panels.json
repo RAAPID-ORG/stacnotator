@@ -48,7 +48,7 @@
     "select": "Seleccionar guardado",
     "hints": {
       "point": "Haz clic en el mapa para colocar o mover una sonda de punto.",
-      "draw": "Haz clic en los vértices y después en el primero o pulsa Enter para terminar la sonda poligonal (hasta 10 km²). Escape cancela. Esto no guarda una anotación.",
+      "draw": "Haz clic en los vértices y después en el primero o pulsa Enter para terminar la sonda poligonal (hasta 50 km²). Escape cancela. Esto no guarda una anotación.",
       "select": "Haz clic en una anotación poligonal guardada para sondear toda su área. En este modo no se dibujan polígonos."
     },
     "selectPolygonOnly": "Selecciona una anotación poligonal, no un punto ni una línea.",
