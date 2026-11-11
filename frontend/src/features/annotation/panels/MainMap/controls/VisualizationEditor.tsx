@@ -27,7 +27,8 @@ import {
 } from '~/shared/imagery/colorAdjust';
 import { expressionAssets } from '~/shared/imagery/expressionAssets';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
-import { IconClose, IconReset, IconSliders, IconTrash } from '~/shared/ui/Icons';
+import { Tooltip } from '~/shared/ui/Tooltip';
+import { IconClose, IconQuestion, IconReset, IconSliders, IconTrash } from '~/shared/ui/Icons';
 import { SegmentedControl } from '~/shared/ui/SegmentedControl';
 import { handleError } from '~/shared/utils/errorHandler';
 import type { SliceAddress } from '../../../campaign/imageryNav';
@@ -194,6 +195,11 @@ function EditorCard({ target }: { target: Target }) {
   const [expressionText, setExpressionText] = useState(() =>
     String(patchedParams(target.base.params, stored)?.expression ?? '')
   );
+  // What each band mode last drew, so leaving one and coming back restores it
+  // instead of rebuilding it from whatever the other mode left behind.
+  const byMode = useRef<
+    Partial<Record<BandMode, { patch: VisualizationPatch; expression: string }>>
+  >({});
   const [confirming, setConfirming] = useState(false);
   const [saving, setSaving] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -273,7 +279,14 @@ function EditorCard({ target }: { target: Target }) {
   };
 
   const switchMode = (next: BandMode) => {
+    byMode.current[mode] = { patch: draft, expression: expressionText };
     setMode(next);
+    const kept = byMode.current[next];
+    if (kept) {
+      setExpressionText(kept.expression);
+      replace(kept.patch);
+      return;
+    }
     if (next === 'index') {
       const preset = presets.find((p) => p.expression);
       if (expressionText.trim()) setExpression(expressionText);
@@ -438,7 +451,7 @@ function EditorCard({ target }: { target: Target }) {
       <div className="flex-1 space-y-3 overflow-y-auto px-3 py-2.5">
         <section className="space-y-1.5">
           <div className="flex items-center gap-2">
-            <SectionHeading>{t('vizEditor.bands')}</SectionHeading>
+            <SectionHeading help={t('vizEditor.help.bands')}>{t('vizEditor.bands')}</SectionHeading>
             <SegmentedControl<BandMode>
               aria-label={t('vizEditor.bands')}
               data-testid="viz-editor-mode"
@@ -509,7 +522,9 @@ function EditorCard({ target }: { target: Target }) {
 
         {mode !== 'rgb' && (
           <section className="space-y-1.5">
-            <SectionHeading>{t('vizEditor.colormap')}</SectionHeading>
+            <SectionHeading help={t('vizEditor.help.colormap')}>
+              {t('vizEditor.colormap')}
+            </SectionHeading>
             <div
               className="grid grid-cols-3 gap-1"
               role="radiogroup"
@@ -540,7 +555,7 @@ function EditorCard({ target }: { target: Target }) {
         )}
 
         <section className="space-y-1.5">
-          <SectionHeading>{t('vizEditor.colour')}</SectionHeading>
+          <SectionHeading help={t('vizEditor.help.colour')}>{t('vizEditor.colour')}</SectionHeading>
           <Slider
             label={t('vizEditor.gamma')}
             testId="viz-editor-gamma"
@@ -571,8 +586,9 @@ function EditorCard({ target }: { target: Target }) {
         </section>
 
         <details className="group">
-          <summary className="cursor-pointer select-none text-[11px] font-medium uppercase tracking-wider text-neutral-500 hover:text-neutral-700">
+          <summary className="flex cursor-pointer select-none items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-neutral-500 hover:text-neutral-700">
             {t('vizEditor.advanced')}
+            <Help text={t('vizEditor.help.advanced')} />
           </summary>
           <div className="mt-2 space-y-2">
             <Row label={t('vizEditor.resampling')}>
@@ -614,6 +630,7 @@ function EditorCard({ target }: { target: Target }) {
           title={t('vizEditor.resetTitle')}
           disabled={!edited}
           onClick={() => {
+            byMode.current = {};
             replace({});
             setMode(modeOf(target.base.params));
             setExpressionText((target.base.params.expression as string | undefined) ?? '');
@@ -699,10 +716,17 @@ function IconButton({
   );
 }
 
-const SectionHeading = ({ children }: { children: ReactNode }) => (
-  <div className="text-[11px] font-medium uppercase tracking-wider text-neutral-500">
+const SectionHeading = ({ children, help }: { children: ReactNode; help?: string }) => (
+  <div className="flex shrink-0 items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-neutral-500">
     {children}
+    {help && <Help text={help} />}
   </div>
+);
+
+const Help = ({ text }: { text: string }) => (
+  <Tooltip text={text} className="normal-case tracking-normal">
+    <IconQuestion className="h-3 w-3 text-neutral-400 hover:text-neutral-600" />
+  </Tooltip>
 );
 
 const Row = ({ label, children }: { label: string; children: ReactNode }) => (
@@ -773,7 +797,7 @@ function RangeControl({
 
   return (
     <section className="space-y-1.5">
-      <SectionHeading>{t('vizEditor.range')}</SectionHeading>
+      <SectionHeading help={t('vizEditor.help.range')}>{t('vizEditor.range')}</SectionHeading>
       {([0, 1] as const).map((index) => (
         <div key={index} className="flex items-center gap-2">
           <span className="w-8 shrink-0 text-[11px] text-neutral-500">

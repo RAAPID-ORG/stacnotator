@@ -291,6 +291,13 @@
     "conflict": "Conflicto"
   },
   "vizEditor": {
+    "help": {
+      "bands": "RGB dibuja tres bandas como rojo, verde y azul. En Sentinel-2, B04 B03 B02 es color natural y B08 B04 B03 muestra la vegetación en rojo. Banda única dibuja una banda con un mapa de colores. Índice calcula un valor por píxel a partir de bandas, por ejemplo NDVI: (B08-B04)/(B08+B04).",
+      "range": "Los valores que se estiran de más oscuro a más claro: los píxeles por debajo del mínimo se dibujan en negro y por encima del máximo en blanco. La reflectancia de Sentinel-2 suele estar entre 0 y 3000, y el NDVI entre -1 y 1. Estrecha el rango para ver detalle en zonas oscuras o claras.",
+      "colormap": "Los colores con que se dibuja una banda o un índice, del mínimo al máximo del rango. Viridis sirve para la mayoría de valores continuos; RdYlGn para índices de vegetación como el NDVI.",
+      "colour": "Gamma aclara los tonos medios por encima de 1 y los oscurece por debajo. Contraste acentúa el cambio en torno al centro. Saturación intensifica los colores por encima de 1 y los apaga por debajo. Estos controles escriben la fórmula de color, por ejemplo: gamma RGB 1.5 sigmoidal RGB 10 0.35 saturation 1.2.",
+      "advanced": "El remuestreo decide cómo se mezclan los píxeles al acercarte: nearest los mantiene nítidos y bilinear los suaviza. Nodata es el valor de píxel que se dibuja vacío, por ejemplo 0. La fórmula de color admite operaciones de rio-color, por ejemplo: gamma RGB 3.2 saturation 0.8 sigmoidal RGB 25 0.35."
+    },
     "newName": "Mi visualización",
     "toggle": "Ajustar visualización",
     "title": "Ajustar visualización",

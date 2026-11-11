@@ -288,6 +288,13 @@
     "conflict": "Conflict"
   },
   "vizEditor": {
+    "help": {
+      "bands": "RGB draws three bands as red, green and blue. For Sentinel-2, B04 B03 B02 is natural colour and B08 B04 B03 shows vegetation in red. Single band draws one band through a colormap. Index computes a value per pixel from bands, for example NDVI: (B08-B04)/(B08+B04).",
+      "range": "The values stretched from darkest to brightest: pixels below Min are drawn black and above Max white. Sentinel-2 reflectance usually sits between 0 and 3000, and NDVI between -1 and 1. Narrow the range to bring out detail in dark or bright areas.",
+      "colormap": "The colours a single band or index is drawn in, from Min to Max of the range. Viridis suits most continuous values; RdYlGn suits vegetation indices such as NDVI.",
+      "colour": "Gamma brightens the mid-tones above 1 and darkens them below 1. Contrast steepens the change around the middle. Saturation makes colours stronger above 1 and greyer below 1. These sliders write the color formula, for example: gamma RGB 1.5 sigmoidal RGB 10 0.35 saturation 1.2.",
+      "advanced": "Resampling decides how pixels blend when you zoom in: nearest keeps them sharp, bilinear smooths them. Nodata is the pixel value drawn as empty, for example 0. The color formula takes rio-color operations, for example: gamma RGB 3.2 saturation 0.8 sigmoidal RGB 25 0.35."
+    },
     "newName": "My visualization",
     "toggle": "Adjust visualization",
     "title": "Adjust visualization",
