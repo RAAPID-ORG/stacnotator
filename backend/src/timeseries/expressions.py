@@ -141,6 +141,25 @@ def _evaluate(node: ast.expr, bands: Bands) -> Any:
     raise AssertionError(f"unchecked node {ast.dump(node)}")
 
 
+def _reads_band(node: ast.expr) -> bool:
+    return any(isinstance(n, ast.Name) and _is_role(n.id) for n in ast.walk(node))
+
+
+def _check_constants(body: ast.expr) -> None:
+    """Parts without a band are computed in plain Python wherever the formula runs
+    (Earth Engine and the rendered formula alike), so one that fails or leaves the
+    real numbers, like 1 / 0, sqrt(-1) or exp(1000), is refused here."""
+    for node in ast.walk(body):
+        if not isinstance(node, ast.expr) or isinstance(node, ast.Name) or _reads_band(node):
+            continue
+        try:
+            value = _evaluate(node, {})
+        except (ArithmeticError, ValueError) as exc:
+            raise ExpressionError(f"'{ast.unparse(node)}' cannot be computed") from exc
+        if not isinstance(value, float) or not math.isfinite(value):
+            raise ExpressionError(f"'{ast.unparse(node)}' is not a finite number")
+
+
 def compile_expression(expression: str) -> tuple[tuple[BandRole, ...], Formula]:
     """The band roles an expression reads and the formula it computes. Raises
     ExpressionError for anything outside the grammar."""
@@ -157,6 +176,7 @@ def compile_expression(expression: str) -> tuple[tuple[BandRole, ...], Formula]:
     _check(body, roles)
     if not roles:
         raise ExpressionError("The expression must read at least one band")
+    _check_constants(body)
     return tuple(roles), lambda bands: _evaluate(body, bands)
 
 

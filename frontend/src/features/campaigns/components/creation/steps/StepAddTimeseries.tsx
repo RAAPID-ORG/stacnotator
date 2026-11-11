@@ -93,6 +93,9 @@ export const StepAddTimeseries = ({
   const [editingGroup, setEditingGroup] = useState<{ original: string; name: string } | null>(null);
   const [renameError, setRenameError] = useState('');
   const [renaming, setRenaming] = useState(false);
+  // The step holds still while an index is written, so the series list it then
+  // updates is the one on screen.
+  const [savingIndex, setSavingIndex] = useState(false);
   // The new series whose custom index is being defined (editing: null) or edited.
   const [defining, setDefining] = useState<{ index: number; editing: string | null } | null>(null);
 
@@ -146,17 +149,22 @@ export const StepAddTimeseries = ({
     original: string | null,
     described: CustomIndexOut
   ) => {
-    await onSaveCustomIndex(body, original, described);
-    setDefining(null);
-    if (original === null) {
-      updateItem(index, { ts_type: described.key });
-    } else if (original !== described.key) {
-      setItems(
-        items.map((series) =>
-          series.ts_type === original ? { ...series, ts_type: described.key } : series
-        )
-      );
+    setSavingIndex(true);
+    try {
+      await onSaveCustomIndex(body, original, described);
+    } finally {
+      setSavingIndex(false);
     }
+    setDefining(null);
+    // New series follow a rename, and drop an index their source can no longer compute.
+    setItems(
+      items.map((series, i) => {
+        if (original === null) return i === index ? { ...series, ts_type: described.key } : series;
+        if (series.ts_type !== original) return series;
+        const fits = described.source_keys.includes(series.data_source);
+        return { ...series, ts_type: fits ? described.key : '' };
+      })
+    );
   };
 
   const addGroup = () => {
@@ -379,6 +387,8 @@ export const StepAddTimeseries = ({
         {definingHere ? (
           <CustomIndexForm
             bands={source?.bands ?? []}
+            sourceKey={i.data_source}
+            sourceLabel={source?.label ?? i.data_source}
             editing={editingCustom}
             takenNames={customIndices
               .map((custom) => custom.key)
@@ -430,7 +440,7 @@ export const StepAddTimeseries = ({
   };
 
   return (
-    <fieldset className="space-y-5 min-w-0" disabled={renaming || saving}>
+    <fieldset className="space-y-5 min-w-0" disabled={renaming || saving || savingIndex}>
       <div>
         <h3 className="section-heading">{t('timeseriesStep.title')}</h3>
         <p className="section-description">{t('timeseriesStep.description')}</p>

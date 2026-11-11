@@ -52,9 +52,13 @@ def add_timeseries(
             select(TimeseriesWindow).where(TimeseriesWindow.campaign_id == campaign_id)
         )
     }
+    # Locked so a rename or delete of an index waits until these series are
+    # committed, and then sees them.
     custom = {
         row.name: row.spectral_index
-        for row in db.scalars(select(CustomIndex).where(CustomIndex.campaign_id == campaign_id))
+        for row in db.scalars(
+            select(CustomIndex).where(CustomIndex.campaign_id == campaign_id).with_for_update()
+        )
     }
     new_items = []
     for ts in ts_creates:
@@ -151,7 +155,9 @@ def delete_timeseries(timeseries_id: int, campaign_id: int, db: Session) -> None
 
 def _custom_index_row(db: Session, campaign_id: int, name: str) -> CustomIndex:
     row = db.scalar(
-        select(CustomIndex).where(CustomIndex.campaign_id == campaign_id, CustomIndex.name == name)
+        select(CustomIndex)
+        .where(CustomIndex.campaign_id == campaign_id, CustomIndex.name == name)
+        .with_for_update()
     )
     if row is None:
         raise HTTPException(status_code=404, detail=f"Custom index {name} not found")

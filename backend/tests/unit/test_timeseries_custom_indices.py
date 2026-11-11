@@ -261,3 +261,18 @@ class TestSeriesIndex:
         custom = _draft().spectral_index
         assert _series_index("MODIS", "NDVI", {}).key == "NDVI"
         assert _series_index("MODIS", "MyIdx", {"MyIdx": custom}) is custom
+
+
+@pytest.mark.parametrize(
+    "expression",
+    ["nir + 1 / 0", "nir + sqrt(-1)", "nir + exp(1000)", "nir + log(0)", "nir * (-1) ** 0.5"],
+)
+def test_constant_parts_that_cannot_be_computed_are_refused(expression):
+    # They would otherwise save and then fail every time the index is rendered or run.
+    with pytest.raises(ExpressionError):
+        compile_expression(expression)
+
+
+def test_a_negative_constant_base_keeps_its_brackets():
+    index = custom_index("Neg", "(-2) ** (nir > 0.3)", (0.0, 1.0), ())
+    assert render_formula(index) == "(-2) ** (NIR > 0.3)"

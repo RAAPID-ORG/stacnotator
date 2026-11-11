@@ -572,7 +572,8 @@
     "add": "Add index",
     "referenceLines": "Reference lines",
     "previewHint": "The formula is checked as you type.",
-    "delete": "Delete {{name}}"
+    "delete": "Delete {{name}}",
+    "notOnSource": "{{source}} does not have the bands this formula reads."
   },
   "startAnnotating": "Start annotating",
   "savingOverlay": "Saving...",

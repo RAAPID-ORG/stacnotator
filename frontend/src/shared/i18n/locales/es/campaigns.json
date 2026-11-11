@@ -601,7 +601,8 @@
     "add": "Añadir índice",
     "referenceLines": "Líneas de referencia",
     "previewHint": "La fórmula se comprueba mientras escribes.",
-    "delete": "Eliminar {{name}}"
+    "delete": "Eliminar {{name}}",
+    "notOnSource": "{{source}} no tiene las bandas que lee esta fórmula."
   },
   "startAnnotating": "Empezar a anotar",
   "savingOverlay": "Guardando...",

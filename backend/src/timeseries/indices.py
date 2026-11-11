@@ -173,7 +173,10 @@ class _Term:
 
     @staticmethod
     def _of(value: Any) -> "_Term":
-        return value if isinstance(value, _Term) else _Term(f"{value:g}", _ATOM)
+        if isinstance(value, _Term):
+            return value
+        # A negative constant binds like unary minus: (-2) ** x is not -2 ** x.
+        return _Term(f"{value:g}", _UNARY if value < 0 else _ATOM)
 
     def _combine(self, other: Any, operator: str, precedence: int) -> "_Term":
         right = _Term._of(other)

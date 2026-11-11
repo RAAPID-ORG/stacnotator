@@ -433,4 +433,21 @@ describe('Panel-first timeseries setup', () => {
     expect(within(group).getByText('NIR / RedEdge')).toBeTruthy();
     expect(within(group).queryByText('NIR / RedEdge - 1')).toBeNull();
   });
+
+  it('will not give a series an index its source cannot compute', async () => {
+    preview(redEdge);
+    await openEditor();
+    await userEvent.click(screen.getByRole('button', { name: 'Add series' }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Data source' }), 'landsat');
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: 'Index' }),
+      '+ Custom index...'
+    );
+    await userEvent.type(screen.getByRole('textbox', { name: 'Index name' }), 'CIre');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Formula' }), 'nir / rededge1 - 1');
+    expect(
+      await screen.findByText('Landsat does not have the bands this formula reads.')
+    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Add index' })).toHaveProperty('disabled', true);
+  });
 });

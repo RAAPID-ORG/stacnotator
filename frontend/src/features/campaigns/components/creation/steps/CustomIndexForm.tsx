@@ -60,6 +60,8 @@ const Caption = ({ children }: { children: ReactNode }) => (
  */
 export const CustomIndexForm = ({
   bands,
+  sourceKey,
+  sourceLabel,
   editing,
   takenNames,
   canDelete,
@@ -69,6 +71,9 @@ export const CustomIndexForm = ({
 }: {
   /** The band roles the series' source offers. */
   bands: string[];
+  /** The series' source; an index it cannot compute is not offered for saving. */
+  sourceKey: string;
+  sourceLabel: string;
   /** The index being edited, or null for a new one. */
   editing: CustomIndexOut | null;
   takenNames: string[];
@@ -101,14 +106,19 @@ export const CustomIndexForm = ({
     return () => clearTimeout(timer);
   }, [body, mutate, reset]);
 
-  const described = preview.isSuccess && !duplicate ? preview.data : null;
+  // A preview counts only for the draft it was asked for, not one typed since.
+  const current = preview.isSuccess && preview.variables?.body === body ? preview.data : null;
+  const fitsSource = !current || current.source_keys.includes(sourceKey);
+  const described = current && !duplicate && fitsSource ? current : null;
   const error = duplicate
     ? t('customIndices.duplicate')
     : !body
       ? t('customIndices.badNumber')
       : preview.isError
         ? extractErrorMessage(preview.error)
-        : null;
+        : !fitsSource
+          ? t('customIndices.notOnSource', { source: sourceLabel })
+          : null;
 
   const save = async () => {
     if (!body || !described) return;
