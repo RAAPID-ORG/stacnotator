@@ -4,6 +4,7 @@ them, who holds one, and importing them."""
 import io
 import zipfile
 from datetime import datetime
+from typing import Annotated
 
 from fastapi import (
     APIRouter,
@@ -12,6 +13,7 @@ from fastapi import (
     Form,
     HTTPException,
     Query,
+    Response,
     UploadFile,
 )
 from fastapi.responses import StreamingResponse
@@ -26,7 +28,7 @@ from src.campaigns.dependencies import require_campaign_access, require_campaign
 from src.campaigns.models import Campaign
 from src.database import get_db
 from src.routing import attachment_headers
-from src.tasks import assignments, claims, embeddings, ingest, service, task_sets
+from src.tasks import assignments, claims, embeddings, ingest, service, summary, task_sets
 from src.tasks.schemas import (
     AssignReviewersRequest,
     AssignTasksToUsersRequest,
@@ -43,10 +45,14 @@ from src.tasks.schemas import (
     TaskSetCreate,
     TaskSetOut,
     TaskSetRename,
+    TaskSummaryOut,
     UnassignTasksRequest,
     ValidateLabelSubmissionsResponse,
 )
 from src.tasks.task_sets import require_task_set
+
+# Details serve the tasks one view shows at a time (the current one, a table page).
+MAX_TASK_DETAILS = 200
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
@@ -91,6 +97,36 @@ def list_task_changes(
         else []
     )
     return TaskChangesOut(server_time=now, tasks=tasks)
+
+
+@router.get("/tasks/summary", response_model=TaskSummaryOut)
+def get_task_summary(
+    campaign_id: int,
+    since: datetime | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
+    campaign: Campaign = Depends(require_campaign_access),
+) -> Response:
+    """Every task of the campaign as a columnar summary, or with ``since`` only the
+    tasks changed since that cursor, so a page keeps one list current without
+    reloading it. Built by Postgres and passed through as it comes."""
+    task_ids = None if since is None else service.get_changed_task_ids(db, campaign.id, since)
+    body = summary.task_summary_json(db, campaign, task_ids, with_email=user.is_platform_admin)
+    return Response(content=body, media_type="application/json")
+
+
+@router.get("/tasks/details", response_model=TaskListOut)
+def get_task_details(
+    campaign_id: int,
+    ids: Annotated[list[int], Query(max_length=MAX_TASK_DETAILS)],
+    db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
+    campaign: Campaign = Depends(require_campaign_access),
+) -> TaskListOut:
+    """Everything about a few tasks, including what the summary leaves out: geometry,
+    form values, slice notes and the imagery each answer was given on."""
+    tasks = service.read_tasks(db, campaign, ids, with_email=user.is_platform_admin)
+    return TaskListOut(campaign_id=campaign.id, tasks=tasks)
 
 
 @router.post(

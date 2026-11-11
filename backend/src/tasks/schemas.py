@@ -12,7 +12,7 @@ from pydantic import (
     field_validator,
 )
 
-from src.annotation.constants import AssignmentStatus, TaskStatus
+from src.annotation.constants import AssignmentStatus, TaskOutcome, TaskStatus
 from src.annotation.schemas import AnnotationFromTaskOut
 
 
@@ -50,6 +50,69 @@ class TaskOut(BaseModel):
 class TaskListOut(BaseModel):
     campaign_id: int
     tasks: list[TaskOut]
+
+
+# The task summary is columnar: one array per field, row i of every array in a group
+# describing the same item, and people referred to by their position in `users`. A
+# campaign can hold tens of thousands of tasks, and per-row objects repeated every key
+# and user id - most of what the response weighed.
+
+
+class TaskSummaryUsers(BaseModel):
+    id: list[UUID]
+    display_name: list[str]
+    # Platform admins only.
+    email: list[str | None]
+
+
+class TaskSummaryTasks(BaseModel):
+    id: list[int]
+    annotation_number: list[int]
+    task_set_id: list[int]
+    task_status: list[TaskStatus]
+    claimed_by: list[int | None]
+    claimed_at: list[datetime | None]
+    # The task geometry's centroid, to six decimals.
+    lon: list[float]
+    lat: list[float]
+    nearby_annotation_count: list[int]
+    drawn_by: list[list[int]]
+
+
+class TaskSummaryAssignments(BaseModel):
+    task: list[int]
+    user: list[int]
+    status: list[AssignmentStatus]
+
+
+class TaskSummaryAnswers(BaseModel):
+    """Each task row, without what only one task's view shows (its form values, slice
+    notes and imagery): `GET /tasks/details` has those."""
+
+    id: list[int]
+    task: list[int]
+    user: list[int]
+    label_id: list[int | None]
+    outcome: list[TaskOutcome]
+    confidence: list[int | None]
+    flagged_for_review: list[bool]
+    active_seconds: list[int | None]
+    is_authoritative: list[bool]
+    counts_toward_completion: list[bool]
+    comment: list[str | None]
+    flag_comment: list[str | None]
+    # Form fields with a non-empty value, by field id.
+    answered_field_ids: list[list[str]]
+
+
+class TaskSummaryOut(BaseModel):
+    campaign_id: int
+    # The cursor for the next `since`.
+    server_time: datetime
+    users: TaskSummaryUsers
+    tasks: TaskSummaryTasks
+    assignments: TaskSummaryAssignments
+    answers: TaskSummaryAnswers
 
 
 class TaskStatusOut(BaseModel):
