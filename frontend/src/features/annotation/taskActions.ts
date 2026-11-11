@@ -3,14 +3,13 @@ import {
   annotateTask,
   deleteAnnotation,
   validateTaskLabel,
-  type TaskAssignmentOut,
-  type TaskOut,
   type TaskSubmitResponse,
 } from '~/api/client';
 import i18n from '~/shared/i18n';
 import { useLayoutStore as useGlobalLayoutStore } from '~/shared/stores/layout.store';
 import { extractErrorMessage, handleError } from '~/shared/utils/errorHandler';
 import type { TaskOutcome } from '~/shared/utils/taskStatus';
+import { taskRowAnswer, type TaskRow, type TaskRowAssignment } from '~/shared/utils/taskSummary';
 import { isAudienceMember, type PolicyContext } from '~/features/campaigns/utils/labellingPolicy';
 import {
   maySubmitTask,
@@ -19,9 +18,9 @@ import {
   type SubmitReadiness,
 } from './campaign/annotation';
 import { listNotes, type SliceComment } from './campaign/sliceComments';
-import { usesClaimPool } from './campaign/tasks';
+import { awaitingOwnAnswer, usesClaimPool } from './campaign/tasks';
 import { campaignState, formFields, useCampaignStore, viewedSliceId } from './stores/campaign';
-import { currentTask, useTasksStore } from './stores/tasks';
+import { currentTask, currentTaskDetails, useTasksStore } from './stores/tasks';
 import { usePrefsStore } from './stores/prefs';
 import { forgetTaskActiveMs, readTaskActiveMs } from './taskTiming';
 import { drewFor, useWorkStore } from './stores/work';
@@ -46,7 +45,7 @@ export interface TaskPolicy {
  * one that may be given at all. Fails open before anything is loaded; the
  * server stays the authority regardless.
  */
-export function taskLabellingPolicy(task: TaskOut | null): TaskPolicy {
+export function taskLabellingPolicy(task: TaskRow | null): TaskPolicy {
   const { campaign, currentUserId } = useCampaignStore.getState();
   const isAssignedToTask = task?.assignments.some((a) => a.user_id === currentUserId) ?? false;
   const policy = campaign?.settings.labelling_policy;
@@ -79,21 +78,21 @@ export function taskLabellingPolicy(task: TaskOut | null): TaskPolicy {
 type SubmitOutcome =
   | { kind: 'blocked'; missing: string[] }
   | { kind: 'needsConfirm' }
-  | { kind: 'submitted'; task: TaskOut }
-  | { kind: 'removed'; task: TaskOut }
+  | { kind: 'submitted'; task: TaskRow }
+  | { kind: 'removed'; task: TaskRow }
   | { kind: 'gone' }
   | { kind: 'error'; message: string };
 
 function withAssignmentStatus(
-  task: TaskOut,
+  task: TaskRow,
   currentUserId: string,
-  status: TaskAssignmentOut['status']
-): TaskAssignmentOut[] {
+  status: TaskRowAssignment['status']
+): TaskRowAssignment[] {
   return task.assignments.map((a) => (a.user_id === currentUserId ? { ...a, status } : a));
 }
 
 export interface SubmitParams {
-  task: TaskOut;
+  task: TaskRow;
   currentUserId: string;
   labelId: number | null;
   comment: string;
@@ -199,7 +198,7 @@ export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome
         ...task,
         annotations: [
           ...task.annotations.filter((a) => a.created_by_user_id !== currentUserId),
-          result.annotation,
+          taskRowAnswer(result.annotation),
         ],
         assignments: withAssignmentStatus(task, currentUserId, result.assignment_status),
         task_status: result.task_status,
@@ -217,6 +216,9 @@ export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome
 const alert = (message: string, kind: 'error' | 'success') =>
   useGlobalLayoutStore.getState().showAlert(message, kind);
 
+const ownAnswerPending = () =>
+  awaitingOwnAnswer(currentTask(), currentTaskDetails(), useCampaignStore.getState().currentUserId);
+
 /** The Submit button's own enabled state, read off the live stores so the
  *  keyboard path can never diverge from it. */
 function currentSubmitReadiness(): SubmitReadiness {
@@ -227,7 +229,7 @@ function currentSubmitReadiness(): SubmitReadiness {
     selectedLabelId: useWorkStore.getState().selectedLabelId,
     hasExistingLabel: mine?.label_id != null,
     mayLabel: taskLabellingPolicy(task).mayLabel,
-    isSubmitting: useTasksStore.getState().isSubmitting,
+    isSubmitting: useTasksStore.getState().isSubmitting || ownAnswerPending(),
   };
 }
 
@@ -386,6 +388,7 @@ export const submitAuthoritative = () => submitWith(true);
 /** Submits with no label, clearing any label of ours. Stores a label-less
  *  annotation, which is the record that this user looked and moved on. */
 export async function skipCurrent(): Promise<void> {
+  if (ownAnswerPending()) return;
   if (!taskLabellingPolicy(currentTask()).mayLabel) {
     alert(t('taskActions.notAllowed'), 'error');
     return;
@@ -410,6 +413,7 @@ export async function skipCurrent(): Promise<void> {
  *  map (the server checks there is at least one), `none_found` when there was
  *  nothing to draw. */
 export async function finishDrawTask(outcome: 'drawn' | 'none_found'): Promise<void> {
+  if (ownAnswerPending()) return;
   const { draft, drawnShapes } = useWorkStore.getState();
   if ((draft.phase === 'draft' || draft.phase === 'committing') && draft.savedId === null) {
     alert(t('taskActions.finishDraftFirst'), 'error');

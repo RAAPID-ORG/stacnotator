@@ -10,7 +10,9 @@ import {
   makeClaimTaskResponse,
   makeTask,
   makeTaskAnnotation,
+  makeTaskSummary,
 } from '~/features/annotation/testing/fixtures';
+import { taskRowFromTaskOut } from '~/shared/utils/taskSummary';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { useCampaignStore } from '../../stores/campaign';
 import { useWorkStore } from '../../stores/work';
@@ -19,7 +21,13 @@ import { useTasksStore } from '../../stores/tasks';
 
 vi.mock('~/api/client', async () => {
   const actual = await vi.importActual<typeof import('~/api/client')>('~/api/client');
-  return { ...actual, claimTask: vi.fn(), annotateTask: vi.fn(), listTaskChanges: vi.fn() };
+  return {
+    ...actual,
+    claimTask: vi.fn(),
+    annotateTask: vi.fn(),
+    getTaskSummary: vi.fn(),
+    getTaskDetails: vi.fn(),
+  };
 });
 
 const FILTER = {
@@ -42,7 +50,15 @@ function seed(campaign: CampaignOutFull, tasks: TaskOut[]): void {
     isMobile: false,
     currentUserId: 'u1',
   });
-  useTasksStore.getState().initialize({ tasks, taskSets: [], filter: FILTER, now: 0, catalog });
+  useTasksStore.getState().initialize({
+    tasks: tasks.map(taskRowFromTaskOut),
+    taskSets: [],
+    syncCursor: null,
+    filter: FILTER,
+    now: 0,
+    catalog,
+  });
+  useTasksStore.setState({ currentDetails: tasks[0] ?? null });
 }
 
 // No assignments (unassigned_tasks gates it) and someone else's annotation
@@ -56,6 +72,7 @@ const NOT_ALLOWED_TASK: TaskOut = makeTask({
 
 const alerts: string[] = [];
 beforeEach(() => {
+  vi.mocked(api.getTaskDetails).mockResolvedValue(apiSuccess({ campaign_id: 1, tasks: [] }));
   alerts.length = 0;
   useLayoutStore.setState({ showAlert: (message) => alerts.push(message) });
 });
@@ -160,8 +177,11 @@ describe('TaskControls live sync', () => {
       task_status: 'done',
       annotations: [makeTaskAnnotation({ id: 30, created_by_user_id: 'someone-else' })],
     };
-    vi.mocked(api.listTaskChanges).mockResolvedValue(
-      apiSuccess({ server_time: '2024-01-01T00:00:05Z', tasks: [answered] })
+    vi.mocked(api.getTaskSummary).mockResolvedValue(
+      apiSuccess(makeTaskSummary([taskRowFromTaskOut(answered)], '2024-01-01T00:00:05Z'))
+    );
+    vi.mocked(api.getTaskDetails).mockResolvedValue(
+      apiSuccess({ campaign_id: 1, tasks: [answered] })
     );
     seed(OPEN_POLICY, [OPEN_TASK]);
     render(<TaskControls />);

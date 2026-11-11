@@ -249,3 +249,11 @@ def test_only_the_asked_tasks_and_no_emails_unless_admin(varied_campaign):
     assert set(member_view.users.email) == {None}
     assert all(admin_view.users.email)
     assert all(member_view.users.display_name)
+
+
+def test_details_can_be_the_first_few_tasks(varied_campaign):
+    db, campaign = varied_campaign
+
+    first = service.read_tasks(db, campaign, with_email=False, first=3)
+
+    assert [t.annotation_number for t in first] == [1, 2, 3]

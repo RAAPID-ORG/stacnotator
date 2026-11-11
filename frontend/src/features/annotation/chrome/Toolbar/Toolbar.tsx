@@ -1,6 +1,7 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { CampaignOutFull, ImageryViewOut, TaskOut, TaskSetOut } from '~/api/client';
+import type { CampaignOutFull, ImageryViewOut, TaskSetOut } from '~/api/client';
+import type { TaskRow } from '~/shared/utils/taskSummary';
 import { useDismissOnOutside } from '~/shared/hooks/useDismissOnOutside';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Dropdown } from '~/shared/ui/motion';
@@ -28,7 +29,7 @@ import { TaskFilterPanel } from './TaskFilterPanel';
 
 export interface ToolbarProps {
   campaign: CampaignOutFull;
-  tasks: TaskOut[];
+  tasks: TaskRow[];
   taskSets: TaskSetOut[];
   taskFilter: TaskFilter;
   onTaskFilterChange: (patch: Partial<TaskFilter>) => void;

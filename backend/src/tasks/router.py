@@ -20,7 +20,6 @@ from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
-from src.annotation import spatial
 from src.annotation.tiles import InvalidBBoxError, parse_bbox
 from src.auth.dependencies import require_authenticated_user
 from src.auth.models import User
@@ -39,7 +38,6 @@ from src.tasks.schemas import (
     ImportTaskAssignmentsResult,
     MoveTasksToSetRequest,
     MoveTasksToSetResult,
-    TaskChangesOut,
     TaskDensityCell,
     TaskListOut,
     TaskSetCreate,
@@ -62,43 +60,6 @@ router = APIRouter(
 )
 
 
-@router.get("/tasks", response_model=TaskListOut)
-def list_tasks(
-    campaign_id: int,
-    db: Session = Depends(get_db),
-    user: User = Depends(require_authenticated_user),
-    campaign: Campaign = Depends(require_campaign_access),
-):
-    tasks = service.read_tasks(db, campaign, with_email=user.is_platform_admin)
-    return TaskListOut(campaign_id=campaign.id, tasks=tasks)
-
-
-@router.get(
-    "/tasks/changes",
-    response_model=TaskChangesOut,
-)
-def list_task_changes(
-    campaign_id: int,
-    since: datetime | None = None,
-    db: Session = Depends(get_db),
-    user: User = Depends(require_authenticated_user),
-    campaign: Campaign = Depends(require_campaign_access),
-) -> TaskChangesOut:
-    """Tasks changed since ``since``, so one annotator's list reflects
-    everyone's work and the admins' edits without reloading it. Without ``since``
-    it only hands back the cursor, like the annotation changes poll."""
-    now = spatial.server_now(db)
-    if since is None:
-        return TaskChangesOut(server_time=now, tasks=[])
-    task_ids = service.get_changed_task_ids(db, campaign.id, since)
-    tasks = (
-        service.read_tasks(db, campaign, task_ids, with_email=user.is_platform_admin)
-        if task_ids
-        else []
-    )
-    return TaskChangesOut(server_time=now, tasks=tasks)
-
-
 @router.get("/tasks/summary", response_model=TaskSummaryOut)
 def get_task_summary(
     campaign_id: int,
@@ -118,14 +79,18 @@ def get_task_summary(
 @router.get("/tasks/details", response_model=TaskListOut)
 def get_task_details(
     campaign_id: int,
-    ids: Annotated[list[int], Query(max_length=MAX_TASK_DETAILS)],
+    ids: Annotated[list[int] | None, Query(max_length=MAX_TASK_DETAILS)] = None,
+    first: Annotated[int | None, Query(ge=1, le=MAX_TASK_DETAILS)] = None,
     db: Session = Depends(get_db),
     user: User = Depends(require_authenticated_user),
     campaign: Campaign = Depends(require_campaign_access),
 ) -> TaskListOut:
     """Everything about a few tasks, including what the summary leaves out: geometry,
-    form values, slice notes and the imagery each answer was given on."""
-    tasks = service.read_tasks(db, campaign, ids, with_email=user.is_platform_admin)
+    form values, slice notes and the imagery each answer was given on. The tasks are
+    either ``ids`` or the ``first`` few in annotation order."""
+    if (ids is None) == (first is None):
+        raise HTTPException(status_code=422, detail="Give either ids or first")
+    tasks = service.read_tasks(db, campaign, ids, with_email=user.is_platform_admin, first=first)
     return TaskListOut(campaign_id=campaign.id, tasks=tasks)
 
 

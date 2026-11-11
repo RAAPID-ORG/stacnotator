@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { pageKeymap } from './keymap';
 import { useCampaignStore } from './stores/campaign';
 import { useTasksStore } from './stores/tasks';
-import { makeCampaign, makeTask } from './testing/fixtures';
+import { makeCampaign, makeTaskRow } from './testing/fixtures';
 import { seedCampaign } from './testing/seed';
 
 const done = () => pageKeymap().find((b) => b.key === 'shift+enter');
@@ -11,7 +11,7 @@ function seed(taskOutput: 'draw' | 'classify') {
   const campaign = makeCampaign({ id: 5 });
   campaign.settings.task_output = taskOutput;
   seedCampaign(campaign);
-  const task = makeTask({ id: 1 });
+  const task = makeTaskRow({ id: 1 });
   useCampaignStore.setState({ workMode: 'tasks' });
   useTasksStore.setState({
     allTasks: [task],

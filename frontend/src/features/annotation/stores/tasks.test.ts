@@ -1,13 +1,16 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import type { TaskOut } from '~/api/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getTaskDetails, type TaskOut } from '~/api/client';
+import { taskRowFromTaskOut, type TaskRow } from '~/shared/utils/taskSummary';
 import { buildImageryCatalog } from '../campaign/imagery';
 import { computeTaskProgress } from '../campaign/tasks';
 import {
+  apiSuccess,
   makeCampaign,
   makeCollection,
   makeSlice,
   makeSource,
   makeTask,
+  makeTaskRowAnswer,
   makeView,
   makeViz,
 } from '~/features/annotation/testing/fixtures';
@@ -15,7 +18,12 @@ import { useCampaignStore } from '../stores/campaign';
 import { useImageryStore } from '../stores/imagery';
 import { usePrefsStore } from '../stores/prefs';
 import { useWorkStore } from './work';
-import { useTasksStore } from './tasks';
+import { currentTaskDetails, useTasksStore } from './tasks';
+
+vi.mock('~/api/client', async (importActual) => ({
+  ...(await importActual<typeof import('~/api/client')>()),
+  getTaskDetails: vi.fn(),
+}));
 
 const CAMPAIGN = makeCampaign({
   imagery_sources: [
@@ -38,26 +46,52 @@ const FILTER = {
   taskSetId: null,
 };
 
-function task(id: number, annotationNumber: number, lon: number, lat: number): TaskOut {
-  return makeTask({
-    id,
-    annotation_number: annotationNumber,
-    geometry_wkt: `POINT (${lon} ${lat})`,
-  });
+/** What `getTaskDetails` answers with, by task id. */
+const DETAILS = new Map<number, TaskOut>();
+
+function task(
+  id: number,
+  annotationNumber: number,
+  lon: number,
+  lat: number,
+  geometryWkt = `POINT (${lon} ${lat})`
+): TaskRow {
+  const details = makeTask({ id, annotation_number: annotationNumber, geometry_wkt: geometryWkt });
+  DETAILS.set(id, details);
+  return taskRowFromTaskOut(details);
 }
+
+const detailsOf = (row: TaskRow): TaskOut => {
+  const details = DETAILS.get(row.id);
+  if (!details) throw new Error(`no details for task ${row.id}`);
+  return details;
+};
+
+const detailsArrived = () => vi.waitFor(() => expect(currentTaskDetails()).not.toBeNull());
 
 const TASK_A = task(1, 1, 0, 0);
 const TASK_B = task(2, 2, 10, 10);
 
-function initialize(tasks: TaskOut[], catalog = CATALOG): void {
+function initialize(tasks: TaskRow[], catalog = CATALOG): void {
   useTasksStore.getState().initialize({
     tasks,
     taskSets: [],
+    syncCursor: null,
     filter: FILTER,
     now: 0,
     catalog,
   });
 }
+
+beforeEach(() => {
+  vi.mocked(getTaskDetails).mockReset();
+  vi.mocked(getTaskDetails).mockImplementation(async ({ query }) =>
+    apiSuccess({
+      campaign_id: CAMPAIGN.id,
+      tasks: (query?.ids ?? []).flatMap((id) => DETAILS.get(id) ?? []),
+    })
+  );
+});
 
 afterEach(() => {
   useTasksStore.getState().reset();
@@ -82,22 +116,29 @@ describe('task session KNN validation toggle', () => {
 });
 
 describe('task session map focus', () => {
-  it('uses the task polygon for time series, but not a point task sample extent', () => {
-    useCampaignStore.setState({
-      campaign: makeCampaign({
-        settings: { ...makeCampaign().settings, sample_extent_meters: 100 },
-      }),
-    });
-    const polygonTask = {
-      ...TASK_B,
-      geometry_wkt:
-        'POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0), (0.5 0.5, 0.5 1.5, 1.5 1.5, 1.5 0.5, 0.5 0.5))',
-    };
-    initialize([TASK_A, polygonTask]);
-    const first = useTasksStore.getState().focus!;
-    expect(first.extent?.geometry.type).toBe('Polygon');
-    expect(first.timeseriesLocation).toEqual({ lat: 0, lon: 0 });
-    expect(first.upcomingTimeseriesLocations[0]).toMatchObject({
+  it('centres on the summary at once and takes the polygon for time series once details arrive', async () => {
+    useCampaignStore.setState({ campaign: CAMPAIGN });
+    const polygonTask = task(
+      5,
+      5,
+      1,
+      1,
+      'POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0), (0.5 0.5, 0.5 1.5, 1.5 1.5, 1.5 0.5, 0.5 0.5))'
+    );
+    initialize([polygonTask, TASK_B]);
+
+    const before = useTasksStore.getState().focus!;
+    expect(before.center).toEqual([1, 1]);
+    expect(before.extent).toBeNull();
+    expect(before.timeseriesLocation).toBeNull();
+    expect(before.upcomingTimeseriesLocations).toEqual([]);
+
+    await detailsArrived();
+    const after = useTasksStore.getState().focus!;
+    expect(after.center).toEqual([1, 1]);
+    expect(after.upcomingTimeseriesLocations).toEqual([{ lat: 10, lon: 10 }]);
+    expect(after.extent?.geometry.type).toBe('Polygon');
+    expect(after.timeseriesLocation).toMatchObject({
       type: 'Polygon',
       coordinates: expect.arrayContaining([
         [
@@ -109,10 +150,17 @@ describe('task session map focus', () => {
         ],
       ]),
     });
+  });
+
+  it('locates a point task where it was prefetched as an upcoming one', async () => {
+    useCampaignStore.setState({ campaign: CAMPAIGN });
+    initialize([TASK_A, TASK_B]);
+    await detailsArrived();
+    const upcoming = useTasksStore.getState().focus!.upcomingTimeseriesLocations[0];
+
     useTasksStore.getState().next(CATALOG);
-    expect(useTasksStore.getState().focus?.timeseriesLocation).toEqual(
-      first.upcomingTimeseriesLocations[0]
-    );
+
+    expect(useTasksStore.getState().focus?.timeseriesLocation).toEqual(upcoming);
   });
 
   it('next() and previous() push the new current task location into shared/mapFocus', () => {
@@ -263,14 +311,15 @@ describe('task session map focus', () => {
 });
 
 describe('task session sample extent', () => {
-  it('outlines nothing around a point task when the campaign configures no extent', () => {
+  it('outlines nothing around a point task when the campaign configures no extent', async () => {
     useCampaignStore.setState({ campaign: CAMPAIGN });
     initialize([TASK_A]);
+    await detailsArrived();
 
     expect(useTasksStore.getState().focus?.extent).toBeNull();
   });
 
-  it("draws the campaign's sample extent as a square around a point task", () => {
+  it("draws the campaign's sample extent as a square around a point task", async () => {
     useCampaignStore.setState({
       campaign: makeCampaign({
         ...CAMPAIGN,
@@ -278,6 +327,7 @@ describe('task session sample extent', () => {
       }),
     });
     initialize([TASK_A]);
+    await detailsArrived();
 
     const geometry = useTasksStore.getState().focus?.extent?.geometry;
     expect(geometry?.type).toBe('Polygon');
@@ -290,20 +340,15 @@ describe('task session sample extent', () => {
     expect(ring[2][1]).toBeCloseTo(0.00449, 5);
   });
 
-  it('outlines a footprint task with its own geometry, extent setting or not', () => {
+  it('outlines a footprint task with its own geometry, extent setting or not', async () => {
     useCampaignStore.setState({
       campaign: makeCampaign({
         ...CAMPAIGN,
         settings: { ...CAMPAIGN.settings, sample_extent_meters: 1000 },
       }),
     });
-    initialize([
-      makeTask({
-        id: 9,
-        annotation_number: 9,
-        geometry_wkt: 'POLYGON ((0 0, 0 1, 1 1, 1 0, 0 0))',
-      }),
-    ]);
+    initialize([task(9, 9, 0.5, 0.5, 'POLYGON ((0 0, 0 1, 1 1, 1 0, 0 0))')]);
+    await detailsArrived();
 
     expect(useTasksStore.getState().focus?.extent?.geometry).toEqual({
       type: 'Polygon',
@@ -357,7 +402,7 @@ describe('the session trail', () => {
     const s = useTasksStore.getState();
     return s.visibleTasks[s.currentIndex]?.id;
   };
-  const done = (t: TaskOut): TaskOut => ({ ...t, task_status: 'done' });
+  const done = (t: TaskRow): TaskRow => ({ ...t, task_status: 'done' });
 
   afterEach(() => useTasksStore.getState().reset());
 
@@ -367,7 +412,7 @@ describe('the session trail', () => {
     const store = useTasksStore.getState();
     store.replaceTask(done(TASK_A), CATALOG);
     // The pool hands out B and re-filters; A is done and drops out.
-    store.adoptTask(TASK_B, CATALOG);
+    store.adoptTask(detailsOf(TASK_B), CATALOG);
     expect(useTasksStore.getState().visibleTasks.map((t) => t.id)).toEqual([2, 3]);
 
     useTasksStore.getState().previous(CATALOG);
@@ -413,6 +458,7 @@ describe('the session trail', () => {
     useTasksStore.getState().initialize({
       tasks: [TASK_A, TASK_B, TASK_C],
       taskSets: [],
+      syncCursor: null,
       filter: FILTER,
       now: 0,
       catalog: CATALOG,
@@ -441,5 +487,71 @@ describe('the session trail', () => {
     useTasksStore.getState().previous(CATALOG);
     expect(current()).toBe(3);
     expect(useTasksStore.getState().visibleTasks.map((t) => t.id)).toEqual([3]);
+  });
+});
+
+describe('the current task details', () => {
+  beforeEach(() => useCampaignStore.setState({ campaign: CAMPAIGN }));
+
+  it('ignores a response that a newer request for the same task has overtaken', async () => {
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const stale = { ...detailsOf(TASK_A), annotations: [] };
+    vi.mocked(getTaskDetails).mockImplementationOnce(async () => {
+      await held;
+      return apiSuccess({ campaign_id: CAMPAIGN.id, tasks: [stale] });
+    });
+    initialize([TASK_A, TASK_B]);
+    const answered = {
+      ...TASK_A,
+      annotations: [makeTaskRowAnswer({ id: 30, created_by_user_id: 'u2' })],
+    };
+    useTasksStore.getState().mergeTasks([answered], CATALOG);
+    await detailsArrived();
+
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(currentTaskDetails()).toBe(detailsOf(TASK_A));
+  });
+
+  it('has the next task ready from the prefetch, without asking again', async () => {
+    initialize([TASK_A, TASK_B]);
+    await detailsArrived();
+    const fetches = vi.mocked(getTaskDetails).mock.calls.length;
+
+    useTasksStore.getState().next(CATALOG);
+
+    expect(currentTaskDetails()).toBe(detailsOf(TASK_B));
+    expect(vi.mocked(getTaskDetails).mock.calls.length).toBe(fetches);
+  });
+
+  it('fetches them again when a merge changes the answers, not when a claim changes hands', async () => {
+    initialize([TASK_A, TASK_B]);
+    await detailsArrived();
+    const fetches = () => vi.mocked(getTaskDetails).mock.calls.length;
+    const before = fetches();
+
+    useTasksStore.getState().mergeTasks([{ ...TASK_A, claimed_by_user_id: 'u2' }], CATALOG);
+    expect(fetches()).toBe(before);
+
+    const answered = {
+      ...TASK_A,
+      annotations: [makeTaskRowAnswer({ id: 30, created_by_user_id: 'u2' })],
+    };
+    useTasksStore.getState().mergeTasks([answered], CATALOG);
+    expect(fetches()).toBe(before + 1);
+  });
+
+  it('takes a claimed task as its own details without asking for them', () => {
+    initialize([TASK_A]);
+    const fetches = vi.mocked(getTaskDetails).mock.calls.length;
+
+    useTasksStore.getState().adoptTask(detailsOf(TASK_B), CATALOG);
+
+    expect(currentTaskDetails()).toBe(detailsOf(TASK_B));
+    expect(vi.mocked(getTaskDetails).mock.calls.length).toBe(fetches);
   });
 });

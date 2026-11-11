@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { TaskAssignmentOut, TaskOut } from '~/api/client';
+import type { TaskRow, TaskRowAssignment } from '~/shared/utils/taskSummary';
 import {
   applyTaskFilter,
   computeTaskProgress,
@@ -9,9 +9,9 @@ import {
   type TaskFilter,
 } from './tasks';
 import { UNASSIGNED, UNLABELLED } from './tasks';
-import { makeTask, makeTaskAnnotation, makeTaskSet } from '../testing/fixtures';
+import { makeTaskRow, makeTaskRowAnswer, makeTaskSet } from '../testing/fixtures';
 
-type TaskStatus = TaskOut['task_status'];
+type TaskStatus = TaskRow['task_status'];
 
 // applyTaskFilter takes `now` explicitly - domain logic never reads
 // Date.now()/Math.random() - so every call below passes NOW.
@@ -21,8 +21,11 @@ const OTHER = 'user-2';
 const NOW = 1_700_000_000_000;
 const fresh = () => new Date(NOW - 60_000).toISOString(); // 1 min ago: an active claim
 
-const task = (id: number, assignments: TaskAssignmentOut[], task_status: TaskStatus = 'pending') =>
-  makeTask({ id, task_status, assignments });
+const task = (
+  id: number,
+  assignments: Pick<TaskRowAssignment, 'user_id' | 'status'>[],
+  task_status: TaskStatus = 'pending'
+) => makeTaskRow({ id, task_status, assignments });
 
 /** A claim is a lease on the task, never an assignment row. */
 const claimedTask = (
@@ -30,7 +33,7 @@ const claimedTask = (
   by: string,
   at: string = fresh(),
   task_status: TaskStatus = 'pending'
-) => makeTask({ id, task_status, assignments: [], claimed_by_user_id: by, claimed_at: at });
+) => makeTaskRow({ id, task_status, assignments: [], claimed_by_user_id: by, claimed_at: at });
 
 const mineFilter: TaskFilter = {
   assignedTo: [USER],
@@ -85,10 +88,10 @@ describe('applyTaskFilter - claims vs assignments', () => {
 
   it('shows answered unassigned tasks under Done and Skipped, whoever answered or holds them', () => {
     const answered = (id: number, status: TaskStatus, by: string) =>
-      makeTask({
+      makeTaskRow({
         id,
         task_status: status,
-        annotations: [makeTaskAnnotation({ created_by_user_id: by })],
+        annotations: [makeTaskRowAnswer({ created_by_user_id: by })],
         claimed_by_user_id: by,
         claimed_at: fresh(),
       });
@@ -105,7 +108,7 @@ describe('applyTaskFilter - claims vs assignments', () => {
 });
 
 describe('applyTaskFilter - task sets', () => {
-  const inSet = (id: number, task_set_id: number) => makeTask({ id, task_set_id });
+  const inSet = (id: number, task_set_id: number) => makeTaskRow({ id, task_set_id });
 
   const allFilter: TaskFilter = {
     assignedTo: [],
@@ -130,14 +133,14 @@ describe('applyTaskFilter - task sets', () => {
   });
 
   it('set filter composes with status filter', () => {
-    const tasks = [inSet(1, 10), makeTask({ id: 2, task_set_id: 10, task_status: 'done' })];
+    const tasks = [inSet(1, 10), makeTaskRow({ id: 2, task_set_id: 10, task_status: 'done' })];
     const filter = { ...allFilter, taskSetId: 10 };
     expect(applyTaskFilter(tasks, filter, null, NOW).visibleTasks.map((t) => t.id)).toEqual([1]);
   });
 });
 
 describe('applyTaskFilter - preferTaskId', () => {
-  const plain = (id: number) => makeTask({ id });
+  const plain = (id: number) => makeTaskRow({ id });
 
   const allFilter: TaskFilter = {
     assignedTo: [],
@@ -161,11 +164,11 @@ describe('applyTaskFilter - preferTaskId', () => {
 
 describe('applyTaskFilter - labels', () => {
   const done = (id: number, labelIds: Array<number | null>) =>
-    makeTask({
+    makeTaskRow({
       id,
       task_status: 'done',
       annotations: labelIds.map((label_id, i) =>
-        makeTaskAnnotation({ id: id * 10 + i, label_id, created_by_user_id: `u${i}` })
+        makeTaskRowAnswer({ id: id * 10 + i, label_id, created_by_user_id: `u${i}` })
       ),
     });
 
@@ -200,7 +203,7 @@ describe('applyTaskFilter - labels', () => {
   });
 
   it('drops a task with no annotations at all', () => {
-    const tasks = [makeTask({ id: 1, task_status: 'done', annotations: [] })];
+    const tasks = [makeTaskRow({ id: 1, task_status: 'done', annotations: [] })];
     expect(applyTaskFilter(tasks, labelFilter([7]), USER, NOW).visibleTasks).toEqual([]);
   });
 
@@ -214,7 +217,7 @@ describe('applyTaskFilter - labels', () => {
   it('narrows within the status filter rather than widening it', () => {
     const tasks = [
       done(1, [7]),
-      makeTask({ id: 2, annotations: [makeTaskAnnotation({ label_id: 7 })] }),
+      makeTaskRow({ id: 2, annotations: [makeTaskRowAnswer({ label_id: 7 })] }),
     ];
     expect(
       applyTaskFilter(tasks, labelFilter([7]), USER, NOW).visibleTasks.map((t) => t.id)
@@ -223,8 +226,10 @@ describe('applyTaskFilter - labels', () => {
 });
 
 describe('computeTaskProgress', () => {
-  const progressTask = (task_status: TaskStatus, assignments: TaskAssignmentOut[]) =>
-    makeTask({ id: 0, task_status, assignments });
+  const progressTask = (
+    task_status: TaskStatus,
+    assignments: Pick<TaskRowAssignment, 'user_id' | 'status'>[]
+  ) => makeTaskRow({ id: 0, task_status, assignments });
 
   describe('unscoped (no assignedTo filter)', () => {
     it('counts all tasks and task-level resolution', () => {
@@ -322,8 +327,11 @@ describe('computeTaskProgress', () => {
 // so the chain lands exactly on the level under test (prior levels are empty
 // by construction).
 describe('seedFilter - 5-level fallback chain', () => {
-  const pendingTask = (id: number, assignments: TaskAssignmentOut[] = [], task_set_id = 1) =>
-    makeTask({ id, task_set_id, assignments });
+  const pendingTask = (
+    id: number,
+    assignments: Pick<TaskRowAssignment, 'user_id' | 'status'>[] = [],
+    task_set_id = 1
+  ) => makeTaskRow({ id, task_set_id, assignments });
 
   const taskSets = [makeTaskSet({ id: 10, name: 'Set A' })];
 
@@ -366,8 +374,8 @@ describe('seedFilter - 5-level fallback chain', () => {
     // Neither task is claimable or the user's, so levels 1 and 2 are empty;
     // one is still unresolved, so the set is worth opening on every status.
     const tasks = [
-      makeTask({ id: 2, task_set_id: 10, task_status: 'done' }),
-      makeTask({
+      makeTaskRow({ id: 2, task_set_id: 10, task_status: 'done' }),
+      makeTaskRow({
         id: 3,
         task_set_id: 10,
         task_status: 'partial',
@@ -390,8 +398,8 @@ describe('seedFilter - 5-level fallback chain', () => {
     // the set on its finished tasks; staying empty raises the done gate, still
     // scoped to the set so review can pick it up.
     const doneTasks = [
-      makeTask({ id: 2, task_set_id: 10, task_status: 'done' }),
-      makeTask({ id: 3, task_set_id: 10, task_status: 'skipped' }),
+      makeTaskRow({ id: 2, task_set_id: 10, task_status: 'done' }),
+      makeTaskRow({ id: 3, task_set_id: 10, task_status: 'skipped' }),
     ];
     const filter = seedFilter(doneTasks, taskSets, USER, NOW, { taskSetId: 10 });
     expect(filter).toEqual({
@@ -445,7 +453,7 @@ describe('seedFilter - 5-level fallback chain', () => {
 });
 
 describe('widenFilterForTask', () => {
-  const visible = (tasks: TaskOut[], filter: TaskFilter) =>
+  const visible = (tasks: TaskRow[], filter: TaskFilter) =>
     applyTaskFilter(tasks, filter, USER, NOW).visibleTasks.map((t) => t.id);
 
   it('leaves a filter that already shows the task untouched', () => {

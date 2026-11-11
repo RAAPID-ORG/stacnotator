@@ -8,6 +8,7 @@ import {
   TASK_3,
   TASK_4,
 } from './fixtures/mock-data';
+import { routeTaskList } from './fixtures/task-summary';
 import { waitForMinimapCenter } from './fixtures/imagery-helpers';
 
 const controls = (page: Page) => page.locator('[data-tour="controls"]');
@@ -16,11 +17,7 @@ const annotate = '/projects/7/campaigns/42/annotate';
 test('a task link opens the task when the viewer has nothing left to answer', async ({
   annotationPage,
 }) => {
-  await annotationPage.route('**/api/campaigns/*/tasks', (route) =>
-    route.request().method() === 'GET'
-      ? route.fulfill({ json: { tasks: [TASK_3, TASK_4] } })
-      : route.fallback()
-  );
+  await routeTaskList(annotationPage, () => ({ campaign_id: 42, tasks: [TASK_3, TASK_4] }));
   await annotationPage.goto(`${annotate}?task=${TASK_3.id}&review=true`);
 
   await expect(annotationPage.getByTestId('review-list')).toBeVisible({ timeout: 15_000 });

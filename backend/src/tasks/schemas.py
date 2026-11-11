@@ -169,14 +169,6 @@ class TaskDensityCell(BaseModel):
     count: int
 
 
-class TaskChangesOut(BaseModel):
-    """Tasks that changed since a cursor, re-read whole, and the cursor for the
-    next poll. Same clock as :class:`AnnotationChangesOut`."""
-
-    server_time: datetime
-    tasks: list[TaskOut]
-
-
 class ValidateLabelSubmissionsResponse(BaseModel):
     """Result of a KNN-based label validation check.
 

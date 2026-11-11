@@ -1,6 +1,7 @@
 import { test, expect, waitForNavIdle } from './fixtures/annotator-fixture';
 import { isTileHost } from './fixtures/imagery-helpers';
 import { MOCK_CAMPAIGN, MOCK_TASK_LIST } from './fixtures/mock-data';
+import { routeTaskList } from './fixtures/task-summary';
 
 const PIXEL =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQABNjN9GQAAAAlJRXRFWHRkYXRl' +
@@ -114,23 +115,19 @@ test('all visible imagery panels start loading a newly selected task together', 
   // The default pending filter only contains tasks 1 and 2. Make all five
   // visible, so task 5 is outside the three-task look-ahead cache and remains
   // a genuinely cold random jump.
-  await annotationPage.route('**/api/campaigns/*/tasks', async (route) => {
-    await route.fulfill({
-      json: {
-        ...MOCK_TASK_LIST,
-        tasks: MOCK_TASK_LIST.tasks.map((task, index) => ({
-          ...task,
-          task_status: 'pending',
-          assignments: task.assignments.map((assignment) => ({
-            ...assignment,
-            status: 'pending',
-          })),
-          annotations: [],
-          geometry_wkt: index === 4 ? 'POINT(100 0)' : task.geometry_wkt,
-        })),
-      },
-    });
-  });
+  await routeTaskList(annotationPage, () => ({
+    ...MOCK_TASK_LIST,
+    tasks: MOCK_TASK_LIST.tasks.map((task, index) => ({
+      ...task,
+      task_status: 'pending',
+      assignments: task.assignments.map((assignment) => ({
+        ...assignment,
+        status: 'pending',
+      })),
+      annotations: [],
+      geometry_wkt: index === 4 ? 'POINT(100 0)' : task.geometry_wkt,
+    })),
+  }));
   await annotationPage.route('**/api/campaigns/*/detailed', async (route) => {
     await route.fulfill({ json: MANY_PANEL_CAMPAIGN });
   });

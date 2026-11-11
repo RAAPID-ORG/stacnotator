@@ -166,13 +166,12 @@ def task_summary_json(
     with_email: bool,
 ) -> bytes:
     """The TaskSummaryOut of a campaign's tasks, or of ``task_ids`` only, as JSON."""
-    authors = list(
-        db.scalars(
-            select(Annotation.created_by_user_id)
-            .where(Annotation.campaign_id == campaign.id, Annotation.task_id.is_not(None))
-            .distinct()
-        )
+    authored = select(Annotation.created_by_user_id).where(
+        Annotation.campaign_id == campaign.id, Annotation.task_id.is_not(None)
     )
+    if task_ids is not None:
+        authored = authored.where(Annotation.task_id.in_(list(task_ids)))
+    authors = list(db.scalars(authored.distinct()))
     completion = completion_by_author(db, campaign, authors)
     # The planner cannot see through the CTEs and estimates far more rows than there
     # are, which makes JIT compilation look worth it: it cost more than the query.

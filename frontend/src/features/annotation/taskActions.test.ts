@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { makeCampaign } from './testing/fixtures';
+import { makeCampaign, makeTaskRow } from './testing/fixtures';
 import { seedCampaign } from './testing/seed';
 import * as api from '~/api/client';
 import type {
   AnnotationFromTaskOut,
-  TaskOut,
   TaskSubmitResponse,
   TaskStatusOut,
   ValidateLabelSubmissionsResponse,
 } from '~/api/client';
+import { taskRowAnswer, type TaskRow } from '~/shared/utils/taskSummary';
 import type { FormField } from './campaign/annotation';
 import { submitCurrent, type SubmitParams } from './taskActions';
 
@@ -58,15 +58,7 @@ const deleted = () =>
 const validated = (status: ValidateLabelSubmissionsResponse['status']) =>
   envelope<ValidateLabelSubmissionsResponse>({ status });
 
-const TASK: TaskOut = {
-  id: 1,
-  annotation_number: 1,
-  task_set_id: 1,
-  task_status: 'pending',
-  geometry_wkt: 'POINT(0 0)',
-  annotations: [],
-  assignments: [{ user_id: 'u1', status: 'pending' }],
-};
+const TASK: TaskRow = makeTaskRow({ assignments: [{ user_id: 'u1', status: 'pending' }] });
 
 const BASE_PARAMS: SubmitParams = {
   task: TASK,
@@ -132,8 +124,8 @@ describe('submitCurrent', () => {
     expect(outcome.kind).toBe('submitted');
     if (outcome.kind !== 'submitted') throw new Error('expected submitted');
     expect(outcome.task.task_status).toBe('done');
-    expect(outcome.task.annotations).toEqual([newAnnotation]);
-    expect(outcome.task.assignments).toEqual([{ user_id: 'u1', status: 'done' }]);
+    expect(outcome.task.annotations).toEqual([taskRowAnswer(newAnnotation)]);
+    expect(outcome.task.assignments).toMatchObject([{ user_id: 'u1', status: 'done' }]);
   });
 
   it('a skip (no label, no existing annotation) still goes through annotateTask and submits', async () => {
@@ -164,9 +156,9 @@ describe('submitCurrent', () => {
   });
 
   it('removes the label via deleteAnnotation when clearing an existing label with no comment', async () => {
-    const taskWithAnnotation: TaskOut = {
+    const taskWithAnnotation: TaskRow = {
       ...TASK,
-      annotations: [annotation({ id: 7 })],
+      annotations: [taskRowAnswer(annotation({ id: 7 }))],
     };
     vi.mocked(api.deleteAnnotation).mockResolvedValue(deleted());
 
@@ -184,9 +176,9 @@ describe('submitCurrent', () => {
   });
 
   it('removing a label that carries a comment still deletes it rather than skipping', async () => {
-    const taskWithAnnotation: TaskOut = {
+    const taskWithAnnotation: TaskRow = {
       ...TASK,
-      annotations: [annotation({ id: 7, comment: 'cloudy' })],
+      annotations: [taskRowAnswer(annotation({ id: 7, comment: 'cloudy' }))],
     };
     vi.mocked(api.deleteAnnotation).mockResolvedValue(deleted());
 
@@ -202,9 +194,9 @@ describe('submitCurrent', () => {
   });
 
   it('skipping a task you already labelled records the skip instead of deleting it', async () => {
-    const taskWithAnnotation: TaskOut = {
+    const taskWithAnnotation: TaskRow = {
       ...TASK,
-      annotations: [annotation({ id: 7 })],
+      annotations: [taskRowAnswer(annotation({ id: 7 }))],
     };
     vi.mocked(api.annotateTask).mockResolvedValue(
       submitted({

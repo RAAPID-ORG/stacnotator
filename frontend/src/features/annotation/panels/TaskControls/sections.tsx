@@ -5,8 +5,9 @@ import { useLayoutStore as useAppLayoutStore } from '~/shared/stores/layout.stor
 import { isRemovingLabel, maySubmitTask } from '../../campaign/annotation';
 import { FormFields } from '../../components/FormFields';
 import { useCampaign, useCampaignStore, useCatalog } from '../../stores/campaign';
-import type { TaskOut } from '~/api/client';
-import { useTasksStore } from '../../stores/tasks';
+import type { TaskRow } from '~/shared/utils/taskSummary';
+import { awaitingOwnAnswer } from '../../campaign/tasks';
+import { useCurrentTaskDetails, useTasksStore } from '../../stores/tasks';
 import { drewFor, useWorkStore } from '../../stores/work';
 import {
   DEFAULT_CONFIDENCE,
@@ -140,7 +141,7 @@ export function ConfidenceSection() {
 /** Pinned under the scrolling sections, so submitting and moving on stay in
  *  reach however many fields a campaign asks for. The point navigation wraps
  *  onto a line of its own when the panel is too narrow for one row. */
-export function ActionBar({ task }: { task: TaskOut }) {
+export function ActionBar({ task }: { task: TaskRow }) {
   const { t } = useTranslation(['panels', 'common', 'annotation']);
   const campaign = useCampaign();
   const catalog = useCatalog();
@@ -163,11 +164,17 @@ export function ActionBar({ task }: { task: TaskOut }) {
     task.annotations.find((a) => a.created_by_user_id === currentUserId)?.label_id != null;
   const { mayLabel, countsTowardCompletion, isAssignedToTask } = taskLabellingPolicy(task);
   const taskHasAssignments = task.assignments.length > 0;
-  const readiness = { selectedLabelId, hasExistingLabel, mayLabel, isSubmitting: isBusy };
+  const answerPending = awaitingOwnAnswer(task, useCurrentTaskDetails(), currentUserId);
+  const readiness = {
+    selectedLabelId,
+    hasExistingLabel,
+    mayLabel,
+    isSubmitting: isBusy || answerPending,
+  };
   const isSubmitDisabled = !maySubmitTask(readiness);
   // Skipping is labelling with no label, so it is gated the same way. Keying
   // it on assignment would put it out of reach on the whole unassigned pool.
-  const isSkipDisabled = isBusy || !mayLabel;
+  const isSkipDisabled = isBusy || answerPending || !mayLabel;
   const drewHere = drewFor(
     task,
     currentUserId,

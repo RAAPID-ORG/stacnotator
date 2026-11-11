@@ -6,6 +6,7 @@ import {
   TASK_1,
   TASK_2,
 } from './fixtures/mock-data';
+import { routeTaskList } from './fixtures/task-summary';
 import { clickMapAt, clickMapCenter, drawPolygon, waitForCreate } from './fixtures/imagery-helpers';
 
 type Page = import('@playwright/test').Page;
@@ -75,17 +76,13 @@ test('polygon tasks and prefetch use full geometry rather than a centroid or sam
   await page.route('**/api/campaigns/*/detailed', (route) =>
     route.fulfill({ json: MOCK_CAMPAIGN_WITH_TIMESERIES })
   );
-  await page.route('**/api/campaigns/*/tasks', (route) =>
-    route.fulfill({
-      json: {
-        ...MOCK_TASK_LIST,
-        tasks: [
-          { ...TASK_1, geometry_wkt: `POLYGON (${wktRings})` },
-          { ...TASK_2, geometry_wkt: `MULTIPOLYGON ((${wktRings}))` },
-        ],
-      },
-    })
-  );
+  await routeTaskList(page, () => ({
+    ...MOCK_TASK_LIST,
+    tasks: [
+      { ...TASK_1, geometry_wkt: `POLYGON (${wktRings})` },
+      { ...TASK_2, geometry_wkt: `MULTIPOLYGON ((${wktRings}))` },
+    ],
+  }));
   await page.reload();
   await expect(page.getByText('Polygons: mean index of clear pixels')).toBeVisible();
   await expect.poll(() => requests.length).toBe(2);

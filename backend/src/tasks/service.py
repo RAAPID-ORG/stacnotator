@@ -194,9 +194,11 @@ def read_tasks(
     task_ids: Collection[int] | None = None,
     *,
     with_email: bool,
+    first: int | None = None,
 ) -> list[TaskOut]:
     """A campaign's tasks as the API returns them, in annotation order; only
-    ``task_ids`` when given. Emails only ``with_email`` (platform admins).
+    ``task_ids`` when given, only the ``first`` few when given. Emails only
+    ``with_email`` (platform admins).
 
     Read as flat rows rather than an ORM tree, since a campaign can hold tens of
     thousands of tasks: Postgres joins in the names and flags, and Python only runs the
@@ -205,6 +207,8 @@ def read_tasks(
     scope = select(Task.id).where(Task.campaign_id == campaign.id)
     if task_ids is not None:
         scope = scope.where(Task.id.in_(list(task_ids)))
+    if first is not None:
+        scope = scope.order_by(Task.annotation_number).limit(first)
 
     claimer = aliased(User)
     tasks = db.execute(

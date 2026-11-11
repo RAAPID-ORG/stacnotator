@@ -1,12 +1,13 @@
 import { create } from 'zustand';
+import { getTaskDetails, getTaskSummary, type TaskOut, type TaskSetOut } from '~/api/client';
 import {
-  listTaskChanges,
-  type AnnotationFromTaskOut,
-  type TaskOut,
-  type TaskSetOut,
-} from '~/api/client';
-import { geometryCentroid, squareAround, wktToGeometry } from '../campaign/annotation';
-import { geometryLocation, type TimeseriesLocation } from '../campaign/probes';
+  decodeTaskSummary,
+  taskRowFromTaskOut,
+  type TaskRow,
+  type TaskRowAnswer,
+} from '~/shared/utils/taskSummary';
+import { squareAround, wktToGeometry } from '../campaign/annotation';
+import { isZonalGeometry, probeLocation, type TimeseriesLocation } from '../campaign/probes';
 import type { ImageryCatalog } from '../campaign/imagery';
 import {
   applyTaskFilter,
@@ -34,7 +35,8 @@ export interface MapFocus {
   /** Centres the focus is about to move to, so panels that fetch per-point
    *  data can warm their caches without reaching into the task list. */
   upcoming: LonLat[];
-  timeseriesLocation: TimeseriesLocation;
+  /** Null until the current task's details bring its geometry. */
+  timeseriesLocation: TimeseriesLocation | null;
   upcomingTimeseriesLocations: TimeseriesLocation[];
 }
 
@@ -49,10 +51,16 @@ const EMPTY_FILTER: TaskFilter = {
 };
 
 export interface TasksState {
-  allTasks: TaskOut[];
+  allTasks: TaskRow[];
   taskSets: TaskSetOut[];
-  visibleTasks: TaskOut[];
+  visibleTasks: TaskRow[];
   currentIndex: number;
+  /** Everything about the current task the summary leaves out (geometry, form
+   *  values, slice notes). Read it through `currentTaskDetails`, which checks
+   *  it still belongs to the current task. */
+  currentDetails: TaskOut | null;
+  /** Details of the tasks prefetched after the current one, by id. */
+  upcomingDetails: Record<number, TaskOut>;
   filter: TaskFilter;
   loaded: boolean;
   isSubmitting: boolean;
@@ -74,8 +82,11 @@ export interface TasksState {
   answeredElsewhereId: number | null;
 
   initialize: (options: {
-    tasks: TaskOut[];
+    tasks: TaskRow[];
     taskSets: TaskSetOut[];
+    /** The summary's `server_time`, so the first poll picks up what was
+     *  written since the tasks were read. */
+    syncCursor: string | null;
     filter: TaskFilter;
     catalog: ImageryCatalog;
     now: number;
@@ -92,10 +103,10 @@ export interface TasksState {
   forward: (catalog: ImageryCatalog) => boolean;
   /** Back to the newest task on the trail. */
   latest: (catalog: ImageryCatalog) => void;
-  replaceTask: (updated: TaskOut, catalog: ImageryCatalog) => void;
+  replaceTask: (updated: TaskRow, catalog: ImageryCatalog) => void;
   /** Swap in newer copies of tasks without re-filtering, so work others
    *  finished counts toward progress without pulling the current task away. */
-  mergeTasks: (updated: TaskOut[], catalog: ImageryCatalog) => void;
+  mergeTasks: (updated: TaskRow[], catalog: ImageryCatalog) => void;
   /** Forget tasks deleted elsewhere. A deleted current task hands its place to
    *  the next one in the list. */
   removeTasks: (taskIds: number[], catalog: ImageryCatalog) => void;
@@ -108,10 +119,12 @@ export interface TasksState {
 }
 
 const initialState = {
-  allTasks: [] as TaskOut[],
+  allTasks: [] as TaskRow[],
   taskSets: [] as TaskSetOut[],
-  visibleTasks: [] as TaskOut[],
+  visibleTasks: [] as TaskRow[],
   currentIndex: 0,
+  currentDetails: null as TaskOut | null,
+  upcomingDetails: {} as Record<number, TaskOut>,
   filter: EMPTY_FILTER,
   loaded: false,
   isSubmitting: false,
@@ -124,6 +137,14 @@ const initialState = {
 };
 
 const currentOf = (state: TasksState) => state.visibleTasks[state.currentIndex] ?? null;
+
+const detailsOf = (state: TasksState): TaskOut | null => {
+  const task = currentOf(state);
+  return task && state.currentDetails?.id === task.id ? state.currentDetails : null;
+};
+
+const sameAnswers = (a: TaskRowAnswer[], b: TaskRowAnswer[]) =>
+  JSON.stringify(a) === JSON.stringify(b);
 
 const samePoints = (a: LonLat[], b: LonLat[]) =>
   a.length === b.length && a.every((p, i) => p[0] === b[i][0] && p[1] === b[i][1]);
@@ -161,24 +182,102 @@ function focusExtent(
   return { geometry: squareAround(center, sampleExtentMeters) };
 }
 
-function deriveFocus(state: TasksState, task: TaskOut | null, catalog: ImageryCatalog) {
+/** A point task is located by the summary's centroid rather than its own
+ *  coordinates, so it matches the key it was prefetched under as an upcoming
+ *  task. */
+const taskLocation = (geometry: GeoJSON.Geometry, center: LonLat): TimeseriesLocation =>
+  isZonalGeometry(geometry) ? geometry : probeLocation(center);
+
+/** The centre comes from the summary and never moves once the details arrive;
+ *  the outline and the time series location wait for the details' geometry. */
+function deriveFocus(state: TasksState, task: TaskRow | null, catalog: ImageryCatalog) {
   if (!task) return null;
-  const geometry = wktToGeometry(task.geometry_wkt);
+  const details = detailsOf(state);
+  const geometry = details ? wktToGeometry(details.geometry_wkt) : null;
   const sourceId = useImageryStore.getState().address?.sourceId ?? null;
   const hex = sourceId != null ? catalog.sources.get(sourceId)?.crosshair_hex6 : null;
   const settings = useCampaignStore.getState().campaign?.settings;
-  const center = geometryCentroid(geometry);
-  const upcoming = state.visibleTasks
-    .slice(state.currentIndex + 1, state.currentIndex + 1 + PREFETCH_AHEAD)
-    .map((t) => wktToGeometry(t.geometry_wkt));
+  const center: LonLat = [task.lon, task.lat];
+  const ahead = upcomingOf(state);
+  const upcoming = ahead.map((t): LonLat => [t.lon, t.lat]);
   return {
     center,
-    extent: focusExtent(geometry, center, settings?.sample_extent_meters ?? null),
+    extent: geometry ? focusExtent(geometry, center, settings?.sample_extent_meters ?? null) : null,
     crosshairColor: hex ? `#${hex}` : null,
-    upcoming: upcoming.map(geometryCentroid),
-    timeseriesLocation: geometryLocation(geometry),
-    upcomingTimeseriesLocations: upcoming.map(geometryLocation),
+    upcoming,
+    timeseriesLocation: geometry ? taskLocation(geometry, center) : null,
+    // Only tasks whose details are here: a polygon task's series is zonal, and
+    // guessing a point for it would prefetch one nobody is shown.
+    upcomingTimeseriesLocations: ahead.flatMap((t) => {
+      const upcomingDetails = state.upcomingDetails[t.id];
+      return upcomingDetails
+        ? [taskLocation(wktToGeometry(upcomingDetails.geometry_wkt), [t.lon, t.lat])]
+        : [];
+    }),
   };
+}
+
+function publishFocus(catalog: ImageryCatalog): void {
+  const state = useTasksStore.getState();
+  const focus = deriveFocus(state, currentOf(state), catalog);
+  if (!sameFocus(focus, state.focus)) useTasksStore.setState({ focus });
+}
+
+const upcomingOf = (state: TasksState) =>
+  state.visibleTasks.slice(state.currentIndex + 1, state.currentIndex + 1 + PREFETCH_AHEAD);
+
+/** The latest request asked for each task; an older response for it is stale. */
+const latestRequest = new Map<number, number>();
+let detailsSeq = 0;
+
+/** Fetch the details of ``taskIds`` in one request, for the current task and the
+ *  ones prefetched after it. */
+function loadDetails(taskIds: number[], catalog: ImageryCatalog): void {
+  const campaignId = useCampaignStore.getState().campaign?.id;
+  if (campaignId == null || taskIds.length === 0) return;
+  const seq = ++detailsSeq;
+  taskIds.forEach((id) => latestRequest.set(id, seq));
+  const settle = (tasks: TaskOut[]) => {
+    const fresh = tasks.filter((t) => latestRequest.get(t.id) === seq);
+    taskIds.forEach((id) => {
+      if (latestRequest.get(id) === seq) latestRequest.delete(id);
+    });
+    if (useCampaignStore.getState().campaign?.id !== campaignId) return;
+    const state = useTasksStore.getState();
+    const currentId = currentOf(state)?.id;
+    const ahead = new Set(upcomingOf(state).map((t) => t.id));
+    const upcomingDetails = Object.fromEntries(
+      Object.entries(state.upcomingDetails).filter(([id]) => ahead.has(Number(id)))
+    );
+    let currentDetails = state.currentDetails;
+    for (const task of fresh) {
+      if (task.id === currentId) currentDetails = task;
+      else if (ahead.has(task.id)) upcomingDetails[task.id] = task;
+    }
+    useTasksStore.setState({ currentDetails, upcomingDetails });
+    publishFocus(catalog);
+  };
+  getTaskDetails({ path: { campaign_id: campaignId }, query: { ids: taskIds } }).then(
+    ({ data }) => settle(data?.tasks ?? []),
+    // The next task poll asks again.
+    () => settle([])
+  );
+}
+
+/** Fetch whatever details of the current task and the next few are neither here
+ *  nor on their way; prefetched ones become current the moment their task does. */
+function ensureDetails(catalog: ImageryCatalog): void {
+  const state = useTasksStore.getState();
+  const task = currentOf(state);
+  if (!task) return;
+  const prefetched = state.upcomingDetails[task.id];
+  if (!detailsOf(state) && prefetched) useTasksStore.setState({ currentDetails: prefetched });
+  const now = useTasksStore.getState();
+  const missing = [task, ...upcomingOf(now)]
+    .map((t) => t.id)
+    .filter((id) => !latestRequest.has(id))
+    .filter((id) => (id === task.id ? !detailsOf(now) : !now.upcomingDetails[id]));
+  loadDetails(missing, catalog);
 }
 
 /** Put `taskId` in the visible list if the filter has dropped it since, at its
@@ -246,15 +345,19 @@ function publishSelection(catalog: ImageryCatalog): void {
 
   const visit = recordVisit(state);
   if (visit) useTasksStore.setState(visit);
+  if (state.currentDetails && state.currentDetails.id !== task?.id) {
+    useTasksStore.setState({ currentDetails: null });
+  }
 
-  const focus = deriveFocus(state, task, catalog);
-  if (!sameFocus(focus, state.focus)) useTasksStore.setState({ focus });
+  ensureDetails(catalog);
+  publishFocus(catalog);
 }
 
 export const useTasksStore = create<TasksState>((set, get) => ({
   ...initialState,
 
-  initialize: ({ tasks, taskSets, filter, catalog, now, preferTaskId }) => {
+  initialize: ({ tasks, taskSets, syncCursor, filter, catalog, now, preferTaskId }) => {
+    latestRequest.clear();
     const currentUserId = useCampaignStore.getState().currentUserId;
     const effective =
       preferTaskId != null
@@ -274,7 +377,9 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       currentIndex: suggestedIndex,
       filter: effective,
       loaded: true,
-      syncCursor: null,
+      currentDetails: null,
+      upcomingDetails: {},
+      syncCursor,
       history: [],
       historyPos: 0,
     });
@@ -333,12 +438,31 @@ export const useTasksStore = create<TasksState>((set, get) => ({
 
   mergeTasks: (updated, catalog) => {
     const byId = new Map(updated.map((task) => [task.id, task]));
-    const swap = (tasks: TaskOut[]) => tasks.map((task) => byId.get(task.id) ?? task);
+    const swap = (tasks: TaskRow[]) => tasks.map((task) => byId.get(task.id) ?? task);
+    const current = currentOf(get());
+    // Answers are the only part of the details a merge can make stale; a
+    // claim changing hands is already all in the row.
+    const before = new Map(get().allTasks.map((task) => [task.id, task]));
+    const answersChanged = new Set(
+      updated
+        .filter((task) => {
+          const old = before.get(task.id);
+          return old && !sameAnswers(old.annotations, task.annotations);
+        })
+        .map((task) => task.id)
+    );
     set((s) => {
       const known = new Set(s.allTasks.map((task) => task.id));
       const added = updated.filter((task) => !known.has(task.id));
-      return { allTasks: [...swap(s.allTasks), ...added], visibleTasks: swap(s.visibleTasks) };
+      return {
+        allTasks: [...swap(s.allTasks), ...added],
+        visibleTasks: swap(s.visibleTasks),
+        upcomingDetails: Object.fromEntries(
+          Object.entries(s.upcomingDetails).filter(([id]) => !answersChanged.has(Number(id)))
+        ),
+      };
     });
+    if (current && answersChanged.has(current.id)) loadDetails([current.id], catalog);
     publishSelection(catalog);
   },
 
@@ -361,21 +485,23 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   syncRemoteTasks: async () => {
     try {
       const { campaign, catalog } = campaignState();
-      const result = await listTaskChanges({
+      const result = await getTaskSummary({
         path: { campaign_id: campaign.id },
         query: { since: get().syncCursor },
       });
       const data = result.data;
       // The campaign can change under the request; its tasks are not this one's.
       if (!data || useCampaignStore.getState().campaign?.id !== campaign.id) return;
+      const tasks = decodeTaskSummary(data);
       const current = currentOf(get());
-      const fresh = data.tasks.find((task) => task.id === current?.id);
+      const fresh = tasks.find((task) => task.id === current?.id);
       const { currentUserId } = useCampaignStore.getState();
-      const isNew = (a: AnnotationFromTaskOut) =>
+      const isNew = (a: TaskRowAnswer) =>
         a.created_by_user_id !== currentUserId && !current?.annotations.some((b) => b.id === a.id);
       set({ syncCursor: data.server_time });
       if (fresh?.annotations.some(isNew)) set({ answeredElsewhereId: fresh.id });
-      if (data.tasks.length > 0) get().mergeTasks(data.tasks, catalog);
+      if (tasks.length > 0) get().mergeTasks(tasks, catalog);
+      ensureDetails(catalog);
     } catch {
       // A missed poll is picked up by the next one.
     }
@@ -383,13 +509,17 @@ export const useTasksStore = create<TasksState>((set, get) => ({
 
   adoptTask: (claimed, catalog) => {
     const { allTasks, filter } = get();
-    const known = allTasks.some((task) => task.id === claimed.id);
+    const known = allTasks.find((task) => task.id === claimed.id);
+    const fromClaim = taskRowFromTaskOut(claimed);
+    // The summary's centroid is the server's; keeping it stops the next poll
+    // from nudging the camera.
+    const row = known ? { ...fromClaim, lon: known.lon, lat: known.lat } : fromClaim;
     // Upsert, not replace: the server can hand back a task created after this
     // session loaded, and one somebody else was holding at load time was
     // filtered out of the visible list, so re-filtering is what surfaces it.
     const merged = known
-      ? allTasks.map((task) => (task.id === claimed.id ? claimed : task))
-      : [...allTasks, claimed];
+      ? allTasks.map((task) => (task.id === claimed.id ? row : task))
+      : [...allTasks, row];
     const currentUserId = useCampaignStore.getState().currentUserId;
     const { visibleTasks, suggestedIndex } = applyTaskFilter(
       merged,
@@ -398,18 +528,25 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       Date.now(),
       claimed.id
     );
-    set({ allTasks: merged, visibleTasks, currentIndex: suggestedIndex });
+    set({ allTasks: merged, visibleTasks, currentIndex: suggestedIndex, currentDetails: claimed });
     publishSelection(catalog);
   },
 
   setSubmitting: (isSubmitting) => set({ isSubmitting }),
   setKnnValidationEnabled: (knnValidationEnabled) => set({ knnValidationEnabled }),
-  reset: () => set(initialState),
+  reset: () => {
+    latestRequest.clear();
+    set(initialState);
+  },
 }));
 
-export const currentTask = (): TaskOut | null => currentOf(useTasksStore.getState());
+export const currentTask = (): TaskRow | null => currentOf(useTasksStore.getState());
+
+export const currentTaskDetails = (): TaskOut | null => detailsOf(useTasksStore.getState());
 
 export const useMapFocus = (): MapFocus | null => useTasksStore((s) => s.focus);
 
-export const useCurrentTask = (): TaskOut | null =>
-  useTasksStore((s) => s.visibleTasks[s.currentIndex] ?? null);
+export const useCurrentTask = (): TaskRow | null => useTasksStore(currentOf);
+
+/** The current task's details, null until they arrive. */
+export const useCurrentTaskDetails = (): TaskOut | null => useTasksStore(detailsOf);
