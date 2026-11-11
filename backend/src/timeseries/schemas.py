@@ -5,7 +5,6 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    computed_field,
     field_validator,
     model_validator,
 )
@@ -14,7 +13,14 @@ from shapely.geometry import LinearRing as ShapelyLinearRing
 from shapely.geometry import shape
 from shapely.validation import explain_validity
 
-from src.timeseries.indices import INDICES, INDICES_BY_KEY, SpectralIndex, index_for, render_formula
+from src.timeseries.expressions import (
+    BAND_ROLES,
+    MAX_EXPRESSION_LENGTH,
+    ExpressionError,
+    compile_expression,
+    custom_index,
+)
+from src.timeseries.indices import INDICES, SpectralIndex, render_formula
 from src.timeseries.sources import (
     SOURCES,
     TimeseriesSource,
@@ -70,6 +76,8 @@ class TimeseriesSourceOut(BaseModel):
     description: str
     coverage: str
     resolution_m: int
+    # The band roles a custom index may read from this source.
+    bands: list[str]
     # Which indices this source can actually compute, derived from its bands.
     index_keys: list[str]
 
@@ -92,8 +100,80 @@ def source_out(source: TimeseriesSource) -> TimeseriesSourceOut:
         description=source.description,
         coverage=source.coverage,
         resolution_m=source.scale_m,
+        bands=[role for role in BAND_ROLES if role in source.roles],
         index_keys=[index.key for index in indices_for_source(source)],
     )
+
+
+# ============================================================================
+# Custom indices
+# ============================================================================
+
+MAX_CUSTOM_INDICES = 20
+BUILT_IN_KEYS = frozenset(index.key.casefold() for index in INDICES)
+
+
+class CustomIndexIn(BaseModel):
+    """A custom index as an admin writes it. Its name is what series store in
+    ts_type, so it is short, URL-safe and never a built-in key."""
+
+    name: str = Field(pattern=r"^[A-Za-z][A-Za-z0-9_]{0,23}$")
+    expression: str = Field(min_length=1, max_length=MAX_EXPRESSION_LENGTH)
+    domain_min: float = Field(allow_inf_nan=False)
+    domain_max: float = Field(allow_inf_nan=False)
+    reference_lines: list[Annotated[float, Field(allow_inf_nan=False)]] = Field(
+        default_factory=list, max_length=4
+    )
+
+    @field_validator("name")
+    @classmethod
+    def not_a_built_in(cls, v: str) -> str:
+        if v.casefold() in BUILT_IN_KEYS:
+            raise ValueError(f"{v} is a built-in index")
+        return v
+
+    @field_validator("expression")
+    @classmethod
+    def compiles(cls, v: str) -> str:
+        try:
+            compile_expression(v)
+        except ExpressionError as exc:
+            raise ValueError(str(exc)) from exc
+        return v.strip()
+
+    @model_validator(mode="after")
+    def domain_ordered(self) -> "CustomIndexIn":
+        if self.domain_min >= self.domain_max:
+            raise ValueError("The axis minimum must be below its maximum")
+        return self
+
+    @property
+    def spectral_index(self) -> SpectralIndex:
+        return custom_index(
+            self.name,
+            self.expression,
+            (self.domain_min, self.domain_max),
+            tuple(self.reference_lines),
+        )
+
+
+class CustomIndexOut(SpectralIndexOut):
+    expression: str
+    # The sources that carry every band the expression reads.
+    source_keys: list[str]
+
+    @model_validator(mode="before")
+    @classmethod
+    def describe(cls, data: Any) -> Any:
+        """Describe a stored row or a draft through the index it compiles to."""
+        if isinstance(data, dict):
+            return data
+        index: SpectralIndex = data.spectral_index
+        return {
+            **index_out(index).model_dump(),
+            "expression": data.expression,
+            "source_keys": [source.key for source in SOURCES if offers(source, index)],
+        }
 
 
 # ============================================================================
@@ -120,25 +200,15 @@ class TimeseriesCreate(BaseModel):
         parse_ym(v)
         return v
 
-    @model_validator(mode="after")
-    def validate_source_and_index(self) -> "TimeseriesCreate":
-        """Reject a combination the source cannot compute, and store the canonical
-        keys. Catching this here means a series can never be saved only to fail
-        every time an annotator opens it."""
-        source = source_for(self.data_source)
+    @field_validator("data_source")
+    @classmethod
+    def validate_source(cls, v: str) -> str:
+        # Whether the source can compute the index is checked where the campaign's
+        # custom indices are known (service.add_timeseries).
+        source = source_for(v)
         if source is None:
-            raise ValueError(f"Unsupported data source: {self.data_source}")
-
-        index = index_for(self.ts_type)
-        if index is None:
-            raise ValueError(f"Unknown index: {self.ts_type}")
-
-        if not offers(source, index):
-            raise ValueError(f"{source.label} does not carry the bands {index.label} needs")
-
-        self.data_source = source.key
-        self.ts_type = index.key
-        return self
+            raise ValueError(f"Unsupported data source: {v}")
+        return source.key
 
 
 class TimeseriesOut(BaseModel):
@@ -154,14 +224,16 @@ class TimeseriesOut(BaseModel):
     data_source: str
     ts_type: str
 
+    # The index this series plots, so the chart can scale its axis and explain
+    # itself without a second request.
+    index: SpectralIndexOut = Field(validation_alias="spectral_index")
+
     model_config = ConfigDict(from_attributes=True)
 
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def index(self) -> SpectralIndexOut:
-        """The index this series plots, so the chart can scale its axis and
-        explain itself without a second request."""
-        return index_out(INDICES_BY_KEY[self.ts_type])
+    @field_validator("index", mode="before")
+    @classmethod
+    def describe_index(cls, value: Any) -> Any:
+        return index_out(value) if isinstance(value, SpectralIndex) else value
 
 
 class TimeseriesOptionsOut(BaseModel):

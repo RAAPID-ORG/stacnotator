@@ -1,6 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
+from src.timeseries.indices import INDICES_BY_KEY
 from src.timeseries.schemas import (
     TimeseriesCreate,
     TimeseriesOut,
@@ -58,25 +59,13 @@ def _create(**overrides):
     )
 
 
-class TestSourceAndIndexValidation:
-    """A series that names an index its source cannot compute would save fine and
-    then fail for every annotator who opened it, so it is refused up front."""
-
-    def test_rejects_an_index_the_source_lacks_the_bands_for(self):
-        with pytest.raises(ValidationError, match="NDRE"):
-            _create(data_source="MODIS", ts_type="NDRE")
-
-    def test_rejects_an_unknown_index(self):
-        with pytest.raises(ValidationError, match="Unknown index"):
-            _create(ts_type="NDXX")
-
+class TestSourceValidation:
     def test_rejects_an_unknown_source(self):
         with pytest.raises(ValidationError, match="Unsupported data source"):
             _create(data_source="SENTINEL3")
 
-    def test_accepts_the_indices_a_source_does_carry(self):
-        assert _create(data_source="LANDSAT", ts_type="NBR").ts_type == "NBR"
-        assert _create(data_source="SENTINEL2", ts_type="NDRE").ts_type == "NDRE"
+    def test_stores_the_canonical_source_key(self):
+        assert _create(data_source="LANDSAT").data_source == "LANDSAT"
 
 
 class TestOutputCarriesTheIndexDescription:
@@ -91,6 +80,7 @@ class TestOutputCarriesTheIndexDescription:
             end_ym="202412",
             data_source="SENTINEL2",
             ts_type="GCVI",
+            spectral_index=INDICES_BY_KEY["GCVI"],
         )
         assert out.index is not None
         assert (out.index.domain_min, out.index.domain_max) == (0.0, 10.0)

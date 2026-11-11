@@ -137,6 +137,7 @@ def create_campaign(
         user_id=user.id,
         imagery_editor_state=campaign.imagery_editor_state,
         timeseries_configs=campaign.timeseries_configs,
+        custom_indices=campaign.custom_indices,
         labelling_policy=campaign.labelling_policy,
     )
     return _campaign_out(created, db, user)

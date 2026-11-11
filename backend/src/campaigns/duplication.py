@@ -366,6 +366,8 @@ def duplicate_campaign(
     window_map = id_map(
         windows, insert_all(db, [clone_row(w, campaign_id=dup.id) for w in windows])
     )
+    for custom_index in campaign.custom_indices:
+        db.add(clone_row(custom_index, campaign_id=dup.id))
     for series in db.scalars(select(Timeseries).where(Timeseries.campaign_id == campaign.id)):
         db.add(clone_row(series, campaign_id=dup.id, window_id=window_map[series.window_id]))
     copied_maps = [

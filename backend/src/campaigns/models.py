@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from src.imagery.models import Basemap, ImagerySource, ImageryView
     from src.projects.models import Project
     from src.tasks.models import Task, TaskSet
-    from src.timeseries.models import Timeseries
+    from src.timeseries.models import CustomIndex, Timeseries
 
 
 class Campaign(Base):
@@ -133,6 +133,11 @@ class Campaign(Base):
     time_series: Mapped[list["Timeseries"]] = relationship(
         back_populates="campaign",
         cascade="all, delete-orphan",
+    )
+    custom_indices: Mapped[list["CustomIndex"]] = relationship(
+        back_populates="campaign",
+        cascade="all, delete-orphan",
+        order_by="CustomIndex.name",
     )
     tasks: Mapped[list["Task"]] = relationship(
         back_populates="campaign",

@@ -37,7 +37,8 @@ from src.projects.viewer import ViewerStanding
 from src.tasks import embeddings
 from src.tasks.models import Task, TaskSet
 from src.tasks.task_sets import DEFAULT_TASK_SET_NAME
-from src.timeseries.service import add_timeseries
+from src.timeseries.schemas import CustomIndexIn
+from src.timeseries.service import add_custom_indices, add_timeseries
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +98,7 @@ _CAMPAIGN_FULL_LOAD_OPTIONS = (
     joinedload(Campaign.project),
     selectinload(Campaign.canvas_layouts),
     selectinload(Campaign.time_series),
+    selectinload(Campaign.custom_indices),
     selectinload(Campaign.basemaps),
     selectinload(Campaign.custom_maps),
     # Serialized by CampaignOut, so omitting it lazy-loads at serialization time
@@ -154,6 +156,7 @@ def create_campaign(
     user_id: UUID,
     imagery_editor_state=None,
     timeseries_configs: list | None = None,
+    custom_indices: list[CustomIndexIn] | None = None,
     labelling_policy: LabellingPolicy | None = None,
 ) -> Campaign:
     """
@@ -197,6 +200,8 @@ def create_campaign(
     db.flush()
     db.refresh(campaign)
 
+    if custom_indices:
+        add_custom_indices(db, campaign.id, custom_indices)
     if timeseries_configs:
         add_timeseries(db, campaign.id, timeseries_configs)
         db.refresh(campaign)
