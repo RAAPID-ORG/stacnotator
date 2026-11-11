@@ -1,13 +1,15 @@
-from collections.abc import Sequence
+from collections import defaultdict
+from collections.abc import Collection, Sequence
+from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import func, select, union
+from sqlalchemy import Row, func, select, union
 from sqlalchemy.orm import Session, defer, joinedload, selectinload
 
 from src.annotation import spatial
-from src.annotation.constants import CHANGES_OVERLAP
+from src.annotation.constants import CHANGES_OVERLAP, TaskStatus
 from src.annotation.models import Annotation
 from src.annotation.sync import (
     bump_campaign_annotations_version,
@@ -23,6 +25,7 @@ from src.campaigns.policy import (
 from src.tasks import assignments, claims
 from src.tasks.completion import (
     attach_to_tasks,
+    completion_rule,
 )
 from src.tasks.models import Task, TaskAssignment
 from src.tasks.status import (
@@ -155,27 +158,60 @@ def get_tasks(
     return tasks
 
 
-def _tasks_for_status(db: Session, campaign: Campaign) -> list[Task]:
-    """Tasks carrying only what a status decision needs.
+@dataclass
+class _StatusRow:
+    """The columns of a task row that its task's status reads."""
 
-    The full task read also loads geometries, annotators and embedding flags, none of
-    which a status costs. Status itself is still decided by the one shared function,
-    so this is a narrower query rather than a second copy of the rules.
-    """
-    tasks = list(
-        db.scalars(
-            select(Task)
-            .where(Task.campaign_id == campaign.id)
-            .options(
-                selectinload(Task.assignments),
-                selectinload(Task.annotations).defer(Annotation.geometry),
+    label_id: int | None
+    outcome: str | None
+    created_by_user_id: UUID
+    is_authoritative: bool
+    counts_toward_completion: bool | None
+
+
+def _status_by_task(
+    db: Session, campaign: Campaign, task_ids: Collection[int]
+) -> dict[int, tuple[TaskStatus, int | None]]:
+    """Each task's status and agreed label, read from plain rows rather than the task
+    tree: a map asks for thousands at a time. The decisions are the shared ones."""
+    ids = list(task_ids)
+    assigned: dict[int, list[Row]] = defaultdict(list)
+    for row in db.execute(
+        select(TaskAssignment.task_id, TaskAssignment.user_id, TaskAssignment.is_review).where(
+            TaskAssignment.task_id.in_(ids)
+        )
+    ):
+        assigned[row.task_id].append(row)
+    answers = db.execute(
+        select(
+            Annotation.task_id,
+            Annotation.label_id,
+            Annotation.outcome,
+            Annotation.created_by_user_id,
+            Annotation.is_authoritative,
+        ).where(Annotation.task_id.in_(ids))
+    ).all()
+
+    counts = completion_rule(db, campaign, {a.created_by_user_id for a in answers})
+    rows: dict[int, list[_StatusRow]] = defaultdict(list)
+    for a in answers:
+        assigned_ids = {r.user_id for r in assigned[a.task_id]}
+        rows[a.task_id].append(
+            _StatusRow(
+                label_id=a.label_id,
+                outcome=a.outcome,
+                created_by_user_id=a.created_by_user_id,
+                is_authoritative=a.is_authoritative,
+                counts_toward_completion=counts(a.created_by_user_id, assigned_ids),
             )
         )
-        .unique()
-        .all()
-    )
-    attach_to_tasks(db, campaign, tasks)
-    return tasks
+
+    statuses = {}
+    for task_id in ids:
+        status = compute_task_status_value(*task_status_inputs(assigned[task_id], rows[task_id]))
+        agreed = agreed_answers(rows[task_id])
+        statuses[task_id] = (status, agreed[0].label_id if agreed else None)
+    return statuses
 
 
 def get_task_density(
@@ -199,16 +235,8 @@ def get_task_density(
     if not centroids:
         return []
 
-    points = []
-    for task in _tasks_for_status(db, campaign):
-        point = centroids.get(task.id)
-        if point is None:
-            continue
-        annotations = task.annotations or []
-        assignment_list, annotation_list = task_status_inputs(task.assignments or [], annotations)
-        status = compute_task_status_value(assignment_list, annotation_list)
-        agreed = agreed_answers(annotations)
-        points.append((point[0], point[1], (status, agreed[0].label_id if agreed else None)))
+    statuses = _status_by_task(db, campaign, centroids.keys())
+    points = [(lon, lat, statuses[task_id]) for task_id, (lon, lat) in centroids.items()]
 
     return [
         {
