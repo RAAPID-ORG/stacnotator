@@ -23,7 +23,6 @@ from src.annotation.service import (
 from src.campaigns.schemas import LabellingPolicy, PolicyAudience
 from src.tasks.completion import (
     attach_counts_toward_completion,
-    attach_to_tasks,
 )
 from tests.conftest import make_policy
 
@@ -321,7 +320,9 @@ class TestAttachCountsTowardCompletion:
             for ann in task.annotations:
                 ann.task_id, ann.task = task.id, task
 
-        attach_to_tasks(db, campaign, [assigned_task, unassigned_task])
+        attach_counts_toward_completion(
+            db, campaign, [a for t in (assigned_task, unassigned_task) for a in t.annotations]
+        )
 
         assert (
             assigned_task.annotations[0].counts_toward_completion is True
@@ -335,7 +336,7 @@ class TestAttachCountsTowardCompletion:
 
     def test_no_tasks_is_a_noop(self):
         db = MagicMock()
-        attach_to_tasks(db, _campaign(make_policy()), [])
+        attach_counts_toward_completion(db, _campaign(make_policy()), [])
         db.execute.assert_not_called()
         db.scalars.assert_not_called()
 

@@ -18,7 +18,6 @@ from src.campaigns.policy import (
     get_labelling_policy,
     load_standing,
 )
-from src.tasks.models import Task
 
 
 def attach_counts_toward_completion(
@@ -55,8 +54,3 @@ def completion_rule(
         return counts_toward_completion(policy, bool(assigned_ids), ctx)
 
     return counts
-
-
-def attach_to_tasks(db: Session, campaign: Campaign, tasks: Iterable[Task]) -> None:
-    """`attach_counts_toward_completion` over every row of the given tasks."""
-    attach_counts_toward_completion(db, campaign, [a for t in tasks for a in t.annotations])

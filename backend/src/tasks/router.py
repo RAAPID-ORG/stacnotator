@@ -40,7 +40,6 @@ from src.tasks.schemas import (
     TaskChangesOut,
     TaskDensityCell,
     TaskListOut,
-    TaskOut,
     TaskSetCreate,
     TaskSetOut,
     TaskSetRename,
@@ -61,9 +60,10 @@ router = APIRouter(
 def list_tasks(
     campaign_id: int,
     db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
     campaign: Campaign = Depends(require_campaign_access),
 ):
-    tasks = service.get_tasks(db, campaign)
+    tasks = service.read_tasks(db, campaign, with_email=user.is_platform_admin)
     return TaskListOut(campaign_id=campaign.id, tasks=tasks)
 
 
@@ -75,6 +75,7 @@ def list_task_changes(
     campaign_id: int,
     since: datetime | None = None,
     db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
     campaign: Campaign = Depends(require_campaign_access),
 ) -> TaskChangesOut:
     """Tasks changed since ``since``, so one annotator's list reflects
@@ -84,7 +85,11 @@ def list_task_changes(
     if since is None:
         return TaskChangesOut(server_time=now, tasks=[])
     task_ids = service.get_changed_task_ids(db, campaign.id, since)
-    tasks = service.get_tasks(db, campaign, task_ids) if task_ids else []
+    tasks = (
+        service.read_tasks(db, campaign, task_ids, with_email=user.is_platform_admin)
+        if task_ids
+        else []
+    )
     return TaskChangesOut(server_time=now, tasks=tasks)
 
 
@@ -138,8 +143,9 @@ def claim_next_task(
         user_id=user.id,
         task_set_id=task_set_id,
         after_annotation_number=after_annotation_number,
+        with_email=user.is_platform_admin,
     )
-    return ClaimNextResponse(task=TaskOut.model_validate(task) if task else None)
+    return ClaimNextResponse(task=task)
 
 
 @router.get(

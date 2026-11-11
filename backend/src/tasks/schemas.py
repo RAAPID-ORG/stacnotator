@@ -6,50 +6,23 @@ from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import (
-    AliasChoices,
     BaseModel,
     ConfigDict,
     Field,
     field_validator,
-    model_validator,
 )
 
 from src.annotation.constants import AssignmentStatus, TaskStatus
-from src.annotation.schemas import AnnotationFromTaskOut, Wkt
-from src.tasks.status import (
-    compute_task_status_value,
-    derive_assignment_status,
-    task_status_inputs,
-)
+from src.annotation.schemas import AnnotationFromTaskOut
 
 
 class TaskAssignmentOut(BaseModel):
     user_id: UUID
-    # Derived, not stored: attached to the ORM row by TaskOut's
-    # validator, which is the only place holding both the assignments and the
-    # annotations they are read from.
+    # Derived from the assignee's answer, never stored.
     status: AssignmentStatus
     is_review: bool = False
     user_email: str | None = None
     user_display_name: str | None = None
-
-    @model_validator(mode="before")
-    @classmethod
-    def populate_user_info(cls, data):
-        """Populate user_email and user_display_name from the user relationship."""
-        if hasattr(data, "user") and data.user is not None:
-            user = data.user
-            result = {
-                "user_id": data.user_id,
-                "status": data.status,
-                "is_review": data.is_review,
-                "user_email": user.email,
-                "user_display_name": user.display_name,
-            }
-            return result
-        return data
-
-    model_config = ConfigDict(from_attributes=True)
 
 
 class TaskOut(BaseModel):
@@ -57,7 +30,7 @@ class TaskOut(BaseModel):
     annotation_number: int
     task_set_id: int
     task_status: TaskStatus
-    geometry_wkt: Wkt = Field(validation_alias=AliasChoices("geometry", "geometry_wkt"))
+    geometry_wkt: str
     assignments: list[TaskAssignmentOut]
     annotations: list[AnnotationFromTaskOut]
     # The soft claim on this task. Concurrency only: it says who is working on
@@ -65,50 +38,13 @@ class TaskOut(BaseModel):
     claimed_by_user_id: UUID | None = None
     claimed_at: datetime | None = None
     claimed_by_display_name: str | None = None
-    # Whether a satellite embedding vector exists for this task. Populated by
-    # the task list/fetch query (extra attribute on the ORM instance). Used by
-    # the frontend to show why KNN label validation is unavailable on a task.
+    # Whether a satellite embedding vector exists for this task, which KNN label
+    # validation needs.
     has_embedding: bool = False
     # Standalone annotations drawn after leaving this task for Explore.
     nearby_annotation_count: int = 0
     # Who has drawn shapes as this draw task's answer.
     drawn_by_user_ids: list[UUID] = []
-
-    @model_validator(mode="before")
-    @classmethod
-    def compute_task_status(cls, data):
-        """
-        Compute task_status on the fly from assignments and annotations.
-
-        A skipped assignee is treated as "did not contribute a label", so a
-        task is only done/conflicting when *every* assignee actually provided
-        a label. One skip next to one label is partial, not done.
-
-        - pending:     No assignee has labeled yet (and not all skipped)
-        - skipped:     ALL assigned users skipped
-        - partial:     At least one label, but some assignees still haven't
-                       labeled (they either skipped or haven't acted yet)
-        - done:        Every assignee labeled and all labels match, OR an
-                       authoritative reviewer has submitted a label that
-                       overrides the assignment-based aggregation.
-        - conflicting: Every assignee labeled and labels disagree
-
-        Also attaches each assignee's derived status, since this is the only
-        place holding both the assignments and the annotations they are read
-        from.
-
-        Built from an ORM `Task` only.
-        """
-        assignment_list, annotation_list = task_status_inputs(data.assignments, data.annotations)
-        for assignment in data.assignments:
-            assignment.status = derive_assignment_status(annotation_list, assignment.user_id)
-        data.__dict__["task_status"] = compute_task_status_value(assignment_list, annotation_list)
-        data.__dict__["claimed_by_display_name"] = (
-            data.claimed_by.display_name if data.claimed_by else None
-        )
-        return data
-
-    model_config = ConfigDict(from_attributes=True)
 
 
 class TaskListOut(BaseModel):

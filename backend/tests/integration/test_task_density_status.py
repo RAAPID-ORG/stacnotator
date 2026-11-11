@@ -14,7 +14,6 @@ from src.organizations.models import Organization
 from src.projects.models import Project
 from src.tasks import service
 from src.tasks.models import Task, TaskAssignment, TaskSet
-from src.tasks.schemas import TaskOut
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("AGENT_DATABASE_TESTS") != "1",
@@ -97,8 +96,7 @@ def test_the_map_shows_the_status_the_task_list_does(answered_campaign):
     db, campaign, tasks = answered_campaign
 
     listed = {
-        task.id: TaskOut.model_validate(task).task_status
-        for task in service.get_tasks(db, campaign)
+        task.id: task.task_status for task in service.read_tasks(db, campaign, with_email=False)
     }
     mapped = service._status_by_task(db, campaign, tasks.values())
 
