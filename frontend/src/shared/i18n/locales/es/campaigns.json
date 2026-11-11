@@ -270,8 +270,7 @@
     "needsOneSet": "Una campaña necesita al menos un conjunto de tareas",
     "setNamePlaceholder": "Nombre del conjunto",
     "createSet": "Crear conjunto",
-    "cancelCreate": "Cancelar la creación del conjunto",
-    "newSet": "+ Nuevo conjunto",
+    "newSet": "Nuevo conjunto",
     "deleteTitle": "¿Eliminar el conjunto de tareas \"{{name}}\"?",
     "deleteDescription_one": "Esto elimina de forma permanente el conjunto y su {{count}} tarea con todas las anotaciones asociadas. Esta acción no se puede deshacer.",
     "deleteDescription_many": "Esto elimina de forma permanente el conjunto y sus {{count}} tareas con todas las anotaciones asociadas. Esta acción no se puede deshacer.",
@@ -547,7 +546,6 @@
       "set": "Todavía no hay tareas en este conjunto. Usa Añadir tareas para subir un archivo o generarlas."
     },
     "backToSets": "Volver a los conjuntos de tareas",
-    "taskSet": "Conjunto de tareas",
     "addTitle": "Añadir tareas de anotación a {{name}}",
     "thisSet": "este conjunto",
     "assignmentsDescription": "A quién está asignada cada tarea y quién la revisa, como CSV para editar y volver a subir. Esto nunca crea ni elimina tareas."

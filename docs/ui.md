@@ -38,8 +38,16 @@ larger than Tailwind's defaults: `text-sm` is about 16px, `h-8` is 36px.
 | A page action                      | `Button` (`primary` for the one main action, `secondary` beside it)                                                                                                        |
 | A control in a top bar             | `BarButton`: h-8, 13px, 16px icon; `menu` adds a chevron, `active` marks pressed or open, `collapse` drops the label on touch and in a bar (`@container/bar`) under 1260px |
 | A choice between a few peers       | `SegmentedControl` (`size="bar"`: flat and borderless, in a top bar)                                                                                                       |
+| Sections or task sets              | `TabNavigator`; `size="bar"` keeps task sets in one horizontally scrollable row with an underline on the selected set                                                       |
 | A small icon action inside content | `IconButton`                                                                                                                                                               |
 
 A bar's controls sit `gap-1` apart, with a `h-5 w-px bg-neutral-200` rule
 between groups. Dropdowns opened from a page header or bar sit at `z-30`, above
 the page's sticky bars (`z-20`).
+
+## Loading
+
+Keep the page shell still while data loads. Use the shared skeletons, which reserve
+space immediately and fade in once after 200ms; do not combine them with page fades,
+pulsing placeholders, or staggered row entrances. Show an empty state only after its
+query has finished, and keep existing content visible during background refreshes.

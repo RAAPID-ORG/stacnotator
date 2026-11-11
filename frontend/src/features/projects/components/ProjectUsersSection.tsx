@@ -1,6 +1,6 @@
 import { Trans, useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Delayed } from '~/shared/ui/Delayed';
+import { SkeletonRows } from '~/shared/ui/Skeleton';
 import { Badge } from '~/shared/ui/Badge';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import { type ProjectUserOut } from '~/api/client';
@@ -147,14 +147,8 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
     );
   };
 
-  if (loading) {
-    return (
-      <Delayed>
-        <div className="flex items-center justify-center py-12">
-          <p className="text-neutral-500">{t('members.loading')}</p>
-        </div>
-      </Delayed>
-    );
+  if (loading || (canManage && invitesQuery.isPending)) {
+    return <SkeletonRows count={4} />;
   }
 
   if (membersQuery.error) {

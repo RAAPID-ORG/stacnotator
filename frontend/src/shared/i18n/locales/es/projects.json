@@ -125,7 +125,6 @@
     "nowPrivate": "El proyecto ahora es privado"
   },
   "members": {
-    "loading": "Cargando miembros...",
     "loadFailed": "No se pudieron cargar los miembros del proyecto",
     "loadInvitesFailed": "No se pudieron cargar los registros pendientes",
     "loadUsersFailed": "No se pudieron cargar los usuarios disponibles",

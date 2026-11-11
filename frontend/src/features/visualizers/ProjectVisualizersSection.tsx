@@ -45,11 +45,9 @@ export function ProjectVisualizersSection({
   const queryClient = useQueryClient();
   const path = { project_id: projectId };
 
-  // Null until the first answer arrives, which is what tells the skeleton from
-  // a project with no visualizers yet.
-  const { data } = useQuery({
+  const { data, isPending, isError } = useQuery({
     ...listVisualizersOptions({ path }),
-    meta: { errorMessage: t('section.loadFailed') },
+    meta: { errorMessage: t('section.loadFailed'), showUser: false },
   });
   const items = data ?? null;
 
@@ -100,9 +98,13 @@ export function ProjectVisualizersSection({
         )}
       </div>
 
-      {items === null ? (
+      {isPending ? (
         <SkeletonRows count={3} />
-      ) : items.length === 0 ? (
+      ) : isError ? (
+        <p role="alert" className="text-sm text-red-600">
+          {t('section.loadFailed')}
+        </p>
+      ) : !items?.length ? (
         <div className="rounded-lg border border-dashed border-neutral-200 px-6 py-10 text-center">
           <IconMap className="mx-auto h-6 w-6 text-neutral-300" />
           <p className="mt-2 text-sm text-neutral-600">{t('section.empty')}</p>

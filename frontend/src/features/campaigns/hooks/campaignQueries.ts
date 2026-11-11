@@ -110,13 +110,13 @@ export const useCampaignTasks = (campaignId: number, options?: { enabled?: boole
 export const useCampaignTaskSets = (campaignId: number, options?: { enabled?: boolean }) => {
   const { t } = useTranslation('campaigns');
   const enabled = options?.enabled ?? true;
-  const { data, isPending } = useQuery({
+  const { data, isPending, error } = useQuery({
     ...listTaskSetsOptions({ path: { campaign_id: campaignId } }),
     ...SHARED_WORK,
     enabled,
     meta: { errorMessage: t('errors.loadTaskSets') },
   });
-  return { taskSets: data ?? NO_TASK_SETS, loading: enabled && isPending };
+  return { taskSets: data ?? NO_TASK_SETS, loading: enabled && isPending, error };
 };
 
 /** The agreement figures. The panel shows its own failure line, so no toast.

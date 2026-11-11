@@ -9,7 +9,7 @@ import { isRegistering, useCampaignSummary, useCampaignTaskSets } from '../hooks
 import { Skeleton, SkeletonCards } from '~/shared/ui/Skeleton';
 import { Button, Field, Input } from '~/shared/ui/forms';
 import { Modal } from '~/shared/ui/Modal';
-import { FadeIn, MotionListItem } from '~/shared/ui/motion';
+import { FadeIn } from '~/shared/ui/motion';
 import { IconChart, IconFlag, IconGear, IconMap } from '~/shared/ui/Icons';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
@@ -36,7 +36,11 @@ export const CampaignOverviewPage = () => {
   // The summary, not the full campaign: this page renders no imagery, and the full
   // read pulls sources, collections, slices and tile URLs with it.
   const { campaign, loading } = useCampaignSummary(campaignId);
-  const { taskSets } = useCampaignTaskSets(campaignId);
+  const {
+    taskSets,
+    loading: taskSetsLoading,
+    error: taskSetsError,
+  } = useCampaignTaskSets(campaignId);
   // Only for the count on the Annotations button, so a failure must not take the page
   // with it - it renders without the number.
   const { data: facets } = useQuery({
@@ -150,197 +154,207 @@ export const CampaignOverviewPage = () => {
           </div>
         </header>
 
-        {isRegistering(campaign) && (
-          <div
-            className="surface-section mb-6 flex items-start gap-3 border border-amber-200 bg-amber-50"
-            data-testid="campaign-initializing-notice"
-          >
-            <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-600 animate-pulse" />
-            <div>
-              <h2 className="text-sm font-semibold text-amber-900">{t('overview.setup.title')}</h2>
-              <p className="mt-0.5 text-[13px] text-amber-800">
-                {campaign?.registration_status === 'registering'
-                  ? t('overview.setup.registering')
-                  : t('overview.setup.embeddings')}{' '}
-                {t('overview.setup.body')}
-              </p>
-            </div>
-          </div>
-        )}
+        {loading || taskSetsLoading ? (
+          <SkeletonCards count={3} />
+        ) : (
+          <>
+            {isRegistering(campaign) && (
+              <div
+                className="surface-section mb-6 flex items-start gap-3 border border-amber-200 bg-amber-50"
+                data-testid="campaign-initializing-notice"
+              >
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-600 animate-pulse" />
+                <div>
+                  <h2 className="text-sm font-semibold text-amber-900">
+                    {t('overview.setup.title')}
+                  </h2>
+                  <p className="mt-0.5 text-[13px] text-amber-800">
+                    {campaign?.registration_status === 'registering'
+                      ? t('overview.setup.registering')
+                      : t('overview.setup.embeddings')}{' '}
+                    {t('overview.setup.body')}
+                  </p>
+                </div>
+              </div>
+            )}
 
-        {mayExplore && (
-          <div
-            className="surface mb-6 cursor-pointer hover:bg-neutral-50 transition-colors"
-            role="button"
-            tabIndex={0}
-            onClick={() =>
-              navigate(`${campaignPath(projectId, campaignId, 'annotate')}?mode=explore`)
-            }
-            onKeyDown={(e) => {
-              if (e.key === 'Enter')
-                navigate(`${campaignPath(projectId, campaignId, 'annotate')}?mode=explore`);
-            }}
-          >
-            <div className="surface-section flex items-center gap-5">
-              <div className="w-11 h-11 rounded-xl bg-brand-50 flex items-center justify-center shrink-0">
-                <IconMap className="w-5 h-5 text-brand-600" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h2 className="text-base font-semibold text-neutral-900">
-                  {t('overview.explore.title')}
-                </h2>
-                <p className="text-sm text-neutral-500 mt-0.5">
-                  {t('overview.explore.description')}
-                </p>
-              </div>
-              <Button
+            {mayExplore && (
+              <div
+                className="surface mb-6 cursor-pointer hover:bg-neutral-50 transition-colors"
+                role="button"
+                tabIndex={0}
                 onClick={() =>
                   navigate(`${campaignPath(projectId, campaignId, 'annotate')}?mode=explore`)
                 }
-                className="shrink-0"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter')
+                    navigate(`${campaignPath(projectId, campaignId, 'annotate')}?mode=explore`);
+                }}
               >
-                {t('overview.explore.start')}
-              </Button>
-            </div>
-          </div>
-        )}
-
-        <section>
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-baseline gap-2.5">
-              <h2 className="section-heading">{t('overview.taskSets')}</h2>
-              {isMember && (
-                <button
-                  type="button"
-                  onClick={() => navigate(campaignPath(projectId, campaignId, 'agents'))}
-                  className="text-[11px] text-neutral-500 underline decoration-neutral-300 underline-offset-2 transition-colors hover:text-neutral-700 hover:decoration-neutral-500"
-                >
-                  {agentCount == null
-                    ? t('overview.agents.label')
-                    : agentCount === 0
-                      ? t('overview.agents.none')
-                      : t('overview.agents.count', { count: agentCount })}
-                </button>
-              )}
-            </div>
-            {isAdmin && (
-              <InlineAddAction
-                onClick={() => navigate(campaignPath(projectId, campaignId, 'tasks'))}
-              >
-                {t('tasksTab.addTasks')}
-              </InlineAddAction>
-            )}
-          </div>
-          {loading ? (
-            <SkeletonCards count={3} />
-          ) : !hasTasks ? (
-            <div className="surface">
-              <div className="surface-section text-center py-12">
-                <div className="w-11 h-11 rounded-xl bg-neutral-100 flex items-center justify-center mx-auto mb-3">
-                  <IconFlag className="w-5 h-5 text-neutral-400" />
-                </div>
-                <p className="text-sm text-neutral-800 font-medium mb-1">
-                  {t('overview.noTasks.title')}
-                </p>
-                <p className="text-sm text-neutral-500 mb-4">
-                  {isAdmin ? t('overview.noTasks.admin') : t('overview.noTasks.member')}
-                </p>
-                {isAdmin && (
+                <div className="surface-section flex items-center gap-5">
+                  <div className="w-11 h-11 rounded-xl bg-brand-50 flex items-center justify-center shrink-0">
+                    <IconMap className="w-5 h-5 text-brand-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-base font-semibold text-neutral-900">
+                      {t('overview.explore.title')}
+                    </h2>
+                    <p className="text-sm text-neutral-500 mt-0.5">
+                      {t('overview.explore.description')}
+                    </p>
+                  </div>
                   <Button
-                    variant="secondary"
+                    onClick={() =>
+                      navigate(`${campaignPath(projectId, campaignId, 'annotate')}?mode=explore`)
+                    }
+                    className="shrink-0"
+                  >
+                    {t('overview.explore.start')}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <section>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-baseline gap-2.5">
+                  <h2 className="section-heading">{t('overview.taskSets')}</h2>
+                  {isMember && (
+                    <button
+                      type="button"
+                      onClick={() => navigate(campaignPath(projectId, campaignId, 'agents'))}
+                      className="text-[11px] text-neutral-500 underline decoration-neutral-300 underline-offset-2 transition-colors hover:text-neutral-700 hover:decoration-neutral-500"
+                    >
+                      {agentCount == null
+                        ? t('overview.agents.label')
+                        : agentCount === 0
+                          ? t('overview.agents.none')
+                          : t('overview.agents.count', { count: agentCount })}
+                    </button>
+                  )}
+                </div>
+                {isAdmin && (
+                  <InlineAddAction
                     onClick={() => navigate(campaignPath(projectId, campaignId, 'tasks'))}
                   >
                     {t('tasksTab.addTasks')}
-                  </Button>
+                  </InlineAddAction>
                 )}
               </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <MotionListItem index={0}>
-                <AllTasksCard
-                  totalLabeled={totalLabeled}
-                  totalTasks={totalTasks}
-                  onOpen={() =>
-                    navigate(`${campaignPath(projectId, campaignId, 'annotate')}?mode=tasks`)
-                  }
-                  onView={() => navigate(campaignPath(projectId, campaignId, 'tasks'))}
-                />
-              </MotionListItem>
-              {plainSets.map((set, index) => (
-                <MotionListItem key={set.id} index={index + 1}>
-                  <TaskSetCard
-                    taskSet={set}
-                    onOpen={() =>
-                      navigate(
-                        `${campaignPath(projectId, campaignId, 'annotate')}?mode=tasks&taskSet=${set.id}`
-                      )
-                    }
-                    onView={() =>
-                      navigate(`${campaignPath(projectId, campaignId, 'tasks')}?taskSet=${set.id}`)
-                    }
-                  />
-                </MotionListItem>
-              ))}
-            </div>
-          )}
-        </section>
-
-        {/* mt-8, not mb-6: this section used to sit above task sets, where its bottom
-            margin did the separating. Below them it needs the space on top. */}
-        {AREA_ESTIMATION_ENABLED && (estimateSets.length > 0 || isAdmin) && (
-          <section className="mt-8 mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="section-heading">{t('overview.estimate.heading')}</h2>
-              {isAdmin && (
-                <InlineAddAction onClick={() => setNamingEstimate('')}>
-                  {t('overview.estimate.new')}
-                </InlineAddAction>
-              )}
-            </div>
-            {estimateSets.length === 0 ? (
-              <div className="surface">
-                <div className="surface-section text-center py-12">
-                  <div className="w-11 h-11 rounded-xl bg-neutral-100 flex items-center justify-center mx-auto mb-3">
-                    <IconChart className="w-5 h-5 text-neutral-400" />
+              {taskSetsError ? (
+                <p role="alert" className="text-sm text-red-600">
+                  {t('errors.loadTaskSets')}
+                </p>
+              ) : !hasTasks ? (
+                <div className="surface">
+                  <div className="surface-section text-center py-12">
+                    <div className="w-11 h-11 rounded-xl bg-neutral-100 flex items-center justify-center mx-auto mb-3">
+                      <IconFlag className="w-5 h-5 text-neutral-400" />
+                    </div>
+                    <p className="text-sm text-neutral-800 font-medium mb-1">
+                      {t('overview.noTasks.title')}
+                    </p>
+                    <p className="text-sm text-neutral-500 mb-4">
+                      {isAdmin ? t('overview.noTasks.admin') : t('overview.noTasks.member')}
+                    </p>
+                    {isAdmin && (
+                      <Button
+                        variant="secondary"
+                        onClick={() => navigate(campaignPath(projectId, campaignId, 'tasks'))}
+                      >
+                        {t('tasksTab.addTasks')}
+                      </Button>
+                    )}
                   </div>
-                  <p className="text-sm text-neutral-800 font-medium mb-1">
-                    {t('overview.estimate.none')}
-                  </p>
-                  <p className="text-sm text-neutral-500 mb-4">{t('overview.estimate.noneBody')}</p>
-                  <Button variant="secondary" onClick={() => setNamingEstimate('')}>
-                    {t('overview.estimate.new')}
-                  </Button>
                 </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {estimateSets.map((set, index) => (
-                  <MotionListItem key={set.id} index={index}>
-                    <AreaEstimationPanel
-                      campaignId={campaignId}
-                      taskSetId={set.id}
-                      taskSetName={set.name}
-                      showEstimates={isAdmin}
-                      onAnnotate={() =>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <AllTasksCard
+                    totalLabeled={totalLabeled}
+                    totalTasks={totalTasks}
+                    onOpen={() =>
+                      navigate(`${campaignPath(projectId, campaignId, 'annotate')}?mode=tasks`)
+                    }
+                    onView={() => navigate(campaignPath(projectId, campaignId, 'tasks'))}
+                  />
+                  {plainSets.map((set) => (
+                    <TaskSetCard
+                      key={set.id}
+                      taskSet={set}
+                      onOpen={() =>
                         navigate(
                           `${campaignPath(projectId, campaignId, 'annotate')}?mode=tasks&taskSet=${set.id}`
                         )
                       }
-                      onOpenDesign={
-                        isAdmin
-                          ? () =>
-                              navigate(
-                                `${campaignPath(projectId, campaignId, 'tasks')}?taskSet=${set.id}`
-                              )
-                          : undefined
+                      onView={() =>
+                        navigate(
+                          `${campaignPath(projectId, campaignId, 'tasks')}?taskSet=${set.id}`
+                        )
                       }
                     />
-                  </MotionListItem>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* mt-8, not mb-6: this section used to sit above task sets, where its bottom
+            margin did the separating. Below them it needs the space on top. */}
+            {AREA_ESTIMATION_ENABLED && (estimateSets.length > 0 || isAdmin) && (
+              <section className="mt-8 mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="section-heading">{t('overview.estimate.heading')}</h2>
+                  {isAdmin && (
+                    <InlineAddAction onClick={() => setNamingEstimate('')}>
+                      {t('overview.estimate.new')}
+                    </InlineAddAction>
+                  )}
+                </div>
+                {estimateSets.length === 0 ? (
+                  <div className="surface">
+                    <div className="surface-section text-center py-12">
+                      <div className="w-11 h-11 rounded-xl bg-neutral-100 flex items-center justify-center mx-auto mb-3">
+                        <IconChart className="w-5 h-5 text-neutral-400" />
+                      </div>
+                      <p className="text-sm text-neutral-800 font-medium mb-1">
+                        {t('overview.estimate.none')}
+                      </p>
+                      <p className="text-sm text-neutral-500 mb-4">
+                        {t('overview.estimate.noneBody')}
+                      </p>
+                      <Button variant="secondary" onClick={() => setNamingEstimate('')}>
+                        {t('overview.estimate.new')}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {estimateSets.map((set) => (
+                      <AreaEstimationPanel
+                        key={set.id}
+                        campaignId={campaignId}
+                        taskSetId={set.id}
+                        taskSetName={set.name}
+                        showEstimates={isAdmin}
+                        onAnnotate={() =>
+                          navigate(
+                            `${campaignPath(projectId, campaignId, 'annotate')}?mode=tasks&taskSet=${set.id}`
+                          )
+                        }
+                        onOpenDesign={
+                          isAdmin
+                            ? () =>
+                                navigate(
+                                  `${campaignPath(projectId, campaignId, 'tasks')}?taskSet=${set.id}`
+                                )
+                            : undefined
+                        }
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
             )}
-          </section>
+          </>
         )}
       </FadeIn>
 

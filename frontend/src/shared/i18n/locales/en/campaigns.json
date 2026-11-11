@@ -255,8 +255,7 @@
     "needsOneSet": "A campaign needs at least one task set",
     "setNamePlaceholder": "Set name",
     "createSet": "Create set",
-    "cancelCreate": "Cancel creating set",
-    "newSet": "+ New set",
+    "newSet": "New set",
     "deleteTitle": "Delete task set \"{{name}}\"?",
     "deleteDescription_one": "This permanently deletes the set and its {{count}} task with all associated annotations. This action cannot be undone.",
     "deleteDescription_other": "This permanently deletes the set and its {{count}} tasks with all associated annotations. This action cannot be undone."
@@ -519,7 +518,6 @@
       "set": "No tasks in this set yet. Add tasks to upload a file or generate them."
     },
     "backToSets": "Back to task sets",
-    "taskSet": "Task set",
     "addTitle": "Add annotation tasks to {{name}}",
     "thisSet": "this set",
     "assignmentsDescription": "Who each task is assigned to and who reviews it, as a CSV to edit and upload again. This never creates or removes tasks."

@@ -21,7 +21,6 @@ import { UserFilterDropdown } from './UserFilterDropdown';
 import { IconChevronDown, IconChevronRight, IconFlag } from '~/shared/ui/Icons';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import { isSortOption, type SortOption, type StatusFilter, type UserInfo } from './types';
-import { FadeIn } from '~/shared/ui/motion';
 import { listRowCls, tableHeadRowCls } from '~/shared/ui/listRow';
 
 /** Median active seconds recorded across a task's annotators, or null when
@@ -354,7 +353,7 @@ export const TaskModeReview = ({
   };
 
   return (
-    <FadeIn>
+    <div>
       <>
         <div>
           <div className="space-y-3">
@@ -379,11 +378,11 @@ export const TaskModeReview = ({
             </div>
 
             {/* Stats stay visible regardless of the filter panel's collapsed state. */}
-            <div className="flex items-center justify-between text-xs text-neutral-500">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-neutral-500">
               <span>
                 {t('tasks.showingOf', { shown: filteredTasks.length, total: tasks.length })}
               </span>
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                 <span>
                   {t('tasks.counts.complete')}{' '}
                   <strong className="text-neutral-800">{stats.done}</strong>
@@ -1177,6 +1176,6 @@ export const TaskModeReview = ({
           />
         </>
       )}
-    </FadeIn>
+    </div>
   );
 };

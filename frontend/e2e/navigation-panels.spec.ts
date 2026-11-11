@@ -8,6 +8,45 @@ import {
 } from './fixtures/mock-data';
 import type { CanvasLayoutCreate, CanvasLayoutItem, ImageryViewOut } from '../src/api/client';
 
+test('map hints sit at the top and compact slice navigation stays at the bottom', async ({
+  annotationPage: page,
+}) => {
+  await page.route('**/api/campaigns/*/detailed', (route) =>
+    route.fulfill({
+      json: {
+        ...MOCK_CAMPAIGN,
+        default_main_canvas_layout: {
+          ...MOCK_CAMPAIGN.default_main_canvas_layout,
+          layout_data: MOCK_CAMPAIGN.default_main_canvas_layout.layout_data.map((item) =>
+            item.i === 'main' ? { ...item, slice_navigation: true } : item
+          ),
+        },
+      },
+    })
+  );
+  await page.goto('/projects/7/campaigns/42/annotate?mode=explore');
+  await page.getByRole('button', { name: 'Pan (P)', exact: true }).click();
+  const navigation = page.getByTestId('slice-navigation');
+  const hint = page.getByTestId('map-tool-hint');
+  await expect(navigation).toBeVisible();
+  await expect(hint).toBeVisible();
+  for (const width of [1280, 900]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(async () => {
+      const buttons = await navigation.boundingBox();
+      const text = await hint.boundingBox();
+      const map = await page.locator('[data-panel-id="main"] [data-map-loading]').boundingBox();
+      if (!buttons || !text || !map) throw new Error('Map, navigation or hint is missing');
+      expect(buttons.height).toBeLessThan(35);
+      expect(text.y).toBeGreaterThan(map.y);
+      expect(text.y - map.y).toBeLessThan(25);
+      expect(Math.abs(text.x + text.width / 2 - map.x - map.width / 2)).toBeLessThan(2);
+      expect(text.y + text.height).toBeLessThan(buttons.y);
+      expect(map.y + map.height - buttons.y - buttons.height).toBeLessThan(15);
+    }).toPass({ timeout: 5000 });
+  }
+});
+
 for (const admin of [false, true]) {
   test(`${admin ? 'admin' : 'annotator'}: Edit Layout footer actions fit after resizing and moving the popover`, async ({
     annotationPage: page,

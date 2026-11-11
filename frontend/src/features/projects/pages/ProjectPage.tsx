@@ -15,7 +15,7 @@ import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Button } from '~/shared/ui/forms';
 import { IconCopy, IconDocument, IconGlobe, IconPlus, IconSettings } from '~/shared/ui/Icons';
-import { FadeIn, MotionListItem } from '~/shared/ui/motion';
+import { FadeIn } from '~/shared/ui/motion';
 import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
 import {
   isProjectSection,
@@ -46,9 +46,13 @@ export const ProjectPage = () => {
     : 'campaigns';
 
   const { project, loading } = useProject(projectId);
-  const { data: campaignsData } = useQuery({
+  const {
+    data: campaignsData,
+    isPending: campaignsLoading,
+    isError: campaignsError,
+  } = useQuery({
     ...listProjectCampaignsOptions({ path: { project_id: projectId } }),
-    meta: { errorMessage: t('page.loadCampaignsFailed') },
+    meta: { errorMessage: t('page.loadCampaignsFailed'), showUser: false },
     // Background setup finishes without a user action, so the badge has to
     // clear itself. Stops as soon as nothing is registering.
     refetchInterval: (query) =>
@@ -98,6 +102,8 @@ export const ProjectPage = () => {
           <ProjectSectionView
             project={project}
             campaigns={campaigns}
+            campaignsLoading={campaignsLoading}
+            campaignsError={campaignsError}
             requestedSection={requestedSection}
             onOpenCampaign={(campaign) => navigate(campaignPath(project.id, campaign.id))}
             onOpenCampaignSettings={(campaign) =>
@@ -125,6 +131,8 @@ export const ProjectPage = () => {
 interface ProjectSectionViewProps {
   project: ProjectOut;
   campaigns: CampaignListItemOut[];
+  campaignsLoading: boolean;
+  campaignsError: boolean;
   requestedSection: ProjectSection;
   onOpenCampaign: (campaign: CampaignListItemOut) => void;
   onOpenCampaignSettings: (campaign: CampaignListItemOut) => void;
@@ -136,6 +144,8 @@ interface ProjectSectionViewProps {
 const ProjectSectionView = ({
   project,
   campaigns,
+  campaignsLoading,
+  campaignsError,
   requestedSection,
   onOpenCampaign,
   onOpenCampaignSettings,
@@ -153,6 +163,8 @@ const ProjectSectionView = ({
         {activeTab === 'campaigns' && (
           <CampaignsList
             campaigns={campaigns}
+            loading={campaignsLoading}
+            error={campaignsError}
             canCreate={isAdmin}
             onOpen={onOpenCampaign}
             onOpenSettings={onOpenCampaignSettings}
@@ -177,6 +189,8 @@ const ProjectSectionView = ({
 
 interface CampaignsListProps {
   campaigns: CampaignListItemOut[];
+  loading: boolean;
+  error: boolean;
   canCreate: boolean;
   onOpen: (campaign: CampaignListItemOut) => void;
   onOpenSettings: (campaign: CampaignListItemOut) => void;
@@ -186,6 +200,8 @@ interface CampaignsListProps {
 
 const CampaignsList = ({
   campaigns,
+  loading,
+  error,
   canCreate,
   onOpen,
   onOpenSettings,
@@ -207,7 +223,13 @@ const CampaignsList = ({
         )}
       </div>
 
-      {campaigns.length === 0 ? (
+      {loading ? (
+        <SkeletonRows count={4} />
+      ) : error ? (
+        <p role="alert" className="text-sm text-red-600">
+          {t('page.loadCampaignsFailed')}
+        </p>
+      ) : campaigns.length === 0 ? (
         <div className="rounded-lg border border-dashed border-neutral-200 px-6 py-10 text-center">
           <IconDocument className="mx-auto h-6 w-6 text-neutral-300" />
           <p className="mt-2 text-sm text-neutral-600">{t('page.noCampaigns')}</p>
@@ -217,15 +239,14 @@ const CampaignsList = ({
         </div>
       ) : (
         <ul className="divide-y divide-neutral-100">
-          {campaigns.map((campaign, index) => (
-            <MotionListItem key={campaign.id} index={index}>
-              <CampaignRow
-                campaign={campaign}
-                onOpen={() => onOpen(campaign)}
-                onOpenSettings={() => onOpenSettings(campaign)}
-                onDuplicate={() => onDuplicate(campaign)}
-              />
-            </MotionListItem>
+          {campaigns.map((campaign) => (
+            <CampaignRow
+              key={campaign.id}
+              campaign={campaign}
+              onOpen={() => onOpen(campaign)}
+              onOpenSettings={() => onOpenSettings(campaign)}
+              onDuplicate={() => onDuplicate(campaign)}
+            />
           ))}
         </ul>
       )}

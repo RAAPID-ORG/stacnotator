@@ -65,9 +65,7 @@ export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = memo(
 
     return (
       <div>
-        <h2 className="text-lg font-semibold text-neutral-900 mb-4">
-          {t('taskLocations.title', { count: totalTasks })}
-        </h2>
+        <h2 className="section-heading mb-3">{t('taskLocations.title', { count: totalTasks })}</h2>
 
         <DensityLegend entries={legend} hidden={hidden} onToggle={toggle} />
 

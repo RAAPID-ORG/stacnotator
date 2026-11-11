@@ -10,7 +10,7 @@ import { useLayoutStore } from '~/shared/stores/layout.store';
 import { useOrgStore } from '~/shared/stores/org.store';
 import { Button, IconButton, Input } from '~/shared/ui/forms';
 import { IconClose, IconFolder, IconPlus, IconSearch } from '~/shared/ui/Icons';
-import { FadeIn, MotionListItem } from '~/shared/ui/motion';
+import { FadeIn } from '~/shared/ui/motion';
 import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
 import { ProjectRow } from '../components/ProjectRow';
 import {
@@ -29,13 +29,16 @@ export const ProjectsPage = () => {
   const setBreadcrumbs = useLayoutStore((s) => s.setBreadcrumbs);
   const activeOrgId = useOrgStore((s) => s.activeOrgId);
   const { orgs: memberships, loading: orgsLoading, error: orgsError } = useOrganizations();
-  const { orgs: approvedOrgs } = useOrganizations({ approvedOnly: true });
+  const { orgs: approvedOrgs, loading: approvedOrgsLoading } = useOrganizations({
+    approvedOnly: true,
+  });
 
-  const { data, isPending: loading } = useQuery({
+  const { data, isPending: projectsLoading } = useQuery({
     ...listProjectsOptions(),
     meta: { errorMessage: t('list.loadFailed') },
   });
   const projects = data?.items ?? NO_PROJECTS;
+  const loading = projectsLoading || orgsLoading || approvedOrgsLoading;
 
   // Until the user picks a filter it tracks the active org, which may still be
   // resolving on first run (auto-select of the first approved org).
@@ -66,7 +69,7 @@ export const ProjectsPage = () => {
   // switcher and the list from disagreeing about where the user is.
   const activeOrgName = memberships.find((org) => org.id === activeOrgId)?.name ?? null;
   const canCreateProject = approvedOrgs.length > 0;
-  const showCreationGating = !canCreateProject && !orgsLoading && orgsError === null;
+  const showCreationGating = !canCreateProject && !loading && orgsError === null;
   const needsOrgSelection = filter === 'organization' && activeOrgId === null;
 
   return (
@@ -190,13 +193,12 @@ export const ProjectsPage = () => {
               </div>
             ) : (
               <ul className="divide-y divide-neutral-100">
-                {filtered.map((project, index) => (
-                  <MotionListItem key={project.id} index={index}>
-                    <ProjectRow
-                      project={project}
-                      onOpen={() => navigate(projectPath(project.id))}
-                    />
-                  </MotionListItem>
+                {filtered.map((project) => (
+                  <ProjectRow
+                    key={project.id}
+                    project={project}
+                    onOpen={() => navigate(projectPath(project.id))}
+                  />
                 ))}
               </ul>
             )}

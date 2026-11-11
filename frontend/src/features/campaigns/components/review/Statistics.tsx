@@ -5,6 +5,7 @@ import { useCampaignStatistics } from '~/features/campaigns/hooks/campaignQuerie
 import { formatDuration } from '~/shared/utils/utility';
 import { IconChevronDown, IconChevronRight } from '~/shared/ui/Icons';
 import { listRowCls, tableHeadRowCls } from '~/shared/ui/listRow';
+import { Skeleton } from '~/shared/ui/Skeleton';
 
 interface StatisticsProps {
   campaignId: number;
@@ -57,7 +58,7 @@ export const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
     return (
       <div>
         {heading}
-        <p className="section-description">{t('statistics.loading')}</p>
+        <Skeleton className="mt-3 h-8 w-full max-w-2xl" />
       </div>
     );
   }
@@ -115,48 +116,48 @@ export const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
 
   return (
     <div>
-      {heading}
-      {hasAlpha && (
-        <p className="section-description">
-          {t(`statistics.alphaSummary.${alphaQualifier(alpha)}`)}
-        </p>
-      )}
-
-      <dl className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-neutral-200 border border-neutral-200 rounded-lg overflow-hidden mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+        {heading}
+        <button
+          type="button"
+          onClick={() => setIsExpanded((v) => !v)}
+          aria-expanded={isExpanded}
+          className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
+        >
+          {isExpanded ? (
+            <IconChevronDown className="h-3.5 w-3.5" />
+          ) : (
+            <IconChevronRight className="h-3.5 w-3.5" />
+          )}
+          {isExpanded ? t('statistics.hide') : t('statistics.more')}
+        </button>
+      </div>
+      <dl className="flex flex-wrap gap-x-6 gap-y-2">
         {headline.map(({ label, value, tone, hint }) => (
-          <div key={label} className="bg-white px-4 py-3" title={hint}>
-            <dt className="text-xs text-neutral-500">{label}</dt>
-            <dd className={`text-lg font-semibold tabular-nums ${tone ?? 'text-neutral-900'}`}>
+          <div key={label} className="flex items-baseline gap-2" title={hint}>
+            <dt className="text-[13px] text-neutral-500">{label}</dt>
+            <dd className={`text-sm font-medium tabular-nums ${tone ?? 'text-neutral-900'}`}>
               {value}
             </dd>
           </div>
         ))}
       </dl>
 
-      <button
-        type="button"
-        onClick={() => setIsExpanded((v) => !v)}
-        aria-expanded={isExpanded}
-        className="group flex items-center gap-1.5 -mx-2 px-2 py-1 rounded-lg text-sm text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 transition-colors"
-      >
-        <span className="text-neutral-400 group-hover:text-neutral-600 transition-colors">
-          {isExpanded ? (
-            <IconChevronDown className="w-4 h-4" />
-          ) : (
-            <IconChevronRight className="w-4 h-4" />
-          )}
-        </span>
-        {isExpanded ? t('statistics.hide') : t('statistics.more')}
-      </button>
-
       {isExpanded && (
-        <div className="space-y-6 mt-4">
+        <div className="space-y-6 mt-4 border-t border-neutral-100 pt-4">
+          {hasAlpha && (
+            <p className="section-description max-w-prose">
+              {t(`statistics.alphaSummary.${alphaQualifier(alpha)}`)}
+            </p>
+          )}
           {annotators.length > 1 ? (
             <div>
               <h3 className="section-heading">{t('statistics.pairwiseHeading')}</h3>
-              <p className="section-description">{t('statistics.pairwiseDescription')}</p>
+              <p className="section-description max-w-prose">
+                {t('statistics.pairwiseDescription')}
+              </p>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm border-collapse">
+                <table className="w-max whitespace-nowrap text-sm border-collapse">
                   <thead>
                     <tr className={tableHeadRowCls}>
                       <th className={thCls}>{t('statistics.annotator')}</th>
@@ -227,7 +228,7 @@ export const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
           )}
 
           {Object.keys(statistics.overall_label_distribution || {}).length > 0 && (
-            <div>
+            <div className="max-w-xl">
               <h3 className="section-heading">{t('statistics.labelDistributionHeading')}</h3>
               <p className="section-description">{t('statistics.labelDistributionDescription')}</p>
               <div className="space-y-2">
@@ -235,10 +236,10 @@ export const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
                   .sort(([, a], [, b]) => b - a)
                   .map(([label, count]) => (
                     <div key={label} className="flex items-center gap-3">
-                      <div className="w-32 text-xs text-neutral-700 truncate" title={label}>
+                      <div className="w-32 min-w-0 text-xs text-neutral-700 truncate" title={label}>
                         {label}
                       </div>
-                      <div className="flex-1 bg-neutral-100 rounded-full h-2">
+                      <div className="min-w-8 flex-1 bg-neutral-100 rounded-full h-2">
                         <div
                           className="bg-brand-600 h-2 rounded-full"
                           style={{
@@ -246,7 +247,7 @@ export const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
                           }}
                         />
                       </div>
-                      <div className="w-24 text-xs text-neutral-500 text-right">
+                      <div className="w-24 shrink-0 text-xs text-neutral-500 text-right">
                         {count} ({((count / statistics.total_annotations) * 100).toFixed(1)}%)
                       </div>
                     </div>
@@ -258,9 +259,11 @@ export const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
           {annotators.length > 0 && allLabels.length > 0 && (
             <div>
               <h3 className="section-heading">{t('statistics.byAnnotatorHeading')}</h3>
-              <p className="section-description">{t('statistics.byAnnotatorDescription')}</p>
+              <p className="section-description max-w-prose">
+                {t('statistics.byAnnotatorDescription')}
+              </p>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm border-collapse">
+                <table className="w-max whitespace-nowrap text-sm border-collapse">
                   <thead>
                     <tr className={tableHeadRowCls}>
                       <th className={thCls}>{t('statistics.annotator')}</th>

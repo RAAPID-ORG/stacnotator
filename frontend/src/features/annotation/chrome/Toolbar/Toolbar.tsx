@@ -7,6 +7,7 @@ import { Dropdown } from '~/shared/ui/motion';
 import { BarButton } from '~/shared/ui/BarButton';
 import {
   IconChevronLeft,
+  IconCheck,
   IconDocument,
   IconFilter,
   IconFullscreen,
@@ -68,7 +69,7 @@ function ViewPicker({ campaign }: { campaign: CampaignOutFull }) {
       />
       <Dropdown
         open={open}
-        className="absolute top-full left-0 mt-0.5 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 min-w-[200px] max-h-[400px] overflow-y-auto origin-top-left"
+        className="absolute top-full left-0 mt-1 bg-white border border-neutral-200 rounded-lg p-1 shadow-lg z-30 min-w-[200px] max-w-80 max-h-[400px] overflow-y-auto origin-top-left"
       >
         {views.map((view: ImageryViewOut) => (
           <button
@@ -78,13 +79,15 @@ function ViewPicker({ campaign }: { campaign: CampaignOutFull }) {
               setOpen(false);
               selectView(view);
             }}
-            className={`w-full text-left px-3 py-2 text-sm hover:bg-neutral-100 transition-colors ${
-              selectedViewId === view.id
-                ? 'bg-neutral-100 text-brand-700 font-medium'
-                : 'text-neutral-900'
+            aria-pressed={selectedViewId === view.id}
+            className={`flex w-full items-center gap-2 rounded-md text-left px-2 py-1.5 text-[13px] hover:bg-neutral-100 transition-colors ${
+              selectedViewId === view.id ? 'bg-brand-50 text-brand-700' : 'text-neutral-700'
             }`}
           >
-            <div className="font-medium">{view.name}</div>
+            <span className="min-w-0 flex-1 break-words">{view.name}</span>
+            <IconCheck
+              className={`h-3.5 w-3.5 shrink-0 ${selectedViewId === view.id ? '' : 'invisible'}`}
+            />
           </button>
         ))}
       </Dropdown>
