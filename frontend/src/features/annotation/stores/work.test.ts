@@ -418,14 +418,11 @@ describe('a commit that resolves after the user has moved on', () => {
 });
 
 describe('probe points', () => {
-  beforeEach(() => useWorkStore.setState({ probes: [], activeProbe: null, probeAddArmed: false }));
+  beforeEach(() => useWorkStore.setState({ probes: [], activeProbe: null }));
 
   /** Drop `count` probes, each one deliberately added. */
   const drop = (points: LonLat[]) => {
-    for (const point of points) {
-      useWorkStore.getState().armAddProbe(true);
-      useWorkStore.getState().probeAt(point);
-    }
+    for (const point of points) useWorkStore.getState().probeAt(point, true);
   };
 
   it('drops the first probe on a click and moves that one afterwards', () => {

@@ -253,6 +253,26 @@ export const IconProbe = ({ className = 'w-4 h-4' }: IconProps) => (
   </svg>
 );
 
+/** Probe geometries: one pixel, a drawn area, a saved shape picked off the map. */
+export const IconPointProbe = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <circle cx="10" cy="10" r="6" />
+    <circle cx="10" cy="10" r="1.5" fill="currentColor" />
+  </svg>
+);
+
+export const IconPolygon = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <path d="M4 7l6-4 6 5-2 8H6z" />
+  </svg>
+);
+
+export const IconCursor = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <path d="M5 3l11 6-5 1.5L8.5 16z" />
+  </svg>
+);
+
 export const IconSliders = ({ className = 'w-4 h-4' }: IconProps) => (
   <svg {...defaults} className={className}>
     <path d="M3 6h2M9 6h8M3 14h8M15 14h2" />

@@ -574,21 +574,7 @@ function mapBindings(): Binding[] {
         ]
       : [];
 
-  // Both modes: the tool moves the probe you picked up, so adding another is
-  // its own key rather than a different kind of click.
-  const addProbe: Binding[] =
-    campaign.time_series.length > 0
-      ? [
-          {
-            key: 'shift+t',
-            help: t('keymap.addProbe'),
-            run: () => useWorkStore.getState().armAddProbe(true),
-          },
-        ]
-      : [];
-
   return [
-    ...addProbe,
     scrub('a', t('keymap.previousSlice'), () => imagery().stepSliceAction(catalog, -1)),
     scrub('d', t('keymap.nextSlice'), () => imagery().stepSliceAction(catalog, 1)),
     scrub('shift+a', t('keymap.previousCollection'), () =>

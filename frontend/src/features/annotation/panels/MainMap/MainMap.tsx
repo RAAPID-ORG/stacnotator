@@ -38,7 +38,7 @@ import { historyAvailable, replayLabelling, useHistoryStore } from '../../stores
 import { useLayoutStore } from '../../stores/layout';
 import { usePrefsStore } from '../../stores/prefs';
 import { useMapFocus, useTasksStore } from '../../stores/tasks';
-import { MAX_PROBES, useSavedAnnotations, useWorkStore } from '../../stores/work';
+import { useSavedAnnotations, useWorkStore } from '../../stores/work';
 import { CollectionPicker } from './controls/CollectionPicker';
 import { VisualizationEditor, VisualizationEditorToggle } from './controls/VisualizationEditor';
 import { CustomMapControls } from './controls/CustomMapControls';
@@ -98,20 +98,10 @@ function ClearProbes() {
   );
 }
 
-/**
- * Arm the probe tool, and add probes to it. The tool alone moves the probe you
- * picked up - which is what comparing a place across dates needs - so dropping
- * another one is its own control rather than a side effect of clicking again.
- */
-function ProbeToggle({ title, addTitle }: { title: string; addTitle: string }) {
-  const { t } = useTranslation('panels');
+/** The probe tool and, while it is on, its geometry. Adding a probe is
+ *  Shift+click on the map, so there is no separate add control. */
+function ProbeToggle({ title }: { title: string }) {
   const active = useWorkStore((s) => s.tool === 'timeseries');
-  const armed = useWorkStore((s) => s.probeAddArmed);
-  const atCap = useWorkStore((s) => s.probes.length >= MAX_PROBES);
-
-  const segment = 'flex h-6 items-center justify-center rounded-md cursor-pointer';
-  const off = 'text-neutral-300 hover:bg-neutral-100 hover:text-neutral-500';
-
   return (
     <div className="flex items-center gap-0.5">
       <button
@@ -122,26 +112,15 @@ function ProbeToggle({ title, addTitle }: { title: string; addTitle: string }) {
         aria-label={title}
         title={title}
         data-testid="probe-toggle"
-        className={`${segment} w-6 ${active ? 'bg-brand-600 text-white hover:bg-brand-700' : off}`}
+        className={`flex h-6 w-6 items-center justify-center rounded-md cursor-pointer ${
+          active
+            ? 'bg-brand-600 text-white hover:bg-brand-700'
+            : 'text-neutral-300 hover:bg-neutral-100 hover:text-neutral-500'
+        }`}
       >
         <IconProbe className="h-[13px] w-[13px]" />
       </button>
       {active && <ProbeModeControl />}
-      <button
-        type="button"
-        onMouseDown={(e) => e.stopPropagation()}
-        onClick={() => useWorkStore.getState().armAddProbe(!armed)}
-        aria-pressed={armed}
-        disabled={atCap}
-        aria-label={addTitle}
-        title={atCap ? t('probes.atCap', { max: MAX_PROBES }) : addTitle}
-        data-testid="probe-add"
-        className={`${segment} w-4 text-[13px] font-semibold leading-none disabled:cursor-not-allowed disabled:opacity-40 ${
-          armed ? 'bg-brand-600 text-white hover:bg-brand-700' : off
-        }`}
-      >
-        +
-      </button>
     </div>
   );
 }
@@ -338,12 +317,7 @@ function MainMapActions() {
       {/* Tasks only: there the probe is a detour from the task, so it is
             reached from the map. Explore keeps every probe control in its
             tools panel, beside the tool that drops them. */}
-      {isTaskMode && campaign.time_series.length > 0 && (
-        <ProbeToggle
-          title={hotkeyTip('t')}
-          addTitle={hotkeyTip('shift+t', t('probes.addAnother'))}
-        />
-      )}
+      {isTaskMode && campaign.time_series.length > 0 && <ProbeToggle title={hotkeyTip('t')} />}
       {isTaskMode && <ClearProbes />}
       {isTaskMode && <PreloadMenu />}
     </div>
@@ -353,12 +327,10 @@ function MainMapActions() {
 /**
  * A click on the task map, which probes only while the probe tool is armed - a
  * bare click has to stay free to mean nothing, or every attempt to look around
- * moves the marker and refetches. Shift belongs to the box gestures, so a
- * click that carries it is not a click.
+ * moves the marker and refetches.
  */
 function taskProbeClick(event: MapClickEvent): void {
-  if (event.shiftKey || useWorkStore.getState().tool !== 'timeseries') return;
-  handleProbeClick(event);
+  if (useWorkStore.getState().tool === 'timeseries') handleProbeClick(event);
 }
 
 /**
@@ -450,7 +422,7 @@ function MapNotice({ waitingForRegistration }: { waitingForRegistration: boolean
   const sceneNotice = useSceneNotice();
   const loadingTiles = useForegroundLoading();
 
-  if (waitingForRegistration) return <ImageryRegistrationNotice />;
+  if (waitingForRegistration) return null;
   if (drawsShapes && needsLabel) {
     return (
       <StatusPill>
@@ -498,9 +470,9 @@ export function MainMapBody() {
   const onMapClick = drawsShapes ? drawingClick : taskProbeClick;
   const probes = useWorkStore((s) => (s.probeMarkerHidden ? EMPTY_PROBES : s.probes));
   const activeProbe = useWorkStore((s) => s.activeProbe);
-  const probesInteractive = useWorkStore(
-    (s) => s.tool === 'timeseries' && !(s.probeMode === 'select' && s.probeAddArmed)
-  );
+  // Polygon probes are filled, so outside Point mode they would cover the saved
+  // annotations Select picks from.
+  const probesInteractive = useWorkStore((s) => s.tool === 'timeseries' && s.probeMode === 'point');
   const lastProbe = probes.at(-1);
   const lastPoint = Array.isArray(lastProbe) ? lastProbe : undefined;
   const focus = useMapFocus();
@@ -586,6 +558,9 @@ export function MainMapBody() {
   );
 
   const address = imagery.address;
+  const waitingForRegistration =
+    !imagery.showBasemap &&
+    awaitingImageryRegistration(campaign.registration_status, catalog, address);
   const workingZoom = address
     ? (catalog.sources.get(address.sourceId)?.default_zoom ?? null)
     : null;
@@ -667,13 +642,9 @@ export function MainMapBody() {
             <SliceNavigation />
           </div>
         )}
+        {waitingForRegistration && <ImageryRegistrationNotice />}
         <div className="map-notices pointer-events-none absolute top-2 left-1/2 z-20 w-max max-w-[calc(100%-16px)] -translate-x-1/2">
-          <MapNotice
-            waitingForRegistration={
-              !imagery.showBasemap &&
-              awaitingImageryRegistration(campaign.registration_status, catalog, address)
-            }
-          />
+          <MapNotice waitingForRegistration={waitingForRegistration} />
         </div>
       </div>
     </div>

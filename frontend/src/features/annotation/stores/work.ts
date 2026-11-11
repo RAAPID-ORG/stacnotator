@@ -157,11 +157,8 @@ interface WorkState {
   probeSketchVersion: number;
   /** The probe a map click moves. Comparing places means dropping a few and
    *  then adjusting one of them, so moving is the default and adding is the
-   *  deliberate act. */
+   *  deliberate act (Shift+click). */
   activeProbe: number | null;
-  /** The next map click drops a new probe instead of moving the active one.
-   *  One-shot: armed from the + control, spent on the click after it. */
-  probeAddArmed: boolean;
   /** The chart legend hid every probe series, so the on-map markers are
    *  meaningless and come off too. */
   probeMarkerHidden: boolean;
@@ -181,14 +178,11 @@ interface WorkState {
    *  it onto the next save otherwise. */
   saveSliceComment: (comment: SliceComment) => Promise<void>;
   setSelection: (ids: number[], anchor: LonLat | null) => void;
-  /** A click on the map: move the active probe there, or drop a new one when
-   *  there is none yet or the + control armed it. */
-  probeAt: (probe: Probe) => void;
+  /** Move the active probe here, or drop a new one when `add` is set or there
+   *  is no active probe yet. */
+  probeAt: (probe: Probe, add?: boolean) => void;
   setProbeMode: (mode: ProbeMode) => void;
-  probeAnnotation: (annotationId: number) => Promise<void>;
-  /** Arm (or disarm) "the next click adds a probe", arming the tool with it so
-   *  the + control is one press rather than two. */
-  armAddProbe: (armed: boolean) => void;
+  probeAnnotation: (annotationId: number, add?: boolean) => Promise<void>;
   /** Make this probe the one a map click moves. */
   selectProbe: (index: number) => void;
   /** Takes that comparison back off the chart. */
@@ -426,7 +420,6 @@ export const useWorkStore = create<WorkState>((set, get) => {
     pendingProbe: null,
     probeSketchVersion: 0,
     activeProbe: null,
-    probeAddArmed: false,
     probeMarkerHidden: false,
 
     setSelectedLabelId: (selectedLabelId) => set({ selectedLabelId }),
@@ -442,20 +435,20 @@ export const useWorkStore = create<WorkState>((set, get) => {
     setSelection: (selection, selectionAnchor) => set({ selection, selectionAnchor }),
     // At the cap the oldest probe gives way, so the tool keeps working rather
     // than silently doing nothing.
-    probeAt: (point) =>
+    probeAt: (point, add = false) =>
       set((s) => {
-        const adding = s.probeAddArmed || s.probes.length === 0 || s.activeProbe === null;
+        const adding = add || s.activeProbe === null;
         if (!adding) {
           const probes = s.probes.map((p, i) => (i === s.activeProbe ? point : p));
           return { probes, pendingProbe: null };
         }
         const probes = [...s.probes, point].slice(-MAX_PROBES);
-        return { probes, activeProbe: probes.length - 1, probeAddArmed: false, pendingProbe: null };
+        return { probes, activeProbe: probes.length - 1, pendingProbe: null };
       }),
 
     setProbeMode: (probeMode) => set({ probeMode, pendingProbe: null }),
 
-    probeAnnotation: async (annotationId) => {
+    probeAnnotation: async (annotationId, add = false) => {
       const campaign = campaignState().campaign;
       const pendingProbe = {};
       set({ pendingProbe });
@@ -470,7 +463,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
           alert(i18n.t('panels:probes.selectPolygonOnly'), 'error');
           return;
         }
-        get().probeAt(geometry);
+        get().probeAt(geometry, add);
       } catch (error) {
         if (get().pendingProbe === pendingProbe && campaignState().campaign === campaign) {
           handleError(error, i18n.t('panels:probes.loadPolygonFailed'));
@@ -480,15 +473,8 @@ export const useWorkStore = create<WorkState>((set, get) => {
       }
     },
 
-    armAddProbe: (armed) => {
-      set({ probeAddArmed: armed, pendingProbe: null });
-      if (armed && get().tool !== 'timeseries') void get().selectTool('timeseries');
-    },
-
     selectProbe: (index) =>
-      set((s) =>
-        s.probes[index] ? { activeProbe: index, probeAddArmed: false, pendingProbe: null } : {}
-      ),
+      set((s) => (s.probes[index] ? { activeProbe: index, pendingProbe: null } : {})),
 
     // The active probe follows the list: removing one before it would leave
     // the marker ring on someone else's point.
@@ -508,7 +494,6 @@ export const useWorkStore = create<WorkState>((set, get) => {
       set({
         probes: [],
         activeProbe: null,
-        probeAddArmed: false,
         pendingProbe: null,
         probeSketchVersion: get().probeSketchVersion + 1,
       }),
@@ -607,7 +592,6 @@ export const useWorkStore = create<WorkState>((set, get) => {
         pendingProbe: null,
         probeSketchVersion: get().probeSketchVersion + 1,
         activeProbe: null,
-        probeAddArmed: false,
         probeMarkerHidden: false,
       }),
 

@@ -113,19 +113,25 @@ test('drawing a polygon probe does not save an annotation and a point can be add
   expect(request.postDataJSON().geometry.coordinates[0]).toHaveLength(4);
   await expect(page.locator('[data-probe-count]')).toHaveAttribute('data-probe-count', '1');
   expect(api.filter(/\/annotations(?:\/\d+)?$/)).toEqual([]);
+  // Finishing with Shift adds the polygon instead of replacing the first.
+  const shifted = triangle.map(([x, y]): [number, number] => [x + 20, y - 10]);
+  for (const [x, y] of shifted) await clickMapAt(page, x, y);
+  await Promise.all([
+    page.waitForRequest(isZonalRequest),
+    clickMapAt(page, ...shifted[0], { shift: true }),
+  ]);
+  await expect(page.locator('[data-probe-count]')).toHaveAttribute('data-probe-count', '2');
   await page.getByRole('radio', { name: 'Point', exact: true }).click();
-  await page.getByTestId('probe-add').click();
+  const isPointRequest = (r: import('@playwright/test').Request) =>
+    r.method() === 'GET' && /\/timeseries\/\d+\/data\?/.test(r.url());
   const [pointRequest] = await Promise.all([
-    page.waitForRequest((r) => r.method() === 'GET' && /\/timeseries\/\d+\/data\?/.test(r.url())),
-    clickMapCenter(page),
+    page.waitForRequest(isPointRequest),
+    clickMapCenter(page, { shift: true }),
   ]);
   expect(new URL(pointRequest.url()).searchParams.has('latitude')).toBe(true);
-  await expect(page.locator('[data-probe-count]')).toHaveAttribute('data-probe-count', '2');
-  await Promise.all([
-    page.waitForRequest((r) => r.method() === 'GET' && /\/timeseries\/\d+\/data\?/.test(r.url())),
-    clickMapAt(page, 100, 50),
-  ]);
-  await expect(page.locator('[data-probe-count]')).toHaveAttribute('data-probe-count', '2');
+  await expect(page.locator('[data-probe-count]')).toHaveAttribute('data-probe-count', '3');
+  await Promise.all([page.waitForRequest(isPointRequest), clickMapAt(page, 100, 50)]);
+  await expect(page.locator('[data-probe-count]')).toHaveAttribute('data-probe-count', '3');
 });
 
 test('Select saved loads the full saved polygon and empty-map clicks do not start a sketch', async ({
@@ -176,7 +182,7 @@ test('Select saved loads the full saved polygon and empty-map clicks do not star
   expect(api.filter(/\/annotations$/).filter((r) => r.method === 'POST')).toEqual([]);
 });
 
-test('polygon probes allow Pan, Edit, and Add Select saved to reach covered annotations', async ({
+test('polygon probes let Pan, Edit and Select saved reach covered annotations', async ({
   annotationPage: page,
 }) => {
   await openExplore(page);
@@ -199,7 +205,10 @@ test('polygon probes allow Pan, Edit, and Add Select saved to reach covered anno
     await page.getByRole('button', { name: 'Probe time series (T)', exact: true }).click();
   }
 
-  await page.getByTestId('probe-add').click();
+  // Select saved reaches the annotation under a polygon probe: a click replaces
+  // the active probe, Shift+click adds another.
   await Promise.all([annotationRead(), clickMapCenter(page)]);
+  await expect(page.locator('[data-probe-count]')).toHaveAttribute('data-probe-count', '1');
+  await Promise.all([annotationRead(), clickMapCenter(page, { shift: true })]);
   await expect(page.locator('[data-probe-count]')).toHaveAttribute('data-probe-count', '2');
 });

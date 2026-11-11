@@ -150,8 +150,8 @@ const mainViewport = (page: Page) =>
   page.locator('[data-panel-role="main-map"] .ol-viewport').first();
 
 /** Click the centre of the main map - in Explore this is the viewport centre. */
-export async function clickMapCenter(page: Page): Promise<void> {
-  await mainViewport(page).click();
+export async function clickMapCenter(page: Page, { shift = false } = {}): Promise<void> {
+  await mainViewport(page).click({ modifiers: shift ? ['Shift'] : [] });
 }
 
 /** Ctrl/Cmd+click the centre of the main map (edit-mode multi-select toggle).
@@ -161,11 +161,19 @@ export async function ctrlClickMapCenter(page: Page): Promise<void> {
 }
 
 /** Click at an (dx, dy) pixel offset from the main map centre. */
-export async function clickMapAt(page: Page, dx: number, dy: number): Promise<void> {
+export async function clickMapAt(
+  page: Page,
+  dx: number,
+  dy: number,
+  { shift = false } = {}
+): Promise<void> {
   const viewport = mainViewport(page);
   const box = await viewport.boundingBox();
   if (!box) throw new Error('main map viewport has no bounding box');
-  await viewport.click({ position: { x: box.width / 2 + dx, y: box.height / 2 + dy } });
+  await viewport.click({
+    position: { x: box.width / 2 + dx, y: box.height / 2 + dy },
+    modifiers: shift ? ['Shift'] : [],
+  });
 }
 
 /** Click each (dx, dy) offset from the main map centre. */
@@ -200,15 +208,12 @@ export function parseWkt(wkt: string): { type: string; lon: number; lat: number 
 
 export const waitForCreate = (page: Page) =>
   page.waitForResponse(
-    (r) =>
-      /\/annotations$/.test(new URL(r.url()).pathname) && r.request().method() === 'POST',
+    (r) => /\/annotations$/.test(new URL(r.url()).pathname) && r.request().method() === 'POST',
     { timeout: 8000 }
   );
 export const waitForUpdate = (page: Page) =>
   page.waitForResponse(
-    (r) =>
-      /\/annotations\/\d+$/.test(new URL(r.url()).pathname) &&
-      r.request().method() === 'PUT',
+    (r) => /\/annotations\/\d+$/.test(new URL(r.url()).pathname) && r.request().method() === 'PUT',
     { timeout: 8000 }
   );
 export const waitForDelete = (page: Page) =>

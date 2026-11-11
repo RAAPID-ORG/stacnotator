@@ -111,10 +111,15 @@ export interface BoxHit {
   feature: GeoFeature;
 }
 
+/** How a sketch was finished: Shift on the closing click or Enter. */
+export interface DrawFinish {
+  shiftKey: boolean;
+}
+
 export interface InteractionSpec {
   draw?: {
     shape: DrawShape;
-    onDrawEnd: (g: GeoJSON.Geometry) => void;
+    onDrawEnd: (g: GeoJSON.Geometry, finish: DrawFinish) => void;
     sketchStyle?: StyleSpec;
     resetKey?: number;
   };

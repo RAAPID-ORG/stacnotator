@@ -12,7 +12,7 @@ import { labelSwatch } from '../../campaign/labelStyle';
 import { useImageryStore } from '../../stores/imagery';
 import { usePrefsStore } from '../../stores/prefs';
 import { useCampaign } from '../../stores/campaign';
-import { MAX_PROBES, useWorkStore, type Tool } from '../../stores/work';
+import { useWorkStore, type Tool } from '../../stores/work';
 import { helpRows } from '../../hotkeys';
 import { activeGroupClass, FormFields, sectionHeaderClass } from '../../components/FormFields';
 import { LabelChips } from '../../components/LabelChips';
@@ -80,7 +80,6 @@ function Icon({ path }: { path: string }) {
 
 /** Chips sit as many to a row as fit, each row filling the width, so a
  *  narrow panel shows one full-width chip per row rather than ragged ones. */
-const chipRowClass = 'grid grid-cols-[repeat(auto-fill,minmax(min(8.5rem,100%),1fr))] gap-1.5';
 
 const chipClass = (active: boolean) =>
   `flex min-w-0 items-center justify-center gap-1.5 px-2 py-1 rounded text-[11px] font-medium transition-colors cursor-pointer ${
@@ -123,33 +122,19 @@ function ShortcutLegend() {
 }
 
 /**
- * Adding and clearing probes, beside the tool that drops them. Tasks keeps
+ * Probe geometry and clearing, beside the tool that drops them. Tasks keeps
  * these in the map header - the probe is a detour from the task there - but in
  * Explore the probe *is* the work, so it belongs with the rest of the tools.
  */
 function ProbeControls() {
   const { t } = useTranslation('panels');
   const probeCount = useWorkStore((s) => s.probes.length);
-  const armed = useWorkStore((s) => s.probeAddArmed);
-  const atCap = probeCount >= MAX_PROBES;
 
   return (
     <div className="flex flex-col gap-1.5 w-full">
       <span className={sectionHeaderClass()}>{t('tools.timeseries')}</span>
-      <ProbeModeControl />
-      <p className="text-[11px] text-neutral-500 leading-relaxed">{t('probes.help')}</p>
-      <div className={chipRowClass}>
-        <button
-          type="button"
-          onClick={() => useWorkStore.getState().armAddProbe(!armed)}
-          aria-pressed={armed}
-          disabled={atCap}
-          title={atCap ? t('probes.atCap', { max: MAX_PROBES }) : t('probes.addTitle')}
-          data-testid="probe-add"
-          className={`${chipClass(armed)} disabled:opacity-40 disabled:cursor-not-allowed`}
-        >
-          {armed ? t('probes.armed') : t('probes.add')}
-        </button>
+      <div className="flex items-center justify-between gap-2">
+        <ProbeModeControl help />
         <button
           type="button"
           onClick={() => useWorkStore.getState().clearProbes()}
