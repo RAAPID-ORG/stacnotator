@@ -9,7 +9,11 @@ import {
   type ImagerySourceOut,
   type VisualizationPatch,
 } from '~/api/client';
-import { COLLECTION_PRESETS, presetVizParams } from '~/features/layers/imagery/collectionPresets';
+import {
+  COLLECTION_PRESETS,
+  isPreRenderedRGB,
+  presetVizParams,
+} from '~/features/layers/imagery/collectionPresets';
 import {
   normalizeColorFormula,
   validateColorFormula,
@@ -21,6 +25,7 @@ import {
   parseRescale,
   type ColorAdjust,
 } from '~/shared/imagery/colorAdjust';
+import { expressionAssets } from '~/shared/imagery/expressionAssets';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import { IconClose, IconReset, IconSliders, IconTrash } from '~/shared/ui/Icons';
 import { SegmentedControl } from '~/shared/ui/SegmentedControl';
@@ -29,6 +34,7 @@ import type { SliceAddress } from '../../../campaign/imageryNav';
 import {
   isStacCollection,
   patchedParams,
+  sliceParams,
   type VisualizationEdit,
   type VisualizationEdits,
 } from '../../../campaign/visualizationEdits';
@@ -46,8 +52,12 @@ interface Target {
   stacCollectionId: string;
   vizId: number;
   name: string;
-  /** The saved visualization's parameters this one is drawn over. */
+  /** The saved visualization's parameters for the slice on screen, which this one is
+   *  drawn over. */
   base: CollectionVisualizationOut;
+  /** Changes when the map moves to parameters drawn differently (another collection,
+   *  or its dedicated cover), so the editor starts again from them. */
+  drawnFrom: string;
   baseVizId: number;
   /** Set when the viewer made this visualization themselves. */
   copy: VisualizationEdit['copy'] | null;
@@ -68,7 +78,8 @@ function editTarget(
   const copy = edits[vizId]?.copy ?? null;
   const baseVizId = copy ? copy.baseId : vizId;
   const rows = collection.visualizations ?? [];
-  const base = rows.find((row) => row.visualization_id === baseVizId);
+  const row = rows.find((r) => r.visualization_id === baseVizId);
+  const base = row && { ...row, params: sliceParams(collection, row, address.sliceIndex) };
   const name = copy?.name ?? source.visualizations.find((viz) => viz.id === vizId)?.name;
   if (!base || !name) return null;
   return {
@@ -77,6 +88,7 @@ function editTarget(
     vizId,
     name,
     base,
+    drawnFrom: `${vizId}:${collection.id}:${base.params === row.params ? 'slices' : 'cover'}`,
     baseVizId,
     copy,
     rows,
@@ -117,12 +129,30 @@ export function VisualizationEditor() {
   const open = useImageryStore((s) => s.vizEditorOpen);
   const target = useEditTarget();
   if (!open || !target) return null;
-  return <EditorCard key={target.vizId} target={target} />;
+  return <EditorCard key={target.drawnFrom} target={target} />;
 }
+
+/** The bands drawn from one multiband asset given whole, such as Sentinel-2's `visual`. */
+function wholeAssetBands(params: Record<string, unknown>): number[] | null {
+  const assets = Array.isArray(params.assets) ? (params.assets as string[]) : [];
+  if (params.expression || (Array.isArray(params.bidx) && params.bidx.length)) return null;
+  if (assets.length !== 1) return null;
+  const extra = params.extra_params as Record<string, string> | undefined;
+  const [asset, bands] = extra?.asset_bidx?.split('|') ?? [];
+  if (asset === assets[0] && bands) return bands.split(',').map(Number);
+  return isPreRenderedRGB(assets[0]) ? [1, 2, 3] : null;
+}
+
+const withoutAssetBidx = (params: Record<string, unknown>) => {
+  const { asset_bidx: _, ...rest } = (params.extra_params ?? {}) as Record<string, string>;
+  return Object.keys(rest).length ? rest : null;
+};
 
 const outputBands = (params: Record<string, unknown>): number => {
   const expression = typeof params.expression === 'string' ? params.expression : '';
   if (expression) return expression.split(',').filter((term) => term.trim()).length || 1;
+  const whole = wholeAssetBands(params);
+  if (whole) return whole.length;
   const bidx = Array.isArray(params.bidx) ? params.bidx : [];
   const assets = Array.isArray(params.assets) ? params.assets : [];
   return bidx.length || Math.max(assets.length, 1);
@@ -132,8 +162,6 @@ const modeOf = (params: Record<string, unknown>): BandMode =>
   params.expression ? 'index' : outputBands(params) === 1 ? 'single' : 'rgb';
 
 const isEmpty = (patch: VisualizationPatch) => Object.keys(patch).length === 0;
-
-const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 async function refreshImagery(campaignId: number) {
   const { data } = await getCampaignWithImageryWindows({
@@ -218,7 +246,7 @@ function EditorCard({ target }: { target: Target }) {
   }, [target.rows, presets]);
 
   const assets = params.assets ?? [];
-  const bidx = params.bidx ?? null;
+  const bidx = params.bidx?.length ? params.bidx : wholeAssetBands(params);
   const baseRange = parseRescale(target.base.params.rescale as string | undefined);
   const range = parseRescale(params.rescale as string | undefined);
   const adjust = parseColorFormula(params.color_formula as string | undefined);
@@ -248,13 +276,16 @@ function EditorCard({ target }: { target: Target }) {
     setMode(next);
     if (next === 'index') {
       const preset = presets.find((p) => p.expression);
-      if (preset) applyPreset(presets.indexOf(preset));
+      if (expressionText.trim()) setExpression(expressionText);
+      else if (preset) applyPreset(presets.indexOf(preset));
       return;
     }
     if (next === 'single') {
       update({
         expression: null,
-        ...(bidx?.length ? { bidx: [bidx[0]] } : { assets: [assets[0] ?? assetChoices[0]] }),
+        ...(bidx?.length
+          ? { bidx: [bidx[0]], extra_params: withoutAssetBidx(params) }
+          : { assets: [assets[0] ?? assetChoices[0]] }),
         colormap_name: (params.colormap_name as string | undefined) ?? 'viridis',
       });
       return;
@@ -264,7 +295,10 @@ function EditorCard({ target }: { target: Target }) {
       expression: null,
       colormap_name: null,
       ...(bidx?.length
-        ? { bidx: [0, 1, 2].map((i) => bidx[i] ?? bidx[0]) }
+        ? {
+            bidx: [0, 1, 2].map((i) => bidx[i] ?? bidx[0]),
+            extra_params: withoutAssetBidx(params),
+          }
         : { assets: three, bidx: null }),
     });
   };
@@ -273,7 +307,7 @@ function EditorCard({ target }: { target: Target }) {
     if (bidx?.length) {
       const next = [...bidx];
       next[index] = Number(value);
-      update({ bidx: next });
+      update({ bidx: next, extra_params: withoutAssetBidx(params) });
     } else {
       const next = [...assets];
       next[index] = value;
@@ -283,12 +317,10 @@ function EditorCard({ target }: { target: Target }) {
 
   const setExpression = (expression: string) => {
     setExpressionText(expression);
-    const used = assetChoices.filter((asset) =>
-      new RegExp(`\\b${escapeRegExp(asset)}\\b`).test(expression)
-    );
+    const { assets: used, assetAsBand } = expressionAssets(expression);
     update({
       expression: expression.trim() || null,
-      asset_as_band: true,
+      asset_as_band: assetAsBand,
       bidx: null,
       ...(used.length ? { assets: used } : {}),
     });
@@ -469,6 +501,7 @@ function EditorCard({ target }: { target: Target }) {
         </section>
 
         <RangeControl
+          key={mode}
           value={range}
           base={baseRange ?? (mode === 'index' ? [-1, 1] : [0, 3000])}
           onChange={(next) => update({ rescale: next ? `${next[0]},${next[1]}` : null })}
@@ -726,12 +759,13 @@ function RangeControl({
   onChange: (value: [number, number] | null) => void;
 }) {
   const { t } = useTranslation('panels');
-  // The slider spans the campaign's own range and as much again either side, fixed
-  // while dragging so the handles do not run away from the pointer.
-  const span = Math.abs(base[1] - base[0]) || 1;
-  const domain: [number, number] = [base[0] - span, base[1] + span];
-  const step = span / 200;
   const [lo, hi] = value ?? base;
+  // The slider spans the range it opened on and as much again either side, fixed
+  // while dragging so the handles do not run away from the pointer.
+  const [{ domain, step }] = useState(() => {
+    const span = Math.abs(hi - lo) || 1;
+    return { domain: [lo - span, hi + span] as [number, number], step: span / 200 };
+  });
   const set = (index: 0 | 1, next: number) => {
     if (!Number.isFinite(next)) return;
     onChange(index === 0 ? [next, hi] : [lo, next]);
