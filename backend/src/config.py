@@ -141,11 +141,9 @@ class Settings(BaseSettings):
     # process file-descriptor limit; see the note there.
     MAX_INFLIGHT_TILE_REQUESTS: int = 512
 
-    # Proxy tiles are refused while the worker's event loop runs this late (ms), since
-    # that is the worker being out of CPU and everything on it slowing down. Under a
-    # tile overload it kept the API at single-digit ms (it was ~350ms p50 without);
-    # 50 was too twitchy, shedding a tenth of tiles from a worker with CPU to spare,
-    # where 150 shed a few percent. 0 disables it.
+    # Proxy tiles are refused while the worker's event loop runs this late (ms): the
+    # worker is out of CPU, and shedding tiles keeps the API on it responsive. Lower
+    # values shed tiles from workers that still have headroom. 0 disables it.
     TILE_SHED_LOOP_LAG_MS: float = 150.0
 
     # Requests at or above this get one WARNING line with their duration and the

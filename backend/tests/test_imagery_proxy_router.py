@@ -122,8 +122,7 @@ def test_a_non_image_content_type_is_not_echoed(upstream):
 
 
 def test_planet_scene_layers_of_one_source_share_one_lookup(upstream):
-    """Scene layers are minted per place looked at, so a cache keyed by layer went to the
-    database for nearly every Planet tile."""
+    """Scene layers are minted per place looked at; the lookup is cached per source."""
     client = TestClient(app)
     for layer in ("sceneA", "sceneB", "sceneC"):
         path = f"/api/campaigns/{CAMPAIGN_ID}/imagery/sources/5/planet-layers/{layer}/tiles/5/1/2"
@@ -134,7 +133,7 @@ def test_planet_scene_layers_of_one_source_share_one_lookup(upstream):
 
 
 def test_a_tile_is_never_gzipped(upstream):
-    """Imagery is already compressed; gzipping it only burned CPU on every tile."""
+    """Imagery is already compressed, so gzip would only cost CPU."""
     upstream.content = b"0" * 64_000
 
     resp = TestClient(app).get(TILE_PATH, headers={"Accept-Encoding": "gzip"})
@@ -153,9 +152,8 @@ def test_a_worker_out_of_cpu_refuses_tiles_but_still_answers_the_api(upstream, m
 
 
 def test_light_traffic_keeps_to_one_pool_and_a_busy_pool_is_passed_over(monkeypatch):
-    """Round-robin let every pool's keep-alive lapse, so a lone user's tiles each paid a
-    new TLS handshake. And a pool whose connections hang on a slow host must not make
-    fast tiles queue behind it."""
+    """Light traffic reuses one pool's warm connections, and a pool whose connections
+    hang on a slow host does not make other tiles queue behind it."""
     used: list[int] = []
 
     def pool(i):
@@ -179,8 +177,7 @@ def test_light_traffic_keeps_to_one_pool_and_a_busy_pool_is_passed_over(monkeypa
 
 
 def test_the_upstream_budget_is_spread_over_small_pools():
-    """httpcore rescans a pool on every request it starts or finishes, quadratically in
-    the pool's size: one pool as big as the whole budget cost ~10ms of CPU per tile."""
+    """httpcore rescans a pool on every request at a cost quadratic in its size."""
     sizes = [client._transport._pool._max_connections for client in proxy_router._clients]
 
     assert max(sizes) <= 32

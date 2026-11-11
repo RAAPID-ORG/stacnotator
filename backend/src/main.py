@@ -277,8 +277,7 @@ class SecurityHeadersMiddleware:
 
 
 class ApiGZipMiddleware(GZipMiddleware):
-    """GZip for API responses, never for proxied imagery: PNG, JPEG and WebP are already
-    compressed, so gzipping them only burned CPU on the hottest path."""
+    """GZip for API responses only: proxied imagery is already compressed."""
 
     async def __call__(self, scope, receive, send):
         if scope["type"] == "http" and _is_proxy_tile(scope["path"]):
@@ -289,8 +288,6 @@ class ApiGZipMiddleware(GZipMiddleware):
 
 app.add_middleware(RequestContextMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
-# Level 6 compresses JSON nearly as small as starlette's default of 9 at a fraction of
-# the CPU, which matters for the big unpaginated lists (tasks, annotations).
 app.add_middleware(ApiGZipMiddleware, minimum_size=1024, compresslevel=6)
 
 

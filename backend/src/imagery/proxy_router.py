@@ -52,11 +52,8 @@ router = APIRouter(tags=["Imagery Tiles"])
 # Guarded: the template is a stored, campaign-admin-supplied URL, so the fetch is
 # only as trustworthy as whatever that admin typed.
 #
-# The upstream budget is spread over many small pools, not one big one. httpcore rescans
-# its whole pool every time a request starts or finishes, and part of that scan is
-# quadratic in the pool size: a single 384-connection pool cost ~10ms of CPU per tile and
-# saturated the worker at under 100 tiles/s. Small pools keep each scan cheap while the
-# bulkhead semaphore still caps the total.
+# Many small pools rather than one large one: httpcore rescans a pool on every request
+# start and finish at a cost quadratic in its size. The bulkhead semaphore caps the total.
 _POOL_CONNECTIONS = 16
 _settings = get_settings()
 _clients = [
@@ -72,11 +69,8 @@ _in_flight = [0] * len(_clients)
 
 
 async def _fetch(url: httpx.URL) -> httpx.Response:
-    # The least busy pool, the first one on a tie. At low traffic that is the same pool
-    # every time, so tiles reuse its warm connections instead of a fresh TLS handshake
-    # each (round-robin let every pool's keep-alive lapse). Under load it spreads the
-    # requests evenly, which keeps each pool's quadratic scan small, and a pool stuck on a
-    # slow host is the busiest one, so it is passed over.
+    # Least busy, first on a tie: light traffic stays on one pool's warm connections,
+    # load spreads evenly, and a pool stuck on a slow host is passed over.
     i = min(range(len(_clients)), key=_in_flight.__getitem__)
     _in_flight[i] += 1
     try:
@@ -169,8 +163,8 @@ def _assert_scope(request: Request, owner: LayerOwner) -> None:
         raise HTTPException(status_code=403, detail="No access to this imagery")
 
 
-# Async on purpose: the check is pure CPU, and a sync dependency would send every tile
-# through the threadpool the sync API routes depend on.
+# Async: the check is pure CPU, and a sync dependency would take a threadpool slot the
+# sync API routes need.
 async def require_tile_access(request: Request, campaign_id: int = Path(...)) -> None:
     _assert_scope(request, LayerOwner(campaign_id=campaign_id))
 
@@ -321,8 +315,8 @@ async def proxy_slice_tile(
 def _planet_source_lookup(source_id: int, owner: LayerOwner):
     """Resolve a Planet source to the key its minted layers are fetched with.
 
-    Only the source is looked up, not the layer: scene layers are minted per place
-    looked at, so a cache keyed by layer missed on nearly every tile. The layer id comes
+    Keyed by source rather than layer, since scene layers are minted per place looked
+    at and would rarely share a cache entry. The layer id comes
     from the client because nothing about a viewport search is stored. That is safe but
     not free: it lets a viewer of this campaign render any layer the campaign's own
     Planet key can see, which is that organization's own imagery. It cannot reach the

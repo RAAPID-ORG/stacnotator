@@ -29,8 +29,8 @@ dependencies = [
     "pystac-client>=0.8.0",
     "planetary-computer>=1.0.0",
     "email-validator>=2.3.0",
-    # Not imported by us: httpcore tries to import it on every lock it creates, and a
-    # failed import is not cached, so without it each proxied tile searched sys.path.
+    # Not imported by us: httpcore imports it on every lock it creates, and a missing
+    # module is searched for on each attempt.
     "sniffio>=1.3.1",
 ]
 
