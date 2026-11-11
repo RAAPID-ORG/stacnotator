@@ -169,6 +169,7 @@
     "pinStart": "Open this source on this collection first"
   },
   "layers": {
+    "addVisualization": "Add a visualization of your own",
     "sources": "Imagery sources",
     "visualizations": "{{source}} visualizations",
     "basemaps": "Basemaps"
@@ -285,5 +286,59 @@
     "showImagery": "Show this imagery",
     "all": "All Annotations",
     "conflict": "Conflict"
+  },
+  "vizEditor": {
+    "help": {
+      "bands": "RGB draws three bands as red, green and blue. For Sentinel-2, B04 B03 B02 is natural colour and B08 B04 B03 shows vegetation in red. Single band draws one band through a colormap. Index computes a value per pixel from bands, for example NDVI: (B08-B04)/(B08+B04).",
+      "range": "The values stretched from darkest to brightest: pixels below Min are drawn black and above Max white. Sentinel-2 reflectance usually sits between 0 and 3000, and NDVI between -1 and 1. Narrow the range to bring out detail in dark or bright areas.",
+      "colormap": "The colours a single band or index is drawn in, from Min to Max of the range. Viridis suits most continuous values; RdYlGn suits vegetation indices such as NDVI.",
+      "colour": "Gamma brightens the mid-tones above 1 and darkens them below 1. Contrast steepens the change around the middle. Saturation makes colours stronger above 1 and greyer below 1. These sliders write the color formula, for example: gamma RGB 1.5 sigmoidal RGB 10 0.35 saturation 1.2.",
+      "advanced": "Resampling decides how pixels blend when you zoom in: nearest keeps them sharp, bilinear smooths them. Nodata is the pixel value drawn as empty, for example 0. The color formula takes rio-color operations, for example: gamma RGB 3.2 saturation 0.8 sigmoidal RGB 25 0.35."
+    },
+    "newName": "My visualization",
+    "toggle": "Adjust visualization",
+    "title": "Adjust visualization",
+    "close": "Close",
+    "edited": "Edited",
+    "name": "Name",
+    "bands": "Bands",
+    "mode": {
+      "rgb": "RGB",
+      "single": "Single band",
+      "index": "Index"
+    },
+    "red": "R",
+    "green": "G",
+    "blue": "B",
+    "band": "Band {{channel}}",
+    "expression": "Band expression",
+    "expressionPlaceholder": "(B08-B04)/(B08+B04)",
+    "nothingToDraw": "Pick at least one band or write an expression to draw something.",
+    "range": "Value range",
+    "min": "Min",
+    "max": "Max",
+    "colormap": "Color map",
+    "greyscale": "Greyscale",
+    "colour": "Color",
+    "gamma": "Brightness",
+    "contrast": "Contrast",
+    "saturation": "Saturation",
+    "advanced": "Advanced",
+    "resampling": "Resampling",
+    "resamplingDefault": "Default",
+    "nodata": "No-data value",
+    "colorFormula": "Color formula",
+    "formulaPlaceholder": "gamma RGB 1.5, saturation 1.2",
+    "resetTitle": "Go back to how this campaign draws it",
+    "saveForEveryone": "Save for everyone",
+    "applyToAll": "Save for everyone…",
+    "applyToAllTitle": "Save this visualization for everyone in the campaign",
+    "deleteTitle": "Delete this visualization of yours",
+    "onlyYou": "Only you see your changes.",
+    "onlyYouAdded": "Only you see this visualization.",
+    "confirmTitle": "Save for everyone?",
+    "confirmEdit": "Everyone in this campaign will see {{name}} drawn this way.",
+    "confirmCreate": "Everyone in this campaign will be able to pick {{name}}.",
+    "saveFailed": "Could not save the visualization"
   }
 }

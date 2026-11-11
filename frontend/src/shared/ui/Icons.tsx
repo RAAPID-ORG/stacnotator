@@ -39,6 +39,13 @@ export const IconUndo = ({ className = 'w-4 h-4' }: IconProps) => (
   </svg>
 );
 
+export const IconReset = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <path d="M3.5 10a6.5 6.5 0 106.5-6.5 7 7 0 00-4.8 2L3.5 7.2" />
+    <path d="M3.5 3.5v3.7h3.7" />
+  </svg>
+);
+
 export const IconRedo = ({ className = 'w-4 h-4' }: IconProps) => (
   <svg {...defaults} className={className}>
     <path d="M13 3l4 4-4 4m4-4H9a5 5 0 000 10h3" />

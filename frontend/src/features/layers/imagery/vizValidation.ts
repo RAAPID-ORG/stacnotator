@@ -1,10 +1,13 @@
 import i18n from '~/shared/i18n';
+import { colorFormulaOps } from '~/shared/imagery/colorAdjust';
 
 const t = i18n.getFixedT(null, 'imagery');
 
 /**
- * rio-color color_formula syntax: comma-separated ops, each `<op> [bands] <args>`.
+ * rio-color color_formula syntax: ops, each `<op> [bands] <args>`, with optional
+ * commas between them and op names in any case.
  *   gamma RGB 2.7, saturation 1.5, sigmoidal RGB 15 0.55
+ *   Gamma RGB 3.2 Saturation 0.8 Sigmoidal RGB 25 0.35
  */
 
 const OPS = {
@@ -16,45 +19,19 @@ const OPS = {
 type OpName = keyof typeof OPS;
 const OP_NAMES = Object.keys(OPS) as OpName[];
 
-/**
- * Insert missing commas before recognised op names and lowercase the op token.
- * Idempotent. Leaves bands / numeric args untouched.
- */
+/** The formula written the way the editors save it: lowercase op names, separated
+ *  by commas. Idempotent; bands and numeric args are left as they are. */
 export function normalizeColorFormula(input: string): string {
-  const s = input.trim();
-  if (!s) return '';
-
-  const opPattern = new RegExp(`\\b(${OP_NAMES.join('|')})\\b`, 'gi');
-  const matches = [...s.matchAll(opPattern)];
-  if (matches.length === 0) return s;
-
-  const parts: string[] = [];
-  matches.forEach((m, i) => {
-    const start = m.index!;
-    const end = matches[i + 1]?.index ?? s.length;
-    // Strip any trailing comma + whitespace; we'll re-join with `, `.
-    const segment = s
-      .slice(start, end)
-      .replace(/[,\s]+$/, '')
-      .trim();
-    const [op, ...rest] = segment.split(/\s+/);
-    parts.push([op.toLowerCase(), ...rest].join(' '));
-  });
-  return parts.join(', ');
+  return colorFormulaOps(input)
+    .map((op) => op.join(' '))
+    .join(', ');
 }
 
 export function validateColorFormula(input: string): string | null {
   const s = input.trim();
   if (!s) return null;
 
-  const ops = s
-    .split(',')
-    .map((p) => p.trim())
-    .filter(Boolean);
-  if (ops.length === 0) return null;
-
-  for (const op of ops) {
-    const tokens = op.split(/\s+/);
+  for (const tokens of colorFormulaOps(s)) {
     const name = tokens[0]?.toLowerCase() as OpName;
     if (!OP_NAMES.includes(name)) {
       return t('colorFormula.unknownOp', {

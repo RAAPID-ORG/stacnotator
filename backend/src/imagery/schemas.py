@@ -249,6 +249,37 @@ class RenderParams(BaseModel):
     max_items: int | None = None
 
 
+class VisualizationPatch(BaseModel):
+    """The drawing parameters an edit changes. A field left out keeps each collection's
+    own value and a null clears it. Nothing that decides which provider draws the tiles
+    is here, so an edit never needs a mosaic registered again."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    assets: list[str] | None = None
+    asset_as_band: bool | None = None
+    bidx: list[int] | None = None
+    expression: str | None = None
+    rescale: str | None = None
+    colormap_name: str | None = None
+    color_formula: str | None = None
+    resampling: str | None = None
+    nodata: float | None = None
+    extra_params: dict[str, str] | None = None
+
+
+class VisualizationEdit(BaseModel):
+    patch: VisualizationPatch
+
+
+class VisualizationFromEdit(BaseModel):
+    """A new visualization of a source: an existing one with an edit applied."""
+
+    name: str = Field(min_length=1, max_length=120)
+    base_visualization_id: int
+    patch: VisualizationPatch
+
+
 class CollectionVisualizationCreate(BaseModel):
     # A visualization of the same source, by name.
     visualization: str

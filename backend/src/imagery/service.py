@@ -26,7 +26,10 @@ from src.imagery.schemas import (
     ImageryViewCreate,
     ImageryViewUpdate,
     ProviderKeyCreate,
+    VisualizationEdit,
+    VisualizationFromEdit,
 )
+from src.imagery.visualization_edits import patched
 from src.layers import LayerOwner
 from src.organizations.models import Organization
 from src.tilers import providers, registry
@@ -606,3 +609,80 @@ def reorder_views(db: Session, campaign: Campaign, view_ids: list[int]) -> None:
     for view in campaign.imagery_views:
         view.display_order = order[view.id]
     db.commit()
+
+
+# ============================================================================
+# Visualizations edited from the map
+# ============================================================================
+
+
+def _campaign_visualization(campaign: Campaign, visualization_id: int) -> Visualization:
+    for source in campaign.imagery_sources:
+        for viz in source.visualizations:
+            if viz.id == visualization_id:
+                return viz
+    raise HTTPException(status_code=404, detail="Visualization not found")
+
+
+def _edited(row: CollectionVisualization, patch: dict) -> tuple[dict, dict | None]:
+    try:
+        return (
+            patched(row.params, patch),
+            patched(row.cover_params, patch) if row.cover_params is not None else None,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+
+
+def _stac_rows(source: ImagerySource, visualization_id: int) -> list[CollectionVisualization]:
+    return [
+        row
+        for collection in source.collections
+        if collection.is_stac
+        for row in collection.visualizations
+        if row.visualization_id == visualization_id
+    ]
+
+
+def edit_visualization(
+    db: Session, campaign: Campaign, visualization_id: int, payload: VisualizationEdit
+) -> Visualization:
+    """Apply an edit to every STAC collection that draws the visualization. Does not
+    commit: the caller registers whatever the edit leaves without a mosaic."""
+    viz = _campaign_visualization(campaign, visualization_id)
+    patch = payload.patch.model_dump(exclude_unset=True)
+    for row in _stac_rows(viz.source, viz.id):
+        row.params, row.cover_params = _edited(row, patch)
+    return viz
+
+
+def create_visualization_from_edit(
+    db: Session, campaign: Campaign, source_id: int, payload: VisualizationFromEdit
+) -> Visualization:
+    """A new visualization of the source, drawn like an existing one with an edit applied.
+    Does not commit."""
+    base = _campaign_visualization(campaign, payload.base_visualization_id)
+    source = base.source
+    if source.id != source_id:
+        raise HTTPException(status_code=404, detail="Visualization not found")
+    if any(v.name == payload.name for v in source.visualizations):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"The source already has a visualization named '{payload.name}'",
+        )
+    patch = payload.patch.model_dump(exclude_unset=True)
+    edited = [(row, *_edited(row, patch)) for row in _stac_rows(source, base.id)]
+    viz = Visualization(
+        name=payload.name,
+        display_order=max((v.display_order for v in source.visualizations), default=-1) + 1,
+    )
+    source.visualizations.append(viz)
+    db.flush()
+    for row, params, cover_params in edited:
+        row.collection.visualizations.append(
+            CollectionVisualization(
+                visualization_id=viz.id, params=params, cover_params=cover_params
+            )
+        )
+    db.flush()
+    return viz

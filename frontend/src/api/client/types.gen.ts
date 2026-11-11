@@ -5168,6 +5168,30 @@ export type VisualizationCreate = {
 };
 
 /**
+ * VisualizationEdit
+ */
+export type VisualizationEdit = {
+    patch: VisualizationPatch;
+};
+
+/**
+ * VisualizationFromEdit
+ *
+ * A new visualization of a source: an existing one with an edit applied.
+ */
+export type VisualizationFromEdit = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Base Visualization Id
+     */
+    base_visualization_id: number;
+    patch: VisualizationPatch;
+};
+
+/**
  * VisualizationOut
  */
 export type VisualizationOut = {
@@ -5183,6 +5207,58 @@ export type VisualizationOut = {
      * Display Order
      */
     display_order: number;
+};
+
+/**
+ * VisualizationPatch
+ *
+ * The drawing parameters an edit changes. A field left out keeps each collection's
+ * own value and a null clears it. Nothing that decides which provider draws the tiles
+ * is here, so an edit never needs a mosaic registered again.
+ */
+export type VisualizationPatch = {
+    /**
+     * Assets
+     */
+    assets?: Array<string> | null;
+    /**
+     * Asset As Band
+     */
+    asset_as_band?: boolean | null;
+    /**
+     * Bidx
+     */
+    bidx?: Array<number> | null;
+    /**
+     * Expression
+     */
+    expression?: string | null;
+    /**
+     * Rescale
+     */
+    rescale?: string | null;
+    /**
+     * Colormap Name
+     */
+    colormap_name?: string | null;
+    /**
+     * Color Formula
+     */
+    color_formula?: string | null;
+    /**
+     * Resampling
+     */
+    resampling?: string | null;
+    /**
+     * Nodata
+     */
+    nodata?: number | null;
+    /**
+     * Extra Params
+     */
+    extra_params?: {
+        [key: string]: string;
+    } | null;
 };
 
 /**
@@ -9357,6 +9433,74 @@ export type MintPlanetSceneLayersResponses = {
 };
 
 export type MintPlanetSceneLayersResponse = MintPlanetSceneLayersResponses[keyof MintPlanetSceneLayersResponses];
+
+export type EditVisualizationData = {
+    body: VisualizationEdit;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Visualization Id
+         */
+        visualization_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/imagery/visualizations/{visualization_id}';
+};
+
+export type EditVisualizationErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EditVisualizationError = EditVisualizationErrors[keyof EditVisualizationErrors];
+
+export type EditVisualizationResponses = {
+    /**
+     * Successful Response
+     */
+    200: VisualizationOut;
+};
+
+export type EditVisualizationResponse = EditVisualizationResponses[keyof EditVisualizationResponses];
+
+export type CreateVisualizationFromEditData = {
+    body: VisualizationFromEdit;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Source Id
+         */
+        source_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/imagery/sources/{source_id}/visualizations';
+};
+
+export type CreateVisualizationFromEditErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateVisualizationFromEditError = CreateVisualizationFromEditErrors[keyof CreateVisualizationFromEditErrors];
+
+export type CreateVisualizationFromEditResponses = {
+    /**
+     * Successful Response
+     */
+    201: VisualizationOut;
+};
+
+export type CreateVisualizationFromEditResponse = CreateVisualizationFromEditResponses[keyof CreateVisualizationFromEditResponses];
 
 export type CreateImageryViewData = {
     body: ImageryViewCreate;

@@ -47,6 +47,7 @@
     "nextCollection": "Next collection",
     "cycleSource": "Cycle imagery source",
     "cycleVisualization": "Cycle visualization",
+    "adjustVisualization": "Adjust visualization",
     "toggleOverlay": "Toggle overlay layer",
     "cycleOverlays": "Cycle overlay layers",
     "toggleVector": "Toggle vector layer",

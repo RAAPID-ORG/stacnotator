@@ -1,5 +1,6 @@
 import type { CategoricalEntry, RenderConfig } from '~/api/client';
 import { isColormapName } from '~/shared/colormaps/colormaps';
+import { withTileQuery } from './renderQuery';
 
 export interface RenderOverride {
   colormap_name?: string | null;
@@ -55,28 +56,22 @@ type ColorSpec =
   | { mode: 'continuous'; colormap_name: string; rescale: [number, number] }
   | { mode: 'categorical'; entries: CategoricalEntry[] };
 
-/** Re-stamps the COLOR_PARAMS query params of a tile URL template, keeping
- *  the `{z}/{x}/{y}` placeholders unencoded (string-splice, not `new URL`,
- *  which would percent-encode them and stop OpenLayers substituting them). */
+/** Re-stamps the COLOR_PARAMS query params of a tile URL template. */
 function stampColorParams(tileUrl: string, spec: ColorSpec | null): string {
   if (!spec) return tileUrl;
+  const colormap = spec.mode === 'categorical' ? buildColormap(spec.entries) : null;
+  if (spec.mode === 'categorical' && !colormap) return tileUrl;
 
-  const qIdx = tileUrl.indexOf('?');
-  const path = qIdx === -1 ? tileUrl : tileUrl.slice(0, qIdx);
-  const params = new URLSearchParams(qIdx === -1 ? '' : tileUrl.slice(qIdx + 1));
-  for (const p of COLOR_PARAMS) params.delete(p);
-
-  if (spec.mode === 'continuous') {
-    params.set('rescale', `${spec.rescale[0]},${spec.rescale[1]}`);
-    params.set('colormap_name', spec.colormap_name);
-  } else {
-    const colormap = buildColormap(spec.entries);
-    if (!colormap) return tileUrl;
-    params.set('colormap', colormap);
-  }
-
-  const qs = params.toString();
-  return qs ? `${path}?${qs}` : path;
+  return withTileQuery(tileUrl, (params) => {
+    for (const p of COLOR_PARAMS) params.delete(p);
+    if (spec.mode === 'continuous') {
+      params.set('rescale', `${spec.rescale[0]},${spec.rescale[1]}`);
+      params.set('colormap_name', spec.colormap_name);
+    } else {
+      params.set('colormap', colormap!);
+    }
+    return params;
+  });
 }
 
 /** Custom-map path: merge the override onto the campaign's render_config,

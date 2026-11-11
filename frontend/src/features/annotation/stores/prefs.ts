@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { LabelStyle } from '../campaign/labelStyle';
 import type { RenderOverride } from '~/shared/imagery/tileColors';
+import type { VisualizationEdit } from '../campaign/visualizationEdits';
 
 export type PreloadTier = 'auto' | 'off' | 'conservative' | 'balanced' | 'heavy';
 
@@ -40,6 +41,8 @@ interface PrefsState {
   labelStyles: Record<number, Partial<LabelStyle>>;
   /** The colours a user picked for a custom map, by map id. */
   customMapOverrides: Record<number, RenderOverride>;
+  /** How the user redrew or copied a campaign's visualizations, by visualization id. */
+  visualizationEdits: Record<number, VisualizationEdit>;
   timeseriesChart: TimeseriesChartOptions;
 
   setPreloadTier: (tier: PreloadTier) => void;
@@ -52,6 +55,8 @@ interface PrefsState {
   resetLabelStyle: (labelId: number) => void;
   setCustomMapOverride: (mapId: number, override: RenderOverride) => void;
   resetCustomMapOverride: (mapId: number) => void;
+  setVisualizationEdit: (vizId: number, edit: VisualizationEdit) => void;
+  resetVisualizationEdit: (vizId: number) => void;
 }
 
 function omit<T>(record: Record<number, T>, key: number): Record<number, T> {
@@ -70,6 +75,7 @@ export const usePrefsStore = create<PrefsState>()(
       toursSeen: [],
       labelStyles: {},
       customMapOverrides: {},
+      visualizationEdits: {},
       timeseriesChart: DEFAULT_TIMESERIES_CHART,
 
       setPreloadTier: (preloadTier) => set({ preloadTier }),
@@ -98,6 +104,10 @@ export const usePrefsStore = create<PrefsState>()(
         set((s) => ({ customMapOverrides: { ...s.customMapOverrides, [mapId]: override } })),
       resetCustomMapOverride: (mapId) =>
         set((s) => ({ customMapOverrides: omit(s.customMapOverrides, mapId) })),
+      setVisualizationEdit: (vizId, edit) =>
+        set((s) => ({ visualizationEdits: { ...s.visualizationEdits, [vizId]: edit } })),
+      resetVisualizationEdit: (vizId) =>
+        set((s) => ({ visualizationEdits: omit(s.visualizationEdits, vizId) })),
     }),
     {
       name: 'annotation:prefs',

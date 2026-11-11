@@ -55,6 +55,7 @@ Every campaign supports both; who may do what is governed by the labelling polic
 - Per-visualization parameters: assets, rescale, colormap, expression, color formula, compositing method, resampling, nodata, pixel masking
 - Presets for common collections (band combinations, rescale ranges)
 - Post-creation editing of viz params from settings page
+- Live adjustment on the annotation page: the sliders button in the map header (or `K`) opens an editor over the map for the STAC visualization on screen. It changes bands (RGB, single band or index expression), range, colormap, gamma, contrast, saturation, resampling, nodata and the raw color formula, and the map redraws as you edit. Edits save in your browser straight away and only you see them; Reset restores the campaign's version. The **+** beside a source in the layer menu adds a visualization of your own, starting from the one shown. Campaign admins can **Save for everyone**, which writes the edit to the campaign's visualization (or adds the new one) for all annotators. Compositing and masking stay in campaign settings, because changing them needs the imagery registered again
 - Per-source max native zoom: the deepest zoom the provider serves real pixels for; past it the map upscales instead of requesting tiles that cannot get any sharper (basemaps and custom maps already had this)
 
 ### Campaign duplication
@@ -181,7 +182,7 @@ See [annotation-tiles.md](annotation-tiles.md) for details.
 ### Navigation
 
 - Keyboard-driven workflow: submit, skip, next/previous task
-- Slice cycling (A/D), collection cycling (Shift+A/Shift+D), imagery source cycling incl. basemaps (I), visualization switching (Shift+I), view switching (U), vector layer toggle/cycle (V/Shift+V)
+- Slice cycling (A/D), collection cycling (Shift+A/Shift+D), imagery source cycling incl. basemaps (I), visualization switching (Shift+I), visualization editor (K), view switching (U), vector layer toggle/cycle (V/Shift+V)
 - Crosshair for task location with configurable color per source
 - Sample extent polygon display
 - Location search in the minimap (Photon geocoder); guided tour auto-shown on first established-workspace open (deferred while an admin creates the first view)
