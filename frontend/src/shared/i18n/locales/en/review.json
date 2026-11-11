@@ -71,7 +71,6 @@
   },
   "statistics": {
     "heading": "Statistics",
-    "loading": "Loading statistics...",
     "loadFailed": "Failed to load statistics",
     "none": "No statistics available",
     "annotations": "Annotations",

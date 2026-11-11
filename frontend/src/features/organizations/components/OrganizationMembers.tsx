@@ -17,6 +17,7 @@ import { MembersTable, RowAction } from '~/features/members/MembersTable';
 import { inviteSignupNote, PendingInvites } from '~/features/members/PendingInvites';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
+import { SkeletonRows } from '~/shared/ui/Skeleton';
 
 export type OrganizationMembersProps = {
   organizationId: number;
@@ -97,6 +98,10 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
     removeMemberMutation.mutate({ path: { ...path, user_id: member.user.id } });
   };
 
+  if (membersQuery.isPending || invitesQuery.isPending) {
+    return <SkeletonRows count={4} />;
+  }
+
   return (
     <div className="surface">
       <section className="surface-section">
@@ -129,9 +134,7 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
             {extractErrorMessage(membersQuery.error, t('members.loadFailed'))}
           </p>
         )}
-        {membersQuery.isPending ? (
-          <p className="py-10 text-center text-sm text-neutral-500">{t('members.loading')}</p>
-        ) : (
+        {!membersQuery.error && (
           <MembersTable
             members={members}
             emptyText={t('members.empty')}

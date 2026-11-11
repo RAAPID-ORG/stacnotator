@@ -40,7 +40,6 @@
   "members": {
     "addHeading": "Añadir miembros",
     "heading": "Miembros <count>({{count}})</count>",
-    "loading": "Cargando miembros…",
     "empty": "Aún no hay miembros.",
     "demoteAdmin": "Quitar administrador",
     "makeAdmin": "Hacer administrador",

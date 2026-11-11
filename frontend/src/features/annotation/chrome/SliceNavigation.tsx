@@ -36,13 +36,13 @@ export function SliceNavigation({ mobile = false }: { mobile?: boolean }) {
 
   return (
     <div
-      className={`pointer-events-auto left-1/2 flex -translate-x-1/2 items-center rounded-lg border border-neutral-200 bg-white/95 p-1 shadow-md backdrop-blur-sm ${
+      className={`pointer-events-auto flex items-center rounded-lg border border-neutral-200 bg-white/95 shadow-sm backdrop-blur-sm ${
         mobile
-          ? 'fixed z-[450] max-w-[calc(100vw-24px)] [&>button]:h-10 [&>button]:w-11'
-          : 'absolute z-20 max-w-[calc(100%-16px)] [&>button]:h-7 [&>button]:w-7'
+          ? 'fixed left-1/2 -translate-x-1/2 z-[450] max-w-[calc(100vw-24px)] p-1 [&>button]:h-10 [&>button]:w-11'
+          : 'p-0.5 [&>button]:h-6 [&>button]:w-7'
       }`}
       style={{
-        bottom: mobile ? 'calc(env(safe-area-inset-bottom, 0px) + 12px)' : '8px',
+        bottom: mobile ? 'calc(env(safe-area-inset-bottom, 0px) + 12px)' : undefined,
         touchAction: 'none',
       }}
       onPointerDown={(e) => e.stopPropagation()}

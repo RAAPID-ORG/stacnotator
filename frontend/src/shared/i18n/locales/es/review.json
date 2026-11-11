@@ -75,7 +75,6 @@
   },
   "statistics": {
     "heading": "Estadísticas",
-    "loading": "Cargando estadísticas...",
     "loadFailed": "No se pudieron cargar las estadísticas",
     "none": "No hay estadísticas disponibles",
     "annotations": "Anotaciones",

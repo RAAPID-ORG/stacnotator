@@ -77,24 +77,3 @@ export const AnimatedDialog = ({
     document.body
   );
 };
-
-/**
- * Animate a list item with a staggered delay. Use the `index` and let CSS
- * handle the timing.
- */
-export const MotionListItem = ({
-  index,
-  children,
-  className,
-}: {
-  index: number;
-  children: ReactNode;
-  className?: string;
-}) => (
-  <div
-    className={`motion-list-item ${className ?? ''}`}
-    style={{ animationDelay: `${40 + index * 30}ms` }}
-  >
-    {children}
-  </div>
-);

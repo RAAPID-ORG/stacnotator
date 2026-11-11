@@ -641,13 +641,19 @@ export function MainMapBody() {
         <VisualizationEditor />
         {!imagery.showBasemap && <ImageryLegend catalog={catalog} address={address} />}
         <CenterCrosshair />
-        {!isMobile && showSliceNavigation && <SliceNavigation />}
-        <MapNotice
-          waitingForRegistration={
-            !imagery.showBasemap &&
-            awaitingImageryRegistration(campaign.registration_status, catalog, address)
-          }
-        />
+        {!isMobile && showSliceNavigation && (
+          <div className="absolute bottom-1.5 left-1/2 z-20 -translate-x-1/2">
+            <SliceNavigation />
+          </div>
+        )}
+        <div className="map-notices pointer-events-none absolute top-2 left-1/2 z-20 w-max max-w-[calc(100%-16px)] -translate-x-1/2">
+          <MapNotice
+            waitingForRegistration={
+              !imagery.showBasemap &&
+              awaitingImageryRegistration(campaign.registration_status, catalog, address)
+            }
+          />
+        </div>
       </div>
     </div>
   );

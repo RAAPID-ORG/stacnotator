@@ -17,7 +17,6 @@ import { Tooltip } from '~/shared/ui/Tooltip';
 import { FileInput } from '~/shared/ui/FileInput';
 import { IconChevronLeft, IconImportExport, IconPlus } from '~/shared/ui/Icons';
 import { AreaEstimationSetup } from '~/features/areaEstimation/AreaEstimation';
-import { Delayed } from '~/shared/ui/Delayed';
 import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
 
 interface Props {
@@ -89,8 +88,7 @@ export const TasksTab: React.FC<Props> = ({
   const { t } = useTranslation('campaigns');
   const [addMethod, setAddMethod] = useState<'upload' | 'generate'>('upload');
   const campaignId = campaign.id;
-  const sectionCls =
-    'space-y-4 pt-6 mt-6 first:mt-0 first:pt-0 border-t border-neutral-100 first:border-t-0';
+  const sectionCls = 'surface surface-unclipped space-y-4 p-5';
 
   const scopedSet = taskScope === 'all' ? undefined : taskSets.find((s) => s.id === taskScope);
   const scopeIsLocked = taskScope !== 'all' && (areaEstimationSets?.has(taskScope) ?? false);
@@ -290,41 +288,39 @@ export const TasksTab: React.FC<Props> = ({
   );
 
   return (
-    <div id="tab-tasks" role="tabpanel">
-      <section className="sticky top-0 z-20 -mx-6 -mt-6 mb-6 rounded-t-xl border-b border-neutral-100 bg-white/85 px-6 pb-4 pt-6 backdrop-blur-sm">
+    <div id="tab-tasks">
+      <section className="surface surface-unclipped sticky top-0 z-20 mb-6 px-3">
         {writingDesign ? (
           <button
             type="button"
             onClick={() => onSelectScope('all')}
-            className="flex items-center gap-1.5 text-sm text-neutral-500 transition-colors hover:text-neutral-800"
+            className="flex h-11 items-center gap-1.5 text-sm text-neutral-500 transition-colors hover:text-neutral-800"
           >
             <IconChevronLeft className="h-4 w-4" />
             {t('tasksTab.backToSets')}
           </button>
         ) : (
-          <>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-              {t('tasksTab.taskSet')}
-            </p>
-            <TaskScopeBar
-              scope={taskScope}
-              taskSets={taskSets}
-              totalTasks={totalTasks}
-              onSelect={onSelectScope}
-              onCreateSet={canManage ? onCreateSetScoped : undefined}
-              onRenameSet={canManage ? onRenameTaskSet : undefined}
-              onDeleteSet={canManage ? onDeleteTaskSet : undefined}
-              lockedSetIds={areaEstimationSets}
-            />
-          </>
+          <TaskScopeBar
+            scope={taskScope}
+            taskSets={taskSets}
+            totalTasks={totalTasks}
+            onSelect={onSelectScope}
+            onCreateSet={canManage ? onCreateSetScoped : undefined}
+            onRenameSet={canManage ? onRenameTaskSet : undefined}
+            onDeleteSet={canManage ? onDeleteTaskSet : undefined}
+            lockedSetIds={areaEstimationSets}
+          />
         )}
       </section>
 
-      {/* The wrapper makes `first:` strip the border of whichever section comes
-          right below the scope bar, which already draws its own bottom line. */}
-      <div>
+      <div
+        id="task-scope-content"
+        role="tabpanel"
+        aria-labelledby={writingDesign ? undefined : `task-scope-content-tab-${taskScope}`}
+        className="space-y-6"
+      >
         {loadingTasks && (
-          <Delayed>
+          <>
             <section className={sectionCls}>
               <Skeleton className="h-6 w-48" />
               <Skeleton className="h-80 w-full" />
@@ -332,7 +328,7 @@ export const TasksTab: React.FC<Props> = ({
             <section className={sectionCls}>
               <SkeletonRows />
             </section>
-          </Delayed>
+          </>
         )}
 
         {!loadingTasks && !writingDesign && scopedTasks.length > 0 && bbox && (

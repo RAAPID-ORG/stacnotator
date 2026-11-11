@@ -1,5 +1,9 @@
 {
   "language": "Idioma",
+  "tabs": {
+    "scrollLeft": "Desplazar las pestañas a la izquierda",
+    "scrollRight": "Desplazar las pestañas a la derecha"
+  },
   "actions": {
     "save": "Guardar",
     "cancel": "Cancelar",
