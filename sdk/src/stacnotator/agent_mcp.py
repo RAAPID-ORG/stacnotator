@@ -795,6 +795,18 @@ async def release_tasks(campaign_id: int, agent_id: str | None = None) -> str:
     )
 
 
+@server.tool(structured_output=False)
+async def remove_agent(agent_id: str) -> str:
+    """Remove one of your agents: its unfinished tasks are freed and it stops counting
+    toward the limit of agents per campaign. What it labelled or skipped is kept. Use it for
+    agents from a test run or a crashed one; never for an agent another worker still uses."""
+    await _api(_http().delete, f"/agents/{agent_id}")
+    for cache in (_agents, _default_views, _current_tasks, _image_limits, _replies, _label_names):
+        cache.pop(agent_id, None)
+    await _browsers().close(agent_id)
+    return _json({"removed": agent_id})
+
+
 async def _on_setup_page(project_id: int, method: str, *args: Any) -> Any:
     try:
         return await _browsers().setup(project_id, method, *args)

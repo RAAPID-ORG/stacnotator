@@ -299,6 +299,18 @@ def test_api_errors_reach_the_model_as_tool_errors(browsers):
 
 
 @responses.activate
+def test_remove_agent_deletes_it_and_closes_its_page(browsers):
+    responses.delete(f"{BASE}/api/agents/{AGENT}", status=204)
+    agent_mcp._agents[AGENT] = AGENT_OUT
+
+    result = json.loads(asyncio.run(agent_mcp.remove_agent(AGENT)))
+
+    assert result == {"removed": AGENT}
+    assert AGENT not in agent_mcp._agents
+    assert browsers.closed == [AGENT]
+
+
+@responses.activate
 def test_register_agent_keeps_the_agent_when_chromium_is_missing(browsers, monkeypatch):
     async def missing(*args):
         raise ChromiumMissingError()

@@ -11121,6 +11121,36 @@ export type ReleaseAgentTasksResponses = {
 
 export type ReleaseAgentTasksResponse = ReleaseAgentTasksResponses[keyof ReleaseAgentTasksResponses];
 
+export type RemoveAgentData = {
+    body?: never;
+    path: {
+        /**
+         * Agent Id
+         */
+        agent_id: string;
+    };
+    query?: never;
+    url: '/api/agents/{agent_id}';
+};
+
+export type RemoveAgentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RemoveAgentError = RemoveAgentErrors[keyof RemoveAgentErrors];
+
+export type RemoveAgentResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type RemoveAgentResponse = RemoveAgentResponses[keyof RemoveAgentResponses];
+
 export type GetAgentData = {
     body?: never;
     path: {

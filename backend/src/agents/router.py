@@ -89,6 +89,16 @@ def update_agent(
     return service.agent_out(db, agent, campaign.project_id)
 
 
+@router.delete("/agents/{agent_id}", status_code=204)
+def remove_agent(
+    agent_id: UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
+) -> None:
+    """Free the agent's unfinished tasks and remove it; what it labelled stays."""
+    service.remove_agent(db, agent_id, user)
+
+
 @router.post("/agents/{agent_id}/next", response_model=NextTasksOut)
 def next_agent_tasks(
     agent_id: UUID,

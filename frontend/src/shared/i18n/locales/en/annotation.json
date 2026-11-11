@@ -83,6 +83,7 @@
     "loadFailed": "Failed to load agents",
     "updateFailed": "Failed to update agent",
     "releaseFailed": "Failed to free the agent tasks",
+    "removeFailed": "Failed to remove the agent",
     "loadError": "Could not load the agents.",
     "empty": "No agents yet.",
     "columns": {
@@ -117,6 +118,12 @@
       "toPool": "They go back to the campaign's open pool. Tasks already labelled or skipped stay as they are.",
       "confirm": "Free tasks"
     },
+    "remove": {
+      "action": "Remove",
+      "title": "Remove {{name}}?",
+      "description": "Its unfinished tasks are freed and it no longer counts toward your agent limit. Tasks it already labelled or skipped stay as they are.",
+      "confirm": "Remove agent"
+    },
     "howTo": {
       "title": "Labelling with agents",
       "intro": "A labelling agent is an annotator account that a model works through. It looks at one task at a time - a few dates spread over the season, the time series, a basemap - asks for closer or different views when a point stays unclear, and submits a label with a confidence and the reasoning behind it. Its labels are ordinary annotations, so they show up in the campaign statistics and in review like anyone else's. A run is temporary, so agents are not listed among the project members; they live here.",
@@ -126,7 +133,7 @@
       "exampleCampaign": "winter crops",
       "run": "It signs you in, registers one agent per worker, splits the points evenly between them and works through them. A window opens on your screen showing what each agent is looking at; closing it does not stop them, and this page keeps the progress either way.",
       "setup": "Agents can also create a campaign, add its tasks or change its settings and imagery, but only with the tools you grant. They are off by default. To grant them, start your editor from a terminal with STACNOTATOR_MCP_ALLOW set to the tools it may use:",
-      "roles": "Which tasks an agent can get depends on your role in the project: campaign admins hand out tasks from the campaign's open pool, other members only tasks that are assigned to them. Come back here to follow the progress, to turn take-over off, or to free the unfinished tasks when you stop a run early - whatever was already labelled or skipped stays."
+      "roles": "Which tasks an agent can get depends on your role in the project: campaign admins hand out tasks from the campaign's open pool, other members only tasks that are assigned to them. Come back here to follow the progress, to turn take-over off, to free the unfinished tasks when you stop a run early, or to remove agents you no longer need - whatever was already labelled or skipped stays."
     }
   },
   "gates": {
