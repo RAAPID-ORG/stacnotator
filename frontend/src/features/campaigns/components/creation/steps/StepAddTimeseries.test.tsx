@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   CampaignCreate,
+  CustomIndexOut,
   TimeseriesCreate,
   TimeseriesOptionsOut,
   TimeseriesOut,
@@ -16,9 +17,10 @@ import { StepAddTimeseries } from './StepAddTimeseries';
 vi.mock('~/api/client/sdk.gen', async () => ({
   ...(await vi.importActual<typeof import('~/api/client/sdk.gen')>('~/api/client/sdk.gen')),
   getTimeseriesCreationOptions: vi.fn(),
+  previewCustomIndex: vi.fn(),
 }));
 
-import { getTimeseriesCreationOptions } from '~/api/client/sdk.gen';
+import { getTimeseriesCreationOptions, previewCustomIndex } from '~/api/client/sdk.gen';
 
 const options: TimeseriesOptionsOut = {
   sources: [
@@ -28,6 +30,7 @@ const options: TimeseriesOptionsOut = {
       coverage: '2015-present',
       resolution_m: 10,
       description: 'Optical imagery',
+      bands: ['blue', 'green', 'red', 'rededge1', 'nir'],
       index_keys: ['ndvi', 'ndwi'],
     },
     {
@@ -36,6 +39,7 @@ const options: TimeseriesOptionsOut = {
       coverage: '1984-present',
       resolution_m: 30,
       description: 'Optical imagery',
+      bands: ['blue', 'green', 'red', 'nir'],
       index_keys: ['ndvi'],
     },
   ],
@@ -81,9 +85,27 @@ const savedSeries: TimeseriesOut = {
   index: options.indices[0],
 };
 
-function Editor({ existingTimeseries = [] }: { existingTimeseries?: TimeseriesOut[] }) {
+const redEdge: CustomIndexOut = {
+  key: 'CIre',
+  label: 'CIre',
+  formula: 'NIR / RedEdge - 1',
+  expression: 'nir / rededge1 - 1',
+  domain_min: 0,
+  domain_max: 10,
+  reference_lines: [],
+  source_keys: ['sentinel'],
+};
+
+function Editor({
+  existingTimeseries = [],
+  initialCustomIndices = [],
+}: {
+  existingTimeseries?: TimeseriesOut[];
+  initialCustomIndices?: CustomIndexOut[];
+}) {
   const [form, setForm] = useState(initialForm);
   const [saved, setSaved] = useState(existingTimeseries);
+  const [customIndices, setCustomIndices] = useState(initialCustomIndices);
   return (
     <StepAddTimeseries
       items={form.timeseries_configs ?? []}
@@ -94,6 +116,13 @@ function Editor({ existingTimeseries = [] }: { existingTimeseries?: TimeseriesOu
       }}
       existingTimeseries={saved}
       onRemoveExisting={onRemoveExisting}
+      customIndices={customIndices}
+      onSaveCustomIndex={async (_body, original, described) =>
+        setCustomIndices([...customIndices.filter((index) => index.key !== original), described])
+      }
+      onRemoveCustomIndex={(name) =>
+        setCustomIndices(customIndices.filter((index) => index.key !== name))
+      }
       onRenameExistingPanel={async (oldName, newName) => {
         await onRenameExistingPanel(oldName, newName);
         setSaved((series) =>
@@ -106,25 +135,40 @@ function Editor({ existingTimeseries = [] }: { existingTimeseries?: TimeseriesOu
   );
 }
 
-async function openEditor(existingTimeseries: TimeseriesOut[] = []) {
-  renderWithQuery(<Editor existingTimeseries={existingTimeseries} />);
+async function openEditor(
+  existingTimeseries: TimeseriesOut[] = [],
+  initialCustomIndices: CustomIndexOut[] = []
+) {
+  renderWithQuery(
+    <Editor existingTimeseries={existingTimeseries} initialCustomIndices={initialCustomIndices} />
+  );
   await waitFor(() =>
-    expect(
-      (
-        screen.getAllByRole('button', {
-          name: /\+ Add (another )?timeseries/,
-        })[0] as HTMLButtonElement
-      ).disabled
-    ).toBe(false)
+    expect(screen.getAllByRole('button', { name: 'Add series' })[0]).toHaveProperty(
+      'disabled',
+      false
+    )
   );
 }
 
 async function createPanel(name: string) {
-  await userEvent.click(screen.getByRole('button', { name: '+ Add Panel' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Add panel' }));
   await userEvent.type(screen.getByRole('textbox', { name: 'New panel name' }), name);
   await userEvent.click(screen.getByRole('button', { name: 'Create panel' }));
   return screen.getByRole('region', { name: `${name.trim()} panel` });
 }
+
+const seriesNames = (scope: HTMLElement) =>
+  within(scope).queryAllByRole('textbox', { name: 'Series name' });
+
+const lastConfigs = (): TimeseriesCreate[] => onChange.mock.lastCall?.[0].timeseries_configs ?? [];
+
+const preview = (data: CustomIndexOut) =>
+  vi.mocked(previewCustomIndex).mockResolvedValue({
+    data,
+    error: undefined,
+    request: new Request('http://localhost'),
+    response: new Response(),
+  });
 
 describe('Panel-first timeseries setup', () => {
   beforeEach(() => {
@@ -135,66 +179,54 @@ describe('Panel-first timeseries setup', () => {
     >);
   });
 
-  it('opens an optional blank series in the default panel and preserves focus when editing it', async () => {
+  it('starts with an empty default panel and asks for nothing until a series is added', async () => {
     await openEditor();
     const group = screen.getByRole('region', { name: `${DEFAULT_TIMESERIES_WINDOW_NAME} panel` });
-    expect(within(group).getAllByRole('textbox', { name: 'Timeseries name' })).toHaveLength(1);
+    expect(seriesNames(group)).toHaveLength(0);
+    expect(within(group).getByText('No series in this panel yet.')).toBeTruthy();
     expect(onChange).not.toHaveBeenCalled();
     expect(validateTimeseriesStep(initialForm).isValid).toBe(true);
-    expect(screen.getByText(/Panels organize timeseries/)).toBeTruthy();
-    await userEvent.type(
-      within(group).getByRole('textbox', { name: 'Timeseries name' }),
-      'Vegetation'
-    );
-    expect(onChange.mock.lastCall?.[0].timeseries_configs).toEqual([
-      expect.objectContaining({
-        name: 'Vegetation',
-        window_name: DEFAULT_TIMESERIES_WINDOW_NAME,
-      }),
+
+    await userEvent.click(within(group).getByRole('button', { name: 'Add series' }));
+    await userEvent.type(seriesNames(group)[0], 'Vegetation');
+    expect(lastConfigs()).toEqual([
+      expect.objectContaining({ name: 'Vegetation', window_name: DEFAULT_TIMESERIES_WINDOW_NAME }),
     ]);
-    expect(screen.queryByRole('combobox', { name: 'Window' })).toBeNull();
   });
 
   it('keeps all panels visible and adds and removes series only within their panel', async () => {
     await openEditor();
     const vegetation = await createPanel(' Vegetation ');
-    await userEvent.type(
-      within(vegetation).getByRole('textbox', { name: 'Timeseries name' }),
-      'Sentinel NDVI'
-    );
-    await userEvent.click(
-      within(vegetation).getByRole('button', { name: '+ Add another timeseries' })
-    );
-    await userEvent.type(
-      within(vegetation).getAllByRole('textbox', { name: 'Timeseries name' })[1],
-      'Landsat NDVI'
-    );
+    await userEvent.type(seriesNames(vegetation)[0], 'Sentinel NDVI');
+    await userEvent.click(within(vegetation).getByRole('button', { name: 'Add series' }));
+    await userEvent.type(seriesNames(vegetation)[1], 'Landsat NDVI');
     const water = await createPanel('Water');
-    await userEvent.type(within(water).getByRole('textbox', { name: 'Timeseries name' }), 'NDWI');
+    await userEvent.type(seriesNames(water)[0], 'NDWI');
     expect(screen.getAllByRole('region')).toHaveLength(3);
-    expect(
-      onChange.mock.lastCall?.[0].timeseries_configs.map((ts: TimeseriesCreate) => ts.window_name)
-    ).toEqual(['Vegetation', 'Vegetation', 'Water']);
-    await userEvent.click(within(vegetation).getAllByRole('button', { name: 'Remove' })[0]);
-    await userEvent.type(within(water).getByRole('textbox', { name: 'Timeseries name' }), ' water');
-    expect(
-      onChange.mock.lastCall?.[0].timeseries_configs.map((ts: TimeseriesCreate) => ts.name)
-    ).toEqual(['Landsat NDVI', 'NDWI water']);
+    expect(lastConfigs().map((ts) => ts.window_name)).toEqual([
+      'Vegetation',
+      'Vegetation',
+      'Water',
+    ]);
+
+    await userEvent.click(within(vegetation).getAllByRole('button', { name: 'Remove series' })[0]);
+    await userEvent.type(seriesNames(water)[0], ' water');
+    expect(lastConfigs().map((ts) => ts.name)).toEqual(['Landsat NDVI', 'NDWI water']);
   });
 
-  it('adds another open series and can remove all series without making them required', async () => {
+  it('can remove every new series without making any required', async () => {
     await openEditor();
     const group = screen.getByRole('region', { name: `${DEFAULT_TIMESERIES_WINDOW_NAME} panel` });
-    await userEvent.click(within(group).getByRole('button', { name: '+ Add another timeseries' }));
-    expect(within(group).getAllByRole('textbox', { name: 'Timeseries name' })).toHaveLength(2);
-    await userEvent.click(within(group).getAllByRole('button', { name: 'Remove' })[0]);
-    await userEvent.click(within(group).getByRole('button', { name: 'Remove' }));
-    expect(within(group).queryByRole('textbox')).toBeNull();
-    expect(within(group).getByRole('button', { name: '+ Add timeseries' })).toBeTruthy();
+    await userEvent.click(within(group).getByRole('button', { name: 'Add series' }));
+    await userEvent.click(within(group).getByRole('button', { name: 'Add series' }));
+    expect(seriesNames(group)).toHaveLength(2);
+    await userEvent.click(within(group).getAllByRole('button', { name: 'Remove series' })[0]);
+    await userEvent.click(within(group).getByRole('button', { name: 'Remove series' }));
+    expect(seriesNames(group)).toHaveLength(0);
     expect(validateTimeseriesStep(onChange.mock.lastCall?.[0]).isValid).toBe(true);
   });
 
-  it('renames the initial blank panel without creating a required timeseries', async () => {
+  it('renames the empty default panel and adds new series under the new name', async () => {
     await openEditor();
     await userEvent.click(
       screen.getByRole('button', { name: `Rename ${DEFAULT_TIMESERIES_WINDOW_NAME} panel` })
@@ -207,45 +239,46 @@ describe('Panel-first timeseries setup', () => {
       screen.queryByRole('region', { name: `${DEFAULT_TIMESERIES_WINDOW_NAME} panel` })
     ).toBeNull();
     expect(onChange).not.toHaveBeenCalled();
-    await userEvent.type(within(panel).getByRole('textbox', { name: 'Timeseries name' }), 'NDVI');
-    expect(onChange.mock.lastCall?.[0].timeseries_configs[0].window_name).toBe('Vegetation');
+    await userEvent.click(within(panel).getByRole('button', { name: 'Add series' }));
+    expect(lastConfigs()[0].window_name).toBe('Vegetation');
   });
 
   it('renames all new series together and uses the new name for additional series', async () => {
     await openEditor();
     const panel = await createPanel('Vegetation');
-    await userEvent.type(within(panel).getByRole('textbox', { name: 'Timeseries name' }), 'NDVI');
-    await userEvent.click(within(panel).getByRole('button', { name: '+ Add another timeseries' }));
+    await userEvent.type(seriesNames(panel)[0], 'NDVI');
+    await userEvent.click(within(panel).getByRole('button', { name: 'Add series' }));
     await userEvent.click(within(panel).getByRole('button', { name: 'Rename Vegetation panel' }));
     const name = screen.getByRole('textbox', { name: 'Panel name' });
     await userEvent.clear(name);
     await userEvent.type(name, 'Greenness');
     await userEvent.click(within(panel).getByRole('button', { name: 'Save' }));
     const renamed = screen.getByRole('region', { name: 'Greenness panel' });
-    await userEvent.click(
-      within(renamed).getByRole('button', { name: '+ Add another timeseries' })
-    );
-    expect(
-      onChange.mock.lastCall?.[0].timeseries_configs.map((ts: TimeseriesCreate) => ts.window_name)
-    ).toEqual(['Greenness', 'Greenness', 'Greenness']);
+    await userEvent.click(within(renamed).getByRole('button', { name: 'Add series' }));
+    expect(lastConfigs().map((ts) => ts.window_name)).toEqual([
+      'Greenness',
+      'Greenness',
+      'Greenness',
+    ]);
     expect(screen.queryByRole('region', { name: 'Vegetation panel' })).toBeNull();
   });
 
   it('rejects blank and duplicate renames and cancels without changing the panel', async () => {
     await openEditor();
-    const panel = await createPanel('Vegetation');
-    await createPanel('Water');
-    await userEvent.click(within(panel).getByRole('button', { name: 'Rename Vegetation panel' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add panel' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'New panel name' }), 'Water');
+    await userEvent.click(screen.getByRole('button', { name: 'Create panel' }));
+    const panel = screen.getByRole('region', { name: `${DEFAULT_TIMESERIES_WINDOW_NAME} panel` });
+    onChange.mockClear();
+    await userEvent.click(
+      within(panel).getByRole('button', { name: `Rename ${DEFAULT_TIMESERIES_WINDOW_NAME} panel` })
+    );
     const name = screen.getByRole('textbox', { name: 'Panel name' });
     await userEvent.clear(name);
-    expect(
-      (within(panel).getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled
-    ).toBe(true);
+    expect(within(panel).getByRole('button', { name: 'Save' })).toHaveProperty('disabled', true);
     await userEvent.type(name, ' Water ');
     expect(screen.getByRole('alert').textContent).toMatch(/already exists/);
-    expect(
-      (within(panel).getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled
-    ).toBe(true);
+    expect(within(panel).getByRole('button', { name: 'Save' })).toHaveProperty('disabled', true);
     await userEvent.keyboard('{Escape}');
     expect(within(panel).queryByRole('textbox', { name: 'Panel name' })).toBeNull();
     expect(onChange).not.toHaveBeenCalled();
@@ -254,11 +287,8 @@ describe('Panel-first timeseries setup', () => {
   it('persists saved-panel renames and moves unsaved series in the same panel', async () => {
     await openEditor([savedSeries]);
     const panel = screen.getByRole('region', { name: 'Vegetation panel' });
-    await userEvent.click(within(panel).getByRole('button', { name: '+ Add another timeseries' }));
-    await userEvent.type(
-      within(panel).getByRole('textbox', { name: 'Timeseries name' }),
-      'New NDVI'
-    );
+    await userEvent.click(within(panel).getByRole('button', { name: 'Add series' }));
+    await userEvent.type(seriesNames(panel)[0], 'New NDVI');
     await userEvent.click(within(panel).getByRole('button', { name: 'Rename Vegetation panel' }));
     const name = screen.getByRole('textbox', { name: 'Panel name' });
     await userEvent.clear(name);
@@ -266,10 +296,8 @@ describe('Panel-first timeseries setup', () => {
     const renamed = await screen.findByRole('region', { name: 'Greenness panel' });
     expect(onRenameExistingPanel).toHaveBeenCalledWith('Vegetation', 'Greenness');
     expect(within(renamed).getByText('Saved NDVI')).toBeTruthy();
-    expect(
-      (within(renamed).getByRole('textbox', { name: 'Timeseries name' }) as HTMLInputElement).value
-    ).toBe('New NDVI');
-    expect(onChange.mock.lastCall?.[0].timeseries_configs[0].window_name).toBe('Greenness');
+    expect(seriesNames(renamed)[0]).toHaveProperty('value', 'New NDVI');
+    expect(lastConfigs()[0].window_name).toBe('Greenness');
     expect(screen.queryByRole('region', { name: 'Vegetation panel' })).toBeNull();
   });
 
@@ -290,38 +318,119 @@ describe('Panel-first timeseries setup', () => {
   it('rejects duplicate panel names and allows cancelling panel creation', async () => {
     await openEditor();
     await createPanel('Water');
-    await userEvent.click(screen.getByRole('button', { name: '+ Add Panel' }));
+    const panels = screen.getAllByRole('region').length;
+    await userEvent.click(screen.getByRole('button', { name: 'Add panel' }));
     await userEvent.type(screen.getByRole('textbox', { name: 'New panel name' }), ' Water ');
     expect(screen.getByRole('alert').textContent).toMatch(/already exists/);
-    expect(
-      (screen.getByRole('button', { name: 'Create panel' }) as HTMLButtonElement).disabled
-    ).toBe(true);
+    expect(screen.getByRole('button', { name: 'Create panel' })).toHaveProperty('disabled', true);
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
-    expect(screen.getAllByRole('region')).toHaveLength(2);
-    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getAllByRole('region')).toHaveLength(panels);
   });
 
   it('shows saved and new series together and preserves source-specific index selection', async () => {
     await openEditor([savedSeries]);
     const group = screen.getByRole('region', { name: 'Vegetation panel' });
     expect(within(group).getByText('Saved NDVI')).toBeTruthy();
-    await userEvent.click(within(group).getByRole('button', { name: '+ Add another timeseries' }));
-    await userEvent.selectOptions(
-      within(group).getByRole('combobox', { name: 'Data source' }),
-      'sentinel'
-    );
+    await userEvent.click(within(group).getByRole('button', { name: 'Add series' }));
+    const source = within(group).getByRole('combobox', { name: 'Data source' });
+    await userEvent.selectOptions(source, 'sentinel');
     await userEvent.selectOptions(within(group).getByRole('combobox', { name: 'Index' }), 'ndwi');
-    await userEvent.selectOptions(
-      within(group).getByRole('combobox', { name: 'Data source' }),
-      'landsat'
-    );
+    await userEvent.selectOptions(source, 'landsat');
     expect(within(group).queryByRole('option', { name: 'NDWI' })).toBeNull();
-    expect(onChange.mock.lastCall?.[0].timeseries_configs[0]).toMatchObject({
+    expect(lastConfigs()[0]).toMatchObject({
       window_name: 'Vegetation',
       data_source: 'landsat',
       ts_type: '',
     });
-    await userEvent.click(within(group).getAllByRole('button', { name: 'Remove' })[0]);
+    await userEvent.click(within(group).getByRole('button', { name: 'Remove Saved NDVI' }));
     expect(onRemoveExisting).toHaveBeenCalledWith(5);
+  });
+
+  it('offers a custom index only on the sources that carry its bands', async () => {
+    await openEditor([], [redEdge]);
+    const group = screen.getByRole('region', { name: `${DEFAULT_TIMESERIES_WINDOW_NAME} panel` });
+    await userEvent.click(within(group).getByRole('button', { name: 'Add series' }));
+    const source = within(group).getByRole('combobox', { name: 'Data source' });
+    await userEvent.selectOptions(source, 'sentinel');
+    await userEvent.selectOptions(within(group).getByRole('combobox', { name: 'Index' }), 'CIre');
+    expect(within(group).getByText('NIR / RedEdge - 1')).toBeTruthy();
+    await userEvent.selectOptions(source, 'landsat');
+    expect(within(group).queryByRole('option', { name: 'CIre' })).toBeNull();
+  });
+
+  it('defines a custom index from the index picker and selects it', async () => {
+    preview(redEdge);
+    await openEditor();
+    const group = screen.getByRole('region', { name: `${DEFAULT_TIMESERIES_WINDOW_NAME} panel` });
+    await userEvent.click(within(group).getByRole('button', { name: 'Add series' }));
+    await userEvent.selectOptions(
+      within(group).getByRole('combobox', { name: 'Data source' }),
+      'sentinel'
+    );
+    await userEvent.selectOptions(
+      within(group).getByRole('combobox', { name: 'Index' }),
+      '+ Custom index...'
+    );
+    await userEvent.type(within(group).getByRole('textbox', { name: 'Index name' }), 'CIre');
+    await userEvent.type(
+      within(group).getByRole('textbox', { name: 'Formula' }),
+      'nir / rededge1 - 1'
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('custom-index-preview').textContent).toBe('NIR / RedEdge - 1')
+    );
+    await userEvent.click(within(group).getByRole('button', { name: 'Add index' }));
+
+    expect(lastConfigs()[0]).toMatchObject({ ts_type: 'CIre' });
+    expect(within(group).getByRole('button', { name: 'Edit CIre' })).toBeTruthy();
+  });
+
+  it('shows why the backend refused a formula and keeps it unsaved', async () => {
+    // The generated factories throw the error body, as FastAPI sends it.
+    vi.mocked(previewCustomIndex).mockRejectedValue({
+      detail: [{ loc: ['body'], msg: "Value error, Unknown band 'nri'", type: 'value_error' }],
+    });
+    await openEditor();
+    await userEvent.click(screen.getByRole('button', { name: 'Add series' }));
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: 'Data source' }),
+      'sentinel'
+    );
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: 'Index' }),
+      '+ Custom index...'
+    );
+    await userEvent.type(screen.getByRole('textbox', { name: 'Index name' }), 'Bad');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Formula' }), 'nri');
+    expect(await screen.findByText("Unknown band 'nri'")).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Add index' })).toHaveProperty('disabled', true);
+  });
+
+  it('edits the chosen custom index in place and keeps one in use from being deleted', async () => {
+    preview({ ...redEdge, expression: 'nir / rededge1', formula: 'NIR / RedEdge' });
+    await openEditor([{ ...savedSeries, ts_type: 'CIre' }], [redEdge]);
+    const group = screen.getByRole('region', { name: 'Vegetation panel' });
+    await userEvent.click(within(group).getByRole('button', { name: 'Add series' }));
+    await userEvent.selectOptions(
+      within(group).getByRole('combobox', { name: 'Data source' }),
+      'sentinel'
+    );
+    await userEvent.selectOptions(within(group).getByRole('combobox', { name: 'Index' }), 'CIre');
+    await userEvent.click(within(group).getByRole('button', { name: 'Edit CIre' }));
+
+    expect(within(group).getByRole('button', { name: 'Delete CIre' })).toHaveProperty(
+      'disabled',
+      true
+    );
+    const formula = within(group).getByRole('textbox', { name: 'Formula' });
+    expect(formula).toHaveProperty('value', 'nir / rededge1 - 1');
+    await userEvent.clear(formula);
+    await userEvent.type(formula, 'nir / rededge1');
+    await waitFor(() =>
+      expect(screen.getByTestId('custom-index-preview').textContent).toBe('NIR / RedEdge')
+    );
+    await userEvent.click(within(group).getByRole('button', { name: 'Save' }));
+    expect(within(group).getByText('NIR / RedEdge')).toBeTruthy();
+    expect(within(group).queryByText('NIR / RedEdge - 1')).toBeNull();
   });
 });

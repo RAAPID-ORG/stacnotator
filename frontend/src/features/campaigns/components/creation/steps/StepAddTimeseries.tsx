@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import {
+  type CustomIndexIn,
+  type CustomIndexOut,
   type SpectralIndexOut,
   type TimeseriesCreate,
   type TimeseriesOptionsOut,
@@ -9,30 +11,47 @@ import {
 } from '~/api/client';
 import { getTimeseriesCreationOptionsOptions } from '~/api/queries';
 import { inputMonthToYYYYMM, yyyymmToInputMonth } from '~/shared/utils/utility';
-import { Button, DateField, Input, Select } from '~/shared/ui/forms';
-import { IconWindow } from '~/shared/ui/Icons';
+import { Button, DateField, IconButton, Input, Select } from '~/shared/ui/forms';
+import { IconClose, IconPencil, IconPlus, IconWindow } from '~/shared/ui/Icons';
 import { DEFAULT_TIMESERIES_WINDOW_NAME } from '~/shared/utils/constants';
+import { CustomIndexForm } from './CustomIndexForm';
 
-const emptyTimeseries = (): TimeseriesCreate => ({
+// Never a valid index key: custom names start with a letter.
+const NEW_CUSTOM_INDEX = '__new_custom__';
+
+const emptyTimeseries = (windowName: string): TimeseriesCreate => ({
   name: '',
-  window_name: DEFAULT_TIMESERIES_WINDOW_NAME,
+  window_name: windowName,
   start_ym: '',
   end_ym: '',
   data_source: '',
   ts_type: '',
 });
 
-/** What the chosen source can compute, in the registry's order. Empty until a
- *  source is picked, which is what keeps an index the source has no bands for
- *  from being offered at all. */
+/** What the chosen source can compute, built-ins in the registry's order and the
+ *  campaign's own apart. Empty until a source is picked, which is what keeps an index
+ *  the source has no bands for from being offered at all. */
 function availableIndices(
   options: TimeseriesOptionsOut | null,
+  customIndices: CustomIndexOut[],
   sourceKey: string
-): SpectralIndexOut[] {
+): { builtIn: SpectralIndexOut[]; custom: CustomIndexOut[] } {
   const source = options?.sources.find((s) => s.key === sourceKey);
-  if (!options || !source) return [];
-  return options.indices.filter((index) => source.index_keys.includes(index.key));
+  if (!options || !source) return { builtIn: [], custom: [] };
+  return {
+    builtIn: options.indices.filter((index) => source.index_keys.includes(index.key)),
+    custom: customIndices.filter((index) => index.source_keys.includes(sourceKey)),
+  };
 }
+
+const formatYm = (ym: string) => (ym.length === 6 ? `${ym.slice(0, 4)}-${ym.slice(4)}` : ym);
+
+const textAction =
+  'inline-flex items-center gap-1 rounded text-sm font-medium text-brand-600 hover:text-brand-700 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30 disabled:text-neutral-400 disabled:cursor-not-allowed';
+
+const Caption = ({ children }: { children: ReactNode }) => (
+  <span className="block text-[11px] font-medium text-neutral-500 mb-1">{children}</span>
+);
 
 export const StepAddTimeseries = ({
   items,
@@ -41,6 +60,9 @@ export const StepAddTimeseries = ({
   existingTimeseries = [],
   onRemoveExisting,
   onRenameExistingPanel,
+  customIndices,
+  onSaveCustomIndex,
+  onRemoveCustomIndex,
   saving = false,
 }: {
   /** The series being added. */
@@ -51,6 +73,13 @@ export const StepAddTimeseries = ({
   existingTimeseries?: TimeseriesOut[];
   onRemoveExisting?: (id: number) => void;
   onRenameExistingPanel?: (oldName: string, newName: string) => Promise<void>;
+  customIndices: CustomIndexOut[];
+  onSaveCustomIndex: (
+    body: CustomIndexIn,
+    original: string | null,
+    described: CustomIndexOut
+  ) => Promise<void>;
+  onRemoveCustomIndex: (name: string) => void;
   saving?: boolean;
 }) => {
   const { t } = useTranslation(['campaigns', 'common']);
@@ -59,12 +88,13 @@ export const StepAddTimeseries = ({
     meta: { errorMessage: t('timeseriesStep.loadOptionsFailed') },
   });
   const [addedGroups, setAddedGroups] = useState<string[]>([]);
-  const [draftGroups, setDraftGroups] = useState<string[]>([DEFAULT_TIMESERIES_WINDOW_NAME]);
   const [newGroupName, setNewGroupName] = useState<string | null>(null);
   const [defaultGroupName, setDefaultGroupName] = useState(DEFAULT_TIMESERIES_WINDOW_NAME);
   const [editingGroup, setEditingGroup] = useState<{ original: string; name: string } | null>(null);
   const [renameError, setRenameError] = useState('');
   const [renaming, setRenaming] = useState(false);
+  // The new series whose custom index is being defined (editing: null) or edited.
+  const [defining, setDefining] = useState<{ index: number; editing: string | null } | null>(null);
 
   const groupName = (name?: string | null) => name?.trim() || DEFAULT_TIMESERIES_WINDOW_NAME;
   const windowOptions = Array.from(
@@ -83,51 +113,58 @@ export const StepAddTimeseries = ({
 
   const setItems = onChange;
 
-  const updateItem = (index: number, updates: Partial<TimeseriesCreate>, windowName: string) => {
-    if (index === -1) {
-      setDraftGroups((groups) => groups.filter((name) => name !== windowName));
-      setItems([...items, { ...emptyTimeseries(), window_name: windowName, ...updates }]);
-      return;
-    }
+  const updateItem = (index: number, updates: Partial<TimeseriesCreate>) => {
     const next = [...items];
     next[index] = { ...next[index], ...updates };
     setItems(next);
   };
 
-  const addItem = (windowName: string, hasDraft: boolean) => {
-    const newItem = { ...emptyTimeseries(), window_name: windowName };
-    setDraftGroups((groups) => groups.filter((name) => name !== windowName));
-    setItems([...items, ...(hasDraft ? [newItem] : []), { ...newItem }]);
-  };
+  const addItem = (windowName: string) => setItems([...items, emptyTimeseries(windowName)]);
 
-  const removeItem = (index: number, windowName: string) => {
-    setDraftGroups((groups) => groups.filter((name) => name !== windowName));
-    const next = items.filter((_, i) => i !== index);
-    setItems(next);
+  const removeItem = (index: number) => {
+    setDefining(null);
+    setItems(items.filter((_, i) => i !== index));
   };
 
   /** Switching source drops an index the new one cannot compute, so the form
    *  never holds a pairing the backend would reject. */
-  const selectSource = (index: number, sourceKey: string, windowName: string) => {
-    const stillOffered = availableIndices(tsOptions, sourceKey).some(
+  const selectSource = (index: number, sourceKey: string) => {
+    const { builtIn, custom } = availableIndices(tsOptions, customIndices, sourceKey);
+    const stillOffered = [...builtIn, ...custom].some(
       (candidate) => candidate.key === items[index]?.ts_type
     );
-    updateItem(
-      index,
-      {
-        data_source: sourceKey,
-        ts_type: stillOffered ? items[index].ts_type : '',
-      },
-      windowName
-    );
+    if (!stillOffered && defining?.index === index) setDefining(null);
+    updateItem(index, {
+      data_source: sourceKey,
+      ts_type: stillOffered ? items[index].ts_type : '',
+    });
+  };
+
+  const saveCustomIndex = async (
+    index: number,
+    body: CustomIndexIn,
+    original: string | null,
+    described: CustomIndexOut
+  ) => {
+    await onSaveCustomIndex(body, original, described);
+    setDefining(null);
+    if (original === null) {
+      updateItem(index, { ts_type: described.key });
+    } else if (original !== described.key) {
+      setItems(
+        items.map((series) =>
+          series.ts_type === original ? { ...series, ts_type: described.key } : series
+        )
+      );
+    }
   };
 
   const addGroup = () => {
     const name = newGroupName?.trim();
     if (!name || windowOptions.includes(name)) return;
     setAddedGroups([...addedGroups, name]);
-    setDraftGroups([...draftGroups, name]);
     setNewGroupName(null);
+    setItems([...items, emptyTimeseries(name)]);
   };
 
   const editedName = editingGroup?.name.trim() ?? '';
@@ -157,7 +194,6 @@ export const StepAddTimeseries = ({
           new Set([...groups.map((name) => (name === oldName ? editedName : name)), editedName])
         )
       );
-      setDraftGroups((groups) => groups.map((name) => (name === oldName ? editedName : name)));
       if (items.some((item) => groupName(item.window_name) === oldName)) {
         setItems(
           items.map((item) =>
@@ -173,13 +209,231 @@ export const StepAddTimeseries = ({
     }
   };
 
+  const panelHeader = (windowName: string, count: number, hasSaved: boolean) =>
+    editingGroup?.original === windowName ? (
+      <div className="space-y-1 flex-1">
+        <div className="flex items-center gap-2">
+          <Input
+            size="sm"
+            autoFocus
+            className="max-w-xs"
+            aria-label={t('timeseriesStep.panelName')}
+            value={editingGroup.name}
+            disabled={renaming || saving}
+            invalid={duplicateName || !!renameError}
+            onChange={(e) => {
+              setEditingGroup({ original: windowName, name: e.target.value });
+              setRenameError('');
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                void renameGroup();
+              }
+              if (e.key === 'Escape' && !renaming) setEditingGroup(null);
+            }}
+          />
+          <Button
+            size="sm"
+            disabled={!editedName || duplicateName || renaming || saving}
+            onClick={() => void renameGroup()}
+          >
+            {t('common:actions.save')}
+          </Button>
+          <Button
+            size="sm"
+            variant="quiet"
+            disabled={renaming || saving}
+            onClick={() => setEditingGroup(null)}
+          >
+            {t('common:actions.cancel')}
+          </Button>
+        </div>
+        {(duplicateName || renameError) && (
+          <p role="alert" className="text-xs text-red-600">
+            {duplicateName ? t('timeseriesStep.duplicatePanel') : renameError}
+          </p>
+        )}
+      </div>
+    ) : (
+      <>
+        <h4 className="text-sm font-semibold text-neutral-900 truncate">{windowName}</h4>
+        <span className="text-xs text-neutral-500">
+          {t('timeseriesStep.seriesCount', { count })}
+        </span>
+        <IconButton
+          tone="brand"
+          className="ml-auto"
+          aria-label={t('timeseriesStep.renamePanelAria', { name: windowName })}
+          disabled={renaming || saving || (hasSaved && !onRenameExistingPanel)}
+          onClick={() => {
+            setEditingGroup({ original: windowName, name: windowName });
+            setRenameError('');
+          }}
+        >
+          <IconPencil className="h-4 w-4" />
+        </IconButton>
+      </>
+    );
+
+  const newSeriesRow = (i: TimeseriesCreate, index: number) => {
+    const source = tsOptions?.sources.find((s) => s.key === i.data_source);
+    const offered = availableIndices(tsOptions, customIndices, i.data_source);
+    const chosenCustom = offered.custom.find((custom) => custom.key === i.ts_type);
+    const chosenIndex =
+      chosenCustom ?? offered.builtIn.find((candidate) => candidate.key === i.ts_type);
+    const definingHere = defining?.index === index ? defining : null;
+    const editingCustom = definingHere?.editing
+      ? (customIndices.find((custom) => custom.key === definingHere.editing) ?? null)
+      : null;
+
+    return (
+      <li
+        key={index}
+        aria-label={t('timeseriesStep.newSeriesAria', {
+          name: i.name.trim() || t('timeseriesStep.untitled'),
+        })}
+        className="@container relative rounded-md border border-brand-100 bg-brand-50/40 p-3 space-y-2"
+      >
+        <div className="grid grid-cols-2 gap-2 @3xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_8rem_8rem_auto] @3xl:items-end">
+          <label className="col-span-2 pr-7 @3xl:col-span-1 @3xl:pr-0">
+            <Caption>{t('timeseriesStep.name')}</Caption>
+            <Input
+              size="sm"
+              placeholder={t('timeseriesStep.namePlaceholder')}
+              value={i.name}
+              onChange={(e) => updateItem(index, { name: e.target.value })}
+            />
+          </label>
+          <label>
+            <Caption>{t('timeseriesStep.dataSource')}</Caption>
+            <Select
+              size="sm"
+              value={i.data_source}
+              onChange={(e) => selectSource(index, e.target.value)}
+            >
+              <option value="">{t('timeseriesStep.selectDataSource')}</option>
+              {tsOptions?.sources.map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+          </label>
+          <label>
+            <Caption>{t('timeseriesStep.index')}</Caption>
+            <Select
+              size="sm"
+              value={definingHere && !definingHere.editing ? NEW_CUSTOM_INDEX : i.ts_type}
+              disabled={!i.data_source}
+              onChange={(e) => {
+                if (e.target.value === NEW_CUSTOM_INDEX) {
+                  setDefining({ index, editing: null });
+                  return;
+                }
+                if (definingHere) setDefining(null);
+                updateItem(index, { ts_type: e.target.value });
+              }}
+            >
+              <option value="">
+                {i.data_source
+                  ? t('timeseriesStep.selectIndex')
+                  : t('timeseriesStep.pickSourceFirst')}
+              </option>
+              {[...offered.builtIn, ...offered.custom].map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.label}
+                </option>
+              ))}
+              <option value={NEW_CUSTOM_INDEX}>{t('customIndices.new')}</option>
+            </Select>
+          </label>
+          <label>
+            <Caption>{t('timeseriesStep.startDate')}</Caption>
+            <DateField
+              size="sm"
+              granularity="month"
+              value={yyyymmToInputMonth(i.start_ym)}
+              onChange={(e) => updateItem(index, { start_ym: inputMonthToYYYYMM(e.target.value) })}
+            />
+          </label>
+          <label>
+            <Caption>{t('timeseriesStep.endDate')}</Caption>
+            <DateField
+              size="sm"
+              granularity="month"
+              value={yyyymmToInputMonth(i.end_ym)}
+              onChange={(e) => updateItem(index, { end_ym: inputMonthToYYYYMM(e.target.value) })}
+            />
+          </label>
+          <IconButton
+            tone="danger"
+            className="absolute right-2 top-2 @3xl:static @3xl:mb-2"
+            aria-label={t('timeseriesStep.removeSeries')}
+            onClick={() => removeItem(index)}
+          >
+            <IconClose className="h-4 w-4" />
+          </IconButton>
+        </div>
+
+        {definingHere ? (
+          <CustomIndexForm
+            bands={source?.bands ?? []}
+            editing={editingCustom}
+            takenNames={customIndices
+              .map((custom) => custom.key)
+              .filter((name) => name !== definingHere.editing)}
+            canDelete={
+              !!editingCustom &&
+              !existingTimeseries.some((ts) => ts.ts_type === editingCustom.key) &&
+              !items.some(
+                (series, other) => other !== index && series.ts_type === editingCustom.key
+              )
+            }
+            onSave={(body, described) =>
+              saveCustomIndex(index, body, definingHere.editing, described)
+            }
+            onDelete={() => {
+              if (!editingCustom) return;
+              onRemoveCustomIndex(editingCustom.key);
+              setDefining(null);
+              updateItem(index, { ts_type: '' });
+            }}
+            onCancel={() => setDefining(null)}
+          />
+        ) : (
+          (chosenIndex || source) && (
+            <p className="flex flex-wrap items-baseline gap-x-2 text-xs text-neutral-500">
+              {chosenIndex && (
+                <span className="font-mono text-neutral-700 break-all">{chosenIndex.formula}</span>
+              )}
+              {chosenCustom && (
+                <button
+                  type="button"
+                  className="text-brand-600 hover:text-brand-700 hover:underline underline-offset-4 cursor-pointer"
+                  onClick={() => setDefining({ index, editing: chosenCustom.key })}
+                >
+                  {t('customIndices.edit', { name: chosenCustom.label })}
+                </button>
+              )}
+              {source && (
+                <span>
+                  {chosenIndex && '· '}
+                  {source.label}, {source.resolution_m} m, {source.coverage}
+                </span>
+              )}
+            </p>
+          )
+        )}
+      </li>
+    );
+  };
+
   return (
-    <fieldset className="space-y-6 min-w-0" disabled={renaming || saving}>
+    <fieldset className="space-y-5 min-w-0" disabled={renaming || saving}>
       <div>
         <h3 className="section-heading">{t('timeseriesStep.title')}</h3>
         <p className="section-description">{t('timeseriesStep.description')}</p>
-        <p className="section-description mt-2">{t('timeseriesStep.panelsDescription')}</p>
-        <p className="text-xs text-neutral-500 mt-2">{t('timeseriesStep.optionalHint')}</p>
       </div>
 
       {windowOptions.map((windowName) => {
@@ -187,247 +441,83 @@ export const StepAddTimeseries = ({
         const series = items
           .map((item, index) => ({ item, index }))
           .filter(({ item }) => groupName(item.window_name) === windowName);
-        const hasDraft = draftGroups.includes(windowName) && series.length === 0;
-        if (hasDraft)
-          series.push({
-            item: { ...emptyTimeseries(), window_name: windowName },
-            index: -1,
-          });
+        const count = saved.length + series.length;
         return (
           <section
             key={windowName}
             aria-label={t('timeseriesStep.panelAria', { name: windowName })}
-            className="rounded-lg border border-neutral-200 overflow-hidden"
+            className="rounded-lg border border-neutral-200 bg-white"
           >
-            <div className="flex items-center gap-3 px-4 py-3 bg-brand-50 border-b border-brand-100">
-              <IconWindow className="w-5 h-5 text-brand-600 shrink-0" />
-              <div className="min-w-0 flex-1">
-                <div className="text-xs font-medium text-brand-600">
-                  {t('timeseriesStep.panel')}
-                </div>
-                {editingGroup?.original === windowName ? (
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <Input
-                        size="sm"
-                        autoFocus
-                        aria-label={t('timeseriesStep.panelName')}
-                        value={editingGroup.name}
-                        disabled={renaming || saving}
-                        invalid={duplicateName || !!renameError}
-                        onChange={(e) => {
-                          setEditingGroup({ original: windowName, name: e.target.value });
-                          setRenameError('');
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            void renameGroup();
-                          }
-                          if (e.key === 'Escape' && !renaming) setEditingGroup(null);
-                        }}
-                      />
-                      <Button
-                        size="sm"
-                        variant="quiet"
-                        disabled={!editedName || duplicateName || renaming || saving}
-                        onClick={() => void renameGroup()}
-                      >
-                        {t('common:actions.save')}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="quiet"
-                        disabled={renaming || saving}
-                        onClick={() => setEditingGroup(null)}
-                      >
-                        {t('common:actions.cancel')}
-                      </Button>
-                    </div>
-                    {(duplicateName || renameError) && (
-                      <p role="alert" className="text-xs text-red-600">
-                        {duplicateName ? t('timeseriesStep.duplicatePanel') : renameError}
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-3">
-                    <h4 className="text-base font-semibold text-neutral-900">{windowName}</h4>
-                    <button
-                      type="button"
-                      aria-label={t('timeseriesStep.renamePanelAria', { name: windowName })}
-                      disabled={renaming || saving || (saved.length > 0 && !onRenameExistingPanel)}
-                      onClick={() => {
-                        setEditingGroup({ original: windowName, name: windowName });
-                        setRenameError('');
-                      }}
-                      className="rounded text-xs text-neutral-500 hover:text-brand-700 hover:underline underline-offset-4 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30 disabled:text-neutral-400 disabled:cursor-not-allowed"
-                    >
-                      {t('timeseriesStep.rename')}
-                    </button>
-                  </div>
-                )}
-              </div>
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-neutral-200 bg-neutral-50 rounded-t-lg">
+              <IconWindow className="h-4 w-4 text-neutral-500 shrink-0" />
+              {panelHeader(windowName, count, saved.length > 0)}
             </div>
-            <div className="px-4 divide-y divide-neutral-200">
-              {saved.map((ts) => (
-                <div key={ts.id} className="flex items-start justify-between gap-3 py-4">
-                  <div>
-                    <div className="text-sm font-medium text-neutral-900">{ts.name}</div>
-                    <div className="text-xs text-neutral-500 mt-0.5">
-                      {ts.index?.label ?? ts.ts_type} · {ts.data_source} · {ts.start_ym} –{' '}
-                      {ts.end_ym}
-                    </div>
-                  </div>
-                  {onRemoveExisting && (
-                    <Button size="sm" variant="quiet" onClick={() => onRemoveExisting(ts.id)}>
-                      {t('common:actions.remove')}
-                    </Button>
-                  )}
-                </div>
-              ))}
-              {series.map(({ item: i, index }, seriesIndex) => {
-                const updateSeries = (updates: Partial<TimeseriesCreate>) =>
-                  updateItem(index, updates, windowName);
-                const source = tsOptions?.sources.find((s) => s.key === i.data_source);
-                const chosenIndex = availableIndices(tsOptions, i.data_source).find(
-                  (candidate) => candidate.key === i.ts_type
-                );
-                return (
-                  <div key={index === -1 ? items.length : index} className="py-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h5 className="text-xs font-medium text-neutral-500">
-                        {i.name.trim() ||
-                          t('timeseriesStep.series', { number: saved.length + seriesIndex + 1 })}
-                      </h5>
-                      <button
-                        type="button"
-                        onClick={() => removeItem(index, windowName)}
-                        className="text-xs text-neutral-400 hover:text-red-600 transition-colors cursor-pointer"
-                      >
-                        {t('common:actions.remove')}
-                      </button>
-                    </div>
 
-                    <Input
-                      size="sm"
-                      placeholder={t('timeseriesStep.name')}
-                      aria-label={t('timeseriesStep.name')}
-                      value={i.name}
-                      onChange={(e) => updateSeries({ name: e.target.value })}
-                    />
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-xs text-neutral-700">
-                          {t('timeseriesStep.startDate')}
-                        </label>
-                        <DateField
-                          size="sm"
-                          aria-label={t('timeseriesStep.startDate')}
-                          granularity="month"
-                          value={yyyymmToInputMonth(i.start_ym)}
-                          onChange={(e) =>
-                            updateSeries({ start_ym: inputMonthToYYYYMM(e.target.value) })
-                          }
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs text-neutral-700">
-                          {t('timeseriesStep.endDate')}
-                        </label>
-                        <DateField
-                          size="sm"
-                          aria-label={t('timeseriesStep.endDate')}
-                          granularity="month"
-                          value={yyyymmToInputMonth(i.end_ym)}
-                          onChange={(e) =>
-                            updateSeries({ end_ym: inputMonthToYYYYMM(e.target.value) })
-                          }
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-xs text-neutral-700">
-                          {t('timeseriesStep.dataSource')}
-                        </label>
-                        <Select
-                          size="sm"
-                          aria-label={t('timeseriesStep.dataSource')}
-                          value={i.data_source}
-                          onChange={(e) => selectSource(index, e.target.value, windowName)}
+            <div className="p-3 space-y-2">
+              {saved.length > 0 && (
+                <ul className="divide-y divide-neutral-100">
+                  {saved.map((ts) => (
+                    <li key={ts.id} className="flex items-center gap-3 px-1 py-2">
+                      <span className="text-sm font-medium text-neutral-900 truncate">
+                        {ts.name}
+                      </span>
+                      <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[11px] font-medium text-neutral-700">
+                        {ts.index.label}
+                      </span>
+                      <span className="text-xs text-neutral-500 truncate">
+                        {tsOptions?.sources.find((s) => s.key === ts.data_source)?.label ??
+                          ts.data_source}
+                        {' · '}
+                        {formatYm(ts.start_ym)} - {formatYm(ts.end_ym)}
+                      </span>
+                      {onRemoveExisting && (
+                        <IconButton
+                          tone="danger"
+                          className="ml-auto"
+                          aria-label={t('timeseriesStep.removeSavedAria', { name: ts.name })}
+                          onClick={() => onRemoveExisting(ts.id)}
                         >
-                          <option value="">{t('timeseriesStep.selectDataSource')}</option>
-                          {tsOptions?.sources.map((option) => (
-                            <option key={option.key} value={option.key}>
-                              {option.label} ({option.coverage})
-                            </option>
-                          ))}
-                        </Select>
-                      </div>
+                          <IconClose className="h-4 w-4" />
+                        </IconButton>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
 
-                      <div className="space-y-1">
-                        <label className="text-xs text-neutral-700">
-                          {t('timeseriesStep.index')}
-                        </label>
-                        <Select
-                          size="sm"
-                          aria-label={t('timeseriesStep.index')}
-                          value={i.ts_type}
-                          disabled={!i.data_source}
-                          onChange={(e) => updateSeries({ ts_type: e.target.value })}
-                        >
-                          <option value="">
-                            {i.data_source
-                              ? t('timeseriesStep.selectIndex')
-                              : t('timeseriesStep.pickSourceFirst')}
-                          </option>
-                          {availableIndices(tsOptions, i.data_source).map((option) => (
-                            <option key={option.key} value={option.key}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </Select>
-                      </div>
-                    </div>
+              {series.length > 0 && (
+                <ul className="space-y-2">
+                  {series.map(({ item, index }) => newSeriesRow(item, index))}
+                </ul>
+              )}
 
-                    {source && (
-                      <p className="text-xs text-neutral-400">
-                        {source.coverage}, {source.resolution_m} m. {source.description}
-                      </p>
-                    )}
-                    {chosenIndex && (
-                      <p className="text-xs text-neutral-600 font-mono break-words">
-                        {chosenIndex.formula}
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
-              <div className="py-3">
-                <button
-                  type="button"
-                  className="inline-flex items-center rounded py-1.5 text-sm font-medium text-brand-600 hover:text-brand-700 hover:underline underline-offset-4 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30 disabled:text-neutral-400 disabled:no-underline disabled:cursor-not-allowed"
-                  onClick={() => addItem(windowName, hasDraft)}
-                  disabled={!tsOptions || renaming || saving}
-                >
-                  {saved.length + series.length > 0
-                    ? t('timeseriesStep.addAnother')
-                    : t('timeseriesStep.add')}
-                </button>
-              </div>
+              {count === 0 && (
+                <p className="px-1 py-1 text-xs text-neutral-500">
+                  {t('timeseriesStep.emptyPanel')}
+                </p>
+              )}
+
+              <button
+                type="button"
+                className={`${textAction} px-1 py-1`}
+                onClick={() => addItem(windowName)}
+                disabled={!tsOptions || renaming || saving}
+              >
+                <IconPlus className="h-4 w-4" />
+                {t('timeseriesStep.addSeries')}
+              </button>
             </div>
           </section>
         );
       })}
 
       {newGroupName !== null ? (
-        <div className="space-y-2">
+        <div className="rounded-lg border border-dashed border-brand-300 p-3 space-y-2">
           <div className="flex items-center gap-2">
             <Input
+              size="sm"
               autoFocus
+              className="max-w-xs"
               aria-label={t('timeseriesStep.newPanelName')}
               placeholder={t('timeseriesStep.newPanelName')}
               value={newGroupName}
@@ -441,12 +531,13 @@ export const StepAddTimeseries = ({
               }}
             />
             <Button
+              size="sm"
               onClick={addGroup}
               disabled={!newGroupName.trim() || windowOptions.includes(newGroupName.trim())}
             >
               {t('timeseriesStep.createPanel')}
             </Button>
-            <Button variant="quiet" onClick={() => setNewGroupName(null)}>
+            <Button size="sm" variant="quiet" onClick={() => setNewGroupName(null)}>
               {t('common:actions.cancel')}
             </Button>
           </div>
@@ -459,9 +550,10 @@ export const StepAddTimeseries = ({
       ) : (
         <button
           type="button"
-          className="inline-flex items-center rounded py-1.5 text-xs text-neutral-500 hover:text-neutral-700 hover:underline underline-offset-4 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30"
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-neutral-300 py-2.5 text-sm text-neutral-600 hover:border-brand-300 hover:text-brand-700 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30"
           onClick={() => setNewGroupName('')}
         >
+          <IconPlus className="h-4 w-4" />
           {t('timeseriesStep.addPanel')}
         </button>
       )}
