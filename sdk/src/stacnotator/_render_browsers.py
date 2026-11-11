@@ -2,7 +2,8 @@
 
 Each agent gets its own browser context and page, so its tiles do not queue behind another
 agent's connections. The server calls the page's `window.stacnotatorAgent` and gets the
-images straight back.
+images straight back. A page opened for a project instead exposes `window.stacnotatorSetup`,
+which turns imagery recipes into a new campaign's imagery the way the campaign wizard does.
 """
 
 import asyncio
@@ -92,10 +93,26 @@ class RenderBrowsers:
         self._launch_lock = asyncio.Lock()
 
     async def call(self, agent_id: str, campaign_id: int, method: str, *args: Any) -> Any:
-        page = await self._page(agent_id, campaign_id)
+        page = await self._page(agent_id, f"campaign={campaign_id}", "stacnotatorAgent")
         return await page.evaluate(
             "([method, args]) => window.stacnotatorAgent[method](...args)", [method, list(args)]
         )
+
+    async def setup(self, project_id: int, method: str, *args: Any) -> Any:
+        page = await self._page(f"setup:{project_id}", f"project={project_id}", "stacnotatorSetup")
+        return await page.evaluate(
+            "([method, args]) => window.stacnotatorSetup[method](...args)", [method, list(args)]
+        )
+
+    async def close(self, key: str) -> None:
+        opening = self._pages.pop(key, None)
+        if opening is None:
+            return
+        try:
+            page = await opening
+        except Exception:
+            return
+        await page.context.close()
 
     async def open_watch_window(self, agents_url: str | None = None) -> None:
         if self._watch is not None and not self._watch.is_closed():
@@ -124,28 +141,28 @@ class RenderBrowsers:
             "v => window.show(v)", {"agent": agent, "task_id": task_id, "images": images}
         )
 
-    async def _page(self, agent_id: str, campaign_id: int) -> Page:
-        opening = self._pages.get(agent_id)
+    async def _page(self, key: str, query: str, api: str) -> Page:
+        opening = self._pages.get(key)
         # A page that failed to open or has since crashed is opened again.
         if (
             opening is None
             or (opening.done() and opening.exception() is not None)
             or (opening.done() and opening.result().is_closed())
         ):
-            opening = asyncio.ensure_future(self._open(campaign_id))
-            self._pages[agent_id] = opening
+            opening = asyncio.ensure_future(self._open(query, api))
+            self._pages[key] = opening
         return await opening
 
-    async def _open(self, campaign_id: int) -> Page:
+    async def _open(self, query: str, api: str) -> Page:
         browser = await self._launched()
         context = await browser.new_context()
         await context.expose_function("stacnotatorToken", self._token)
         page = await context.new_page()
         page.on("crash", lambda _: asyncio.ensure_future(context.close()))
         try:
-            await page.goto(f"{self._app_url}/agent-render?campaign={campaign_id}")
+            await page.goto(f"{self._app_url}/agent-render?{query}")
             await page.wait_for_function(
-                "() => window.stacnotatorAgent || window.stacnotatorAgentError",
+                f"() => window.{api} || window.stacnotatorAgentError",
                 timeout=_PAGE_READY_MS,
             )
             error = await page.evaluate("() => window.stacnotatorAgentError ?? null")
@@ -154,7 +171,7 @@ class RenderBrowsers:
             raise
         if error:
             await context.close()
-            raise RuntimeError(f"The render page could not load the campaign: {error}")
+            raise RuntimeError(f"The render page could not load: {error}")
         return page
 
     async def _started(self) -> Playwright:

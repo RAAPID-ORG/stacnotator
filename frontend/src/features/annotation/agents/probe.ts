@@ -5,6 +5,7 @@ import {
   DEFAULT_COLUMNS,
   DEFAULT_ZOOM,
   fitCellPx,
+  viewCenter,
   type AgentTask,
   type ImageLimits,
   type ViewCell,
@@ -35,6 +36,9 @@ export interface LocatedProbe {
 
 type LonLat = [number, number];
 
+const projectNear = (center: LonLat, point: LonLat) =>
+  fromLonLat([point[0] + 360 * Math.round((center[0] - point[0]) / 360), point[1]]);
+
 /** OpenLayers' own resolution for a zoom, so a pixel maps back exactly as the map drew it. */
 const resolutionAt = (zoom: number): number => new View().getResolutionForZoom(zoom);
 
@@ -62,7 +66,7 @@ export function lonLatToPixel(
   point: LonLat
 ): [number, number] {
   const [cx, cy] = fromLonLat(center);
-  const [px, py] = fromLonLat(point);
+  const [px, py] = projectNear(center, point);
   const res = resolutionAt(zoom);
   return [width / 2 + (px - cx) / res, height / 2 - (py - cy) / res];
 }
@@ -70,7 +74,12 @@ export function lonLatToPixel(
 /** Where a probe lands. Throws a message the agent can act on. */
 export function locateProbe(task: AgentTask, probe: ProbeInput): LocatedProbe {
   if (!('view' in probe)) {
-    if (Math.abs(probe.lat) > 90 || Math.abs(probe.lon) > 180)
+    if (
+      !Number.isFinite(probe.lat) ||
+      !Number.isFinite(probe.lon) ||
+      Math.abs(probe.lat) > 85.05112878 ||
+      Math.abs(probe.lon) > 180
+    )
       throw new Error(`(${probe.lat}, ${probe.lon}) is not a lat/lon`);
     return { lon: probe.lon, lat: probe.lat };
   }
@@ -79,7 +88,14 @@ export function locateProbe(task: AgentTask, probe: ProbeInput): LocatedProbe {
   const columns = view.columns ?? DEFAULT_COLUMNS;
   if (!view.cell_px) throw new Error(`the size image ${image} was drawn at is not known`);
   const packed = packView(view.cells, columns, view.cell_px);
-  if (x < 0 || y < 0 || x >= packed.width || y >= packed.height)
+  if (
+    !Number.isFinite(x) ||
+    !Number.isFinite(y) ||
+    x < 0 ||
+    y < 0 ||
+    x >= packed.width ||
+    y >= packed.height
+  )
     throw new Error(`${where} is outside the ${packed.width}x${packed.height} image`);
   const rect = packed.rects.find(
     (r) => x >= r.x && x < r.x + r.width && y >= r.y && y < r.y + r.height
@@ -97,8 +113,9 @@ export function locateProbe(task: AgentTask, probe: ProbeInput): LocatedProbe {
       `${where} is on time series chart #${rect.index}, not on a map; maps (x, y, w, h): ${maps()}`
     );
   const zoom = cell.zoom ?? view.zoom ?? DEFAULT_ZOOM;
+  const center = viewCenter(task, view, cell);
   const [lon, lat] = pixelToLonLat(
-    [task.lon, task.lat],
+    [center.lon, center.lat],
     zoom,
     rect.width,
     rect.height,
@@ -108,7 +125,7 @@ export function locateProbe(task: AgentTask, probe: ProbeInput): LocatedProbe {
   return {
     lon,
     lat,
-    cell: { ...cell, zoom },
+    cell: { ...cell, zoom, ...(cell.center || view.center ? { center } : {}) },
     cellPx: rect.width,
     from: { reply, image, x, y, cell: rect.index },
   };
@@ -154,7 +171,7 @@ export function probeView(
 /** Ground offset of a point from the task, in metres east and north. */
 export function offsetMeters(task: AgentTask, lon: number, lat: number) {
   const [tx, ty] = fromLonLat([task.lon, task.lat]);
-  const [px, py] = fromLonLat([lon, lat]);
+  const [px, py] = projectNear([task.lon, task.lat], [lon, lat]);
   const scale = Math.cos((((task.lat + lat) / 2) * Math.PI) / 180);
   return { east_m: Math.round((px - tx) * scale), north_m: Math.round((py - ty) * scale) };
 }

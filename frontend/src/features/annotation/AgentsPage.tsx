@@ -227,6 +227,8 @@ const Snippet = ({ tool, lines }: { tool: string; lines: string[] }) => (
   </div>
 );
 
+const SETUP_TOOLS = 'create_campaign,add_tasks,edit_campaign,edit_imagery';
+
 const HowAgentsWork = ({ campaignName }: { campaignName?: string }) => {
   const { t } = useTranslation('annotation');
   return (
@@ -251,6 +253,16 @@ const HowAgentsWork = ({ campaignName }: { campaignName?: string }) => {
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
         <Snippet
+          tool="uv - macOS / Linux"
+          lines={['curl -LsSf https://astral.sh/uv/install.sh | sh']}
+        />
+        <Snippet
+          tool="uv - Windows (PowerShell)"
+          lines={[
+            'powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"',
+          ]}
+        />
+        <Snippet
           tool="Claude Code"
           lines={[
             '/plugin marketplace add RAAPID-ORG/stacnotator',
@@ -273,6 +285,14 @@ const HowAgentsWork = ({ campaignName }: { campaignName?: string }) => {
         })}
       </pre>
       <p>{t('agents.howTo.run')}</p>
+      <p>{t('agents.howTo.setup')}</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Snippet tool="macOS / Linux" lines={[`STACNOTATOR_MCP_ALLOW=${SETUP_TOOLS} claude`]} />
+        <Snippet
+          tool="Windows (PowerShell)"
+          lines={[`$env:STACNOTATOR_MCP_ALLOW="${SETUP_TOOLS}"; claude`]}
+        />
+      </div>
       <p>{t('agents.howTo.roles')}</p>
     </section>
   );

@@ -99,6 +99,17 @@ class Campaign:
         Returns the number of tasks created.
         """
         feature_collection = _as_feature_collection(data)
+        task_set_id = self._task_set_id(task_set, create_missing)
+        result = self._http.post(
+            f"/campaigns/{self.id}/ingest-annotation-task-geojson",
+            data={"task_set_id": str(task_set_id)},
+            files={
+                "file": ("tasks.geojson", json.dumps(feature_collection), "application/geo+json")
+            },
+        )
+        return int(result["num_tasks_created"])
+
+    def _task_set_id(self, task_set: str, create_missing: bool) -> int:
         sets = {s["name"]: s["id"] for s in self._list_task_sets()}
         if task_set not in sets:
             if not create_missing:
@@ -108,14 +119,7 @@ class Campaign:
                 )
             created = self._http.post(f"/campaigns/{self.id}/task-sets", json={"name": task_set})
             sets[task_set] = created["id"]
-        result = self._http.post(
-            f"/campaigns/{self.id}/ingest-annotation-task-geojson",
-            data={"task_set_id": str(sets[task_set])},
-            files={
-                "file": ("tasks.geojson", json.dumps(feature_collection), "application/geo+json")
-            },
-        )
-        return int(result["num_tasks_created"])
+        return int(sets[task_set])
 
     def _list_task_sets(self) -> list[dict[str, Any]]:
         result: list[dict[str, Any]] = self._http.get(f"/campaigns/{self.id}/task-sets")

@@ -1,8 +1,62 @@
 import { describe, expect, it } from 'vitest';
-import { fitCellPx, shortDateRange } from './view';
+import { checkView, defaultViews, fitCellPx, shortDateRange } from './view';
 
 const LIMITS = { max_edge_px: 1568, max_megapixels: 1.15 };
 const covers = (n: number) => Array.from({ length: n }, (_, i) => ({ slice_id: i }));
+
+it.each([5, 60, 1000])(
+  'starts at the dataset zoom rather than fitting a %sm sample extent',
+  (extent) => {
+    const views = defaultViews({
+      campaign_id: 9,
+      name: 'Iowa',
+      bbox: [-93.7, 41.9, -93.35, 42.15],
+      sample_extent_meters: extent,
+      guide_markdown: null,
+      labels: [],
+      form_fields: [],
+      imagery: [
+        {
+          source_id: 1,
+          name: 'Sentinel-2',
+          on_demand: false,
+          default_zoom: 15,
+          max_native_zoom: null,
+          visualizations: ['True Color'],
+          collections: [
+            {
+              collection_id: 1,
+              name: 'August',
+              cover_slice_id: 1,
+              slices: [
+                {
+                  slice_id: 1,
+                  name: 'August',
+                  start_date: '2024-08-01',
+                  end_date: '2024-08-31',
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      basemaps: [],
+      timeseries: [],
+    });
+    expect(views[0].zoom).toBe(15);
+  }
+);
+
+it('rejects exploration centres outside the map instead of rendering another location', () => {
+  for (const center of [
+    { lat: NaN, lon: 0 },
+    { lat: 90, lon: 0 },
+    { lat: 0, lon: 181 },
+  ]) {
+    expect(() => checkView({ cells: [{ slice_id: 1 }], center })).toThrow(/center/);
+    expect(() => checkView({ cells: [{ slice_id: 1, center }] })).toThrow(/center/);
+  }
+});
 
 describe('fitCellPx', () => {
   it('keeps the asked size when the image fits', () => {

@@ -23,6 +23,7 @@ import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import { createLayer, destroyLayer } from '~/shared/map/layers';
 import type { LayerSpec } from '~/shared/map/types';
 import type { ImageryCatalog } from '../campaign/imagery';
+import { sceneSourceOf } from '../campaign/scenes';
 import { sliceRaster } from '../campaign/tileUrls';
 import { probeColor } from '../map/compose';
 import { collectSeriesLabels, formatDateLabel } from '../panels/Timeseries/chartData';
@@ -31,14 +32,16 @@ import { savitzkyGolay } from '../panels/Timeseries/smoothing';
 import { DEFAULT_TIMESERIES_CHART } from '../stores/prefs';
 import { metersPerPixel, packView, type CellRect } from './pack';
 import { lonLatToPixel } from './probe';
-import { withTaskScenes } from './scenes';
+import { withTaskScenes, type TaskScenes } from './scenes';
 import {
   DEFAULT_COLUMNS,
   DEFAULT_ZOOM,
   fitCellPx,
   shortDateRange,
+  viewCenter,
   type AgentTask,
   type ImageLimits,
+  type ViewCenter,
   type ViewCell,
   type ViewSpec,
 } from './view';
@@ -129,18 +132,40 @@ export async function renderView(input: RenderInput): Promise<RenderedImage> {
   canvas.height = packed.height;
   const ctx = canvas.getContext('2d')!;
 
-  const scenes = await withTaskScenes(
-    catalog,
-    view.cells,
-    [task.lon, task.lat],
-    view.zoom ?? DEFAULT_ZOOM,
-    cellPx
-  ).catch((err: unknown) => ({
-    catalog,
-    empty: new Set<number>(),
-    errors: [`Planet scene search failed: ${extractErrorMessage(err, 'unknown error')}`],
-  }));
-  const withScenes = { ...input, catalog: scenes.catalog };
+  const sceneKey = (cell: ViewCell) => {
+    const { lon, lat } = viewCenter(task, view, cell);
+    const collection =
+      cell.slice_id == null
+        ? undefined
+        : [...catalog.collections.values()].find((collection) =>
+            collection.slices.some((slice) => slice.id === cell.slice_id)
+          );
+    const source = collection && sceneSourceOf(catalog, collection);
+    return `${lon},${lat}|${source?.id ?? ''}`;
+  };
+  const groups = new Map<string, ViewCell[]>();
+  for (const cell of view.cells) {
+    const key = sceneKey(cell);
+    groups.set(key, [...(groups.get(key) ?? []), cell]);
+  }
+  const scenesByLocation = new Map<string, TaskScenes | Error>(
+    await Promise.all(
+      [...groups].map(async ([key, group]) => {
+        const { lon, lat } = viewCenter(task, view, group[0]);
+        try {
+          return [
+            key,
+            await withTaskScenes(catalog, group, [lon, lat], view.zoom ?? DEFAULT_ZOOM, cellPx),
+          ] as const;
+        } catch (error) {
+          return [
+            key,
+            new Error(extractErrorMessage(error, 'Planet scene search failed')),
+          ] as const;
+        }
+      })
+    )
+  );
   const rowTops = [...new Set(packed.rects.map((r) => r.y))];
   const place = (rect: CellRect): Place => ({
     i: rect.index,
@@ -154,10 +179,13 @@ export async function renderView(input: RenderInput): Promise<RenderedImage> {
   const cells: DrawnCell[] = await Promise.all(
     packed.rects.map((rect) => {
       const cell = view.cells[rect.index];
+      const group = scenesByLocation.get(sceneKey(cell))!;
       const drawing =
-        cell.slice_id != null && scenes.empty.has(cell.slice_id)
-          ? Promise.reject(new Error('no Planet scenes around this point on this date'))
-          : drawCell(cell, rect, place(rect), withScenes);
+        group instanceof Error
+          ? Promise.reject(group)
+          : cell.slice_id != null && group.empty.has(cell.slice_id)
+            ? Promise.reject(new Error('no Planet scenes around this point on this date'))
+            : drawCell(cell, rect, place(rect), { ...input, catalog: group.catalog });
       return drawing.catch(
         (err: unknown): DrawnCell => ({
           image: null,
@@ -166,7 +194,7 @@ export async function renderView(input: RenderInput): Promise<RenderedImage> {
             ...place(rect),
             kind: kindOf(cell),
             label: 'no image',
-            warning: err instanceof Error ? err.message : String(err),
+            warning: extractErrorMessage(err, String(err)),
           },
         })
       );
@@ -174,16 +202,24 @@ export async function renderView(input: RenderInput): Promise<RenderedImage> {
   );
 
   for (const { image, rect, meta, metersPerPixel: mpp } of cells) {
+    const center = viewCenter(task, view, view.cells[rect.index]);
+    const zoom = view.cells[rect.index].zoom ?? view.zoom ?? DEFAULT_ZOOM;
     if (meta.kind !== 'timeseries') drawNoData(ctx, rect);
     if (image) ctx.drawImage(image, rect.x, rect.y);
     if (image && mpp && isPoint) {
-      const sidePx = extentMeters ? extentMeters / mpp : 0;
-      if (extentMeters) meta.inside_box = boxStats(image, sidePx);
-      drawFocus(ctx, rect, sidePx);
+      const sidePx = extentMeters ? extentMeters / metersPerPixel(task.lat, zoom) : 0;
+      const [x, y] = lonLatToPixel([center.lon, center.lat], zoom, rect.width, rect.height, [
+        task.lon,
+        task.lat,
+      ]);
+      const visible = x >= 0 && y >= 0 && x < rect.width && y < rect.height;
+      meta.task_in_view = visible;
+      if (extentMeters && visible) meta.inside_box = boxStats(image, sidePx, x, y);
+      drawFocus(ctx, rect, sidePx, x, y);
     }
     drawLabel(ctx, rect, meta);
     if (image && input.probes?.length && typeof meta.zoom === 'number')
-      drawProbes(ctx, rect, task, meta.zoom, input.probes);
+      drawProbes(ctx, rect, center, meta.zoom, input.probes);
   }
 
   return {
@@ -195,7 +231,9 @@ export async function renderView(input: RenderInput): Promise<RenderedImage> {
       ...(view.cell_px && cellPx !== view.cell_px ? { cell_px_asked: view.cell_px } : {}),
       ...(extentMeters ? { sample_extent_meters: extentMeters } : {}),
       ...hoistShared(cells.map((c) => c.meta)),
-      ...(scenes.errors.length ? { planet_errors: scenes.errors } : {}),
+      planet_errors: [...scenesByLocation.values()].flatMap((group) =>
+        group instanceof Error ? [group.message] : group.errors
+      ),
     },
   };
 }
@@ -235,6 +273,7 @@ async function drawCell(
   }
 
   const zoom = cell.zoom ?? view.zoom ?? DEFAULT_ZOOM;
+  const center = viewCenter(task, view, cell);
   const layers: LayerSpec[] = [];
   let kind: CellMeta['kind'];
   let label: string;
@@ -262,11 +301,11 @@ async function drawCell(
   const footprint = taskFootprint(task.geometry_wkt);
   if (footprint) layers.push(footprint);
 
-  const mpp = metersPerPixel(task.lat, zoom);
+  const mpp = metersPerPixel(center.lat, zoom);
   const { image, tileErrors, complete } = await renderMap(
     stage,
     layers,
-    [task.lon, task.lat],
+    [center.lon, center.lat],
     zoom,
     rect.width
   );
@@ -282,9 +321,10 @@ async function drawCell(
     meta: {
       ...place,
       kind,
-      label: `${label}, z${Math.round(zoom * 100) / 100}`,
+      label: `${label}, z${Math.round(zoom * 100) / 100}${cell.center || view.center ? ', nearby' : ''}`,
       ...details,
       zoom,
+      center,
       m_per_px: Number(mpp.toFixed(2)),
       ...(warning ? { warning } : {}),
       ...(!complete ? { tiles_missing: true } : {}),
@@ -363,7 +403,13 @@ async function renderMap(
     controls: [],
     interactions: [],
     pixelRatio: 1,
-    view: new View({ center: fromLonLat(center), zoom }),
+    // Keep fitted probe scales and centres exact, even when the frame spans a whole world.
+    view: new View({
+      center: fromLonLat(center),
+      zoom,
+      minZoom: Math.min(0, zoom),
+      multiWorld: true,
+    }),
   });
   const pump = setInterval(() => map.renderSync(), RENDER_PUMP_MS);
 
@@ -418,10 +464,11 @@ function composite(target: HTMLElement, size: number): HTMLCanvasElement {
 
 /** The pixels inside the sample extent as drawn, before anything is put on top. At least
  *  the centre pixel is read, however small the extent is at this zoom. */
-function boxStats(image: HTMLCanvasElement, sidePx: number) {
+function boxStats(image: HTMLCanvasElement, sidePx: number, x: number, y: number) {
   const side = Math.max(1, Math.round(sidePx));
-  const x0 = Math.round((image.width - side) / 2);
-  const y0 = Math.round((image.height - side) / 2);
+  const x0 = Math.round(x - side / 2);
+  const y0 = Math.round(y - side / 2);
+  if (x0 < 0 || y0 < 0 || x0 + side > image.width || y0 + side > image.height) return undefined;
   const { data } = image.getContext('2d')!.getImageData(x0, y0, side, side);
   let [r, g, b, seen, bright] = [0, 0, 0, 0, 0];
   for (let p = 0; p < data.length; p += 4) {
@@ -449,9 +496,10 @@ async function drawChart(
   ids: number[],
   rect: CellRect,
   place: Place,
-  { task, campaign, stage, probes = [] }: RenderInput
+  { task, view, campaign, stage, probes = [] }: RenderInput
 ): Promise<DrawnCell> {
-  const points = [{ lat: task.lat, lon: task.lon }, ...probes];
+  const center = viewCenter(task, view, cell);
+  const points = [center, ...probes];
   const data = await Promise.all(
     points.map(async (point) => (await timeSeriesCache.get(campaign.id, ids, point)) ?? {})
   );
@@ -462,7 +510,7 @@ async function drawChart(
     ids.map((id, i) => {
       const series = campaign.time_series.find((t) => t.id === id);
       const name = series?.name ?? `Series ${id}`;
-      const point = p === 0 ? 'task' : `P${p}`;
+      const point = p === 0 ? (cell.center || view.center ? 'nearby' : 'task') : `P${p}`;
       const byTime = new Map((data[p][id] ?? []).map((row) => [row.time, row]));
       const raw = times.map((time) => {
         const row = byTime.get(time);
@@ -533,6 +581,7 @@ async function drawChart(
     meta: {
       ...place,
       kind: 'timeseries',
+      center,
       label: ['time series', cell.remove_cloudy ? 'cloudy removed' : 'grey dots cloudy']
         .concat(cell.smoothed ? ['smoothed'] : [])
         .join(', '),
@@ -576,10 +625,19 @@ function drawNoData(ctx: CanvasRenderingContext2D, rect: CellRect) {
 
 /** The sample extent as a box drawn just outside it, so every pixel inside stays visible.
  *  A polygon task carries its own outline, drawn as a map layer. */
-function drawFocus(ctx: CanvasRenderingContext2D, rect: CellRect, sidePx: number) {
-  const cx = rect.x + rect.width / 2;
-  const cy = rect.y + rect.height / 2;
+function drawFocus(
+  ctx: CanvasRenderingContext2D,
+  rect: CellRect,
+  sidePx: number,
+  x: number,
+  y: number
+) {
+  const cx = rect.x + x;
+  const cy = rect.y + y;
   ctx.save();
+  ctx.beginPath();
+  ctx.rect(rect.x, rect.y, rect.width, rect.height);
+  ctx.clip();
   ctx.lineWidth = FOCUS_LINE_PX;
   ctx.strokeStyle = FOCUS_COLOR;
   ctx.beginPath();
@@ -606,6 +664,7 @@ function drawFocus(ctx: CanvasRenderingContext2D, rect: CellRect, sidePx: number
  *  needs only the point. */
 function lineLabel(name: string, point: string, seriesCount: number, probeCount: number) {
   if (point === 'task') return probeCount ? `${name}, task` : name;
+  if (point === 'nearby') return `${name}, nearby`;
   return seriesCount > 1 ? `${name} ${point}` : point;
 }
 
@@ -614,7 +673,7 @@ function lineLabel(name: string, point: string, seriesCount: number, probeCount:
 function drawProbes(
   ctx: CanvasRenderingContext2D,
   rect: CellRect,
-  task: AgentTask,
+  center: ViewCenter,
   zoom: number,
   probes: { lon: number; lat: number }[]
 ) {
@@ -626,7 +685,7 @@ function drawProbes(
   ctx.textBaseline = 'middle';
   const height = labelHeight(rect);
   const marks = probes.flatMap((probe, index) => {
-    const [px, py] = lonLatToPixel([task.lon, task.lat], zoom, rect.width, rect.height, [
+    const [px, py] = lonLatToPixel([center.lon, center.lat], zoom, rect.width, rect.height, [
       probe.lon,
       probe.lat,
     ]);

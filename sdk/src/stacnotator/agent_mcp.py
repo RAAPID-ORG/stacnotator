@@ -1,4 +1,5 @@
-"""MCP server that lets a model work through a STACNotator campaign as a labelling agent.
+"""MCP server that lets a model set up STACNotator campaigns and work through them as a
+labelling agent.
 
 Run `stacnotator-mcp` (or `python -m stacnotator.agent_mcp`) over stdio; the model signs in
 with the `login` tool. One server process can drive many agents, so every tool after registration
@@ -8,32 +9,42 @@ this process runs; nothing is rendered on the server.
 
 import asyncio
 import base64
-import contextlib
 import functools
 import itertools
 import json
+import logging
+import os
 import secrets
 import subprocess
 from collections.abc import Callable
-from typing import Any, cast
+from typing import Any, Literal, cast
 from urllib.parse import urlparse
+from uuid import uuid4
 
 from mcp.server.mcpserver import Image, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
+from pydantic import ConfigDict
+from requests import RequestException
+from shapely.wkt import loads
 from typing_extensions import Required, TypedDict
 
 from stacnotator import _credentials
 from stacnotator._http import Http
+from stacnotator._recording import Recording
 from stacnotator._render_browsers import ChromiumMissingError, RenderBrowsers, install_chromium
+from stacnotator.campaign import Campaign
 from stacnotator.client import Client
 from stacnotator.client import login as sdk_login
 from stacnotator.errors import NotLoggedInError, StacnotatorError
+
+log = logging.getLogger(__name__)
 
 
 class ViewCell(TypedDict, total=False):
     """Exactly one of slice_id (optionally with visualization), basemap_id or
     timeseries_ids; zoom overrides the view's zoom for this cell only. Time series cells
     take remove_cloudy (drop cloud-flagged observations) and smoothed (Savitzky-Golay line).
+    center overrides the view's centre: pick a pixel of an earlier image or give lat/lon.
     """
 
     slice_id: int
@@ -43,17 +54,98 @@ class ViewCell(TypedDict, total=False):
     remove_cloudy: bool
     smoothed: bool
     zoom: float
+    center: "ProbePoint"
 
 
 class ViewSpec(TypedDict, total=False):
-    """One packed image: cells in a grid, each centred on the task point.
+    """One packed image: cells in a grid, centred on the task unless center is given.
     columns 1-8 (default 4), cell_px 96-1024 (default 320), zoom 1-22 (default 15),
-    at most 36 cells. Cells shrink until the image fits the agent's image limits."""
+    at most 36 cells. center picks a pixel of an earlier image (reply, image, x, y),
+    or lat/lon. A cell can override center. Cells shrink to fit the image limits."""
 
     cells: Required[list[ViewCell]]
     columns: int
     cell_px: int
     zoom: float
+    center: "ProbePoint"
+
+
+class RecipeSlice(TypedDict, total=False):
+    """A date range, YYYY-MM-DD, both ends included; name defaults to the dates."""
+
+    start: Required[str]
+    end: Required[str]
+    name: str
+
+
+class RecipeWindow(TypedDict):
+    """One collection of the source: the slices annotators step through, in order, and its
+    cover, which default views show for the window: a slice index, or a dedicated date
+    range composited from its least cloudy images."""
+
+    name: str
+    slices: list[RecipeSlice]
+    cover: int | RecipeSlice
+
+
+class ImageryRecipe(TypedDict, total=False):
+    """One imagery source over a collection from setup_options, its windows spelled out.
+    visualizations: names from the collection's list (True Color and False Color when
+    omitted). max_cloud_cover: 0-100, default 90. name: defaults to the collection's."""
+
+    collection: Required[str]
+    windows: Required[list[RecipeWindow]]
+    visualizations: list[str]
+    max_cloud_cover: float
+    name: str
+
+
+class TimeseriesSpec(TypedDict, total=False):
+    """A time series chart sampled at each task. data_source: a key from setup_options'
+    timeseries sources; ts_type: one of that source's index_keys. start_ym, end_ym: YYYYMM."""
+
+    name: Required[str]
+    data_source: Required[str]
+    ts_type: Required[str]
+    start_ym: Required[str]
+    end_ym: Required[str]
+
+
+class CampaignSettings(TypedDict, total=False):
+    """A new campaign needs name, labels and the bbox; an edit gives only what changes.
+    labels: every label, [{"id", "name", "geometry_type": "point"|"polygon"|"line"}], ids
+    from 1; a label keeps its id when renamed and cannot be removed. bbox_west, _south,
+    _east, _north: WGS84 degrees, all four together. guide_markdown: the guide labellers
+    and agents read. task_output: classify (a label per task) or draw (shapes per task).
+    sample_extent_meters: the square drawn around each task. form_fields: extra questions
+    per task, in the campaign's form field schema. embedding_year: year of satellite
+    embeddings for similarity search. In an edit, null clears sample_extent_meters or
+    embedding_year. labelling_policy: who labels each task and how
+    their answers are agreed."""
+
+    __pydantic_config__ = ConfigDict(extra="forbid")  # type: ignore[misc]
+    name: str
+    labels: list[dict[str, Any]]
+    bbox_west: float
+    bbox_south: float
+    bbox_east: float
+    bbox_north: float
+    guide_markdown: str
+    task_output: Literal["classify", "draw"]
+    sample_extent_meters: float | None
+    form_fields: list[dict[str, Any]]
+    embedding_year: int | None
+    labelling_policy: dict[str, Any]
+
+
+class SamplingSpec(TypedDict, total=False):
+    """random: num_samples points. grid: a lattice spacing_km apart. Drawn across the
+    campaign box; seed makes either reproducible."""
+
+    strategy_type: Required[Literal["random", "grid"]]
+    num_samples: int
+    spacing_km: float
+    seed: int
 
 
 class ProbePoint(TypedDict, total=False):
@@ -72,10 +164,17 @@ class ProbePoint(TypedDict, total=False):
 server = MCPServer(
     "stacnotator",
     instructions=(
-        "Label STACNotator campaign tasks from rendered imagery. Register one agent per "
-        "worker, read the campaign guide in its context, then loop next_task -> "
-        "(get_views, probe_timeseries) -> submit_label or skip_task, always passing your own "
-        "agent_id."
+        "Set up STACNotator campaigns and label their tasks from rendered imagery. Tools "
+        "that create or change campaigns (create_campaign, add_tasks, edit_campaign, "
+        "edit_imagery) are only here when the user granted them; when one you need is "
+        "missing, tell the user it was not granted and never make the change another way, "
+        "such as through the SDK or the API. Before any such change, follow the "
+        "stacnotator-campaign-setup skill: never invent the area, the period or the labels; "
+        "ask the user and make the change only once they accept your proposal. Then "
+        "get_campaign until imagery is ready -> "
+        "preview_campaign. To label: register one agent per worker, read the campaign "
+        "guide in its context, then loop next_task -> (get_views, probe_timeseries) -> "
+        "submit_label or skip_task, always passing your own agent_id."
     ),
 )
 
@@ -85,6 +184,7 @@ _agents: dict[str, dict[str, Any]] = {}
 _default_views: dict[str, list[ViewSpec]] = {}
 _current_tasks: dict[str, dict[str, Any]] = {}
 _image_limits: dict[str, dict[str, float]] = {}
+_label_names: dict[str, dict[int, str]] = {}
 # The views behind the images of each agent's recent replies, by reply number, at the size
 # they were drawn and with the task they are centred on, so a probe's pixel can be turned
 # back into a place.
@@ -130,6 +230,17 @@ def _browsers() -> RenderBrowsers:
 @functools.cache
 def _render_browsers(app_url: str) -> RenderBrowsers:
     return RenderBrowsers(app_url, lambda: asyncio.to_thread(_http().token))
+
+
+def _recording() -> Recording:
+    if _session_url is None:
+        raise ToolError(NO_DEPLOYMENT)
+    return _recordings(_session_url)
+
+
+@functools.cache
+def _recordings(app_url: str) -> Recording:
+    return Recording()
 
 
 def _full_url(url: str) -> str:
@@ -210,12 +321,59 @@ def _without_none(body: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in body.items() if value is not None}
 
 
-async def _bundle(
-    agent_id: str, summary: dict[str, Any], rendered: list[dict[str, Any]]
-) -> list[str | Image]:
-    """The task and one entry per view as text, then the drawn images in order. Each view
-    entry names the image it corresponds to, since failed views have none."""
-    images: list[str | Image] = []
+def _point_inputs(agent_id: str, task_id: int, points: list[ProbePoint]) -> list[dict[str, Any]]:
+    kept = _replies.get(agent_id, {})
+    inputs: list[dict[str, Any]] = []
+    for point in points:
+        if {"reply", "image", "x", "y"} == point.keys():
+            number, image = point["reply"], point["image"]
+            if number not in kept:
+                raise ToolError(
+                    f"Reply {number} is not one of your last {KEPT_REPLIES} replies: pick on a"
+                    " recent one, or call get_views again."
+                )
+            reply_task, shown = kept[number]
+            if reply_task != task_id:
+                raise ToolError(f"Reply {number} was drawn for task {reply_task}, not {task_id}.")
+            if not isinstance(image, int) or not 1 <= image <= len(shown):
+                count = f"{len(shown)} image{'' if len(shown) == 1 else 's'}"
+                raise ToolError(f"Reply {number} has no image {image}: it had {count}.")
+            inputs.append({"view": shown[image - 1], **point})
+        elif {"lat", "lon"} == point.keys():
+            inputs.append(dict(point))
+        else:
+            raise ToolError('Each point is {"reply", "image", "x", "y"} or {"lat", "lon"}.')
+    return inputs
+
+
+async def _located_views(
+    agent_id: str, task: dict[str, Any], views: list[ViewSpec]
+) -> list[ViewSpec]:
+    located: list[dict[str, Any]] = [
+        {**view, "cells": [dict(cell) for cell in view["cells"]]} for view in views
+    ]
+    targets = [
+        target for view in located for target in [view, *view["cells"]] if "center" in target
+    ]
+    if targets:
+        points = _point_inputs(agent_id, task["task_id"], [target["center"] for target in targets])
+        centers = await _on_page(agent_id, "locate", task, points)
+        for target, center in zip(targets, centers, strict=True):
+            target["center"] = {key: center[key] for key in ("lat", "lon", "from") if key in center}
+    return cast(list[ViewSpec], located)
+
+
+def _check_defaults(views: list[ViewSpec]) -> None:
+    if not 1 <= len(views) <= 4:
+        raise ToolError("Pass 1-4 views.")
+    if any("center" in target for view in views for target in [view, *view["cells"]]):
+        raise ToolError("Default views follow each task. Use center only in get_views.")
+
+
+def _pack(
+    summary: dict[str, Any], rendered: list[dict[str, Any]], agent_id: str | None = None
+) -> tuple[dict[str, Any], list[Image]]:
+    images: list[Image] = []
     views = []
     shown: list[ViewSpec] = []
     for view in rendered:
@@ -230,20 +388,67 @@ async def _bundle(
             entry["error"] = view["error"]
         views.append(entry)
     reply: dict[str, Any] = {}
-    if shown:
+    if shown and agent_id is not None:
         number = next(_reply_numbers)
         kept = _replies.setdefault(agent_id, {})
         kept[number] = (summary["task"]["task_id"], shown)
         for old in list(kept)[:-KEPT_REPLIES]:
             del kept[old]
         reply = {"reply": number}
+    return {**reply, **summary, "views": views}, images
 
+
+async def _bundle(
+    agent_id: str,
+    summary: dict[str, Any],
+    rendered: list[dict[str, Any]],
+    action: str,
+    request: dict[str, Any],
+) -> list[str | Image]:
     drawn = [view["image_base64"] for view in rendered if "image_base64" in view]
-    agent = await _agent(agent_id)
-    # Watching is a side show: a closed window never fails the agent's call.
-    with contextlib.suppress(Exception):
-        await _browsers().show(agent["name"], summary["task"]["task_id"], drawn)
-    return [_json({**reply, **summary, "views": views}), *images]
+    result, images = _pack(summary, rendered, agent_id)
+    error = await _record_step(agent_id, summary["task"], action, request, result, drawn)
+    if error:
+        result["recording_error"] = error
+    try:
+        await _browsers().show(_agents[agent_id]["name"], summary["task"]["task_id"], drawn)
+    except Exception:
+        log.exception("Could not update the agent watch window")
+    return [_json(result), *images]
+
+
+async def _record_step(
+    agent_id: str,
+    task: dict[str, Any],
+    action: str,
+    request: dict[str, Any],
+    result: dict[str, Any],
+    images: list[str] | None = None,
+    error: str | None = None,
+) -> str | None:
+    agent = _agents.get(agent_id, {"agent_id": agent_id, "name": agent_id})
+    event = {
+        "agent": {key: agent[key] for key in ("agent_id", "name", "campaign_id") if key in agent},
+        "task": task,
+        "action": action,
+        "request": request,
+        "result": result,
+        "images": images or [],
+    }
+    if error:
+        event["error"] = error
+    label_id = request.get("label_id")
+    label = _label_names.get(agent_id, {}).get(label_id) if isinstance(label_id, int) else None
+    if label is not None:
+        event["label_name"] = label
+    recording = _recording()
+    async with recording.lock:
+        try:
+            await asyncio.to_thread(recording.append, event)
+        except (OSError, ValueError) as exc:
+            log.error("Could not save agent recording %s: %s", recording.path, exc)
+            return str(exc)
+    return None
 
 
 @server.tool(structured_output=False)
@@ -260,7 +465,14 @@ async def login(url: str) -> str:
     except StacnotatorError as exc:
         raise ToolError(str(exc)) from exc
     if url != _session_url:
-        for state in (_agents, _default_views, _current_tasks, _image_limits, _replies):
+        for state in (
+            _agents,
+            _default_views,
+            _current_tasks,
+            _image_limits,
+            _replies,
+            _label_names,
+        ):
             state.clear()
     _session_url = url
     _signed_in_http.cache_clear()
@@ -305,15 +517,19 @@ async def register_agent(
     your other agents on the campaign that still have work queued.
     default_views: up to 4 views next_task returns for every task, drawn ahead for the
     tasks after it. Omit for a built-in overview; change later with set_default_views.
-    watch_window: open a window on the user's screen showing every agent's latest views.
-    On by default; pass false only when the user does not want it.
+    watch_window: open the window showing the agents' latest views.
+    On by default; pass false only when the user does not want it. Recording is independent
+    of this window.
 
     Returns the agent (keep agent_id), the campaign context (guide, labels, form fields,
     imagery slices, basemaps, time series), the default views and agents_page, the URL to
-    give the user for following progress. When the render browser cannot start,
+    give the user for following progress, and recording, the local JSONL log path.
+    When the render browser cannot start,
     render_browser says why instead: follow it, and never register again.
     """
     limits = _limits(max_image_edge_px, max_image_megapixels)
+    if default_views is not None:
+        _check_defaults(default_views)
     async with _registering:
         agent = await _api(
             _http().post,
@@ -336,6 +552,7 @@ async def register_agent(
     page = _agents_page(agent)
     try:
         context = await _on_page(agent_id, "context")
+        _label_names[agent_id] = {label["id"]: label["name"] for label in context["labels"]}
         views = await _views_of(agent_id)
     except ToolError as exc:
         # The agent exists either way: registering again would make a second one.
@@ -343,9 +560,28 @@ async def register_agent(
         return _json({"agent": agent, "agents_page": page, "render_browser": note})
     if watch_window:
         # A machine without a screen, or a user who closed the window, must not fail a run.
-        with contextlib.suppress(Exception):
+        try:
             await _browsers().open_watch_window(page)
-    return _json({"agent": agent, "agents_page": page, "context": context, "default_views": views})
+        except Exception as exc:
+            return _json(
+                {
+                    "agent": agent,
+                    "agents_page": page,
+                    "context": context,
+                    "default_views": views,
+                    "watch_error": str(exc),
+                    "recording": str(_recording().path),
+                }
+            )
+    return _json(
+        {
+            "agent": agent,
+            "agents_page": page,
+            "context": context,
+            "default_views": views,
+            "recording": str(_recording().path),
+        }
+    )
 
 
 @server.tool(structured_output=False)
@@ -353,7 +589,9 @@ async def campaign_context(agent_id: str) -> str:
     """The agent's campaign: guide_markdown, labels (use their ids), form_fields, imagery
     sources with collections and slices (slice ids, dates, visualizations, max_native_zoom),
     basemaps and time series. Read it before labelling."""
-    return _json(await _on_page(agent_id, "context"))
+    context = await _on_page(agent_id, "context")
+    _label_names[agent_id] = {label["id"]: label["name"] for label in context["labels"]}
+    return _json(context)
 
 
 @server.tool(structured_output=False)
@@ -361,8 +599,7 @@ async def set_default_views(agent_id: str, views: list[ViewSpec]) -> str:
     """Replace the agent's default views (1-4): what next_task returns for every task and
     what is drawn ahead for the tasks after it. Set them once the first tasks show what is
     worth looking at in this campaign; one-off detail belongs in get_views."""
-    if not 1 <= len(views) <= 4:
-        raise ToolError("Pass 1-4 views.")
+    _check_defaults(views)
     _default_views[agent_id] = views
     return _json(views)
 
@@ -382,8 +619,8 @@ async def next_task(agent_id: str) -> list[str | Image]:
     """The agent's next open task with its default views drawn. The same views are drawn
     ahead for the tasks after it, so this is usually quick.
 
-    Returns JSON {reply, task, remaining, views}, then the images; probe_timeseries picks
-    pixels by reply and image number. Each view entry has its spec and
+    Returns JSON {reply, task, remaining, views}, then the images; get_views centers and
+    probe_timeseries pick pixels by reply and image number. Each view entry has its spec and
     either image (1-based position among the returned images) with meta (per-cell captions,
     zoom, meters_per_pixel, time series values) or an error. task null means every assigned
     task is done. The same task is returned until it is labelled or skipped.
@@ -398,21 +635,44 @@ async def next_task(agent_id: str) -> list[str | Image]:
     limits = _limits_of(agent_id)
     rendered = await _on_page(agent_id, "render", task, views, limits)
     await _on_page(agent_id, "preload", upcoming, views, limits)
-    return await _bundle(agent_id, {"task": task, "remaining": result["remaining"]}, rendered)
+    return await _bundle(
+        agent_id,
+        {"task": task, "remaining": result["remaining"]},
+        rendered,
+        "next_task",
+        {"views": views},
+    )
 
 
 @server.tool(structured_output=False)
 async def get_views(agent_id: str, task_id: int, views: list[ViewSpec]) -> list[str | Image]:
     """Draw more views of the agent's current task: other dates, finer slices, higher zoom,
     other visualizations or basemaps. Pack everything you need next into this one call, up
-    to 8 views; same return shape as next_task."""
+    to 8 views; same return shape as next_task.
+
+    Request only evidence needed to resolve a specific uncertainty about the label.
+    Prefer more detail or relevant dates at the same task. Nearby comparison is optional,
+    not a required step: use it only when another place helps answer that question.
+    Pick a relevant patch already visible, or request a wider view if needed, then set center to
+    {"reply": N, "image": 1, "x": X, "y": Y} and choose the zoom needed to inspect it.
+    Pixels are measured in the returned image's own size, from its top-left corner;
+    meta.cells[].rect gives cell bounds. No geographic coordinates needed. A cell can
+    override center, or center can be {"lat", "lon"}. Browse any dates or visualizations
+    there; pick again on the resulting images to move or zoom further. Omit center to
+    return to the task. The red marker always marks the original task, not the new centre.
+    """
     task = _current_tasks.get(agent_id)
     if task is None or task["task_id"] != task_id:
         raise ToolError(f"Task {task_id} is not this agent's current task: call next_task.")
     if not 1 <= len(views) <= 8:
         raise ToolError("Pass 1-8 views.")
-    rendered = await _on_page(agent_id, "render", task, views, _limits_of(agent_id))
-    return await _bundle(agent_id, {"task": task}, rendered)
+    try:
+        located = await _located_views(agent_id, task, views)
+        rendered = await _on_page(agent_id, "render", task, located, _limits_of(agent_id))
+    except ToolError as exc:
+        await _record_step(agent_id, task, "get_views", {"views": views}, {}, error=str(exc))
+        raise
+    return await _bundle(agent_id, {"task": task}, rendered, "get_views", {"views": views})
 
 
 @server.tool(structured_output=False)
@@ -446,34 +706,19 @@ async def probe_timeseries(
         raise ToolError(f"Task {task_id} is not this agent's current task: call next_task.")
     if not 1 <= len(points) <= 6:
         raise ToolError("Pass 1-6 points.")
-    kept = _replies.get(agent_id, {})
-    probes: list[dict[str, Any]] = []
-    for point in points:
-        if {"reply", "image", "x", "y"} == point.keys():
-            number, image = point["reply"], point["image"]
-            if number not in kept:
-                raise ToolError(
-                    f"Reply {number} is not one of your last {KEPT_REPLIES} replies: pick on a"
-                    " recent one, or call get_views again."
-                )
-            reply_task, shown = kept[number]
-            if reply_task != task_id:
-                raise ToolError(f"Reply {number} was drawn for task {reply_task}, not {task_id}.")
-            if not 1 <= image <= len(shown):
-                count = f"{len(shown)} image{'' if len(shown) == 1 else 's'}"
-                raise ToolError(f"Reply {number} has no image {image}: it had {count}.")
-            probes.append({"view": shown[image - 1], **point})
-        elif {"lat", "lon"} == point.keys():
-            probes.append(dict(point))
-        else:
-            raise ToolError('Each point is {"reply", "image", "x", "y"} or {"lat", "lon"}.')
     options = _without_none(
         {"timeseries_ids": timeseries_ids, "remove_cloudy": remove_cloudy, "smoothed": smoothed}
     )
-    rendered = await _on_page(agent_id, "probe", task, probes, options, _limits_of(agent_id))
-    if "error" in rendered:
-        raise ToolError(rendered["error"])
-    return await _bundle(agent_id, {"task": task}, [rendered])
+    request = {"points": points, **options}
+    try:
+        probes = _point_inputs(agent_id, task_id, points)
+        rendered = await _on_page(agent_id, "probe", task, probes, options, _limits_of(agent_id))
+        if "error" in rendered:
+            raise ToolError(rendered["error"])
+    except ToolError as exc:
+        await _record_step(agent_id, task, "probe_timeseries", request, {}, error=str(exc))
+        raise
+    return await _bundle(agent_id, {"task": task}, [rendered], "probe_timeseries", request)
 
 
 @server.tool(structured_output=False)
@@ -524,8 +769,18 @@ async def skip_task(agent_id: str, task_id: int, comment: str) -> str:
 
 async def _annotate(agent_id: str, task_id: int, body: dict[str, Any]) -> str:
     # A skip is label_id None, sent as null.
-    result = await _api(_http().post, f"/agents/{agent_id}/tasks/{task_id}/annotate", body)
+    current = _current_tasks.get(agent_id)
+    task = current if current and current["task_id"] == task_id else {"task_id": task_id}
+    action = "skip_task" if body["label_id"] is None else "submit_label"
+    try:
+        result = await _api(_http().post, f"/agents/{agent_id}/tasks/{task_id}/annotate", body)
+    except ToolError as exc:
+        await _record_step(agent_id, task, action, body, {}, error=str(exc))
+        raise
     _current_tasks.pop(agent_id, None)
+    error = await _record_step(agent_id, task, action, body, result)
+    if error:
+        result = {**result, "recording_error": error}
     return _json(result)
 
 
@@ -540,18 +795,289 @@ async def release_tasks(campaign_id: int, agent_id: str | None = None) -> str:
     )
 
 
+async def _on_setup_page(project_id: int, method: str, *args: Any) -> Any:
+    try:
+        return await _browsers().setup(project_id, method, *args)
+    except ChromiumMissingError as exc:
+        raise ToolError(str(exc)) from exc
+    except Exception as exc:
+        # Only the page's own message, without Playwright's prefix and the JS stack.
+        message = str(exc).split("\n    at ")[0].removeprefix("Page.evaluate: Error: ")
+        raise ToolError(f"Building the imagery failed: {message}") from exc
+
+
+def _campaign_url(project_id: int, campaign_id: int) -> str:
+    return f"{_session_url}/projects/{project_id}/campaigns/{campaign_id}"
+
+
+# Tools that create or change campaigns are served only when the user names them in
+# STACNOTATOR_MCP_ALLOW (comma-separated), so a model only has the ones it was given.
+_ALLOWED = {name.strip() for name in os.environ.get("STACNOTATOR_MCP_ALLOW", "").split(",")}
+
+
+def _grantable_tool(fn: Callable[..., Any]) -> Callable[..., Any]:
+    if fn.__name__ in _ALLOWED:
+        server.tool(structured_output=False)(fn)
+    return fn
+
+
+@server.tool(structured_output=False)
+async def list_projects() -> str:
+    """Projects you can access (id, name, is_admin). A campaign is created in a project you
+    are an admin of; ask the user which one when they did not say."""
+    projects = (await _api(_http().get, "/projects/"))["items"]
+    return _json(
+        [{key: p.get(key) for key in ("id", "name", "description", "is_admin")} for p in projects]
+    )
+
+
+@server.tool(structured_output=False)
+async def setup_options(project_id: int) -> str:
+    """What imagery recipes and time series accept: imagery collections (id,
+    visualizations), basemaps by name, and time series data sources and types."""
+    options = await _on_setup_page(project_id, "options")
+    options["timeseries"] = await _api(_http().get, "/timeseries/create-options")
+    return _json(options)
+
+
+@_grantable_tool
+async def create_campaign(
+    project_id: int,
+    settings: CampaignSettings,
+    imagery: list[ImageryRecipe],
+    basemaps: list[str] | None = None,
+    timeseries: list[TimeseriesSpec] | None = None,
+) -> str:
+    """Create a new campaign. Only call it once the user has accepted your whole proposal.
+    imagery: one recipe per source, its windows, slices and covers chosen for what the
+    labels need to see. basemaps: names from setup_options, all of them when omitted.
+    Mosaic registration starts in the background; get_campaign says when it is done."""
+    if not imagery:
+        raise ToolError("Give at least one imagery recipe.")
+    guide = settings.pop("guide_markdown", None)
+    body = {
+        "name": settings.pop("name", None),
+        "project_id": project_id,
+        "labelling_policy": settings.pop("labelling_policy", None),
+        "settings": settings,
+        "imagery_editor_state": await _on_setup_page(
+            project_id, "imagery", None, imagery, basemaps
+        ),
+        "timeseries_configs": timeseries,
+    }
+    campaign = await _api(_http().post, "/campaigns/", _without_none(body))
+    url = _campaign_url(project_id, campaign["id"])
+    try:
+        if guide is not None:
+            await _api(_http().patch, f"/campaigns/{campaign['id']}", {"guide_markdown": guide})
+        task_sets = await _task_sets(campaign["id"])
+    except (ToolError, RequestException) as exc:
+        raise ToolError(
+            f"Campaign {campaign['id']} was created ({url}), but follow-up setup failed: {exc}. "
+            "Do not call create_campaign again; inspect it with get_campaign and resume with "
+            "edit_campaign if needed."
+        ) from exc
+    return _json(
+        {
+            "campaign_id": campaign["id"],
+            "url": url,
+            "registration_status": campaign.get("registration_status"),
+            "task_sets": task_sets,
+        }
+    )
+
+
+@_grantable_tool
+async def edit_campaign(campaign_id: int, settings: CampaignSettings) -> str:
+    """Change an existing campaign's settings. Read the current values with get_campaign
+    first and agree the change with the user. Imagery is changed with edit_imagery."""
+    campaign = await _api(_http().patch, f"/campaigns/{campaign_id}", settings)
+    return _json({"campaign_id": campaign_id, "settings": campaign["settings"]})
+
+
+@_grantable_tool
+async def edit_imagery(
+    campaign_id: int,
+    imagery: list[ImageryRecipe] | None = None,
+    remove: list[str] | None = None,
+    basemaps: list[str] | None = None,
+) -> str:
+    """Change an existing campaign's imagery. Read the current sources with get_campaign
+    first and agree the change with the user.
+
+    imagery: recipes, as in create_campaign. A recipe whose source name (its name, else
+    the collection's label) matches a stored source replaces that source's windows,
+    visualizations and cloud cover, so list every window it should keep; windows with
+    unchanged dates keep their registration. Any other recipe is added. remove: names of sources to
+    delete. Sources you do not name are kept as they are. basemaps: names from
+    setup_options that replace the campaign's basemaps; omitted, they are kept. Changed
+    imagery registers again in the background; get_campaign says when it is done."""
+    if not imagery and not remove and basemaps is None:
+        raise ToolError("Pass imagery, remove or basemaps.")
+    summary = await _api(_http().get, f"/campaigns/{campaign_id}/summary")
+    state = await _on_setup_page(
+        summary["project_id"], "imagery", campaign_id, imagery or [], basemaps, remove
+    )
+    await _api(_http().put, f"/campaigns/{campaign_id}/imagery", state)
+    return _json(
+        {
+            "campaign_id": campaign_id,
+            "sources": [source["name"] for source in state["sources"]],
+            "basemaps": [basemap["name"] for basemap in state["basemaps"]],
+        }
+    )
+
+
+@_grantable_tool
+async def add_tasks(
+    campaign_id: int,
+    task_set: str,
+    geojson: dict[str, Any] | None = None,
+    sampling: SamplingSpec | None = None,
+) -> str:
+    """Add tasks to a campaign's task set, created when no set has that name. Pass exactly
+    one of geojson (a FeatureCollection of points or polygons) or sampling (points drawn
+    across the campaign box). Agree the task set, the count and where they go with the
+    user first."""
+    if (geojson is None) == (sampling is None):
+        raise ToolError("Pass exactly one of geojson or sampling.")
+    campaign = Campaign(_http(), {"id": campaign_id})
+
+    def run() -> int:
+        try:
+            if geojson is not None:
+                return campaign.upload_tasks(geojson, task_set, create_missing=True)
+            task_set_id = campaign._task_set_id(task_set, create_missing=True)
+            result = _http().post(
+                f"/campaigns/{campaign_id}/sampling/generate-tasks",
+                data={
+                    "strategy": json.dumps(sampling),
+                    "task_set_id": str(task_set_id),
+                    "use_campaign_bbox": "true",
+                },
+            )
+            return int(result["num_tasks_created"])
+        except ValueError as exc:
+            raise ToolError(str(exc)) from exc
+
+    created = await _api(run)
+    return _json({"tasks_created": created, "task_sets": await _task_sets(campaign_id)})
+
+
+async def _task_sets(campaign_id: int) -> list[dict[str, Any]]:
+    sets = await _api(_http().get, f"/campaigns/{campaign_id}/task-sets")
+    return [{k: s[k] for k in ("id", "name", "num_tasks", "num_labeled")} for s in sets]
+
+
+def _imagery_summary(source: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "name": source["name"],
+        "visualizations": [v["name"] for v in source["visualizations"]],
+        "windows": [
+            {
+                "name": col["name"],
+                "collection": (col.get("search") or {}).get("stac_collection_id"),
+                "slices": [f"{s['start_date']} to {s['end_date']}" for s in col["slices"]],
+                "cover_slice_index": col["cover_slice_index"],
+                "has_dedicated_cover": col["has_dedicated_cover"],
+            }
+            for col in source["collections"]
+        ],
+    }
+
+
+@server.tool(structured_output=False)
+async def get_campaign(campaign_id: int) -> str:
+    """A campaign's settings (labels with their ids, guide, area, form fields), imagery
+    sources with their windows and slices, basemaps, time series and task sets, and
+    whether its imagery is registered (registration_status ready) and its embeddings
+    computed, with any errors. Annotation and preview_campaign wait for registration;
+    while it runs, poll every half minute or so."""
+    campaign = await _api(_http().get, f"/campaigns/{campaign_id}")
+    keys = (
+        "id",
+        "name",
+        "registration_status",
+        "registration_errors",
+        "embedding_status",
+        "embedding_errors",
+        "settings",
+    )
+    return _json(
+        {
+            **{key: campaign.get(key) for key in keys},
+            "url": _campaign_url(campaign["project_id"], campaign_id),
+            "imagery": [_imagery_summary(source) for source in campaign["imagery_sources"]],
+            "basemaps": [basemap["name"] for basemap in campaign["basemaps"]],
+            "time_series": [
+                {k: ts.get(k) for k in ("name", "data_source", "ts_type", "start_ym", "end_ym")}
+                for ts in campaign["time_series"]
+            ],
+            "task_sets": await _task_sets(campaign_id),
+        }
+    )
+
+
+def _preview_task(task: dict[str, Any]) -> dict[str, Any]:
+    centroid = loads(task["geometry_wkt"]).centroid
+    return {
+        "task_id": task["id"],
+        "lon": centroid.x,
+        "lat": centroid.y,
+        "geometry_wkt": task["geometry_wkt"],
+    }
+
+
+@server.tool(structured_output=False)
+async def preview_campaign(
+    campaign_id: int,
+    max_image_edge_px: int,
+    max_image_megapixels: float,
+    task_count: int = 2,
+) -> list[str | Image]:
+    """Draw the default views of a campaign's first tasks, to check the imagery shows what
+    the labels need before handing the campaign over. Needs registration to be ready and
+    at least one task. Same image limits as register_agent."""
+    limits = _limits(max_image_edge_px, max_image_megapixels)
+    summary = await _api(_http().get, f"/campaigns/{campaign_id}/summary")
+    if summary["registration_status"] != "ready":
+        raise ToolError(
+            f"Imagery registration is {summary['registration_status']}"
+            f" ({summary.get('registration_errors')}); wait for get_campaign to say ready."
+        )
+    tasks = (await _api(_http().get, f"/campaigns/{campaign_id}/tasks"))["tasks"]
+    if not tasks:
+        raise ToolError("The campaign has no tasks yet: add_tasks first.")
+    key = f"preview:{campaign_id}:{uuid4()}"
+    try:
+        views = await _browsers().call(key, campaign_id, "defaultViews")
+        out: list[str | Image] = []
+        for task in tasks[: max(1, min(task_count, 5))]:
+            agent_task = _preview_task(task)
+            rendered = await _browsers().call(key, campaign_id, "render", agent_task, views, limits)
+            result, images = _pack({"task": agent_task}, rendered)
+            out += [_json(result), *images]
+    except ChromiumMissingError as exc:
+        raise ToolError(str(exc)) from exc
+    except Exception as exc:
+        raise ToolError(f"The render browser failed: {exc}") from exc
+    finally:
+        # The page reads the campaign once, so a later preview after an edit needs a new one.
+        await _browsers().close(key)
+    return out
+
+
 @server.tool(structured_output=False)
 async def watch_agents() -> str:
-    """Open the window on the user's screen showing the latest views of every agent as they
-    are drawn, or bring it to the front. register_agent opens it already, so this is for
-    reopening it after the user closed it."""
+    """Open the window showing the agents' latest views, or bring it to the front.
+    Closing the window never stops agents or recording."""
     try:
         await _browsers().open_watch_window()
     except ChromiumMissingError as exc:
         raise ToolError(str(exc)) from exc
     except Exception as exc:
         raise ToolError(f"Could not open the watch window: {exc}") from exc
-    return "The watch window is open."
+    return _json({"watch": "open", "recording": str(_recording().path)})
 
 
 @server.tool(structured_output=False)

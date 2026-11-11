@@ -8,7 +8,7 @@
     {
       "name": "stacnotator",
       "source": "./sdk",
-      "description": "Label STACNotator campaigns with agents: MCP server and labelling skill."
+      "description": "Set up and label STACNotator campaigns with agents: MCP server, campaign setup and labelling skills."
     }
   ]
 }

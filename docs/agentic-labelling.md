@@ -1,13 +1,13 @@
 # Agentic labelling
 
-A model can label the tasks of a campaign, alone or as a team of subagents. It works
-through the `stacnotator` MCP server in the SDK: it looks at packed images of the imagery
-around each task, asks for more detail when a point is unclear, and submits labels like any
-other annotator.
+A model can set up a new campaign and label the tasks of a campaign, alone or as a team of
+subagents. It works through the `stacnotator` MCP server in the SDK: it looks at packed
+images of the imagery around each task, asks for more detail when a point is unclear, and
+submits labels like any other annotator.
 
 ## Setup
 
-Install the plugin, which brings the labelling skill and the MCP server. You need
+Install the plugin, which brings the labelling and campaign setup skills and the MCP server. You need
 [uv](https://docs.astral.sh/uv/); there is nothing to clone or run yourself.
 
 Claude Code:
@@ -32,13 +32,53 @@ draws the images. The first start takes a minute while uv installs the SDK.
 Other MCP clients: run
 `uvx --from "stacnotator-sdk[agent] @ git+https://github.com/RAAPID-ORG/stacnotator#subdirectory=sdk" stacnotator-mcp`
 over stdio and give the model
-[`sdk/skills/stacnotator-labelling/SKILL.md`](../sdk/skills/stacnotator-labelling/SKILL.md).
+[`sdk/skills/stacnotator-labelling/SKILL.md`](../sdk/skills/stacnotator-labelling/SKILL.md)
+and [`sdk/skills/stacnotator-campaign-setup/SKILL.md`](../sdk/skills/stacnotator-campaign-setup/SKILL.md).
 
 On a bare Linux machine Chromium may also need system libraries:
 `uvx playwright install-deps chromium` (needs sudo).
 
 A campaign with point tasks needs a sample extent set: it is the red box drawn around each
 point so the model knows what it is labelling.
+
+## Setting up a campaign
+
+Tools that create or change campaigns are off unless you grant them. The MCP server offers
+only the ones named in `STACNOTATOR_MCP_ALLOW`, comma-separated, out of:
+
+| tool | what it does |
+| --- | --- |
+| `create_campaign` | creates a campaign with its area, labels, guide, imagery and time series |
+| `add_tasks` | adds tasks from GeoJSON, or random or grid sampling |
+| `edit_campaign` | changes an existing campaign's settings, such as its name, guide, labels, area or form fields |
+| `edit_imagery` | adds, replaces or removes an existing campaign's imagery sources and sets its basemaps |
+
+Set the variable before you start the client, for example
+`STACNOTATOR_MCP_ALLOW=create_campaign,add_tasks claude`, or in Windows PowerShell
+`$env:STACNOTATOR_MCP_ALLOW="create_campaign,add_tasks"; claude`. A model never sees a tool you did
+not grant, and the server instructions tell it to report that instead of making the change
+another way. This is a limit of the tool set, not a permission: the SDK login is your own
+session, so a model with shell access could still call the API with it.
+
+Ask in plain words, e.g. "set up a campaign to label maize vs other crops in Nakuru county,
+Kenya". The skill does not fill in what you left open: it asks for the area (a box, which it
+may propose for you to confirm), the years and season (proposing dates from the crop
+calendar for you to confirm), the labels and how tasks are placed. It then puts the whole
+proposal to you in the chat and, only once you accept it, creates the campaign, adds tasks
+(your GeoJSON, or random or grid sampling across the box), waits until the imagery is
+registered, draws the first tasks' views as a preview and gives you the link. Changing an
+existing campaign works the same way, through `get_campaign` and then `edit_campaign` or
+`edit_imagery`.
+
+Imagery is described by recipes over the Planetary Computer collections the campaign wizard
+offers as presets. A recipe spells out each window, its slices and its cover as date ranges.
+The headless page builds them with the wizard's own presets and collection builder
+(`layers/imagery/recipe.ts`), so an agent-made source is searched and drawn like one made in
+the wizard. `edit_imagery` merges recipes by source name: a recipe with a stored source's
+name replaces its windows, visualizations and cloud cover, but the source keeps its id and
+display settings, and windows and slices with unchanged dates keep theirs, so views, layouts
+and registrations hold. A source made with the wizard's generator becomes plain windows when
+replaced. Sources a recipe does not name stay as they are.
 
 ## Running a labelling run
 
@@ -53,6 +93,27 @@ Registering also opens a window on your screen with each agent's latest views, w
 explains what you are looking at and where to follow progress; closing it does not stop the
 agents, and `watch_agents` reopens it. If you stop a run early, ask it to free the agents'
 tasks, or use the Agents page.
+
+### Recording a run
+
+The MCP server saves a versioned JSONL log of returned task views, extra views,
+time-series probes and submitted answers, independently of the watch window.
+Each event includes its timestamp, agent and task, action, arguments, result,
+returned images (base64 JPEGs), and any recorded error. Image metadata retains the
+centres, zooms and pixel selections needed to reconstruct navigation later.
+Submitted explanations are included; private model reasoning and conversation
+outside tool calls are not captured. An image returned to a client is not proof
+that its model processed it.
+
+`register_agent` and `watch_agents` return the log path. Logs live in
+`~/.config/stacnotator/recordings/` (or under `STACNOTATOR_CONFIG_DIR`), one file
+per server session and deployment. The log is the output: visualization and replay
+are separate consumers, not part of this implementation. A recording failure is
+reported without retrying an already-saved annotation.
+
+Files are readable only by their owner and contain no SDK credentials, but imagery,
+locations and submitted explanations can be sensitive. Images can use substantial
+disk space; delete unwanted recordings and share only with authorized people.
 
 ## Labelling through a model API
 
@@ -140,7 +201,10 @@ sequenceDiagram
   of the app in its own browser context per agent (so agents do not share tile connections)
   and calls `window.stacnotatorAgent` on it. The page draws with the same catalog, tile URLs,
   Planet scene search and time series code as the annotation page and returns the images.
-  It signs in with the SDK login, which the MCP server hands to the page on request.
+  It signs in with the SDK login, which the MCP server hands to the page on request. For
+  campaign setup it opens `/agent-render?project=<id>` instead, which exposes
+  `window.stacnotatorSetup` to list the setup options, build a new campaign's imagery and
+  merge recipes into an existing campaign's imagery.
 - **Campaign context and default views come from the page**, built from the campaign it
   loaded: sources with collections and slices, basemaps, time series, labels, form fields
   and the guide.
@@ -155,16 +219,26 @@ sequenceDiagram
   loses detail. The model states the largest image it takes in unchanged when it registers
   an agent, and every view is fitted to that by shrinking its cells.
 - **Step by step per point.** `next_task` returns a light first look (a few dates spread over
-  the season, zoomed on the point, the time series and a basemap pair); the agent then calls
-  `get_views` on the same point as often as it needs for other dates, zooms, cell sizes,
-  visualizations or basemaps. Drawn views are cached, so asking again costs nothing.
+  the season at the dataset's configured zoom, the time series and a basemap pair).
+  The agent submits immediately if that is enough. Otherwise it requests only evidence
+  that could change the label, preferably relevant dates or a closer view of the same
+  task, packed into one `get_views` call. Nearby comparisons are optional, not routine.
+  When one would resolve a specific uncertainty, the agent picks a relevant patch in an
+  existing image, or requests a wider view only if needed to find one, then sets
+  `center: {reply, image, x, y}` and chooses an appropriate zoom.
+  Every cell looks there unless it overrides `center`; the agent can inspect more dates,
+  basemaps and charts there, pick again on the resulting images, or omit `center` to return
+  to the assigned task. Coordinates are optional, not required. The red task marker stays
+  at the original location, and task pixel statistics are omitted if its whole sample
+  extent is outside the cell. Drawn views are cached by their full specification, including
+  centre, so different locations do not reuse each other's images.
 - **Probing.** `probe_timeseries` is the agent's timeseries tool: it clicks up to 6 places
   as pixels of an image it was shown (or as lat/lon), and gets the time series there
   charted beside the task's. Every reply with images is numbered, and a pixel names its
   reply and image. The MCP server keeps the views behind the agent's last 8 replies, at the
   size they were drawn and with the task they are centred on, and refuses a pick on any
   other reply or task rather than resolving it against the wrong image. The page finds the
-  cell under each pixel and turns the pixel into a place with that cell's zoom and
+  cell under each pixel and turns the pixel into a place with that cell's centre, zoom and
   OpenLayers' own resolution, the inverse of how the cell was drawn. The reply redraws the
   clicked cells with each point marked at the pixel it resolved to, so the agent can check
   its aim and click again.
@@ -201,6 +275,9 @@ and how to install the plugin, and the campaign overview links to it under the t
 
 ## Limits
 
+- Agents set up imagery only from the Planetary Computer presets. Other catalogs, Planet,
+  custom maps and vector layers are added by a person in the app; `edit_imagery` keeps them
+  as they are.
 - Everything runs on the machine of whoever runs the MCP server: each agent's page is a
   Chromium renderer drawing several maps at once, so many parallel agents are bound by that
   machine's memory and CPU.

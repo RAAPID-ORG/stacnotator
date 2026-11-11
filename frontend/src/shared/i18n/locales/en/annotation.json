@@ -121,11 +121,12 @@
     "howTo": {
       "title": "Labelling with agents",
       "intro": "A labelling agent is an annotator account that a model works through. It looks at one task at a time - a few dates spread over the season, the time series, a basemap - asks for closer or different views when a point stays unclear, and submits a label with a confidence and the reasoning behind it. Its labels are ordinary annotations, so they show up in the campaign statistics and in review like anyone else's. A run is temporary, so agents are not listed among the project members; they live here.",
-      "install": "Agents are registered from your own editor, through the stacnotator MCP server, which also draws the imagery in a browser on your machine. Install the plugin once; you need <link>uv</link>, and nothing to clone.",
+      "install": "Agents are registered from your own editor, through the stacnotator MCP server, which also draws the imagery in a browser on your machine. It runs with <link>uv</link>: install uv once from a terminal, then the plugin from your editor. There is nothing to clone.",
       "ask": "Restart the editor, then ask in plain words and name this deployment, since the agent never guesses which one you mean:",
       "prompt": "label 20 points of the {{campaign}} campaign on {{origin}} with 3 agents",
       "exampleCampaign": "winter crops",
       "run": "It signs you in, registers one agent per worker, splits the points evenly between them and works through them. A window opens on your screen showing what each agent is looking at; closing it does not stop them, and this page keeps the progress either way.",
+      "setup": "Agents can also create a campaign, add its tasks or change its settings and imagery, but only with the tools you grant. They are off by default. To grant them, start your editor from a terminal with STACNOTATOR_MCP_ALLOW set to the tools it may use:",
       "roles": "Which tasks an agent can get depends on your role in the project: campaign admins hand out tasks from the campaign's open pool, other members only tasks that are assigned to them. Come back here to follow the progress, to turn take-over off, or to free the unfinished tasks when you stop a run early - whatever was already labelled or skipped stays."
     }
   },

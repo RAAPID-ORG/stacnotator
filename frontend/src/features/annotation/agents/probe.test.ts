@@ -3,6 +3,7 @@ import { fromLonLat, toLonLat } from 'ol/proj';
 import { describe, expect, it } from 'vitest';
 import { metersPerPixel } from './pack';
 import { locateProbe, lonLatToPixel, offsetMeters, pixelToLonLat, probeView } from './probe';
+import { checkView } from './view';
 
 const TASK = { task_id: 1, lat: 52.37, lon: 4.89, geometry_wkt: 'POINT(4.89 52.37)' };
 const CENTER: [number, number] = [TASK.lon, TASK.lat];
@@ -27,6 +28,22 @@ describe('pixelToLonLat', () => {
     const [x, y] = lonLatToPixel(CENTER, 16, 320, 320, [lon, lat]);
     expect(x).toBeCloseTo(37, 6);
     expect(y).toBeCloseTo(291, 6);
+  });
+
+  it.each([-1, 1])('keeps a nearby point across the antimeridian in frame (%s)', (direction) => {
+    const center: [number, number] = [direction * 179.99, 0];
+    const point: [number, number] = [-direction * 179.99, 0];
+    const [x, y] = lonLatToPixel(center, 12, 400, 400, point);
+    expect(x).toBeGreaterThan(0);
+    expect(x).toBeLessThan(400);
+    expect(Math.sign(x - 200)).toBe(direction);
+    expect(y).toBeCloseTo(200);
+    const [lon, lat] = pixelToLonLat(center, 12, 400, 400, x, y);
+    expect(lon).toBeCloseTo(point[0], 9);
+    expect(lat).toBeCloseTo(0, 9);
+    const offset = offsetMeters({ ...TASK, lon: center[0], lat: 0 }, ...point);
+    expect(offset.east_m).toBe(direction * 2226);
+    expect(offset.north_m).toBe(0);
   });
 });
 
@@ -53,6 +70,41 @@ describe('locateProbe', () => {
     expect(probe.lat).toBeCloseTo(TASK.lat, 9);
   });
 
+  it('explores from a zoomed-out pick and probes the new viewport, not the task', () => {
+    const overview = { cells: [{ slice_id: 1 }], zoom: 12, cell_px: 400, columns: 1 };
+    const field = locateProbe(TASK, { view: overview, reply: 7, image: 1, x: 310, y: 120 });
+    const closeup = { ...overview, center: { lat: field.lat, lon: field.lon }, zoom: 18 };
+    const second = locateProbe(TASK, { view: closeup, reply: 8, image: 1, x: 210, y: 190 });
+    const [lon, lat] = pixelToLonLat([field.lon, field.lat], 18, 400, 400, 210, 190);
+    expect(second.lon).toBeCloseTo(lon, 9);
+    expect(second.lat).toBeCloseTo(lat, 9);
+    expect(second.cell?.center).toEqual(closeup.center);
+
+    const probed = probeView([second], [5], {}, { max_edge_px: 1200, max_megapixels: 1 });
+    expect(probed.cells[0].center).toEqual(closeup.center);
+    const again = locateProbe(TASK, {
+      view: probed,
+      reply: 9,
+      image: 1,
+      x: probed.cell_px! / 2,
+      y: probed.cell_px! / 2,
+    });
+    expect(again.lon).toBeCloseTo(field.lon, 9);
+    expect(again.lat).toBeCloseTo(field.lat, 9);
+  });
+
+  it('uses a cell override when comparing two locations in one image', () => {
+    const differentPlaces = {
+      ...view,
+      center: { lat: 51, lon: 3 },
+      cells: [{ slice_id: 1 }, { slice_id: 1, center: { lat: TASK.lat, lon: TASK.lon } }],
+    };
+    const nearby = locateProbe(TASK, { view: differentPlaces, reply: 7, image: 1, x: 200, y: 200 });
+    const task = locateProbe(TASK, { view: differentPlaces, reply: 7, image: 1, x: 600, y: 200 });
+    expect(nearby.lon).toBeCloseTo(3, 9);
+    expect(task.lon).toBeCloseTo(TASK.lon, 9);
+  });
+
   it('refuses pixels on a chart or outside the image', () => {
     expect(() => locateProbe(TASK, { view, reply: 7, image: 1, x: 10, y: 450 })).toThrow(
       /time series/
@@ -64,6 +116,28 @@ describe('locateProbe', () => {
 describe('probeView', () => {
   const view = { cells: [{ slice_id: 1, zoom: 14 }], columns: 1, cell_px: 800 };
   const limits = { max_edge_px: 1568, max_megapixels: 0.5 };
+
+  it('keeps a zoom-1 selection in frame when charts require a fitted zoom below zero', () => {
+    const task = { ...TASK, lat: 0, lon: 0 };
+    const overview = { cells: [{ slice_id: 1 }], zoom: 1, columns: 1, cell_px: 512 };
+    checkView(overview);
+    const picked = locateProbe(task, {
+      view: overview,
+      reply: 1,
+      image: 1,
+      x: 500,
+      y: 256,
+    });
+    const probed = probeView([picked], [5], {}, { max_edge_px: 400, max_megapixels: 0.16 });
+    const zoom = probed.cells[0].zoom!;
+    const px = probed.cell_px!;
+    expect(zoom).toBeLessThan(0);
+    expect(() => checkView(probed, { fitted: true })).not.toThrow();
+    expect(() => checkView(probed)).toThrow(/zoom/);
+    const [x, y] = lonLatToPixel([0, 0], zoom, px, px, [picked.lon, picked.lat]);
+    expect(x / px).toBeCloseTo(500 / 512, 2);
+    expect(y / px).toBeCloseTo(0.5, 2);
+  });
 
   it('redraws a picked map once, over the same ground, when it must shrink', () => {
     const picks = [

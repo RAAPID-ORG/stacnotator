@@ -1,8 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
-import { getCampaignWithImageryWindows, type CampaignOutFull } from '~/api/client';
+import {
+  getCampaignWithImageryWindows,
+  getCollections,
+  type CampaignOutFull,
+  type ImageryEditorStateCreate,
+} from '~/api/client';
 import { RUN_POLL_MS } from '~/api/queryClient';
 import { authManager } from '~/features/auth';
 import type { AuthAdapter } from '~/features/auth/core/authAdapter';
+import { MPC_API_URL } from '~/features/layers/imagery/mpcPresets';
+import {
+  mergedImagery,
+  setupOptions,
+  type ImageryRecipe,
+  type StacCollectionInfo,
+} from '~/features/layers/imagery/recipe';
+import { DEFAULT_BASEMAPS } from '~/features/layers/imagery/types';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import { buildImageryCatalog } from './campaign/imagery';
 import {
@@ -11,6 +24,7 @@ import {
   probeView,
   type ProbeInput,
   type ProbeOptions,
+  type LocatedProbe,
 } from './agents/probe';
 import { hasMissingTiles, renderView, type RenderedImage } from './agents/render';
 import {
@@ -31,6 +45,7 @@ interface AgentPageApi {
   context(): CampaignContext;
   defaultViews(): ViewSpec[];
   render(task: AgentTask, views: ViewSpec[], limits: ImageLimits): Promise<RenderedView[]>;
+  locate(task: AgentTask, points: ProbeInput[]): LocatedProbe[];
   /** Draws in the background, one view at a time, so a later render is instant. */
   preload(tasks: AgentTask[], views: ViewSpec[], limits: ImageLimits): void;
   /** Time series at points the agent picked, beside the task's, with the map cells they
@@ -43,8 +58,21 @@ interface AgentPageApi {
   ): Promise<RenderedView>;
 }
 
+/** Expands imagery recipes into what the campaign wizard would have saved, for a new
+ *  campaign (campaignId null) or merged into an existing campaign's imagery. */
+interface AgentSetupApi {
+  options(): ReturnType<typeof setupOptions>;
+  imagery(
+    campaignId: number | null,
+    recipes: ImageryRecipe[],
+    basemaps?: string[],
+    remove?: string[]
+  ): Promise<ImageryEditorStateCreate>;
+}
+
 declare global {
   interface Window {
+    stacnotatorSetup?: AgentSetupApi;
     /** Exposed by the MCP server that opened the page: its SDK login. */
     stacnotatorToken?: () => Promise<string | null>;
     stacnotatorAgent?: AgentPageApi;
@@ -103,6 +131,7 @@ function createApi(campaign: CampaignOutFull, stage: HTMLElement): AgentPageApi 
     context: () => context,
     defaultViews: () => defaultViews(context),
     render: (task, views, limits) => Promise.all(views.map((view) => draw(task, view, limits))),
+    locate: (task, points) => points.map((point) => locateProbe(task, point)),
     preload: (tasks, views, limits) => {
       void (async () => {
         for (const task of tasks) for (const view of views) await draw(task, view, limits);
@@ -122,7 +151,7 @@ function createApi(campaign: CampaignOutFull, stage: HTMLElement): AgentPageApi 
         if (unknown.length) throw new Error(`unknown time series ${unknown.join(', ')}`);
 
         view = probeView(probes, ids, options, limits);
-        checkView(view);
+        checkView(view, { fitted: true });
         const image = await renderView({
           task,
           view,
@@ -192,8 +221,32 @@ function renewingApi(first: CampaignOutFull, stage: HTMLElement): AgentPageApi {
     context: () => api.context(),
     defaultViews: () => api.defaultViews(),
     render: async (...args) => (await current()).render(...args),
+    locate: (...args) => api.locate(...args),
     preload: (...args) => void current().then((a) => a.preload(...args)),
     probe: async (...args) => (await current()).probe(...args),
+  };
+}
+
+function createSetupApi(collections: StacCollectionInfo[]): AgentSetupApi {
+  return {
+    options: setupOptions,
+    imagery: async (campaignId, recipes, basemaps, remove) => {
+      if (campaignId === null) {
+        return mergedImagery({ sources: [], basemaps: [] }, recipes, collections, {
+          basemaps: basemaps ?? DEFAULT_BASEMAPS.map((b) => b.name),
+        });
+      }
+      const { data } = await getCampaignWithImageryWindows({
+        path: { campaign_id: campaignId },
+        throwOnError: true,
+      });
+      return mergedImagery(
+        { sources: data.imagery_sources, basemaps: data.basemaps },
+        recipes,
+        collections,
+        { basemaps, remove }
+      );
+    },
   };
 }
 
@@ -202,10 +255,14 @@ function renewingApi(first: CampaignOutFull, stage: HTMLElement): AgentPageApi {
  * agent. The server calls `window.stacnotatorAgent` to draw views and reads the images
  * straight back, so nothing rendered goes through the backend.
  *
- * Opened at `/agent-render?campaign=<id>`.
+ * Opened at `/agent-render?campaign=<id>`. Opened at `/agent-render?project=<id>` it
+ * instead exposes `window.stacnotatorSetup`, which builds a new campaign's imagery or
+ * merges recipes into an existing campaign's imagery.
  */
 export default function AgentRenderPage() {
-  const campaignId = Number(new URLSearchParams(window.location.search).get('campaign'));
+  const params = new URLSearchParams(window.location.search);
+  const campaignId = Number(params.get('campaign'));
+  const projectId = Number(params.get('project'));
   const stageRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState('loading');
 
@@ -214,19 +271,32 @@ export default function AgentRenderPage() {
       window.stacnotatorAgentError = message;
       setStatus(`error: ${message}`);
     };
-    if (!Number.isInteger(campaignId) || campaignId <= 0) {
-      fail('The page needs ?campaign=<id>');
+    const valid = (id: number) => Number.isInteger(id) && id > 0;
+    if (!valid(campaignId) && !valid(projectId)) {
+      fail('The page needs ?campaign=<id> or ?project=<id>');
       return;
     }
     authManager.registerProvider(injectedTokenAdapter);
     authManager.setActiveProvider(INJECTED_PROVIDER);
+    if (!valid(campaignId)) {
+      getCollections({
+        query: { catalog_url: MPC_API_URL, project_id: projectId },
+        throwOnError: true,
+      })
+        .then(({ data }) => {
+          window.stacnotatorSetup = createSetupApi(data);
+          setStatus('ready');
+        })
+        .catch((err) => fail(extractErrorMessage(err, 'Could not load the imagery catalog')));
+      return;
+    }
     loadCampaign(campaignId)
       .then((campaign) => {
         window.stacnotatorAgent = renewingApi(campaign, stageRef.current!);
         setStatus('ready');
       })
       .catch((err) => fail(extractErrorMessage(err, 'Could not load the campaign')));
-  }, [campaignId]);
+  }, [campaignId, projectId]);
 
   return (
     <main style={{ font: '12px sans-serif', padding: 8 }}>

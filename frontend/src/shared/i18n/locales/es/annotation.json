@@ -125,11 +125,12 @@
     "howTo": {
       "title": "Etiquetado con agentes",
       "intro": "Un agente de etiquetado es una cuenta de anotador a través de la cual trabaja un modelo. Revisa una tarea a la vez (algunas fechas repartidas a lo largo de la temporada, la serie temporal, un mapa base), pide vistas más cercanas o distintas cuando un punto no queda claro y envía una etiqueta con un nivel de confianza y su razonamiento. Sus etiquetas son anotaciones normales, así que aparecen en las estadísticas de la campaña y en la revisión como las de cualquier otra persona. Una ejecución es temporal, por lo que los agentes no aparecen entre los miembros del proyecto; están aquí.",
-      "install": "Los agentes se registran desde tu propio editor, a través del servidor MCP de stacnotator, que también dibuja las imágenes en un navegador en tu equipo. Instala el plugin una vez; necesitas <link>uv</link> y no hay nada que clonar.",
+      "install": "Los agentes se registran desde tu propio editor, a través del servidor MCP de stacnotator, que también dibuja las imágenes en un navegador en tu equipo. Funciona con <link>uv</link>: instala uv una vez desde una terminal y después el plugin desde tu editor. No hay nada que clonar.",
       "ask": "Reinicia el editor y luego pídelo con tus propias palabras indicando este despliegue, ya que el agente nunca adivina a cuál te refieres:",
       "prompt": "etiqueta 20 puntos de la campaña {{campaign}} en {{origin}} con 3 agentes",
       "exampleCampaign": "cultivos de invierno",
       "run": "Inicia tu sesión, registra un agente por trabajador, reparte los puntos a partes iguales entre ellos y los procesa. Se abre una ventana en tu pantalla que muestra lo que mira cada agente; cerrarla no los detiene y esta página conserva el progreso en cualquier caso.",
+      "setup": "Los agentes también pueden crear una campaña, añadir sus tareas o cambiar su configuración y sus imágenes, pero solo con las herramientas que les concedas. Están desactivadas por defecto. Para concederlas, abre tu editor desde una terminal con STACNOTATOR_MCP_ALLOW indicando las herramientas que puede usar:",
       "roles": "Las tareas que puede recibir un agente dependen de tu rol en el proyecto: los administradores de la campaña reparten tareas del grupo abierto de la campaña; los demás miembros, solo las tareas que tienen asignadas. Vuelve aquí para seguir el progreso, desactivar la asunción de trabajo o liberar las tareas sin terminar si detienes una ejecución antes de tiempo; lo que ya se haya etiquetado u omitido se mantiene."
     }
   },

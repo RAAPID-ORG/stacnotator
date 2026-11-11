@@ -220,8 +220,8 @@ loader = DataLoader(CampaignSamples(campaign.get_samples()), batch_size=64, shuf
 
 ## Agentic labelling
 
-A plugin for Claude Code and Codex lets a model (or a team of subagents) label a campaign's
-tasks from rendered imagery, as annotator agents you own:
+A plugin for Claude Code and Codex lets a model set up a new campaign, and lets a model (or a
+team of subagents) label a campaign's tasks from rendered imagery, as annotator agents you own:
 
 ```
 /plugin marketplace add RAAPID-ORG/stacnotator          # Claude Code
@@ -231,7 +231,8 @@ codex plugin marketplace add RAAPID-ORG/stacnotator     # Codex
 codex plugin add stacnotator@stacnotator
 ```
 
-It bundles the labelling skill and the MCP server (`stacnotator-mcp`, run through `uvx`).
+It bundles the labelling and campaign setup skills and the MCP server (`stacnotator-mcp`, run through `uvx`).
+Tools that create or change campaigns are off until you grant them with `STACNOTATOR_MCP_ALLOW`.
 To label through a model API instead of a coding agent (OpenAI, Azure OpenAI or Azure AI
 Foundry), install the `api` extra and run `stacnotator-label run` with a file of labelling
 instructions.
