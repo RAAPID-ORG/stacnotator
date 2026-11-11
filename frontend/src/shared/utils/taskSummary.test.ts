@@ -36,6 +36,7 @@ const summary: TaskSummaryOut = {
     counts_toward_completion: [true, true],
     comment: ['looks like forest', null],
     flag_comment: [null, 'check again'],
+    updated_at: ['2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'],
     answered_field_ids: [['2'], []],
   },
 };

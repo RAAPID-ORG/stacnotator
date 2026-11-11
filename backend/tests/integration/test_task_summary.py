@@ -178,6 +178,7 @@ def rows(summary: TaskSummaryOut) -> dict[int, dict]:
                 "counts_toward_completion": n.counts_toward_completion[i],
                 "comment": n.comment[i],
                 "flag_comment": n.flag_comment[i],
+                "updated_at": n.updated_at[i],
                 "answered_field_ids": n.answered_field_ids[i],
             }
         )
@@ -210,6 +211,7 @@ def expected(task) -> dict:
                 "counts_toward_completion": a.counts_toward_completion,
                 "comment": a.comment,
                 "flag_comment": a.flag_comment,
+                "updated_at": a.updated_at,
                 "answered_field_ids": sorted(
                     k for k, v in (a.form_values or {}).items() if v not in (None, "", [])
                 ),
@@ -257,3 +259,25 @@ def test_details_can_be_the_first_few_tasks(varied_campaign):
     first = service.read_tasks(db, campaign, with_email=False, first=3)
 
     assert [t.annotation_number for t in first] == [1, 2, 3]
+
+
+def test_authors_the_lookup_missed_still_get_their_rule(varied_campaign, monkeypatch):
+    """An author whose first answer commits after the author lookup is in the
+    statement's rows without a rule; the summary must come out as if they were known."""
+    db, campaign = varied_campaign
+    expected_summary = TaskSummaryOut.model_validate_json(
+        task_summary_json(db, campaign, with_email=False)
+    )
+    real_scalars = db.scalars
+    calls: list[int] = []
+
+    def lookup_misses_everyone(*args, **kwargs):
+        if not calls:
+            calls.append(1)
+            return iter(())
+        return real_scalars(*args, **kwargs)
+
+    monkeypatch.setattr(db, "scalars", lookup_misses_everyone)
+    summary = TaskSummaryOut.model_validate_json(task_summary_json(db, campaign, with_email=False))
+
+    assert rows(summary) == rows(expected_summary)

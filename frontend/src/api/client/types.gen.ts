@@ -4717,6 +4717,10 @@ export type TaskSummaryAnswers = {
      */
     flag_comment: Array<string | null>;
     /**
+     * Updated At
+     */
+    updated_at: Array<string>;
+    /**
      * Answered Field Ids
      */
     answered_field_ids: Array<Array<string>>;

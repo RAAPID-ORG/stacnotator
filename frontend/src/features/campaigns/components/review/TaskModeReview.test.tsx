@@ -123,6 +123,7 @@ const answer: TaskRowAnswer = {
   counts_toward_completion: true,
   comment: null,
   flag_comment: null,
+  updated_at: '2026-01-01T00:00:00Z',
   answered_field_ids: ['3'],
 };
 

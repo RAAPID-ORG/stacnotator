@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { type CampaignSummaryOut, type TaskSetOut } from '~/api/client';
 import { getTaskDetailsOptions } from '~/api/queries';
+import { SHARED_WORK } from '~/api/queryClient';
 import { hasAnsweredFields, type FormField } from '~/shared/utils/formValues';
 import type { TaskRow, TaskRowAnswer } from '~/shared/utils/taskSummary';
 import { Skeleton } from '~/shared/ui/Skeleton';
@@ -56,6 +57,7 @@ const TaskAnswers = ({
   const { t } = useTranslation(['review', 'common']);
   const { data, isPending, isError } = useQuery({
     ...getTaskDetailsOptions({ path: { campaign_id: campaignId }, query: { ids: [taskId] } }),
+    ...SHARED_WORK,
     meta: { errorMessage: t('answers.loadFailed'), showUser: false },
   });
 

@@ -57,6 +57,7 @@ export function toTaskSummary(list: MockTaskList, serverTime = '2024-01-01T00:00
       counts_toward_completion: [] as boolean[],
       comment: [] as (string | null)[],
       flag_comment: [] as (string | null)[],
+      updated_at: [] as string[],
       answered_field_ids: [] as string[][],
     },
   };
@@ -82,6 +83,7 @@ export function toTaskSummary(list: MockTaskList, serverTime = '2024-01-01T00:00
       n.counts_toward_completion.push(a.counts_toward_completion ?? true);
       n.comment.push(a.comment ?? null);
       n.flag_comment.push(a.flag_comment ?? null);
+      n.updated_at.push(a.updated_at ?? '2024-01-01T00:00:00Z');
       n.answered_field_ids.push(
         Object.entries(a.form_values ?? {})
           .filter(([, value]) => isAnswered(value))

@@ -545,6 +545,64 @@ describe('the current task details', () => {
     expect(fetches()).toBe(before + 1);
   });
 
+  it('refetches when an answer changed only in what the summary leaves out', async () => {
+    initialize([TASK_A, TASK_B]);
+    await detailsArrived();
+    const fetches = () => vi.mocked(getTaskDetails).mock.calls.length;
+    const answer = makeTaskRowAnswer({ id: 30, created_by_user_id: 'u2' });
+    useTasksStore.getState().mergeTasks([{ ...TASK_A, annotations: [answer] }], CATALOG);
+    const before = fetches();
+
+    const edited = { ...answer, updated_at: '2030-01-01T00:00:00Z' };
+    useTasksStore.getState().mergeTasks([{ ...TASK_A, annotations: [edited] }], CATALOG);
+
+    expect(fetches()).toBe(before + 1);
+  });
+
+  it('asks again for details whose refresh failed', async () => {
+    initialize([TASK_A, TASK_B]);
+    await detailsArrived();
+    vi.mocked(getTaskDetails).mockRejectedValueOnce(new Error('offline'));
+    const answered = {
+      ...TASK_A,
+      annotations: [makeTaskRowAnswer({ id: 30, created_by_user_id: 'u2' })],
+    };
+    useTasksStore.getState().mergeTasks([answered], CATALOG);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const before = vi.mocked(getTaskDetails).mock.calls.length;
+
+    useTasksStore.getState().mergeTasks([{ ...answered, claimed_by_user_id: 'u3' }], CATALOG);
+
+    expect(vi.mocked(getTaskDetails).mock.calls.length).toBe(before + 1);
+    expect(vi.mocked(getTaskDetails).mock.lastCall?.[0].query?.ids).toEqual([TASK_A.id]);
+  });
+
+  it('discards a prefetch of an upcoming task whose answers changed in the meantime', async () => {
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const stale = { ...detailsOf(TASK_B), annotations: [] };
+    vi.mocked(getTaskDetails).mockImplementationOnce(async () => {
+      await held;
+      return apiSuccess({ campaign_id: CAMPAIGN.id, tasks: [detailsOf(TASK_A), stale] });
+    });
+    initialize([TASK_A, TASK_B]);
+    const answered = {
+      ...TASK_B,
+      annotations: [makeTaskRowAnswer({ id: 31, created_by_user_id: 'u2' })],
+    };
+    useTasksStore.getState().mergeTasks([answered], CATALOG);
+    await vi.waitFor(() =>
+      expect(useTasksStore.getState().upcomingDetails[TASK_B.id]).toBe(detailsOf(TASK_B))
+    );
+
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(useTasksStore.getState().upcomingDetails[TASK_B.id]).toBe(detailsOf(TASK_B));
+  });
+
   it('takes a claimed task as its own details without asking for them', () => {
     initialize([TASK_A]);
     const fetches = vi.mocked(getTaskDetails).mock.calls.length;

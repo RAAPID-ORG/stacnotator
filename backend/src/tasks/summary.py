@@ -8,6 +8,7 @@ author, which is a handful of people however many tasks there are.
 """
 
 from collections.abc import Collection
+from uuid import UUID
 
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
@@ -35,7 +36,7 @@ status_assignments AS (
 raw_answers AS (
     SELECT a.task_id, a.id, a.created_by_user_id, a.label_id, a.outcome, a.confidence,
            a.flagged_for_review, a.active_seconds, a.is_authoritative, a.comment,
-           a.flag_comment, a.form_values
+           a.flag_comment, a.form_values, a.updated_at
     FROM data.annotations a JOIN scope ON scope.id = a.task_id
 ),
 completion AS (
@@ -133,6 +134,7 @@ answer_cols AS (
         'counts_toward_completion', coalesce(json_agg(s.counts ORDER BY r.id), '[]'),
         'comment', coalesce(json_agg(r.comment ORDER BY r.id), '[]'),
         'flag_comment', coalesce(json_agg(r.flag_comment ORDER BY r.id), '[]'),
+        'updated_at', coalesce(json_agg(r.updated_at ORDER BY r.id), '[]'),
         -- form_values can be SQL NULL or a JSON null, so only objects are looked into.
         'answered_field_ids', coalesce(json_agg(coalesce(
             CASE WHEN jsonb_typeof(r.form_values) = 'object' THEN
@@ -153,7 +155,9 @@ SELECT CAST(json_build_object(
     'tasks', (SELECT j FROM task_cols),
     'assignments', (SELECT j FROM assignment_cols),
     'answers', (SELECT j FROM answer_cols)
-) AS text)
+) AS text),
+(SELECT array_agg(DISTINCT CAST(r.created_by_user_id AS text)) FROM raw_answers r
+ WHERE NOT EXISTS (SELECT 1 FROM completion c WHERE c.user_id = r.created_by_user_id))
 """
 )
 
@@ -171,21 +175,30 @@ def task_summary_json(
     )
     if task_ids is not None:
         authored = authored.where(Annotation.task_id.in_(list(task_ids)))
-    authors = list(db.scalars(authored.distinct()))
-    completion = completion_by_author(db, campaign, authors)
+    authors = set(db.scalars(authored.distinct()))
     # The planner cannot see through the CTEs and estimates far more rows than there
     # are, which makes JIT compilation look worth it: it cost more than the query.
     db.execute(text("SET LOCAL jit = off"))
-    body: str = db.execute(
-        text(_SUMMARY_SQL),
-        {
-            "campaign_id": campaign.id,
-            "task_ids": list(task_ids) if task_ids is not None else None,
-            "with_email": with_email,
-            "authors": [str(a) for a in authors],
-            "on_unassigned_task": [completion[a].on_unassigned_task for a in authors],
-            "when_assigned": [completion[a].when_assigned for a in authors],
-            "when_not_assigned": [completion[a].when_not_assigned for a in authors],
-        },
-    ).scalar_one()
-    return body.encode()
+    # An author's first answer can commit between the lookup above and the statement,
+    # which then has no rule for them; the statement names such authors, and one more
+    # pass with them included settles it.
+    for _ in range(3):
+        completion = completion_by_author(db, campaign, authors)
+        ordered = sorted(authors)
+        body, unknown = db.execute(
+            text(_SUMMARY_SQL),
+            {
+                "campaign_id": campaign.id,
+                "task_ids": list(task_ids) if task_ids is not None else None,
+                "with_email": with_email,
+                "authors": [str(a) for a in ordered],
+                "on_unassigned_task": [completion[a].on_unassigned_task for a in ordered],
+                "when_assigned": [completion[a].when_assigned for a in ordered],
+                "when_not_assigned": [completion[a].when_not_assigned for a in ordered],
+            },
+        ).one()
+        if not unknown:
+            break
+        authors |= {UUID(a) for a in unknown}
+    result: str = body
+    return result.encode()

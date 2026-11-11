@@ -101,6 +101,8 @@ class TaskSummaryAnswers(BaseModel):
     counts_toward_completion: list[bool]
     comment: list[str | None]
     flag_comment: list[str | None]
+    # Changes with any edit, so a reader can tell when its details are out of date.
+    updated_at: list[datetime]
     # Form fields with a non-empty value, by field id.
     answered_field_ids: list[list[str]]
 

@@ -56,6 +56,8 @@ export interface TaskRowAnswer {
   counts_toward_completion: boolean;
   comment: string | null;
   flag_comment: string | null;
+  /** Changes with any edit, form values and slice notes included. */
+  updated_at: string;
   /** Form fields answered with a non-empty value, by field id. */
   answered_field_ids: string[];
 }
@@ -105,6 +107,7 @@ export function decodeTaskSummary(summary: TaskSummaryOut): TaskRow[] {
       counts_toward_completion: answers.counts_toward_completion[i],
       comment: answers.comment[i],
       flag_comment: answers.flag_comment[i],
+      updated_at: answers.updated_at[i],
       answered_field_ids: answers.answered_field_ids[i],
     });
   });
@@ -130,6 +133,7 @@ export function taskRowAnswer(answer: AnnotationFromTaskOut): TaskRowAnswer {
     counts_toward_completion: answer.counts_toward_completion ?? true,
     comment: answer.comment,
     flag_comment: answer.flag_comment,
+    updated_at: answer.updated_at,
     answered_field_ids: Object.entries(answer.form_values ?? {})
       .filter(([, value]) => isAnswered(value))
       .map(([id]) => id)

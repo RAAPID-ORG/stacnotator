@@ -218,6 +218,7 @@ export function makeTaskRowAnswer(overrides: Partial<TaskRowAnswer> = {}): TaskR
     counts_toward_completion: true,
     comment: null,
     flag_comment: null,
+    updated_at: '2024-01-01T00:00:00Z',
     answered_field_ids: [],
     ...overrides,
   };
@@ -322,6 +323,7 @@ export function makeTaskSummary(
       counts_toward_completion: answers.map((a) => a.counts_toward_completion),
       comment: answers.map((a) => a.comment),
       flag_comment: answers.map((a) => a.flag_comment),
+      updated_at: answers.map((a) => a.updated_at),
       answered_field_ids: answers.map((a) => a.answered_field_ids),
     },
   };

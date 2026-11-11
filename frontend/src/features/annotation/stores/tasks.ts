@@ -229,6 +229,9 @@ const upcomingOf = (state: TasksState) =>
 /** The latest request asked for each task; an older response for it is stale. */
 const latestRequest = new Map<number, number>();
 let detailsSeq = 0;
+/** Tasks whose details are known to be out of date and are kept on screen only until
+ *  a refresh lands, so a failed one is asked again by the next poll. */
+const staleDetails = new Set<number>();
 
 /** Fetch the details of ``taskIds`` in one request, for the current task and the
  *  ones prefetched after it. */
@@ -239,6 +242,7 @@ function loadDetails(taskIds: number[], catalog: ImageryCatalog): void {
   taskIds.forEach((id) => latestRequest.set(id, seq));
   const settle = (tasks: TaskOut[]) => {
     const fresh = tasks.filter((t) => latestRequest.get(t.id) === seq);
+    fresh.forEach((t) => staleDetails.delete(t.id));
     taskIds.forEach((id) => {
       if (latestRequest.get(id) === seq) latestRequest.delete(id);
     });
@@ -276,7 +280,9 @@ function ensureDetails(catalog: ImageryCatalog): void {
   const missing = [task, ...upcomingOf(now)]
     .map((t) => t.id)
     .filter((id) => !latestRequest.has(id))
-    .filter((id) => (id === task.id ? !detailsOf(now) : !now.upcomingDetails[id]));
+    .filter((id) =>
+      id === task.id ? !detailsOf(now) || staleDetails.has(id) : !now.upcomingDetails[id]
+    );
   loadDetails(missing, catalog);
 }
 
@@ -358,6 +364,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
 
   initialize: ({ tasks, taskSets, syncCursor, filter, catalog, now, preferTaskId }) => {
     latestRequest.clear();
+    staleDetails.clear();
     const currentUserId = useCampaignStore.getState().currentUserId;
     const effective =
       preferTaskId != null
@@ -462,7 +469,12 @@ export const useTasksStore = create<TasksState>((set, get) => ({
         ),
       };
     });
-    if (current && answersChanged.has(current.id)) loadDetails([current.id], catalog);
+    // A response already on its way for a changed task predates the change.
+    answersChanged.forEach((id) => latestRequest.delete(id));
+    if (current && answersChanged.has(current.id)) {
+      staleDetails.add(current.id);
+      loadDetails([current.id], catalog);
+    }
     publishSelection(catalog);
   },
 
@@ -536,6 +548,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   setKnnValidationEnabled: (knnValidationEnabled) => set({ knnValidationEnabled }),
   reset: () => {
     latestRequest.clear();
+    staleDetails.clear();
     set(initialState);
   },
 }));
