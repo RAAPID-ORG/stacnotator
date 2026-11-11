@@ -16,6 +16,7 @@ import { MAX_PROBES, useWorkStore, type Tool } from '../../stores/work';
 import { helpRows } from '../../hotkeys';
 import { activeGroupClass, FormFields, sectionHeaderClass } from '../../components/FormFields';
 import { LabelChips } from '../../components/LabelChips';
+import { ProbeModeControl } from '../../components/ProbeModeControl';
 import { CHIP_MIN_WIDTH } from '../../components/chipGrid';
 import { DraftCatalog } from './DraftCatalog';
 import { EditDetails } from './EditDetails';
@@ -128,13 +129,14 @@ function ShortcutLegend() {
  */
 function ProbeControls() {
   const { t } = useTranslation('panels');
-  const probeCount = useWorkStore((s) => s.probePoints.length);
+  const probeCount = useWorkStore((s) => s.probes.length);
   const armed = useWorkStore((s) => s.probeAddArmed);
   const atCap = probeCount >= MAX_PROBES;
 
   return (
     <div className="flex flex-col gap-1.5 w-full">
       <span className={sectionHeaderClass()}>{t('tools.timeseries')}</span>
+      <ProbeModeControl />
       <p className="text-[11px] text-neutral-500 leading-relaxed">{t('probes.help')}</p>
       <div className={chipRowClass}>
         <button
@@ -150,7 +152,7 @@ function ProbeControls() {
         </button>
         <button
           type="button"
-          onClick={() => useWorkStore.getState().clearProbePoints()}
+          onClick={() => useWorkStore.getState().clearProbes()}
           disabled={probeCount === 0}
           title={t('probes.clearTitle')}
           data-testid="clear-probes"

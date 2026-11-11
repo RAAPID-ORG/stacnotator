@@ -22,7 +22,8 @@ import { nearestSlice } from '../../campaign/imageryNav';
 import { probeColor } from '../../map/compose';
 import { useImageryStore } from '../../stores/imagery';
 import { useWorkStore } from '../../stores/work';
-import type { LatLon, TimeSeriesData } from './cache';
+import type { TimeSeriesData } from './cache';
+import type { TimeseriesLocation } from '../../campaign/probes';
 import {
   collectSeriesLabels,
   formatDateForTooltip,
@@ -67,7 +68,7 @@ type LineDataset = ChartDataset<'line', (number | null)[]>;
  *  probe the user dropped. */
 export interface ChartPoint {
   key: string;
-  latLon: LatLon;
+  location: TimeseriesLocation;
   /** Appended to each series name in the legend. */
   label: string;
   probeIndex: number | null;

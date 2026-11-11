@@ -19,6 +19,7 @@ import {
   type GeometryType,
 } from './campaign/annotation';
 import { resolveLabelStyle, toDraftStyleSpec } from './campaign/labelStyle';
+import { isZonalGeometry } from './campaign/probes';
 import { isAnnotationLayer, PROBE_LAYER_ID, probeIndexOf, vectorLayerId } from './map/compose';
 import type { Bbox, BoxHit, DrawShape, InteractionSpec, MapClickEvent } from '~/shared/map/types';
 import {
@@ -250,10 +251,20 @@ async function handleDrawEnd(geometry: GeoJSON.Geometry): Promise<void> {
  */
 export function handleProbeClick(event: MapClickEvent): void {
   const work = useWorkStore.getState();
+  if (work.probeMode === 'draw') return;
+  if (work.probeMode === 'point' && work.probeAddArmed) {
+    work.probeAt(event.lonLat);
+    return;
+  }
   const hit = event.layerId === PROBE_LAYER_ID ? probeIndexOf(event.featureId) : null;
-  if (hit === null) work.probeAt(event.lonLat);
-  else if (hit === work.activeProbe) work.removeProbePoint(hit);
-  else work.selectProbePoint(hit);
+  if (hit !== null) {
+    if (hit === work.activeProbe) work.removeProbe(hit);
+    else work.selectProbe(hit);
+  } else if (work.probeMode === 'point') {
+    work.probeAt(event.lonLat);
+  } else if (isAnnotationLayer(event.layerId) && event.featureId != null) {
+    void work.probeAnnotation(Number(event.featureId));
+  }
 }
 
 /** A click on the map, routed by tool. */
@@ -343,6 +354,8 @@ export function useDrawingInteractions(): {
 } {
   const drawsShapes = useDrawsShapes();
   const tool = useWorkStore((s) => s.tool);
+  const probeMode = useWorkStore((s) => s.probeMode);
+  const probeSketchVersion = useWorkStore((s) => s.probeSketchVersion);
   const selectedLabelId = useWorkStore((s) => s.selectedLabelId);
   const edit = useWorkStore((s) => s.edit);
   const labelStyles = usePrefsStore((s) => s.labelStyles);
@@ -383,6 +396,17 @@ export function useDrawingInteractions(): {
   const onMapClick = useCallback((event: MapClickEvent) => void handleMapClick(event), []);
 
   const spec = useMemo<InteractionSpec | undefined>(() => {
+    if (tool === 'timeseries' && probeMode === 'draw') {
+      return {
+        draw: {
+          shape: 'Polygon',
+          resetKey: probeSketchVersion,
+          onDrawEnd: (geometry) => {
+            if (isZonalGeometry(geometry)) useWorkStore.getState().probeAt(geometry);
+          },
+        },
+      };
+    }
     // Classify tasks have no drawing tools: their map is the task's.
     if (!drawsShapes) return undefined;
 
@@ -427,6 +451,8 @@ export function useDrawingInteractions(): {
   }, [
     drawsShapes,
     tool,
+    probeMode,
+    probeSketchVersion,
     label,
     sketchStyle,
     edit?.annotation.id,

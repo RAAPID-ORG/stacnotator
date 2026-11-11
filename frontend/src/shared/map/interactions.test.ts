@@ -124,6 +124,40 @@ describe('configsEqual', () => {
 });
 
 describe('attachInteractions', () => {
+  it('replaces an unfinished draw when its owner clears probes or changes tasks', () => {
+    const map = new OLMap({ controls: [], interactions: [] });
+    const sketchLayer = makeSketchLayer();
+    const onDrawEnd = vi.fn();
+    attachInteractions(map, { draw: { shape: 'Polygon', onDrawEnd, resetKey: 0 } }, sketchLayer);
+    const draw = map
+      .getInteractions()
+      .getArray()
+      .find((i) => i instanceof Draw)!;
+    draw.dispatchEvent(
+      new DrawEvent(
+        'drawstart',
+        new Feature(
+          fromGeo({
+            type: 'Polygon',
+            coordinates: [
+              [
+                [0, 0],
+                [1, 0],
+                [1, 1],
+                [0, 0],
+              ],
+            ],
+          })
+        )
+      )
+    );
+    attachInteractions(map, { draw: { shape: 'Polygon', onDrawEnd, resetKey: 1 } }, sketchLayer);
+    expect(map.getInteractions().getArray()).not.toContain(draw);
+    expect(onDrawEnd).not.toHaveBeenCalled();
+    attachInteractions(map, undefined, sketchLayer);
+    map.dispose();
+  });
+
   it('adds a Draw interaction for a draw spec and nothing else', () => {
     const map = new OLMap({ interactions: [] });
     const sketchLayer = makeSketchLayer();

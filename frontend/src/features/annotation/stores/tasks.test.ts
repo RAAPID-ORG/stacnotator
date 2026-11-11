@@ -82,6 +82,39 @@ describe('task session KNN validation toggle', () => {
 });
 
 describe('task session map focus', () => {
+  it('uses the task polygon for time series, but not a point task sample extent', () => {
+    useCampaignStore.setState({
+      campaign: makeCampaign({
+        settings: { ...makeCampaign().settings, sample_extent_meters: 100 },
+      }),
+    });
+    const polygonTask = {
+      ...TASK_B,
+      geometry_wkt:
+        'POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0), (0.5 0.5, 0.5 1.5, 1.5 1.5, 1.5 0.5, 0.5 0.5))',
+    };
+    initialize([TASK_A, polygonTask]);
+    const first = useTasksStore.getState().focus!;
+    expect(first.extent?.geometry.type).toBe('Polygon');
+    expect(first.timeseriesLocation).toEqual({ lat: 0, lon: 0 });
+    expect(first.upcomingTimeseriesLocations[0]).toMatchObject({
+      type: 'Polygon',
+      coordinates: expect.arrayContaining([
+        [
+          [0.5, 0.5],
+          [0.5, 1.5],
+          [1.5, 1.5],
+          [1.5, 0.5],
+          [0.5, 0.5],
+        ],
+      ]),
+    });
+    useTasksStore.getState().next(CATALOG);
+    expect(useTasksStore.getState().focus?.timeseriesLocation).toEqual(
+      first.upcomingTimeseriesLocations[0]
+    );
+  });
+
   it('next() and previous() push the new current task location into shared/mapFocus', () => {
     useImageryStore
       .getState()
@@ -190,7 +223,7 @@ describe('task session map focus', () => {
     expect(useImageryStore.getState().windowSlices).toEqual({});
     expect(useImageryStore.getState().empties).toEqual({});
     expect(useImageryStore.getState().viewSnapshots).toEqual({});
-    expect(useWorkStore.getState().probePoints).toEqual([]);
+    expect(useWorkStore.getState().probes).toEqual([]);
 
     useImageryStore.setState({
       address: { sourceId: 7, collectionId: 71, sliceIndex: 1, vizId: '70' },
@@ -209,7 +242,7 @@ describe('task session map focus', () => {
     });
     expect(useImageryStore.getState().windowSlices).toEqual({});
     expect(useImageryStore.getState().empties).toEqual({});
-    expect(useWorkStore.getState().probePoints).toEqual([]);
+    expect(useWorkStore.getState().probes).toEqual([]);
   });
 
   it('replaceTask() re-syncs the focus for the (possibly still current) task', () => {

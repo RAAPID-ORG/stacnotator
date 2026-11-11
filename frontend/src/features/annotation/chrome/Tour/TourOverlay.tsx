@@ -375,14 +375,14 @@ export function TourOverlay({
         // Never at the cap: the eviction there would drop a probe the user
         // placed themselves, which the tour has no business doing.
         const work = useWorkStore.getState();
-        if (work.probePoints.length >= MAX_PROBES) break;
+        if (work.probes.length >= MAX_PROBES) break;
         work.probeAt(probeTarget());
-        seededProbe.current = useWorkStore.getState().probePoints.length - 1;
+        seededProbe.current = useWorkStore.getState().probes.length - 1;
         break;
       }
       case 'clear-seeded-probe':
         if (seededProbe.current !== null) {
-          useWorkStore.getState().removeProbePoint(seededProbe.current);
+          useWorkStore.getState().removeProbe(seededProbe.current);
         }
         seededProbe.current = null;
         break;

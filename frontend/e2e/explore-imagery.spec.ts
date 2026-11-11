@@ -276,7 +276,7 @@ test.describe('Timeseries probe in Explore', () => {
     // The tool stays armed, like every other tool: the next click moves this
     // probe rather than silently doing nothing.
     await expect(
-      annotationPage.getByRole('button', { name: 'Probe time series', exact: true })
+      annotationPage.getByRole('button', { name: 'Probe time series (T)', exact: true })
     ).toHaveAttribute('aria-pressed', 'true');
   });
 

@@ -418,9 +418,7 @@ describe('a commit that resolves after the user has moved on', () => {
 });
 
 describe('probe points', () => {
-  beforeEach(() =>
-    useWorkStore.setState({ probePoints: [], activeProbe: null, probeAddArmed: false })
-  );
+  beforeEach(() => useWorkStore.setState({ probes: [], activeProbe: null, probeAddArmed: false }));
 
   /** Drop `count` probes, each one deliberately added. */
   const drop = (points: LonLat[]) => {
@@ -435,8 +433,65 @@ describe('probe points', () => {
     work.probeAt([1, 2]);
     work.probeAt([3, 4]);
 
-    expect(useWorkStore.getState().probePoints).toEqual([[3, 4]]);
+    expect(useWorkStore.getState().probes).toEqual([[3, 4]]);
     expect(useWorkStore.getState().activeProbe).toBe(0);
+  });
+
+  describe('saved polygon probes', () => {
+    const polygonAnnotation = makeAnnotation({
+      geometry_wkt: 'MULTIPOLYGON (((0 0, 2 0, 2 2, 0 2, 0 0)))',
+    });
+
+    beforeEach(() => {
+      useWorkStore.getState().resetAll();
+      useWorkStore.getState().setProbeMode('select');
+      void useWorkStore.getState().selectTool('timeseries');
+    });
+
+    it('loads full saved geometry without opening an edit or creating an annotation', async () => {
+      vi.mocked(getAnnotation).mockResolvedValue(apiSuccess(polygonAnnotation));
+      await useWorkStore.getState().probeAnnotation(polygonAnnotation.id);
+      expect(useWorkStore.getState().probes).toEqual([
+        {
+          type: 'MultiPolygon',
+          coordinates: [
+            [
+              [
+                [0, 0],
+                [2, 0],
+                [2, 2],
+                [0, 2],
+                [0, 0],
+              ],
+            ],
+          ],
+        },
+      ]);
+      expect(useWorkStore.getState().edit).toBeNull();
+      expect(createAnnotation).not.toHaveBeenCalled();
+    });
+
+    it.each(['mode', 'tool', 'clear', 'point', 'reset'] as const)(
+      'discards a polygon response after a %s change',
+      async (change) => {
+        let finish!: (value: ReturnType<typeof apiSuccess<typeof polygonAnnotation>>) => void;
+        vi.mocked(getAnnotation).mockReturnValueOnce(
+          new Promise<Awaited<ReturnType<typeof getAnnotation<true>>>>((resolve) => {
+            finish = resolve;
+          })
+        );
+        const request = useWorkStore.getState().probeAnnotation(polygonAnnotation.id);
+        const work = useWorkStore.getState();
+        if (change === 'mode') work.setProbeMode('draw');
+        if (change === 'tool') await work.selectTool('pan');
+        if (change === 'clear') work.clearProbes();
+        if (change === 'point') work.probeAt([9, 9]);
+        if (change === 'reset') work.resetAll();
+        finish(apiSuccess(polygonAnnotation));
+        await request;
+        expect(useWorkStore.getState().probes).toEqual(change === 'point' ? [[9, 9]] : []);
+      }
+    );
   });
 
   it('adds another only when the + control armed it, then goes back to moving', () => {
@@ -444,13 +499,13 @@ describe('probe points', () => {
       [1, 2],
       [3, 4],
     ]);
-    expect(useWorkStore.getState().probePoints).toEqual([
+    expect(useWorkStore.getState().probes).toEqual([
       [1, 2],
       [3, 4],
     ]);
 
     useWorkStore.getState().probeAt([5, 6]);
-    expect(useWorkStore.getState().probePoints).toEqual([
+    expect(useWorkStore.getState().probes).toEqual([
       [1, 2],
       [5, 6],
     ]);
@@ -461,10 +516,10 @@ describe('probe points', () => {
       [1, 2],
       [3, 4],
     ]);
-    useWorkStore.getState().selectProbePoint(0);
+    useWorkStore.getState().selectProbe(0);
     useWorkStore.getState().probeAt([9, 9]);
 
-    expect(useWorkStore.getState().probePoints).toEqual([
+    expect(useWorkStore.getState().probes).toEqual([
       [9, 9],
       [3, 4],
     ]);
@@ -472,7 +527,7 @@ describe('probe points', () => {
 
   it('drops the oldest past the cap rather than refusing the click', () => {
     drop(Array.from({ length: MAX_PROBES + 1 }, (_, i): LonLat => [i, 0]));
-    const points = useWorkStore.getState().probePoints;
+    const points = useWorkStore.getState().probes;
     expect(points).toHaveLength(MAX_PROBES);
     expect(points[0]).toEqual([1, 0]);
     expect(points.at(-1)).toEqual([MAX_PROBES, 0]);
@@ -486,15 +541,15 @@ describe('probe points', () => {
     ]);
     expect(useWorkStore.getState().activeProbe).toBe(2);
 
-    useWorkStore.getState().removeProbePoint(1);
-    expect(useWorkStore.getState().probePoints).toEqual([
+    useWorkStore.getState().removeProbe(1);
+    expect(useWorkStore.getState().probes).toEqual([
       [1, 2],
       [5, 6],
     ]);
     expect(useWorkStore.getState().activeProbe).toBe(1);
 
-    useWorkStore.getState().clearProbePoints();
-    expect(useWorkStore.getState().probePoints).toEqual([]);
+    useWorkStore.getState().clearProbes();
+    expect(useWorkStore.getState().probes).toEqual([]);
     expect(useWorkStore.getState().activeProbe).toBeNull();
   });
 });

@@ -34,6 +34,7 @@ import {
   type DeltaWrite,
 } from '../campaign/annotationDelta';
 import type { SliceAddress } from '../campaign/imageryNav';
+import { isZonalGeometry, type Probe, type ProbeMode } from '../campaign/probes';
 import {
   listNotes,
   toNotes,
@@ -150,7 +151,10 @@ interface WorkState {
   /** Everywhere the timeseries tool has probed, drawn as numbered markers and
    *  charted side by side. Ordered oldest first, capped at MAX_PROBES so the
    *  chart stays readable and one click cannot fan out into a dozen fetches. */
-  probePoints: LonLat[];
+  probes: Probe[];
+  probeMode: ProbeMode;
+  pendingProbe: object | null;
+  probeSketchVersion: number;
   /** The probe a map click moves. Comparing places means dropping a few and
    *  then adjusting one of them, so moving is the default and adding is the
    *  deliberate act. */
@@ -179,15 +183,17 @@ interface WorkState {
   setSelection: (ids: number[], anchor: LonLat | null) => void;
   /** A click on the map: move the active probe there, or drop a new one when
    *  there is none yet or the + control armed it. */
-  probeAt: (point: LonLat) => void;
+  probeAt: (probe: Probe) => void;
+  setProbeMode: (mode: ProbeMode) => void;
+  probeAnnotation: (annotationId: number) => Promise<void>;
   /** Arm (or disarm) "the next click adds a probe", arming the tool with it so
    *  the + control is one press rather than two. */
   armAddProbe: (armed: boolean) => void;
   /** Make this probe the one a map click moves. */
-  selectProbePoint: (index: number) => void;
+  selectProbe: (index: number) => void;
   /** Takes that comparison back off the chart. */
-  removeProbePoint: (index: number) => void;
-  clearProbePoints: () => void;
+  removeProbe: (index: number) => void;
+  clearProbes: () => void;
   setProbeMarkerHidden: (hidden: boolean) => void;
   setPendingGeometry: (geometry: GeoJSON.Geometry | null) => void;
   setEditAnnotation: (annotation: AnnotationOut) => void;
@@ -415,7 +421,10 @@ export const useWorkStore = create<WorkState>((set, get) => {
     annotationRevision: 0,
     delta: emptyDelta(),
     syncCursor: null,
-    probePoints: [],
+    probes: [],
+    probeMode: 'point',
+    pendingProbe: null,
+    probeSketchVersion: 0,
     activeProbe: null,
     probeAddArmed: false,
     probeMarkerHidden: false,
@@ -435,37 +444,74 @@ export const useWorkStore = create<WorkState>((set, get) => {
     // than silently doing nothing.
     probeAt: (point) =>
       set((s) => {
-        const adding = s.probeAddArmed || s.probePoints.length === 0 || s.activeProbe === null;
+        const adding = s.probeAddArmed || s.probes.length === 0 || s.activeProbe === null;
         if (!adding) {
-          const probePoints = s.probePoints.map((p, i) => (i === s.activeProbe ? point : p));
-          return { probePoints };
+          const probes = s.probes.map((p, i) => (i === s.activeProbe ? point : p));
+          return { probes, pendingProbe: null };
         }
-        const probePoints = [...s.probePoints, point].slice(-MAX_PROBES);
-        return { probePoints, activeProbe: probePoints.length - 1, probeAddArmed: false };
+        const probes = [...s.probes, point].slice(-MAX_PROBES);
+        return { probes, activeProbe: probes.length - 1, probeAddArmed: false, pendingProbe: null };
       }),
 
+    setProbeMode: (probeMode) => set({ probeMode, pendingProbe: null }),
+
+    probeAnnotation: async (annotationId) => {
+      const campaign = campaignState().campaign;
+      const pendingProbe = {};
+      set({ pendingProbe });
+      try {
+        const { data, error } = await getAnnotation({
+          path: { campaign_id: campaign.id, annotation_id: annotationId },
+        });
+        if (get().pendingProbe !== pendingProbe || campaignState().campaign !== campaign) return;
+        if (!data) throw error;
+        const geometry = wktToGeometry(data.geometry_wkt);
+        if (!isZonalGeometry(geometry)) {
+          alert(i18n.t('panels:probes.selectPolygonOnly'), 'error');
+          return;
+        }
+        get().probeAt(geometry);
+      } catch (error) {
+        if (get().pendingProbe === pendingProbe && campaignState().campaign === campaign) {
+          handleError(error, i18n.t('panels:probes.loadPolygonFailed'));
+        }
+      } finally {
+        if (get().pendingProbe === pendingProbe) set({ pendingProbe: null });
+      }
+    },
+
     armAddProbe: (armed) => {
-      set({ probeAddArmed: armed });
+      set({ probeAddArmed: armed, pendingProbe: null });
       if (armed && get().tool !== 'timeseries') void get().selectTool('timeseries');
     },
 
-    selectProbePoint: (index) =>
-      set((s) => (s.probePoints[index] ? { activeProbe: index, probeAddArmed: false } : {})),
+    selectProbe: (index) =>
+      set((s) =>
+        s.probes[index] ? { activeProbe: index, probeAddArmed: false, pendingProbe: null } : {}
+      ),
 
     // The active probe follows the list: removing one before it would leave
     // the marker ring on someone else's point.
-    removeProbePoint: (index) =>
+    removeProbe: (index) =>
       set((s) => {
-        const probePoints = s.probePoints.filter((_, i) => i !== index);
-        if (probePoints.length === 0) return { probePoints, activeProbe: null };
-        const active = s.activeProbe ?? probePoints.length - 1;
+        const probes = s.probes.filter((_, i) => i !== index);
+        if (probes.length === 0) return { probes, activeProbe: null, pendingProbe: null };
+        const active = s.activeProbe ?? probes.length - 1;
         return {
-          probePoints,
-          activeProbe: Math.min(active > index ? active - 1 : active, probePoints.length - 1),
+          probes,
+          pendingProbe: null,
+          activeProbe: Math.min(active > index ? active - 1 : active, probes.length - 1),
         };
       }),
 
-    clearProbePoints: () => set({ probePoints: [], activeProbe: null, probeAddArmed: false }),
+    clearProbes: () =>
+      set({
+        probes: [],
+        activeProbe: null,
+        probeAddArmed: false,
+        pendingProbe: null,
+        probeSketchVersion: get().probeSketchVersion + 1,
+      }),
     setProbeMarkerHidden: (probeMarkerHidden) => set({ probeMarkerHidden }),
     setPendingGeometry: (pending) =>
       set((s) =>
@@ -556,7 +602,10 @@ export const useWorkStore = create<WorkState>((set, get) => {
         tileRefreshes: 0,
         delta: emptyDelta(),
         syncCursor: null,
-        probePoints: [],
+        probes: [],
+        probeMode: 'point',
+        pendingProbe: null,
+        probeSketchVersion: get().probeSketchVersion + 1,
         activeProbe: null,
         probeAddArmed: false,
         probeMarkerHidden: false,
@@ -572,7 +621,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
       const draftWasOpen = get().draft.phase === 'draft';
       // The tool changes first: the pointer must not lag a click behind the
       // button. Resolving the draft afterwards is what Escape does too.
-      set({ tool });
+      set({ tool, pendingProbe: null });
 
       // Dropping the label on pan is "stop drawing". In classify tasks the
       // selected label is the answer waiting to be submitted, not a draw arm.

@@ -112,7 +112,12 @@ export interface BoxHit {
 }
 
 export interface InteractionSpec {
-  draw?: { shape: DrawShape; onDrawEnd: (g: GeoJSON.Geometry) => void; sketchStyle?: StyleSpec };
+  draw?: {
+    shape: DrawShape;
+    onDrawEnd: (g: GeoJSON.Geometry) => void;
+    sketchStyle?: StyleSpec;
+    resetKey?: number;
+  };
   edit?: {
     feature: GeoFeature;
     /** Fires on modify/translate end. */
