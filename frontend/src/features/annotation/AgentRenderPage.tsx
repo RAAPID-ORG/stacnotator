@@ -151,7 +151,7 @@ function createApi(campaign: CampaignOutFull, stage: HTMLElement): AgentPageApi 
         if (unknown.length) throw new Error(`unknown time series ${unknown.join(', ')}`);
 
         view = probeView(probes, ids, options, limits);
-        checkView(view);
+        checkView(view, { fitted: true });
         const image = await renderView({
           task,
           view,

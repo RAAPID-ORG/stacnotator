@@ -1,6 +1,6 @@
 import type { CampaignOutFull } from '~/api/client';
 import { isSceneSource } from '../campaign/scenes';
-import { metersPerPixel, packView } from './pack';
+import { packView } from './pack';
 
 /** What an agent can ask to see, and what it is told the campaign holds. The MCP server
  *  passes these through to the render page, so this file is their only definition. */
@@ -57,16 +57,9 @@ const MAX_CELLS = 36;
 /** A first look, spread over the whole season: the agent asks for the dates in between. */
 const FIRST_LOOK_DATES = 4;
 const CHIP_PX = 384;
-/** A chip is zoomed so the sample extent spans about this share of it: big enough to read
- *  its colour, with a field's worth of surroundings to read it against. */
-const EXTENT_SHARE_OF_CHIP = 1 / 6;
-const MAX_CHIP_ZOOM = 18;
-/** Past a source's native zoom only so far: a few upsampled pixels still read as
- *  colour patches, many are just blur. */
-const ZOOM_PAST_NATIVE = 2;
 
 /** Throws a message the agent can act on. */
-export function checkView(view: ViewSpec): void {
+export function checkView(view: ViewSpec, { fitted = false } = {}): void {
   const columns = view.columns ?? DEFAULT_COLUMNS;
   const cellPx = view.cell_px ?? DEFAULT_CELL_PX;
   if (!view.cells?.length || view.cells.length > MAX_CELLS)
@@ -84,8 +77,8 @@ export function checkView(view: ViewSpec): void {
       throw new Error('center must be a finite lat/lon inside the Web Mercator map');
   }
   for (const zoom of [view.zoom, ...view.cells.map((cell) => cell.zoom)]) {
-    if (zoom !== undefined && (!Number.isFinite(zoom) || zoom < 1 || zoom > 22))
-      throw new Error('zoom must be 1-22');
+    if (zoom !== undefined && (!Number.isFinite(zoom) || (!fitted && (zoom < 1 || zoom > 22))))
+      throw new Error(fitted ? 'fitted zoom must be finite' : 'zoom must be 1-22');
   }
   for (const cell of view.cells) {
     const kinds = [cell.slice_id, cell.basemap_id, cell.timeseries_ids].filter((v) => v != null);
@@ -131,10 +124,6 @@ export function shortDateRange(start: string, end: string): string {
   if (ys === ye) return `${ds} ${MONTHS[ms - 1]}-${de} ${MONTHS[me - 1]} ${ys}`;
   return `${ds} ${MONTHS[ms - 1]} ${ys}-${de} ${MONTHS[me - 1]} ${ye}`;
 }
-
-/** The zoom at which `meters` spans `px` pixels at this latitude. */
-const zoomForSpan = (lat: number, meters: number, px: number): number =>
-  Math.log2(metersPerPixel(lat, 0) / (meters / px));
 
 export function campaignContext(campaign: CampaignOutFull) {
   const { settings } = campaign;
@@ -201,21 +190,10 @@ export function campaignContext(campaign: CampaignOutFull) {
 
 export type CampaignContext = ReturnType<typeof campaignContext>;
 
-/** A light first look: a few period covers spread over the season, zoomed onto the sample
- *  extent, with the time series, and a basemap pair for the surroundings and the detail.
- *  The agent asks for more of the same point from there. */
+/** Start at the dataset's configured zoom; closer views are requested when needed. */
 export function defaultViews(context: CampaignContext): ViewSpec[] {
   const first = context.imagery[0];
   const sourceZoom = first?.default_zoom ?? DEFAULT_ZOOM;
-  const [, south, , north] = context.bbox;
-  const extent = context.sample_extent_meters;
-  const chipZoom = extent
-    ? Math.min(
-        MAX_CHIP_ZOOM,
-        (first?.max_native_zoom ?? MAX_CHIP_ZOOM) + ZOOM_PAST_NATIVE,
-        Math.floor(zoomForSpan((south + north) / 2, extent / EXTENT_SHARE_OF_CHIP, CHIP_PX))
-      )
-    : sourceZoom;
   const allCovers = (first?.collections ?? []).flatMap((c) =>
     c.cover_slice_id != null ? [c.cover_slice_id] : []
   );
@@ -237,17 +215,17 @@ export function defaultViews(context: CampaignContext): ViewSpec[] {
       cells: [...covers, ...series],
       columns: Math.min(DEFAULT_COLUMNS, covers.length),
       cell_px: CHIP_PX,
-      zoom: chipZoom,
+      zoom: sourceZoom,
     });
   } else if (series.length) {
-    views.push({ cells: series, columns: 2, cell_px: 512, zoom: chipZoom });
+    views.push({ cells: series, columns: 2, cell_px: 512, zoom: sourceZoom });
   }
   const basemap = context.basemaps[0];
   if (basemap) {
     views.push({
       cells: [
         { basemap_id: basemap.basemap_id, zoom: Math.max(1, sourceZoom - 2) },
-        { basemap_id: basemap.basemap_id, zoom: Math.min(20, chipZoom + 1) },
+        { basemap_id: basemap.basemap_id, zoom: Math.min(20, sourceZoom + 1) },
       ],
       columns: 2,
       cell_px: 512,

@@ -36,6 +36,9 @@ export interface LocatedProbe {
 
 type LonLat = [number, number];
 
+const projectNear = (center: LonLat, point: LonLat) =>
+  fromLonLat([point[0] + 360 * Math.round((center[0] - point[0]) / 360), point[1]]);
+
 /** OpenLayers' own resolution for a zoom, so a pixel maps back exactly as the map drew it. */
 const resolutionAt = (zoom: number): number => new View().getResolutionForZoom(zoom);
 
@@ -63,7 +66,7 @@ export function lonLatToPixel(
   point: LonLat
 ): [number, number] {
   const [cx, cy] = fromLonLat(center);
-  const [px, py] = fromLonLat(point);
+  const [px, py] = projectNear(center, point);
   const res = resolutionAt(zoom);
   return [width / 2 + (px - cx) / res, height / 2 - (py - cy) / res];
 }
@@ -168,7 +171,7 @@ export function probeView(
 /** Ground offset of a point from the task, in metres east and north. */
 export function offsetMeters(task: AgentTask, lon: number, lat: number) {
   const [tx, ty] = fromLonLat([task.lon, task.lat]);
-  const [px, py] = fromLonLat([lon, lat]);
+  const [px, py] = projectNear([task.lon, task.lat], [lon, lat]);
   const scale = Math.cos((((task.lat + lat) / 2) * Math.PI) / 180);
   return { east_m: Math.round((px - tx) * scale), north_m: Math.round((py - ty) * scale) };
 }

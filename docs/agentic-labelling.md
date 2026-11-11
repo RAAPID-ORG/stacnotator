@@ -219,10 +219,13 @@ sequenceDiagram
   loses detail. The model states the largest image it takes in unchanged when it registers
   an agent, and every view is fitted to that by shrinking its cells.
 - **Step by step per point.** `next_task` returns a light first look (a few dates spread over
-  the season, zoomed on the point, the time series and a basemap pair); the agent then calls
-  `get_views` as often as it needs for other dates, zooms, cell sizes, visualizations or
-  basemaps. To explore elsewhere, it first zooms out, picks a relevant patch in the
-  returned image, then sets `center: {reply, image, x, y}` on a view and increases zoom.
+  the season at the dataset's configured zoom, the time series and a basemap pair).
+  The agent submits immediately if that is enough. Otherwise it requests only evidence
+  that could change the label, preferably relevant dates or a closer view of the same
+  task, packed into one `get_views` call. Nearby comparisons are optional, not routine.
+  When one would resolve a specific uncertainty, the agent picks a relevant patch in an
+  existing image, or requests a wider view only if needed to find one, then sets
+  `center: {reply, image, x, y}` and chooses an appropriate zoom.
   Every cell looks there unless it overrides `center`; the agent can inspect more dates,
   basemaps and charts there, pick again on the resulting images, or omit `center` to return
   to the assigned task. Coordinates are optional, not required. The red task marker stays

@@ -3,6 +3,7 @@ import { fromLonLat, toLonLat } from 'ol/proj';
 import { describe, expect, it } from 'vitest';
 import { metersPerPixel } from './pack';
 import { locateProbe, lonLatToPixel, offsetMeters, pixelToLonLat, probeView } from './probe';
+import { checkView } from './view';
 
 const TASK = { task_id: 1, lat: 52.37, lon: 4.89, geometry_wkt: 'POINT(4.89 52.37)' };
 const CENTER: [number, number] = [TASK.lon, TASK.lat];
@@ -27,6 +28,22 @@ describe('pixelToLonLat', () => {
     const [x, y] = lonLatToPixel(CENTER, 16, 320, 320, [lon, lat]);
     expect(x).toBeCloseTo(37, 6);
     expect(y).toBeCloseTo(291, 6);
+  });
+
+  it.each([-1, 1])('keeps a nearby point across the antimeridian in frame (%s)', (direction) => {
+    const center: [number, number] = [direction * 179.99, 0];
+    const point: [number, number] = [-direction * 179.99, 0];
+    const [x, y] = lonLatToPixel(center, 12, 400, 400, point);
+    expect(x).toBeGreaterThan(0);
+    expect(x).toBeLessThan(400);
+    expect(Math.sign(x - 200)).toBe(direction);
+    expect(y).toBeCloseTo(200);
+    const [lon, lat] = pixelToLonLat(center, 12, 400, 400, x, y);
+    expect(lon).toBeCloseTo(point[0], 9);
+    expect(lat).toBeCloseTo(0, 9);
+    const offset = offsetMeters({ ...TASK, lon: center[0], lat: 0 }, ...point);
+    expect(offset.east_m).toBe(direction * 2226);
+    expect(offset.north_m).toBe(0);
   });
 });
 
@@ -99,6 +116,28 @@ describe('locateProbe', () => {
 describe('probeView', () => {
   const view = { cells: [{ slice_id: 1, zoom: 14 }], columns: 1, cell_px: 800 };
   const limits = { max_edge_px: 1568, max_megapixels: 0.5 };
+
+  it('keeps a zoom-1 selection in frame when charts require a fitted zoom below zero', () => {
+    const task = { ...TASK, lat: 0, lon: 0 };
+    const overview = { cells: [{ slice_id: 1 }], zoom: 1, columns: 1, cell_px: 512 };
+    checkView(overview);
+    const picked = locateProbe(task, {
+      view: overview,
+      reply: 1,
+      image: 1,
+      x: 500,
+      y: 256,
+    });
+    const probed = probeView([picked], [5], {}, { max_edge_px: 400, max_megapixels: 0.16 });
+    const zoom = probed.cells[0].zoom!;
+    const px = probed.cell_px!;
+    expect(zoom).toBeLessThan(0);
+    expect(() => checkView(probed, { fitted: true })).not.toThrow();
+    expect(() => checkView(probed)).toThrow(/zoom/);
+    const [x, y] = lonLatToPixel([0, 0], zoom, px, px, [picked.lon, picked.lat]);
+    expect(x / px).toBeCloseTo(500 / 512, 2);
+    expect(y / px).toBeCloseTo(0.5, 2);
+  });
 
   it('redraws a picked map once, over the same ground, when it must shrink', () => {
     const picks = [

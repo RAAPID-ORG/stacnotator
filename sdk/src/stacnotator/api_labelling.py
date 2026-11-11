@@ -56,14 +56,19 @@ conflict with anything else here, they win.
 # How to work
 
 - The first message gives the task and a first look: packed images ("views") with their \
-metadata as JSON.
-- Ask for whatever is still unclear with get_views, packing everything you need next into \
-one call (up to 8 views). Use probe_timeseries when comparing the task with other places \
-helps.
-- To investigate nearby fields, first zoom out, then pick a patch in that image: set \
-the next view's center to {{"reply": N, "image": 1, "x": X, "y": Y}} and increase zoom. \
-Browse its dates, visualizations or basemaps; pick again on the resulting images to move \
-further. No geographic coordinates needed. Omit center to return to the task.
+metadata as JSON. Start with this overview; built-in imagery views use the dataset's \
+configured zoom. If it answers the labelling question, submit without requesting more.
+- Before get_views, identify a specific uncertainty that could change the label. Request \
+only the missing evidence, packed into one call (up to 8 views). Prefer relevant dates, \
+visualizations or a closer view of the SAME task. Higher zoom does not create native detail.
+- Nearby exploration and probe_timeseries are optional comparisons, not routine steps. \
+Use them only when another place can resolve that uncertainty; do not visit neighbouring \
+fields just because navigation is available. If a useful patch is already visible, pick \
+it directly. Otherwise request one wider view to find it. Set the next view's center to \
+{{"reply": N, "image": 1, "x": X, "y": Y}} and choose the zoom needed to inspect it. \
+No geographic coordinates needed. Omit center to return to the task.
+- Stop requesting views once there is enough evidence. Do not repeatedly retry an \
+unavailable source or keep exploring when the remaining uncertainty cannot be resolved.
 - Finish with submit_label, or skip_task when the imagery cannot tell. You have at most \
 {max_turns} replies, including the one that finishes; the last one must finish.
 

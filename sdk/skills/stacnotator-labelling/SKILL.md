@@ -34,21 +34,24 @@ Image limits: the largest image your model takes in without downscaling. You kno
 
 Read the guide, `labels` and `form_fields` first. Then:
 
-1. `next_task`: a first look - a few dates across the season zoomed on the point, the time
-   series, and a basemap pair (surroundings, close up).
-2. List everything still unclear and request it all in **one** `get_views` call, packed:
+1. `next_task`: a first look - a few dates across the season at the dataset's configured
+   zoom, the time series, and a basemap pair (surroundings, close up). Understand the task
+   from this overview. If the evidence is sufficient, submit now without more views.
+2. Otherwise identify the specific uncertainty that could change the label, and request
+   only the missing evidence in **one** `get_views` call, packed:
    dates to compare side by side in one view at one zoom, context and close up in one view
    via per-cell `zoom`, a second view only where cell size must differ. Repeat only for
-   something new. Typical needs: the months around a change in the time series (covers or
-   finer slices); zoom out to find nearby fields, then open a selected field at higher zoom
-   and browse its imagery (see Exploring nearby); higher zoom or a basemap close up for a small point; neighbouring dates
+   something new. Prefer the SAME task: the months around a change in the time series
+   (covers or finer slices); higher zoom or a basemap close up for a small point; neighbouring dates
    for clouds; another `visualization`; the chart with `remove_cloudy` and `smoothed`.
-3. Optional: `probe_timeseries` when comparing places helps - fields nearby that look like
-   the task, or like each class (see Probing).
+3. Only when comparing another place would resolve that uncertainty, use nearby imagery
+   or `probe_timeseries`. Neither is a routine step or a requirement to use the tools.
 4. `submit_label`, or `skip_task` with the reason when the imagery cannot tell.
 
 Views most points need belong in the first look (`set_default_views`), which is also drawn
-ahead for your next tasks. `task: null` means done.
+ahead for your next tasks. Stop requesting views when there is enough evidence; do not
+repeatedly retry an unavailable source or explore when no available view can resolve the
+uncertainty. `task: null` means done.
 
 ## Views
 
@@ -80,9 +83,9 @@ from the dated slices and the time series; a basemap that disagrees with them is
 ## Probing
 
 `probe_timeseries` loads the time series wherever you click, like the timeseries tool on
-the annotation page. Typical use: get a zoomed-out view of the surroundings (one slice,
-lower `zoom`, large `cell_px`), spot 2-3 fields that look like the task (or like each
-candidate label), then probe them to see whether their seasons match the task's.
+the annotation page. When a seasonal comparison would distinguish the candidate labels,
+pick relevant fields in an existing view, or request one wider view if necessary. Probe
+only the places needed to compare with the task.
 
 - A point is `{"reply", "image", "x", "y"}`: a pixel of image `image` (1-based) of the
   reply numbered `reply` (every `next_task`, `get_views` and `probe_timeseries` reply with
@@ -101,9 +104,10 @@ candidate label), then probe them to see whether their seasons match the task's.
 
 ## Exploring nearby
 
-Use imagery, not just time series, to investigate surrounding fields. First ask for a
-wide view (lower `zoom`). Pick a promising patch in that returned image, then give
-`get_views` a `center` and a higher zoom:
+Use nearby imagery only to answer a specific question that the task's own views leave
+unresolved, not simply because navigation is available. Pick a relevant patch already
+visible; request a wide view (lower `zoom`) only if you need to find one. Then give
+`get_views` a `center` and the zoom needed to inspect it:
 
 ```json
 [{"center": {"reply": 123456, "image": 1, "x": 310, "y": 120},
@@ -155,10 +159,11 @@ Ask before sharing recordings.
    or ask the user to open one session per agent) with this brief:
 
    > Label STACNotator campaign {id} on {full URL} as agent {agent_id} with the stacnotator
-   > tools: call login with that URL first, and always pass this agent_id. Labels: {id: name}. Guide: {two lines}. Per task: next_task, one
-   > packed get_views for everything unclear (again only if needed), probe_timeseries on
-   > look-alike places when comparing helps, never a basemap as evidence of dates or season,
-   > then submit_label with
+   > tools: call login with that URL first, and always pass this agent_id. Labels: {id: name}. Guide: {two lines}.
+   > Per task: next_task, then submit if the first look is enough. Otherwise use one packed
+   > get_views for evidence that could change the label, preferably at the same task.
+   > Nearby imagery or probe_timeseries only when a comparison resolves that uncertainty.
+   > Never use a basemap as evidence of dates or season. Submit with
    > confidence 0-5 and a comment explaining the decision, or skip_task with the reason.
    > Stop at task null. Reply one line per task: id, label, confidence, short reason.
 

@@ -403,7 +403,13 @@ async function renderMap(
     controls: [],
     interactions: [],
     pixelRatio: 1,
-    view: new View({ center: fromLonLat(center), zoom }),
+    // Keep fitted probe scales and centres exact, even when the frame spans a whole world.
+    view: new View({
+      center: fromLonLat(center),
+      zoom,
+      minZoom: Math.min(0, zoom),
+      multiWorld: true,
+    }),
   });
   const pump = setInterval(() => map.renderSync(), RENDER_PUMP_MS);
 

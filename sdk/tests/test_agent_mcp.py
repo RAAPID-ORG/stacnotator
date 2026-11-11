@@ -6,6 +6,7 @@ import pytest
 import responses
 from mcp.server.mcpserver import Image
 from mcp.server.mcpserver.exceptions import ToolError
+from requests import Timeout
 
 from stacnotator import agent_mcp
 from stacnotator._credentials import Credentials, save
@@ -389,6 +390,40 @@ def test_create_campaign_builds_imagery_on_the_page_and_sets_the_guide(browsers,
     else:
         assert json.loads(patched.calls[0].request.body) == {"guide_markdown": guide}
     assert result["url"] == f"{BASE}/projects/3/campaigns/40"
+
+
+@responses.activate
+@pytest.mark.parametrize("failure", ["guide", "task_sets", "timeout"])
+def test_create_campaign_preserves_identity_when_follow_up_fails(browsers, failure):
+    created = responses.post(
+        f"{BASE}/api/campaigns/", json={"id": 40, "registration_status": "registering"}
+    )
+    if failure == "timeout":
+        responses.patch(f"{BASE}/api/campaigns/40", body=Timeout("guide timed out"))
+    else:
+        responses.patch(
+            f"{BASE}/api/campaigns/40",
+            json={"detail": "guide failed"} if failure == "guide" else {},
+            status=500 if failure == "guide" else 200,
+        )
+    responses.get(
+        f"{BASE}/api/campaigns/40/task-sets", json={"detail": "task sets failed"}, status=500
+    )
+
+    with pytest.raises(ToolError, match="Campaign 40 was created") as error:
+        asyncio.run(
+            agent_mcp.create_campaign(
+                3,
+                {"name": "Crops", "guide_markdown": "# G"},
+                [{"collection": "sentinel-2-l2a", "windows": []}],
+            )
+        )
+
+    assert f"{BASE}/projects/3/campaigns/40" in str(error.value)
+    assert "Do not call create_campaign again" in str(error.value)
+    assert "get_campaign" in str(error.value)
+    assert ("task sets failed" if failure == "task_sets" else "guide") in str(error.value)
+    assert len(created.calls) == 1
 
 
 @responses.activate

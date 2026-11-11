@@ -24,6 +24,7 @@ from uuid import uuid4
 from mcp.server.mcpserver import Image, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import ConfigDict
+from requests import RequestException
 from shapely.wkt import loads
 from typing_extensions import Required, TypedDict
 
@@ -649,8 +650,11 @@ async def get_views(agent_id: str, task_id: int, views: list[ViewSpec]) -> list[
     other visualizations or basemaps. Pack everything you need next into this one call, up
     to 8 views; same return shape as next_task.
 
-    Explore nearby: first zoom out, find a relevant patch, then set a view's center to
-    {"reply": N, "image": 1, "x": X, "y": Y} from that returned image and increase zoom.
+    Request only evidence needed to resolve a specific uncertainty about the label.
+    Prefer more detail or relevant dates at the same task. Nearby comparison is optional,
+    not a required step: use it only when another place helps answer that question.
+    Pick a relevant patch already visible, or request a wider view if needed, then set center to
+    {"reply": N, "image": 1, "x": X, "y": Y} and choose the zoom needed to inspect it.
     Pixels are measured in the returned image's own size, from its top-left corner;
     meta.cells[].rect gives cell bounds. No geographic coordinates needed. A cell can
     override center, or center can be {"lat", "lon"}. Browse any dates or visualizations
@@ -862,14 +866,23 @@ async def create_campaign(
         "timeseries_configs": timeseries,
     }
     campaign = await _api(_http().post, "/campaigns/", _without_none(body))
-    if guide is not None:
-        await _api(_http().patch, f"/campaigns/{campaign['id']}", {"guide_markdown": guide})
+    url = _campaign_url(project_id, campaign["id"])
+    try:
+        if guide is not None:
+            await _api(_http().patch, f"/campaigns/{campaign['id']}", {"guide_markdown": guide})
+        task_sets = await _task_sets(campaign["id"])
+    except (ToolError, RequestException) as exc:
+        raise ToolError(
+            f"Campaign {campaign['id']} was created ({url}), but follow-up setup failed: {exc}. "
+            "Do not call create_campaign again; inspect it with get_campaign and resume with "
+            "edit_campaign if needed."
+        ) from exc
     return _json(
         {
             "campaign_id": campaign["id"],
-            "url": _campaign_url(project_id, campaign["id"]),
+            "url": url,
             "registration_status": campaign.get("registration_status"),
-            "task_sets": await _task_sets(campaign["id"]),
+            "task_sets": task_sets,
         }
     )
 
