@@ -52,8 +52,8 @@ The backend, tiler and frontend builds are independent and run concurrently; eac
 
 | Environment | Backend (CPU/Mem · replicas) | Tiler (CPU/Mem · replicas · profile) |
 |---|---|---|
-| **prod** | 1 / 2Gi · 1-1 · Consumption | 4 / 8Gi · 1-1 · Consumption |
-| **dev**  | 2 / 4Gi · 1-1 · Consumption | 4 / 8Gi · 1-1 · Consumption |
+| **prod** | 4 / 8Gi · 1-1 · Consumption | 4 / 8Gi · 1-1 · Consumption |
+| **dev**  | 4 / 8Gi · 1-1 · Consumption | 4 / 8Gi · 1-1 · Consumption |
 
 Backend is pinned to a single replica (MIN=MAX=1) so the alembic migration
 that runs on container startup is serialized by definition. To scale beyond
