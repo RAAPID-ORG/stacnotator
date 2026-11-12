@@ -114,15 +114,16 @@ export const StepAddTimeseries = ({
   const setItems = onChange;
 
   /** Custom indices the campaign already uses on a source, offered for reuse there. */
+  const allSeries: TimeseriesCreate[] = [
+    ...existingTimeseries.map((ts) => ({
+      ...ts,
+      domain_min: ts.index.domain_min,
+      domain_max: ts.index.domain_max,
+    })),
+    ...items,
+  ];
   const customIndices = (sourceKey: string): CustomIndexIn[] => {
-    const all = [
-      ...existingTimeseries.map((ts) => ({
-        ...ts,
-        domain_min: ts.index.domain_min,
-        domain_max: ts.index.domain_max,
-      })),
-      ...items,
-    ]
+    const all = allSeries
       .filter((series) => series.data_source === sourceKey)
       .map(customOf)
       .filter((custom) => custom !== null);
@@ -385,6 +386,10 @@ export const StepAddTimeseries = ({
             sourceKey={i.data_source}
             sourceLabel={source?.label ?? i.data_source}
             initial={chosenCustom}
+            others={allSeries
+              .filter((_, j) => j !== existingTimeseries.length + index)
+              .map(customOf)
+              .filter((other) => other !== null)}
             onUse={(index_) => {
               setDefining(null);
               updateItem(index, seriesFields(index_));

@@ -409,6 +409,32 @@ describe('Panel-first timeseries setup', () => {
     expect(screen.getByRole('button', { name: 'Add index' })).toHaveProperty('disabled', true);
   });
 
+  it('refuses a name another series uses for a different index', async () => {
+    preview(redEdge);
+    await openEditor([
+      { ...savedSeries, ts_type: 'CIre', expression: 'nir / rededge1 - 1', index: redEdge },
+    ]);
+    const group = screen.getByRole('region', { name: 'Vegetation panel' });
+    await userEvent.click(within(group).getByRole('button', { name: 'Add series' }));
+    await userEvent.selectOptions(
+      within(group).getByRole('combobox', { name: 'Data source' }),
+      'landsat'
+    );
+    await userEvent.selectOptions(
+      within(group).getByRole('combobox', { name: 'Index' }),
+      '+ Custom index...'
+    );
+    await userEvent.type(within(group).getByRole('textbox', { name: 'Index name' }), 'CIre');
+    await userEvent.type(within(group).getByRole('textbox', { name: 'Formula' }), 'nir / red - 1');
+    expect(
+      await screen.findByText('Another series uses this name for a different index.')
+    ).toBeTruthy();
+    expect(within(group).getByRole('button', { name: 'Add index' })).toHaveProperty(
+      'disabled',
+      true
+    );
+  });
+
   it('will not give a series an index its source cannot compute', async () => {
     preview(redEdge);
     await openEditor();

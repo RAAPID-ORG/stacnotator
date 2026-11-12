@@ -176,7 +176,8 @@ class _Term:
         if isinstance(value, _Term):
             return value
         # A negative constant binds like unary minus: (-2) ** x is not -2 ** x.
-        return _Term(f"{value:g}", _UNARY if value < 0 else _ATOM)
+        # 15 significant digits shows a typed constant as typed, never rounded.
+        return _Term(f"{value:.15g}", _UNARY if value < 0 else _ATOM)
 
     def _combine(self, other: Any, operator: str, precedence: int) -> "_Term":
         right = _Term._of(other)

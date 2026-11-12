@@ -24,6 +24,7 @@ export const CustomIndexForm = ({
   sourceKey,
   sourceLabel,
   initial,
+  others,
   onUse,
   onCancel,
 }: {
@@ -32,6 +33,8 @@ export const CustomIndexForm = ({
   sourceKey: string;
   sourceLabel: string;
   initial: CustomIndexIn | null;
+  /** The custom indices other series use; a name means one definition. */
+  others: CustomIndexIn[];
   onUse: (index: CustomIndexIn) => void;
   onCancel: () => void;
 }) => {
@@ -67,14 +70,25 @@ export const CustomIndexForm = ({
   // A preview counts only for the draft it was asked for, not one typed since.
   const current = preview.isSuccess && preview.variables?.body === body ? preview.data : null;
   const fitsSource = !current || current.source_keys.includes(sourceKey);
-  const accepted = current && fitsSource ? current : null;
+  const clash =
+    !!body &&
+    others.some(
+      (other) =>
+        other.name === body.name &&
+        (other.expression.trim() !== body.expression.trim() ||
+          other.domain_min !== body.domain_min ||
+          other.domain_max !== body.domain_max)
+    );
+  const accepted = current && fitsSource && !clash ? current : null;
   const error = !body
     ? t('customIndices.badNumber')
-    : preview.isError
-      ? extractErrorMessage(preview.error)
-      : !fitsSource
-        ? t('customIndices.notOnSource', { source: sourceLabel })
-        : null;
+    : clash
+      ? t('customIndices.duplicate')
+      : preview.isError
+        ? extractErrorMessage(preview.error)
+        : !fitsSource
+          ? t('customIndices.notOnSource', { source: sourceLabel })
+          : null;
 
   return (
     <div className="rounded-md border border-neutral-200 bg-white p-2.5 space-y-1.5">

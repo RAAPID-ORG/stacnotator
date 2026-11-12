@@ -565,7 +565,8 @@
     "previewFailed": "Could not check this formula",
     "add": "Add index",
     "previewHint": "The formula is checked as you type.",
-    "notOnSource": "{{source}} does not have the bands this formula reads."
+    "notOnSource": "{{source}} does not have the bands this formula reads.",
+    "duplicate": "Another series uses this name for a different index."
   },
   "startAnnotating": "Start annotating",
   "savingOverlay": "Saving...",

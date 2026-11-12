@@ -594,7 +594,8 @@
     "previewFailed": "No se pudo comprobar esta fórmula",
     "add": "Añadir índice",
     "previewHint": "La fórmula se comprueba mientras escribes.",
-    "notOnSource": "{{source}} no tiene las bandas que lee esta fórmula."
+    "notOnSource": "{{source}} no tiene las bandas que lee esta fórmula.",
+    "duplicate": "Otra serie usa este nombre para un índice distinto."
   },
   "startAnnotating": "Empezar a anotar",
   "savingOverlay": "Guardando...",

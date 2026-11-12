@@ -76,6 +76,7 @@ def test_is_refused(expression):
         ("(-2) ** nir", "(-2) ** NIR"),
         ("-(nir + red)", "-(NIR + Red)"),
         ("sqrt(nir) * 2", "sqrt(NIR) * 2"),
+        ("nir * 1.23456789", "NIR * 1.23456789"),
     ],
 )
 def test_rendered_formula_keeps_the_meaning(expression, text):
