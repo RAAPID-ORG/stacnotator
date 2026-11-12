@@ -355,6 +355,7 @@ describe('Panel-first timeseries setup', () => {
     await openEditor();
     const group = screen.getByRole('region', { name: `${DEFAULT_TIMESERIES_WINDOW_NAME} panel` });
     await userEvent.click(within(group).getByRole('button', { name: 'Add series' }));
+    await userEvent.type(seriesNames(group)[0], 'Sentinel 2024');
     await userEvent.selectOptions(
       within(group).getByRole('combobox', { name: 'Data source' }),
       'sentinel'
@@ -374,6 +375,7 @@ describe('Panel-first timeseries setup', () => {
     await userEvent.click(within(group).getByRole('button', { name: 'Add index' }));
 
     expect(lastConfigs()[0]).toMatchObject({
+      name: 'Sentinel 2024',
       ts_type: 'CIre',
       expression: 'nir / rededge1 - 1',
       domain_min: -1,

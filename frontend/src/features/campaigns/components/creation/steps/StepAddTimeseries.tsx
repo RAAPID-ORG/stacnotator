@@ -41,6 +41,9 @@ function availableIndices(
   return options.indices.filter((index) => source.index_keys.includes(index.key));
 }
 
+/** A custom index as series fields: its name is the series' ts_type, not its name. */
+const seriesFields = ({ name, ...definition }: CustomIndexIn) => ({ ts_type: name, ...definition });
+
 const customOf = (series: TimeseriesCreate): CustomIndexIn | null =>
   series.expression && series.domain_min != null && series.domain_max != null
     ? {
@@ -160,10 +163,7 @@ export const StepAddTimeseries = ({
     }
     setDefining(null);
     const custom = customIndices(items[index].data_source).find((c) => c.name === key);
-    updateItem(
-      index,
-      custom ? { ...custom, ts_type: custom.name } : { ts_type: key, ...NOT_CUSTOM }
-    );
+    updateItem(index, custom ? seriesFields(custom) : { ts_type: key, ...NOT_CUSTOM });
   };
 
   const addGroup = () => {
@@ -387,7 +387,7 @@ export const StepAddTimeseries = ({
             initial={chosenCustom}
             onUse={(index_) => {
               setDefining(null);
-              updateItem(index, { ...index_, ts_type: index_.name });
+              updateItem(index, seriesFields(index_));
             }}
             onCancel={() => setDefining(null)}
           />

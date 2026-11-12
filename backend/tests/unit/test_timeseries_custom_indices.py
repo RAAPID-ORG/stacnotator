@@ -60,6 +60,7 @@ def test_evaluates_on_floats(expression, expected):
         "nir + 1 / 0",
         "nir + sqrt(-1)",
         "nir * exp(1000)",
+        "nir + sqrt((-1) ** 0.5)",
     ],
 )
 def test_is_refused(expression):

@@ -119,7 +119,7 @@ def _check_constants(body: ast.expr) -> None:
             continue
         try:
             value = _evaluate(node, {})
-        except (ArithmeticError, ValueError) as exc:
+        except (ArithmeticError, ValueError, TypeError) as exc:
             raise ExpressionError(f"'{ast.unparse(node)}' cannot be computed") from exc
         if not isinstance(value, float) or not math.isfinite(value):
             raise ExpressionError(f"'{ast.unparse(node)}' is not a finite number")
