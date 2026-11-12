@@ -112,17 +112,94 @@ def compute_task_status_value(
     return TASK_STATUS_DONE if len(answers) == 1 else TASK_STATUS_CONFLICTING
 
 
+# compute_task_status_value and derive_assignment_status as SQL, for reads that cover a
+# whole campaign at once, where running the Python rule per task costs more than building
+# the response. The two must agree; tests/integration/test_task_status_sql.py checks them
+# against each other over every combination of inputs, so change both together.
+#
+# Expects CTEs status_assignments(task_id, user_id, is_review) and status_answers(task_id,
+# user_id, answer, is_authoritative, counts), where answer is task_answer as text (NULL
+# for a skip) and counts is counts_toward_completion. One row per task and user in each,
+# as the unique indexes guarantee. Defines task_statuses(task_id, status) for every task
+# with an assignment or an answer (the rest are pending) and assignee_statuses(task_id,
+# user_id, status).
+STATUS_SQL = """
+assignee_statuses AS (
+    SELECT s.task_id, s.user_id, s.is_review,
+           n.user_id IS NOT NULL AS acted, n.answer, coalesce(n.counts, false) AS counts,
+           CASE WHEN n.user_id IS NULL THEN 'pending'
+                WHEN n.answer IS NULL THEN 'skipped' ELSE 'done' END AS status
+    FROM status_assignments s
+    LEFT JOIN status_answers n ON n.task_id = s.task_id AND n.user_id = s.user_id
+),
+assignment_totals AS (
+    SELECT task_id,
+           count(*) AS assigned,
+           count(*) FILTER (WHERE is_review) AS reviews,
+           count(*) FILTER (WHERE NOT is_review) AS primaries,
+           bool_and(acted AND answer IS NULL) AS all_skipped,
+           count(*) FILTER (WHERE counts AND answer IS NOT NULL) AS assigned_answered,
+           count(*) FILTER (WHERE NOT is_review AND counts AND answer IS NOT NULL)
+               AS primaries_answered
+    FROM assignee_statuses GROUP BY task_id
+),
+answer_totals AS (
+    SELECT n.task_id,
+           count(*) AS annotations,
+           count(*) FILTER (WHERE n.counts AND n.answer IS NOT NULL) AS answered,
+           coalesce(bool_or(n.is_authoritative) FILTER (WHERE n.counts AND n.answer IS NOT NULL),
+                    false) AS authoritative,
+           count(*) FILTER (WHERE n.counts AND n.answer IS NOT NULL
+                            AND (s.user_id IS NULL OR s.is_review)) AS answered_by_others,
+           count(DISTINCT n.answer) FILTER (WHERE n.counts AND n.answer IS NOT NULL)
+               AS distinct_answers,
+           count(DISTINCT n.answer) FILTER (WHERE n.counts AND n.answer IS NOT NULL
+                                            AND s.user_id IS NOT NULL) AS distinct_assigned_answers
+    FROM status_answers n
+    LEFT JOIN status_assignments s ON s.task_id = n.task_id AND s.user_id = n.user_id
+    GROUP BY n.task_id
+),
+task_statuses AS (
+    SELECT coalesce(g.task_id, n.task_id) AS task_id,
+           CASE
+               WHEN coalesce(n.authoritative, false) THEN 'done'
+               WHEN g.task_id IS NULL THEN
+                   CASE WHEN n.answered > 0 THEN 'done' ELSE 'skipped' END
+               WHEN g.all_skipped THEN 'skipped'
+               WHEN g.reviews > 0 THEN
+                   CASE WHEN g.primaries_answered = 0 AND coalesce(n.answered_by_others, 0) = 0
+                            THEN 'pending'
+                        WHEN g.primaries_answered < g.primaries
+                             OR coalesce(n.answered_by_others, 0) < g.reviews THEN 'partial'
+                        WHEN n.distinct_answers = 1 THEN 'done'
+                        ELSE 'conflicting' END
+               WHEN g.assigned_answered = 0 THEN 'pending'
+               WHEN g.assigned_answered < g.assigned THEN 'partial'
+               WHEN n.distinct_assigned_answers = 1 THEN 'done'
+               ELSE 'conflicting'
+           END AS status
+    FROM assignment_totals g
+    FULL JOIN answer_totals n ON n.task_id = g.task_id
+)
+"""
+
+
 class _AssignmentRow(Protocol):
     user_id: UUID
     is_review: bool
 
 
 class _AnnotationRow(Protocol):
-    label_id: int | None
-    outcome: str | None
-    created_by_user_id: UUID
-    is_authoritative: bool
-    counts_toward_completion: bool | None
+    @property
+    def label_id(self) -> int | None: ...
+    @property
+    def outcome(self) -> str | None: ...
+    @property
+    def created_by_user_id(self) -> UUID: ...
+    @property
+    def is_authoritative(self) -> bool: ...
+    @property
+    def counts_toward_completion(self) -> bool | None: ...
 
 
 def task_answer(annotation: _AnnotationRow) -> int | str | None:

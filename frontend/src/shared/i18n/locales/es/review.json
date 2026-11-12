@@ -31,7 +31,8 @@
     "hideForAnnotation": "Ocultar respuestas de la anotación {{id}}",
     "showForAnnotation": "Mostrar respuestas de la anotación {{id}}",
     "hideForTask": "Ocultar respuestas de la tarea {{number}}",
-    "showForTask": "Mostrar respuestas de la tarea {{number}}"
+    "showForTask": "Mostrar respuestas de la tarea {{number}}",
+    "loadFailed": "No se pudieron cargar las respuestas."
   },
   "sort": {
     "default": "Predeterminado",

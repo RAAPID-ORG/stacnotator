@@ -9,6 +9,7 @@ import {
   MOCK_TASK_LIST,
   MOCK_CAMPAIGN,
 } from './fixtures/mock-data';
+import { routeTaskList } from './fixtures/task-summary';
 
 const openProjects = async (page: import('@playwright/test').Page) => {
   await Promise.all([page.waitForResponse(ROUTE.projects), page.goto('/projects')]);
@@ -31,14 +32,10 @@ test.describe('Projects list', () => {
         })),
       })
     );
-    await appPage.route('**/api/campaigns/*/tasks', (route) =>
-      route.fulfill({
-        json: {
-          ...MOCK_TASK_LIST,
-          tasks: MOCK_TASK_LIST.tasks.map((task) => ({ ...task, task_set_id: 1 })),
-        },
-      })
-    );
+    await routeTaskList(appPage, () => ({
+      ...MOCK_TASK_LIST,
+      tasks: MOCK_TASK_LIST.tasks.map((task) => ({ ...task, task_set_id: 1 })),
+    }));
     await appPage.route('**/api/campaigns/*/tasks/density?*', (route) =>
       route.fulfill({ json: [] })
     );

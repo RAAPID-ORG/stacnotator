@@ -1,13 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { TaskOut, TaskSetOut } from '~/api/client';
+import type { TaskSetOut } from '~/api/client';
+import type { TaskRow } from '~/shared/utils/taskSummary';
 import {
   apiSuccess,
   makeCampaign,
   makeCollection,
   makeSlice,
   makeSource,
-  makeTask,
-  makeTaskList,
+  makeTaskRow,
+  makeTaskSummary,
+  type TaskRowOverrides,
   makeView,
   makeViz,
 } from '~/features/annotation/testing/fixtures';
@@ -24,12 +26,18 @@ vi.mock('~/api/client', async (importActual) => {
   return {
     ...actual,
     getCampaignWithImageryWindows: vi.fn(),
-    listTasks: vi.fn(),
+    getTaskSummary: vi.fn(),
+    getTaskDetails: vi.fn(),
     listTaskSets: vi.fn(),
   };
 });
 
-import { listTasks, getCampaignWithImageryWindows, listTaskSets } from '~/api/client';
+import {
+  getCampaignWithImageryWindows,
+  getTaskDetails,
+  getTaskSummary,
+  listTaskSets,
+} from '~/api/client';
 import { loadCampaign } from './loadCampaign';
 
 const source = makeSource({
@@ -42,15 +50,20 @@ const source = makeSource({
 });
 const view = makeView({ id: 100, name: 'V1', source_ids: [1] });
 
-const task = (overrides: Partial<TaskOut> = {}): TaskOut =>
-  makeTask({ id: 1, geometry_wkt: 'POINT(0 0)', ...overrides });
+const SERVER_TIME = '2024-01-01T00:00:00Z';
+
+const task = (overrides: TaskRowOverrides = {}): TaskRow =>
+  makeTaskRow({ id: 1, lon: 0, lat: 0, ...overrides });
+
+const mockTasks = (tasks: TaskRow[]) =>
+  vi.mocked(getTaskSummary).mockResolvedValue(apiSuccess(makeTaskSummary(tasks, SERVER_TIME)));
 
 function mockApi({
   tasks = [task()],
   taskSets = [] as TaskSetOut[],
   isPublic = false,
 }: {
-  tasks?: TaskOut[];
+  tasks?: TaskRow[];
   taskSets?: TaskSetOut[];
   isPublic?: boolean;
 } = {}) {
@@ -60,14 +73,16 @@ function mockApi({
     imagery_views: [view],
   });
   vi.mocked(getCampaignWithImageryWindows).mockResolvedValue(apiSuccess(campaign));
-  vi.mocked(listTasks).mockResolvedValue(apiSuccess(makeTaskList({ tasks })));
+  mockTasks(tasks);
   vi.mocked(listTaskSets).mockResolvedValue(apiSuccess(taskSets));
   return campaign;
 }
 
 beforeEach(() => {
   vi.mocked(getCampaignWithImageryWindows).mockReset();
-  vi.mocked(listTasks).mockReset();
+  vi.mocked(getTaskSummary).mockReset();
+  vi.mocked(getTaskDetails).mockReset();
+  vi.mocked(getTaskDetails).mockResolvedValue(apiSuccess({ campaign_id: 5, tasks: [] }));
   vi.mocked(listTaskSets).mockReset();
   usePrefsStore.setState({ pinnedStart: {} });
   useCampaignStore.setState({
@@ -105,6 +120,8 @@ describe('loadCampaign happy path', () => {
 
     expect(getCampaignWithImageryWindows).toHaveBeenCalledWith({ path: { campaign_id: 5 } });
     expect(useTasksStore.getState().allTasks).toEqual([myTask]);
+    // Polling resumes from the summary's clock, so nothing written since is missed.
+    expect(useTasksStore.getState().syncCursor).toBe(SERVER_TIME);
     expect(useTasksStore.getState().filter.assignedTo).toEqual(['u1']);
     expect(useTasksStore.getState().filter).toEqual(
       expect.objectContaining({ statuses: ['pending'] })
@@ -135,7 +152,7 @@ describe('loadCampaign happy path', () => {
       imagery_views: [view],
     });
     vi.mocked(getCampaignWithImageryWindows).mockResolvedValue(apiSuccess(campaign));
-    vi.mocked(listTasks).mockResolvedValue(apiSuccess(makeTaskList({ tasks: [task()] })));
+    mockTasks([task()]);
     vi.mocked(listTaskSets).mockResolvedValue(apiSuccess([]));
 
     usePrefsStore.getState().setPinnedStart(1, 20);

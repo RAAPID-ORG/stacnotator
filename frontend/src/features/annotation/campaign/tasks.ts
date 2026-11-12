@@ -1,12 +1,7 @@
 import i18n from '~/shared/i18n';
-import type {
-  AnnotationFromTaskOut,
-  LabellingPolicy,
-  TaskAssignmentOut,
-  TaskOut,
-  TaskSetOut,
-} from '~/api/client';
+import type { LabellingPolicy, TaskOut, TaskSetOut } from '~/api/client';
 import { isAudienceMember, type PolicyContext } from '~/features/campaigns/utils/labellingPolicy';
+import type { TaskRow, TaskRowAnswer, TaskRowAssignment } from '~/shared/utils/taskSummary';
 import { TASK_STATUSES, type TaskStatus } from '~/shared/utils/taskStatus';
 
 const t = i18n.getFixedT(null, 'annotation');
@@ -33,7 +28,7 @@ export interface Claim {
 
 /** Who is working on this task right now, if anyone. A claim is a lease and
  *  expires, which is why the caller passes the time. */
-export function getActiveClaim(task: TaskOut, now: number): Claim | null {
+export function getActiveClaim(task: TaskRow, now: number): Claim | null {
   if (!task.claimed_by_user_id || !task.claimed_at) return null;
   const heldForMs = now - new Date(task.claimed_at).getTime();
   if (heldForMs > CLAIM_TTL_MS) return null;
@@ -45,14 +40,14 @@ export function getActiveClaim(task: TaskOut, now: number): Claim | null {
 }
 
 /** Free work: nobody assigned to it, nobody has worked it, nobody holds it. */
-export function isClaimable(task: TaskOut, now: number): boolean {
+export function isClaimable(task: TaskRow, now: number): boolean {
   if ((task.annotations || []).length > 0) return false;
   if (task.assignments.length > 0) return false;
   return getActiveClaim(task, now) === null;
 }
 
 export function claimedByLabel(
-  task: TaskOut,
+  task: TaskRow,
   currentUserId: string | null | undefined,
   now: number
 ): string | null {
@@ -62,6 +57,21 @@ export function claimedByLabel(
   return t('claims.other', {
     name: claim.displayName || t('claims.someoneElse'),
   });
+}
+
+/** Whether the viewer's stored answer still lacks its form values and slice
+ *  notes, which only the task's details carry: until they arrive the form
+ *  cannot show them, and submitting would wipe them. */
+export function awaitingOwnAnswer(
+  task: TaskRow | null,
+  details: TaskOut | null,
+  userId: string | null
+): boolean {
+  return (
+    task !== null &&
+    details?.id !== task.id &&
+    task.annotations.some((a) => a.created_by_user_id === userId)
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -79,7 +89,7 @@ export interface TaskFilter {
 
 const RESOLVED: TaskStatus[] = ['done', 'skipped', 'conflicting'];
 
-type ProgressInput = Pick<TaskOut, 'task_status' | 'assignments'>;
+type ProgressInput = Pick<TaskRow, 'task_status' | 'assignments'>;
 
 const isResolved = (task: ProgressInput): boolean => RESOLVED.includes(task.task_status);
 
@@ -127,7 +137,7 @@ export const reviewFilterPatch = (): Partial<TaskFilter> => ({
 
 /** Held by this user via their own live claim, so a task they just claimed
  *  does not drop out of their unassigned pool on re-entry. */
-const isHeldBy = (task: TaskOut, userId: string | null | undefined, now: number) =>
+const isHeldBy = (task: TaskRow, userId: string | null | undefined, now: number) =>
   userId != null && getActiveClaim(task, now)?.userId === userId;
 
 /** Whether "next" means "ask the server for a free task".
@@ -141,12 +151,12 @@ export const usesClaimPool = (filter: TaskFilter): boolean =>
   filter.statuses.every((status) => status === 'pending');
 
 export interface FilteredTasks {
-  visibleTasks: TaskOut[];
+  visibleTasks: TaskRow[];
   suggestedIndex: number;
 }
 
 export function applyTaskFilter(
-  allTasks: TaskOut[],
+  allTasks: TaskRow[],
   filter: TaskFilter,
   currentUserId: string | null | undefined,
   now: number,
@@ -210,7 +220,7 @@ export function applyTaskFilter(
  * cannot blank the filter.
  */
 export function widenFilterForTask(
-  allTasks: TaskOut[],
+  allTasks: TaskRow[],
   filter: TaskFilter,
   currentUserId: string | null | undefined,
   now: number,
@@ -252,7 +262,7 @@ export function widenFilterForTask(
  * all-tasks-completed gate for that set.
  */
 export function seedFilter(
-  allTasks: TaskOut[],
+  allTasks: TaskRow[],
   taskSets: TaskSetOut[],
   currentUserId: string | null | undefined,
   now: number,
@@ -311,7 +321,7 @@ export function seedFilter(
 /** The mode the page opens in when no link asks for one: Tasks while a task
  *  the viewer may answer is still waiting on them, Explore otherwise. */
 export function openingWorkMode(
-  tasks: TaskOut[],
+  tasks: TaskRow[],
   policy: LabellingPolicy,
   ctx: PolicyContext
 ): 'tasks' | 'explore' {
@@ -325,14 +335,14 @@ export function openingWorkMode(
   return mayAnswer ? 'tasks' : 'explore';
 }
 
-export function nextIndex(visible: TaskOut[], current: number): number {
+export function nextIndex(visible: TaskRow[], current: number): number {
   if (visible.length === 0) return current;
   return current >= visible.length - 1 ? 0 : current + 1;
 }
 
 /** Unlike next, back stops at the first task: wrapping would open the far
  *  end of the list, which the user has not reached. */
-export function prevIndex(visible: TaskOut[], current: number): number {
+export function prevIndex(visible: TaskRow[], current: number): number {
   if (visible.length === 0) return current;
   return Math.max(0, current - 1);
 }
@@ -348,18 +358,18 @@ export type ReviewRow =
   | {
       kind: 'annotation';
       userId: string;
-      annotation: AnnotationFromTaskOut;
-      assignment: TaskAssignmentOut | null;
+      annotation: TaskRowAnswer;
+      assignment: TaskRowAssignment | null;
       isConflict: boolean;
       isAuthoritative: boolean;
       isExtra: boolean;
       isSkipped: boolean;
     }
-  | { kind: 'pending'; userId: string; assignment: TaskAssignmentOut };
+  | { kind: 'pending'; userId: string; assignment: TaskRowAssignment };
 
 export function reviewRows(
-  annotations: AnnotationFromTaskOut[],
-  assignments: TaskAssignmentOut[],
+  annotations: TaskRowAnswer[],
+  assignments: TaskRowAssignment[],
   taskStatus: TaskStatus | undefined
 ): ReviewRow[] {
   const annByUser = new Map(annotations.map((a) => [a.created_by_user_id, a]));

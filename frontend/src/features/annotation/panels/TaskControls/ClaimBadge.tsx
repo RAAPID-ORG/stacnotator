@@ -1,10 +1,10 @@
-import type { TaskOut } from '~/api/client';
+import type { TaskRow } from '~/shared/utils/taskSummary';
 import { claimedByLabel, getActiveClaim } from '../../campaign/tasks';
 import { useCurrentTask } from '../../stores/tasks';
 import { useCampaignStore } from '../../stores/campaign';
 
 export interface ClaimBadgeProps {
-  task: TaskOut;
+  task: TaskRow;
   currentUserId: string | null | undefined;
   now: number;
 }

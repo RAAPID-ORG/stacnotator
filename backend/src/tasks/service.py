@@ -1,18 +1,23 @@
-from collections.abc import Sequence
+from collections import defaultdict
+from collections.abc import Collection, Sequence
+from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
+import shapely
 from fastapi import HTTPException
-from sqlalchemy import func, select, union
-from sqlalchemy.orm import Session, defer, joinedload, selectinload
+from sqlalchemy import Row, func, select, union
+from sqlalchemy.orm import Session, aliased, joinedload
 
 from src.annotation import spatial
-from src.annotation.constants import CHANGES_OVERLAP
+from src.annotation.constants import CHANGES_OVERLAP, AssignmentStatus, TaskStatus
 from src.annotation.models import Annotation
+from src.annotation.schemas import AnnotationFromTaskOut
 from src.annotation.sync import (
     bump_campaign_annotations_version,
     record_annotation_deletions,
 )
+from src.auth.models import User
 from src.campaigns.models import Campaign
 from src.campaigns.policy import (
     PolicyContext,
@@ -22,21 +27,16 @@ from src.campaigns.policy import (
 )
 from src.tasks import assignments, claims
 from src.tasks.completion import (
-    attach_to_tasks,
+    completion_rule,
 )
 from src.tasks.models import Task, TaskAssignment
+from src.tasks.schemas import TaskAssignmentOut, TaskOut
 from src.tasks.status import (
     agreed_answers,
     compute_task_status_value,
     derive_assignment_status,
     task_status_inputs,
 )
-
-
-def get_user_assignment_status(task: Task, user_id: UUID) -> str:
-    """Get a user's status on a task, derived from what they annotated."""
-    _, annotation_list = task_status_inputs([], task.annotations or [])
-    return derive_assignment_status(annotation_list, user_id)
 
 
 def get_changed_task_ids(db: Session, campaign_id: int, since: datetime) -> list[int]:
@@ -73,109 +73,60 @@ def require_task_access(
     return ctx
 
 
-def _task_tree():
-    """What a task is read with. Its answers come without their shapes, which no task
-    read shows, and as a second query rather than multiplying the assignment rows."""
-    return (
-        joinedload(Task.assignments).joinedload(TaskAssignment.user),
-        selectinload(Task.annotations).options(
-            defer(Annotation.geometry), joinedload(Annotation.creator)
-        ),
-        joinedload(Task.claimed_by),
-    )
+@dataclass
+class _StatusRow:
+    """The columns of a task row that its task's status reads."""
+
+    label_id: int | None
+    outcome: str | None
+    created_by_user_id: UUID
+    is_authoritative: bool
+    counts_toward_completion: bool | None
 
 
-def get_task(
-    db: Session,
-    task_id: int,
-    campaign: Campaign,
-) -> Task | None:
-    """
-    Retrieve a single annotation task by ID, ensuring it belongs to the campaign.
-
-    Args:
-        db: Database session
-        task_id: ID of the task
-        campaign: The campaign the task must belong to (routers pass the
-            object resolved by their access dependency).
-
-    Returns:
-        Annotation task item or None if not found
-    """
-    stmt = (
-        select(Task)
-        .where(
-            Task.id == task_id,
-            Task.campaign_id == campaign.id,
+def _status_by_task(
+    db: Session, campaign: Campaign, task_ids: Collection[int]
+) -> dict[int, tuple[TaskStatus, int | None]]:
+    """Each task's status and agreed label, read from plain rows rather than the task
+    tree: a map asks for thousands at a time. The decisions are the shared ones."""
+    ids = list(task_ids)
+    assigned: dict[int, list[Row]] = defaultdict(list)
+    for row in db.execute(
+        select(TaskAssignment.task_id, TaskAssignment.user_id, TaskAssignment.is_review).where(
+            TaskAssignment.task_id.in_(ids)
         )
-        .options(*_task_tree())
-    )
+    ):
+        assigned[row.task_id].append(row)
+    answers = db.execute(
+        select(
+            Annotation.task_id,
+            Annotation.label_id,
+            Annotation.outcome,
+            Annotation.created_by_user_id,
+            Annotation.is_authoritative,
+        ).where(Annotation.task_id.in_(ids))
+    ).all()
 
-    task = db.scalars(stmt).unique().first()
-    if task is not None:
-        _attach_has_embedding(db, [task])
-        _attach_linked_annotations(db, [task])
-        attach_to_tasks(db, campaign, [task])
-    return task
-
-
-def get_tasks(
-    db: Session,
-    campaign: Campaign,
-    task_ids: Sequence[int] | None = None,
-) -> list[Task]:
-    """
-    Retrieve all annotation tasks for a campaign with eager loading
-    to avoid N+1 query problem.
-
-    This loads all related data (geometry, assignments, annotations)
-    in a single optimized query.
-
-    Args:
-        db: Database session
-        campaign: The campaign whose tasks to load.
-        task_ids: Load only these tasks instead of all of them.
-
-    Returns:
-        List of annotation task items with all relationships loaded
-    """
-    stmt = (
-        select(Task)
-        .where(Task.campaign_id == campaign.id)
-        .options(*_task_tree())
-        .order_by(Task.annotation_number)
-    )
-    if task_ids is not None:
-        stmt = stmt.where(Task.id.in_(task_ids))
-
-    tasks = list(db.scalars(stmt).unique().all())
-    _attach_has_embedding(db, tasks)
-    _attach_linked_annotations(db, tasks)
-    attach_to_tasks(db, campaign, tasks)
-    return tasks
-
-
-def _tasks_for_status(db: Session, campaign: Campaign) -> list[Task]:
-    """Tasks carrying only what a status decision needs.
-
-    The full task read also loads geometries, annotators and embedding flags, none of
-    which a status costs. Status itself is still decided by the one shared function,
-    so this is a narrower query rather than a second copy of the rules.
-    """
-    tasks = list(
-        db.scalars(
-            select(Task)
-            .where(Task.campaign_id == campaign.id)
-            .options(
-                selectinload(Task.assignments),
-                selectinload(Task.annotations).defer(Annotation.geometry),
+    counts = completion_rule(db, campaign, {a.created_by_user_id for a in answers})
+    rows: dict[int, list[_StatusRow]] = defaultdict(list)
+    for a in answers:
+        assigned_ids = {r.user_id for r in assigned[a.task_id]}
+        rows[a.task_id].append(
+            _StatusRow(
+                label_id=a.label_id,
+                outcome=a.outcome,
+                created_by_user_id=a.created_by_user_id,
+                is_authoritative=a.is_authoritative,
+                counts_toward_completion=counts(a.created_by_user_id, assigned_ids),
             )
         )
-        .unique()
-        .all()
-    )
-    attach_to_tasks(db, campaign, tasks)
-    return tasks
+
+    statuses = {}
+    for task_id in ids:
+        status = compute_task_status_value(*task_status_inputs(assigned[task_id], rows[task_id]))
+        agreed = agreed_answers(rows[task_id])
+        statuses[task_id] = (status, agreed[0].label_id if agreed else None)
+    return statuses
 
 
 def get_task_density(
@@ -199,16 +150,8 @@ def get_task_density(
     if not centroids:
         return []
 
-    points = []
-    for task in _tasks_for_status(db, campaign):
-        point = centroids.get(task.id)
-        if point is None:
-            continue
-        annotations = task.annotations or []
-        assignment_list, annotation_list = task_status_inputs(task.assignments or [], annotations)
-        status = compute_task_status_value(assignment_list, annotation_list)
-        agreed = agreed_answers(annotations)
-        points.append((point[0], point[1], (status, agreed[0].label_id if agreed else None)))
+    statuses = _status_by_task(db, campaign, centroids.keys())
+    points = [(lon, lat, statuses[task_id]) for task_id, (lon, lat) in centroids.items()]
 
     return [
         {
@@ -228,13 +171,11 @@ def claim_next_task(
     user_id: UUID,
     task_set_id: int | None = None,
     after_annotation_number: int | None = None,
-) -> Task | None:
-    """Claim the next free task and return it with the tree the client needs.
-
-    Composes the pick-and-claim with the same decorated fetch every other task
-    read goes through, so the caller can drop the task straight into its list
-    instead of reloading the campaign to find out what it just got.
-    """
+    *,
+    with_email: bool,
+) -> TaskOut | None:
+    """Claim the next free task and return it as every other task read does, so the
+    caller can drop it straight into its list instead of reloading the campaign."""
     claimed = claims.claim_next_task(
         db,
         campaign_id=campaign.id,
@@ -244,47 +185,166 @@ def claim_next_task(
     )
     if claimed is None:
         return None
-    return get_task(db, claimed.id, campaign)
+    return read_task(db, campaign, claimed.id, with_email=with_email)
 
 
-def _attach_has_embedding(db: Session, tasks: list[Task]) -> None:
-    """Set `has_embedding` on each task via one lightweight indexed lookup.
+def read_tasks(
+    db: Session,
+    campaign: Campaign,
+    task_ids: Collection[int] | None = None,
+    *,
+    with_email: bool,
+    first: int | None = None,
+) -> list[TaskOut]:
+    """A campaign's tasks as the API returns them, in annotation order; only
+    ``task_ids`` when given, only the ``first`` few when given. Emails only
+    ``with_email`` (platform admins).
 
-    The vector itself is deferred on the task, so this asks only whether there is one.
+    Read as flat rows rather than an ORM tree, since a campaign can hold tens of
+    thousands of tasks: Postgres joins in the names and flags, and Python only runs the
+    shared status and completion rules over them.
     """
-    if not tasks:
-        return
-    task_ids = [t.id for t in tasks]
-    embedded_ids = set(
-        db.scalars(select(Task.id).where(Task.id.in_(task_ids), Task.embedding.is_not(None)))
-    )
-    for task in tasks:
-        task.has_embedding = task.id in embedded_ids
+    scope = select(Task.id).where(Task.campaign_id == campaign.id)
+    if task_ids is not None:
+        scope = scope.where(Task.id.in_(list(task_ids)))
+    if first is not None:
+        scope = scope.order_by(Task.annotation_number).limit(first)
 
-
-def _attach_linked_annotations(db: Session, tasks: list[Task]) -> None:
-    """Set `nearby_annotation_count`, the standalone annotations drawn after
-    leaving this task for Explore, and `drawn_by_user_ids`, who drew shapes as
-    this draw task's answer."""
+    claimer = aliased(User)
+    tasks = db.execute(
+        select(
+            Task.id,
+            Task.annotation_number,
+            Task.task_set_id,
+            func.ST_AsBinary(Task.geometry).label("wkb"),
+            Task.claimed_by_user_id,
+            Task.claimed_at,
+            claimer.display_name.label("claimed_by_display_name"),
+            Task.embedding.is_not(None).label("has_embedding"),
+        )
+        .outerjoin(claimer, claimer.id == Task.claimed_by_user_id)
+        .where(Task.id.in_(scope))
+        .order_by(Task.annotation_number)
+    ).all()
     if not tasks:
-        return
-    task_ids = [t.id for t in tasks]
-    rows = db.execute(
-        select(Annotation.origin_task_id, func.count())
-        .where(Annotation.origin_task_id.in_(task_ids))
-        .group_by(Annotation.origin_task_id)
-    )
-    counts = {task_id: count for task_id, count in rows}
-    drawn_by: dict[int, list[UUID]] = {}
+        return []
+    # One vectorised pass, identical to the WKT the ORM path produced per row.
+    wkts = shapely.to_wkt(shapely.from_wkb([bytes(t.wkb) for t in tasks]), rounding_precision=-1)
+
+    assigned: dict[int, list[Row]] = defaultdict(list)
+    for row in db.execute(
+        select(
+            TaskAssignment.task_id,
+            TaskAssignment.user_id,
+            TaskAssignment.is_review,
+            User.email,
+            User.display_name,
+        )
+        .outerjoin(User, User.id == TaskAssignment.user_id)
+        .where(TaskAssignment.task_id.in_(scope))
+        .order_by(TaskAssignment.id)
+    ):
+        assigned[row.task_id].append(row)
+
+    answer_rows = db.execute(
+        select(
+            Annotation.task_id,
+            Annotation.id,
+            Annotation.label_id,
+            Annotation.outcome,
+            Annotation.comment,
+            Annotation.created_by_user_id,
+            User.email.label("created_by_user_email"),
+            User.display_name.label("created_by_user_display_name"),
+            Annotation.created_at,
+            Annotation.updated_at,
+            Annotation.confidence,
+            Annotation.is_authoritative,
+            Annotation.flagged_for_review,
+            Annotation.flag_comment,
+            Annotation.imagery_slice_id,
+            Annotation.imagery_source_name,
+            Annotation.imagery_start_date,
+            Annotation.imagery_end_date,
+            Annotation.slice_comments,
+            Annotation.form_values,
+            Annotation.active_seconds,
+        )
+        .outerjoin(User, User.id == Annotation.created_by_user_id)
+        .where(Annotation.task_id.in_(scope))
+        .order_by(Annotation.id)
+    ).all()
+
+    nearby: dict[int, int] = {
+        task_id: count
+        for task_id, count in db.execute(
+            select(Annotation.origin_task_id, func.count())
+            .where(Annotation.origin_task_id.in_(scope))
+            .group_by(Annotation.origin_task_id)
+        )
+    }
+    drawn_by: dict[int, list[UUID]] = defaultdict(list)
     for task_id, user_id in db.execute(
         select(Annotation.output_of_task_id, Annotation.created_by_user_id)
-        .where(Annotation.output_of_task_id.in_(task_ids))
+        .where(Annotation.output_of_task_id.in_(scope))
         .distinct()
     ):
-        drawn_by.setdefault(task_id, []).append(user_id)
-    for task in tasks:
-        task.nearby_annotation_count = counts.get(task.id, 0)
-        task.drawn_by_user_ids = drawn_by.get(task.id, [])
+        drawn_by[task_id].append(user_id)
+
+    counts = completion_rule(db, campaign, {a.created_by_user_id for a in answer_rows})
+    assigned_ids = {task_id: {r.user_id for r in rows} for task_id, rows in assigned.items()}
+    answers: dict[int, list[AnnotationFromTaskOut]] = defaultdict(list)
+    for row in answer_rows:
+        fields = row._asdict()
+        task_id = fields.pop("task_id")
+        if not with_email:
+            fields["created_by_user_email"] = None
+        fields["counts_toward_completion"] = counts(
+            row.created_by_user_id, assigned_ids.get(task_id, set())
+        )
+        answers[task_id].append(AnnotationFromTaskOut.model_validate(fields))
+
+    out = []
+    for task, wkt in zip(tasks, wkts, strict=True):
+        assignment_list, annotation_list = task_status_inputs(assigned[task.id], answers[task.id])
+        out.append(
+            TaskOut(
+                id=task.id,
+                annotation_number=task.annotation_number,
+                task_set_id=task.task_set_id,
+                task_status=compute_task_status_value(assignment_list, annotation_list),
+                geometry_wkt=wkt,
+                assignments=[
+                    TaskAssignmentOut(
+                        user_id=a.user_id,
+                        status=derive_assignment_status(annotation_list, a.user_id),
+                        is_review=a.is_review,
+                        user_email=a.email if with_email else None,
+                        user_display_name=a.display_name,
+                    )
+                    for a in assigned[task.id]
+                ],
+                annotations=answers[task.id],
+                claimed_by_user_id=task.claimed_by_user_id,
+                claimed_at=task.claimed_at,
+                claimed_by_display_name=task.claimed_by_display_name,
+                has_embedding=task.has_embedding,
+                nearby_annotation_count=nearby.get(task.id, 0),
+                drawn_by_user_ids=drawn_by[task.id],
+            )
+        )
+    return out
+
+
+def read_task(db: Session, campaign: Campaign, task_id: int, *, with_email: bool) -> TaskOut | None:
+    tasks = read_tasks(db, campaign, [task_id], with_email=with_email)
+    return tasks[0] if tasks else None
+
+
+def assignment_status_of(task: TaskOut, user_id: UUID) -> AssignmentStatus:
+    """A user's state on a task, read off their answer whether or not they are assigned."""
+    _, annotation_list = task_status_inputs([], task.annotations)
+    return derive_assignment_status(annotation_list, user_id)
 
 
 def task_for_annotating(db: Session, task_id: int, campaign: Campaign) -> Task | None:

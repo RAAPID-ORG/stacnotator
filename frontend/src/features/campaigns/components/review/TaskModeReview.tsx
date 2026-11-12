@@ -1,8 +1,13 @@
 import { Fragment, useEffect, useState, useMemo, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { type TaskOut, type CampaignSummaryOut, type TaskSetOut } from '~/api/client';
-import { answeredFields } from '~/shared/utils/formValues';
+import { useQuery } from '@tanstack/react-query';
+import { type CampaignSummaryOut, type TaskSetOut } from '~/api/client';
+import { getTaskDetailsOptions } from '~/api/queries';
+import { SHARED_WORK } from '~/api/queryClient';
+import { hasAnsweredFields, type FormField } from '~/shared/utils/formValues';
+import type { TaskRow, TaskRowAnswer } from '~/shared/utils/taskSummary';
+import { Skeleton } from '~/shared/ui/Skeleton';
 import { FormAnswers } from './FormAnswers';
 import { campaignPath } from '~/app/routes';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
@@ -13,7 +18,7 @@ import {
   getTaskStatusColor,
   outcomeLabel,
 } from '~/shared/utils/taskStatus';
-import { extractCentroidFromWKT, formatDuration } from '~/shared/utils/utility';
+import { formatDuration } from '~/shared/utils/utility';
 import { Button } from '~/shared/ui/forms';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import { MoveTasksDialog } from '~/features/campaigns/components/settings/MoveTasksDialog';
@@ -26,7 +31,7 @@ import { listRowCls, tableHeadRowCls } from '~/shared/ui/listRow';
 /** Median active seconds recorded across a task's annotators, or null when
  *  nobody's time was measured. Median rather than sum so that a task annotated
  *  three times is comparable with one annotated once. */
-const taskActiveSeconds = (task: TaskOut): number | null => {
+const taskActiveSeconds = (task: TaskRow): number | null => {
   const measured = (task.annotations ?? [])
     .map((a) => a.active_seconds)
     .filter((s): s is number => s != null)
@@ -34,6 +39,59 @@ const taskActiveSeconds = (task: TaskOut): number | null => {
   if (!measured.length) return null;
   const mid = Math.floor(measured.length / 2);
   return measured.length % 2 ? measured[mid] : (measured[mid - 1] + measured[mid]) / 2;
+};
+
+/** The form answers of one expanded row. The summary only says which fields were
+ *  answered, so the values come from the task's details, read when it opens. */
+const TaskAnswers = ({
+  campaignId,
+  taskId,
+  answered,
+  fields,
+}: {
+  campaignId: number;
+  taskId: number;
+  answered: TaskRowAnswer[];
+  fields: FormField[];
+}) => {
+  const { t } = useTranslation(['review', 'common']);
+  const { data, isPending, isError } = useQuery({
+    ...getTaskDetailsOptions({ path: { campaign_id: campaignId }, query: { ids: [taskId] } }),
+    ...SHARED_WORK,
+    meta: { errorMessage: t('answers.loadFailed'), showUser: false },
+  });
+
+  if (isError) return <p className="text-xs text-red-600">{t('answers.loadFailed')}</p>;
+  if (isPending) {
+    return (
+      <div
+        className="flex flex-col gap-2"
+        role="status"
+        aria-label={t('common:status.loadingLabel')}
+      >
+        {answered.map((ann) => (
+          <Skeleton key={ann.id} className="h-10 w-full max-w-md" />
+        ))}
+      </div>
+    );
+  }
+
+  const values = new Map(
+    (data.tasks[0]?.annotations ?? []).map((ann) => [ann.id, ann.form_values])
+  );
+  return (
+    // A task can hold several people's answers, so each set says whose it is.
+    <div className="flex flex-col gap-3">
+      {answered.map((ann) => (
+        <div key={ann.id} className="flex flex-col gap-1">
+          <span className="text-[11px] font-semibold text-neutral-600">
+            {ann.created_by_user_display_name || ann.created_by_user_email || t('unknownUser')}
+          </span>
+          <FormAnswers fields={fields} values={values.get(ann.id)} />
+        </div>
+      ))}
+    </div>
+  );
 };
 
 /** Funnel icon for the filters dropdown trigger - kept local since Icons.tsx has unrelated WIP. */
@@ -60,7 +118,7 @@ interface TaskModeReviewProps {
   campaign?: CampaignSummaryOut;
   campaignId: number;
   /** The tasks page's scoped list. */
-  tasks: TaskOut[];
+  tasks: TaskRow[];
   taskSets: TaskSetOut[];
   /** Tasks page already provides set scoping via TaskScopeBar; hide this component's own set filter to avoid a redundant control. */
   hideSetFilter?: boolean;
@@ -186,7 +244,7 @@ export const TaskModeReview = ({
     if (sortOption === 'default') return filtered;
     return [...filtered].sort((a, b) => {
       if (sortOption === 'confidence-asc' || sortOption === 'confidence-desc') {
-        const getMinConf = (t: TaskOut) => {
+        const getMinConf = (t: TaskRow) => {
           if (!t.annotations?.length) return Infinity;
           const vals = t.annotations.map((x) => x.confidence).filter((c): c is number => c != null);
           return vals.length ? Math.min(...vals) : Infinity;
@@ -795,15 +853,14 @@ export const TaskModeReview = ({
                 </thead>
                 <tbody>
                   {pageTasks.map((task, index) => {
-                    const latLon = extractCentroidFromWKT(task.geometry_wkt);
                     const taskStatus = task.task_status;
                     const assignments = task.assignments;
                     const annotations = task.annotations || [];
                     const isAssignedToMe =
                       currentUser && assignments.some((a) => a.user_id === currentUser.id);
                     const isSelected = selectable && selectedTasks.has(task.id);
-                    const answered = annotations.filter(
-                      (ann) => answeredFields(formFields, ann.form_values).length > 0
+                    const answered = annotations.filter((ann) =>
+                      hasAnsweredFields(formFields, ann.answered_field_ids)
                     );
                     const expanded = expandedTaskId === task.id;
 
@@ -846,7 +903,7 @@ export const TaskModeReview = ({
                             </span>
                           </td>
                           <td className="px-4 py-3 text-neutral-900 text-xs font-mono">
-                            {latLon ? `${latLon.lat.toFixed(5)}, ${latLon.lon.toFixed(5)}` : '-'}
+                            {`${task.lat.toFixed(5)}, ${task.lon.toFixed(5)}`}
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex flex-wrap gap-1">
@@ -1023,20 +1080,12 @@ export const TaskModeReview = ({
                         {expanded && (
                           <tr className="border-b border-neutral-100 bg-neutral-50/60">
                             <td colSpan={selectable ? 7 : 6} className="px-4 py-3">
-                              {/* A task can hold several people's answers, so
-                                    each set says whose it is. */}
-                              <div className="flex flex-col gap-3">
-                                {answered.map((ann) => (
-                                  <div key={ann.id} className="flex flex-col gap-1">
-                                    <span className="text-[11px] font-semibold text-neutral-600">
-                                      {ann.created_by_user_display_name ||
-                                        ann.created_by_user_email ||
-                                        t('unknownUser')}
-                                    </span>
-                                    <FormAnswers fields={formFields} values={ann.form_values} />
-                                  </div>
-                                ))}
-                              </div>
+                              <TaskAnswers
+                                campaignId={campaignId}
+                                taskId={task.id}
+                                answered={answered}
+                                fields={formFields}
+                              />
                             </td>
                           </tr>
                         )}

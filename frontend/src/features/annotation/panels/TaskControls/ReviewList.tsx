@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import type { TaskOut, LabelBase } from '~/api/client';
+import type { LabelBase, TaskOut } from '~/api/client';
+import type { TaskRow } from '~/shared/utils/taskSummary';
 import i18n from '~/shared/i18n';
 import { outcomeLabel } from '~/shared/utils/taskStatus';
 import { capitalizeFirst } from '~/shared/utils/utility';
@@ -10,7 +11,9 @@ import { useCatalog } from '../../stores/campaign';
 import { useImageryStore } from '../../stores/imagery';
 
 export interface ReviewListProps {
-  task: TaskOut;
+  task: TaskRow;
+  /** Brings the slice notes, which the row leaves out; null while loading. */
+  details: TaskOut | null;
   currentUserId: string | null;
   labels: LabelBase[];
 }
@@ -78,10 +81,12 @@ function PendingCard({
 
 function AnnotationCard({
   row,
+  sliceComments,
   currentUserId,
   labels,
 }: {
   row: Extract<ReviewRow, { kind: 'annotation' }>;
+  sliceComments: SliceComment[];
   currentUserId: string | null;
   labels: LabelBase[];
 }) {
@@ -154,7 +159,7 @@ function AnnotationCard({
           &ldquo;{annotation.comment}&rdquo;
         </div>
       )}
-      {(annotation.slice_comments ?? []).map((note) => (
+      {sliceComments.map((note) => (
         <SliceNote key={note.slice_id} note={note} />
       ))}
       {annotation.flagged_for_review && annotation.flag_comment?.trim() && (
@@ -196,7 +201,7 @@ function SliceNote({ note }: { note: SliceComment }) {
   );
 }
 
-export function ReviewList({ task, currentUserId, labels }: ReviewListProps) {
+export function ReviewList({ task, details, currentUserId, labels }: ReviewListProps) {
   const { t } = useTranslation('panels');
   const hasContent = task.annotations.length > 0 || task.assignments.length > 0;
   if (!hasContent) return null;
@@ -228,6 +233,9 @@ export function ReviewList({ task, currentUserId, labels }: ReviewListProps) {
             <AnnotationCard
               key={row.annotation.id}
               row={row}
+              sliceComments={
+                details?.annotations.find((a) => a.id === row.annotation.id)?.slice_comments ?? []
+              }
               currentUserId={currentUserId}
               labels={labels}
             />

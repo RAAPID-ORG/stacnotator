@@ -1,18 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import type { AnnotationOut, TaskAssignmentOut } from '~/api/client';
+import type { TaskRowAssignment } from '~/shared/utils/taskSummary';
+import { makeTaskRowAnswer as annotation } from '../testing/fixtures';
 import { reviewRows } from './tasks';
 
-const annotation = (over: Partial<AnnotationOut>): AnnotationOut =>
-  ({
-    id: 1,
-    label_id: 1,
-    created_by_user_id: 'u1',
-    geometry: { geometry: 'POINT (0 0)' },
-    ...over,
-  }) as AnnotationOut;
-
-const assignment = (over: Partial<TaskAssignmentOut>): TaskAssignmentOut =>
-  ({ user_id: 'u1', status: 'pending', ...over }) as TaskAssignmentOut;
+const assignment = (over: Partial<TaskRowAssignment>): TaskRowAssignment => ({
+  user_id: 'u1',
+  status: 'pending',
+  user_display_name: 'u1',
+  user_email: null,
+  ...over,
+});
 
 describe('reviewRows', () => {
   it('pairs an annotation with its matching assignment by user id', () => {

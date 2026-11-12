@@ -30,6 +30,7 @@ import {
   MOCK_TIMESERIES_DATA,
   TEST_USER_ID,
 } from './mock-data';
+import { routeTaskList } from './task-summary';
 
 /** Endpoints the app shell and every project-scoped page hit. Regexes rather
  *  than globs so `/api/projects/` (list) and `/api/projects/7` (detail) stay
@@ -84,7 +85,6 @@ export class ApiCapture {
 function extractPathParams(pathname: string): Record<string, string> {
   const patterns: [RegExp, string[]][] = [
     [/^\/api\/campaigns\/(\d+)\/tasks\/(\d+)\/annotate$/, ['campaign_id', 'task_id']],
-    [/^\/api\/campaigns\/(\d+)\/tasks$/, ['campaign_id']],
     [/^\/api\/campaigns\/(\d+)\/annotations\/batch-delete$/, ['campaign_id']],
     [/^\/api\/campaigns\/(\d+)\/annotations\/(\d+)$/, ['campaign_id', 'annotation_id']],
     [/^\/api\/campaigns\/(\d+)\/annotations$/, ['campaign_id']],
@@ -527,18 +527,8 @@ export const test = base.extend<AnnotatorFixtures>({
       await route.fulfill({ json: MOCK_CAMPAIGN });
     });
 
-    // GET /api/campaigns/:id/tasks
-    await page.route('**/api/campaigns/*/tasks', async (route) => {
-      if (route.request().method() !== 'GET') return route.fallback();
-      api.requests.push({
-        method: 'GET',
-        url: route.request().url(),
-        pathname: new URL(route.request().url()).pathname,
-        body: null,
-        pathParams: extractPathParams(new URL(route.request().url()).pathname),
-      });
-      await route.fulfill({ json: taskListData });
-    });
+    // GET /api/campaigns/:id/tasks/summary and /tasks/details
+    await routeTaskList(page, () => taskListData);
 
     // GET /api/campaigns/:id/task-sets
     await page.route('**/api/campaigns/*/task-sets', async (route) => {
@@ -774,11 +764,6 @@ export const test = base.extend<AnnotatorFixtures>({
           truncated: false,
         },
       });
-    });
-
-    // GET task changes -> the poll that keeps task progress current.
-    await page.route('**/api/campaigns/*/tasks/changes*', async (route) => {
-      await route.fulfill({ json: { server_time: '2024-01-01T00:00:00Z', tasks: [] } });
     });
 
     // GET /api/campaigns/:id/tasks/:taskId/validate-label  (KNN validation)

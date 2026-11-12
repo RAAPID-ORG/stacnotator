@@ -58,7 +58,9 @@ export function formatTaskStatus(status: TaskStatus): string {
  * Count tasks by status. Returns a record keyed by every TaskStatus so
  * consumers can read `counts.done` directly without falling back to 0.
  */
-export function countTasksByStatus(tasks: readonly TaskOut[]): Record<TaskStatus, number> {
+export function countTasksByStatus(
+  tasks: readonly { task_status?: TaskStatus }[]
+): Record<TaskStatus, number> {
   const counts: Record<TaskStatus, number> = {
     pending: 0,
     partial: 0,

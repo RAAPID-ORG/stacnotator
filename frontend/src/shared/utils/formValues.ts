@@ -51,3 +51,9 @@ export function answeredFields(
     return text === null ? [] : [{ field, text }];
   });
 }
+
+/** Whether any field of the form is among an answer's answered field ids, the
+ *  server-side counterpart of `answeredFields` for rows that carry no values. */
+export function hasAnsweredFields(fields: FormField[], answeredFieldIds: string[]): boolean {
+  return fields.some((field) => answeredFieldIds.includes(String(field.id)));
+}

@@ -2,26 +2,38 @@ import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
-import type { TaskOut } from '~/api/client';
+import type { CampaignSummaryOut } from '~/api/client';
 import { renderWithQuery } from '~/shared/testing/renderWithQuery';
+import type { TaskRow, TaskRowAnswer } from '~/shared/utils/taskSummary';
 import { TaskModeReview } from './TaskModeReview';
 
-vi.mock('~/api/client/sdk.gen', () => ({}));
+vi.mock('~/api/client/sdk.gen', () => ({
+  getTaskDetails: vi.fn(async () => ({
+    data: {
+      campaign_id: 1,
+      tasks: [{ id: 1, annotations: [{ id: 7, form_values: { '3': 'muddy field' } }] }],
+    },
+  })),
+}));
 
-const makeTasks = (count: number): TaskOut[] =>
-  Array.from({ length: count }, (_, i) => ({
-    id: i + 1,
-    annotation_number: i + 1,
-    task_set_id: 1,
-    task_status: 'pending',
-    geometry: { geometry: 'POINT(10 50)' },
-    assignments: [],
-    annotations: [],
-    claimed_by_user_id: null,
-    claimed_at: null,
-    claimed_by_display_name: null,
-    has_embedding: false,
-  })) as unknown as TaskOut[];
+const makeTask = (i: number, annotations: TaskRowAnswer[] = []): TaskRow => ({
+  id: i + 1,
+  annotation_number: i + 1,
+  task_set_id: 1,
+  task_status: 'pending',
+  claimed_by_user_id: null,
+  claimed_at: null,
+  claimed_by_display_name: null,
+  lon: 10,
+  lat: 50,
+  nearby_annotation_count: 0,
+  drawn_by_user_ids: [],
+  assignments: [],
+  annotations,
+});
+
+const makeTasks = (count: number): TaskRow[] =>
+  Array.from({ length: count }, (_, i) => makeTask(i));
 
 const renderTable = (count: number) =>
   renderWithQuery(
@@ -94,5 +106,78 @@ describe('TaskModeReview with a large task list', () => {
 
     expect(rowCount()).toBe(5);
     expect(screen.queryByRole('button', { name: /next/i })).toBeNull();
+  });
+});
+
+const answer: TaskRowAnswer = {
+  id: 7,
+  created_by_user_id: 'u1',
+  created_by_user_display_name: 'ana',
+  created_by_user_email: null,
+  label_id: 1,
+  outcome: 'labelled',
+  confidence: null,
+  flagged_for_review: false,
+  active_seconds: null,
+  is_authoritative: false,
+  counts_toward_completion: true,
+  comment: null,
+  flag_comment: null,
+  updated_at: '2026-01-01T00:00:00Z',
+  answered_field_ids: ['3'],
+};
+
+const campaign: CampaignSummaryOut = {
+  id: 1,
+  project_id: 1,
+  name: 'Crops',
+  created_at: '2026-01-01T00:00:00Z',
+  settings: {
+    labels: [],
+    bbox_west: 0,
+    bbox_south: 0,
+    bbox_east: 1,
+    bbox_north: 1,
+    embedding_year: null,
+    guide_markdown: null,
+    sample_extent_meters: null,
+    labelling_policy: {
+      explore: {},
+      unassigned_tasks: {},
+      assigned_tasks: {},
+      complete_assigned: {},
+      modify_others: {},
+    },
+    form_fields: [{ id: 3, title: 'Notes', type: 'text' }],
+    research_sharing: false,
+    task_output: 'classify',
+  },
+};
+
+describe('TaskModeReview answers', () => {
+  it('shows the centroid the summary carries', () => {
+    renderTable(1);
+
+    expect(screen.getByText('50.00000, 10.00000')).toBeTruthy();
+  });
+
+  it('reads the form values of a task only once its row is opened', async () => {
+    const user = userEvent.setup();
+    renderWithQuery(
+      <MemoryRouter>
+        <TaskModeReview
+          campaign={campaign}
+          campaignId={1}
+          tasks={[makeTask(0, [answer]), makeTask(1)]}
+          taskSets={[]}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByTestId('toggle-answers-2').hasAttribute('disabled')).toBe(true);
+
+    await user.click(screen.getByTestId('toggle-answers-1'));
+
+    expect(await screen.findByText('muddy field')).toBeTruthy();
   });
 });

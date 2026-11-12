@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import type { TaskOut } from '~/api/client';
+import type { TaskRowAnswer, TaskRowAssignment } from '~/shared/utils/taskSummary';
+import { makeTaskRow } from '../testing/fixtures';
 import { CLAIM_TTL_MS, UNASSIGNED, claimedByLabel, getActiveClaim, isClaimable } from './tasks';
 
 const NOW = 1_700_000_000_000;
@@ -9,17 +10,21 @@ const stale = () => new Date(NOW - CLAIM_TTL_MS - 1_000).toISOString(); // just 
 /** A claim lives on the task itself: it is a lease, not an assignment row. */
 const task = (
   claim: { by?: string; at?: string | null; name?: string | null } = {},
-  { assignments = [], annotations = [] }: { assignments?: unknown[]; annotations?: unknown[] } = {}
+  {
+    assignments = [],
+    annotations = [],
+  }: {
+    assignments?: Pick<TaskRowAssignment, 'user_id' | 'status'>[];
+    annotations?: Partial<TaskRowAnswer>[];
+  } = {}
 ) =>
-  ({
-    id: 1,
-    task_status: 'pending',
+  makeTaskRow({
     assignments,
     annotations,
     claimed_by_user_id: claim.by ?? null,
     claimed_at: claim.at ?? null,
     claimed_by_display_name: claim.name ?? null,
-  }) as unknown as TaskOut;
+  });
 
 describe('UNASSIGNED sentinel', () => {
   it('is a stable, non-empty string distinct from any real user id', () => {
@@ -37,7 +42,9 @@ describe('isClaimable', () => {
   });
 
   it('is not claimable once an admin has assigned it', () => {
-    expect(isClaimable(task({}, { assignments: [{ user_id: 'u1' }] }), NOW)).toBe(false);
+    expect(
+      isClaimable(task({}, { assignments: [{ user_id: 'u1', status: 'pending' }] }), NOW)
+    ).toBe(false);
   });
 
   it('is claimable again once the holder`s lease has expired', () => {

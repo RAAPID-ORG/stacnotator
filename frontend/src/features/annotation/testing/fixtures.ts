@@ -1,5 +1,7 @@
 export { apiSuccess } from '~/shared/testing/apiSuccess';
 
+import type { TaskRow, TaskRowAnswer, TaskRowAssignment } from '~/shared/utils/taskSummary';
+
 import type {
   AnnotationFromTaskOut,
   AnnotationOut,
@@ -16,6 +18,7 @@ import type {
   PlanetScenesGenerationConfig,
   SliceTileOut,
   TaskSetOut,
+  TaskSummaryOut,
   TimeseriesOut,
   VectorLayerOut,
   VisualizationOut,
@@ -197,6 +200,132 @@ export function makeTask(overrides: Partial<TaskOut> = {}): TaskOut {
     assignments: [],
     annotations: [],
     ...overrides,
+  };
+}
+
+export function makeTaskRowAnswer(overrides: Partial<TaskRowAnswer> = {}): TaskRowAnswer {
+  return {
+    id: 1,
+    created_by_user_id: 'u1',
+    created_by_user_display_name: 'u1',
+    created_by_user_email: null,
+    label_id: 1,
+    outcome: 'labelled',
+    confidence: null,
+    flagged_for_review: false,
+    active_seconds: null,
+    is_authoritative: false,
+    counts_toward_completion: true,
+    comment: null,
+    flag_comment: null,
+    updated_at: '2024-01-01T00:00:00Z',
+    answered_field_ids: [],
+    ...overrides,
+  };
+}
+
+export type TaskRowOverrides = Partial<Omit<TaskRow, 'assignments' | 'annotations'>> & {
+  assignments?: (Pick<TaskRowAssignment, 'user_id' | 'status'> & Partial<TaskRowAssignment>)[];
+  annotations?: Partial<TaskRowAnswer>[];
+};
+
+export function makeTaskRow({
+  assignments = [],
+  annotations = [],
+  ...overrides
+}: TaskRowOverrides = {}): TaskRow {
+  return {
+    id: 1,
+    annotation_number: 1,
+    task_set_id: 1,
+    task_status: 'pending',
+    claimed_by_user_id: null,
+    claimed_at: null,
+    claimed_by_display_name: null,
+    lon: 1,
+    lat: 2,
+    nearby_annotation_count: 0,
+    drawn_by_user_ids: [],
+    assignments: assignments.map((a) => ({
+      user_display_name: a.user_id,
+      user_email: null,
+      ...a,
+    })),
+    annotations: annotations.map((a) => makeTaskRowAnswer(a)),
+    ...overrides,
+  };
+}
+
+/** The columnar summary `decodeTaskSummary` turns back into `rows`. */
+export function makeTaskSummary(
+  rows: TaskRow[],
+  serverTime = '2024-01-01T00:00:00Z'
+): TaskSummaryOut {
+  const users: TaskSummaryOut['users'] = { id: [], display_name: [], email: [] };
+  const userIndex = (id: string, name = id, email: string | null = null) => {
+    const known = users.id.indexOf(id);
+    if (known >= 0) return known;
+    users.id.push(id);
+    users.display_name.push(name);
+    users.email.push(email);
+    return users.id.length - 1;
+  };
+  const assignments = rows.flatMap((row, task) =>
+    row.assignments.map((a) => ({
+      task,
+      user: userIndex(a.user_id, a.user_display_name, a.user_email),
+      status: a.status,
+    }))
+  );
+  const answers = rows.flatMap((row, task) =>
+    row.annotations.map((a) => ({
+      ...a,
+      task,
+      user: userIndex(a.created_by_user_id, a.created_by_user_display_name),
+    }))
+  );
+  const claimers = rows.map((row) =>
+    row.claimed_by_user_id === null
+      ? null
+      : userIndex(row.claimed_by_user_id, row.claimed_by_display_name ?? undefined)
+  );
+  return {
+    campaign_id: 1,
+    server_time: serverTime,
+    users,
+    tasks: {
+      id: rows.map((r) => r.id),
+      annotation_number: rows.map((r) => r.annotation_number),
+      task_set_id: rows.map((r) => r.task_set_id),
+      task_status: rows.map((r) => r.task_status),
+      claimed_by: claimers,
+      claimed_at: rows.map((r) => r.claimed_at),
+      lon: rows.map((r) => r.lon),
+      lat: rows.map((r) => r.lat),
+      nearby_annotation_count: rows.map((r) => r.nearby_annotation_count),
+      drawn_by: rows.map((r) => r.drawn_by_user_ids.map((id) => userIndex(id))),
+    },
+    assignments: {
+      task: assignments.map((a) => a.task),
+      user: assignments.map((a) => a.user),
+      status: assignments.map((a) => a.status),
+    },
+    answers: {
+      id: answers.map((a) => a.id),
+      task: answers.map((a) => a.task),
+      user: answers.map((a) => a.user),
+      label_id: answers.map((a) => a.label_id),
+      outcome: answers.map((a) => a.outcome),
+      confidence: answers.map((a) => a.confidence),
+      flagged_for_review: answers.map((a) => a.flagged_for_review),
+      active_seconds: answers.map((a) => a.active_seconds),
+      is_authoritative: answers.map((a) => a.is_authoritative),
+      counts_toward_completion: answers.map((a) => a.counts_toward_completion),
+      comment: answers.map((a) => a.comment),
+      flag_comment: answers.map((a) => a.flag_comment),
+      updated_at: answers.map((a) => a.updated_at),
+      answered_field_ids: answers.map((a) => a.answered_field_ids),
+    },
   };
 }
 

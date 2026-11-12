@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import type { TaskOut } from '~/api/client';
+import { makeTaskRow } from '../testing/fixtures';
 import { nextIndex, prevIndex } from './tasks';
 
-const list = (n: number): TaskOut[] =>
-  Array.from({ length: n }, (_, i) => ({ id: i, annotation_number: i + 1 }) as unknown as TaskOut);
+const list = (n: number) =>
+  Array.from({ length: n }, (_, i) => makeTaskRow({ id: i, annotation_number: i + 1 }));
 
 describe('nextIndex', () => {
   it('advances by one', () => {

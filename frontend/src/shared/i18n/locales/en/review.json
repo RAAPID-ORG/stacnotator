@@ -28,7 +28,8 @@
     "hideForAnnotation": "Hide answers for annotation {{id}}",
     "showForAnnotation": "Show answers for annotation {{id}}",
     "hideForTask": "Hide answers for task {{number}}",
-    "showForTask": "Show answers for task {{number}}"
+    "showForTask": "Show answers for task {{number}}",
+    "loadFailed": "Couldn't load the answers."
   },
   "sort": {
     "default": "Default",

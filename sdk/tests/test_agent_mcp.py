@@ -481,7 +481,8 @@ def test_preview_waits_for_registration_then_draws_task_centres(browsers, wkt, c
 
     summary.body = json.dumps({"registration_status": "ready"})
     responses.get(
-        f"{BASE}/api/campaigns/40/tasks", json={"tasks": [{"id": 5, "geometry_wkt": wkt}]}
+        f"{BASE}/api/campaigns/40/tasks/details?first=2",
+        json={"tasks": [{"id": 5, "geometry_wkt": wkt}]},
     )
 
     text, *_ = asyncio.run(agent_mcp.preview_campaign(40, 1000, 1.0))
@@ -496,7 +497,7 @@ def test_preview_waits_for_registration_then_draws_task_centres(browsers, wkt, c
 def test_concurrent_previews_keep_their_pages_until_they_finish(browsers, monkeypatch):
     responses.get(f"{BASE}/api/campaigns/40/summary", json={"registration_status": "ready"})
     responses.get(
-        f"{BASE}/api/campaigns/40/tasks",
+        f"{BASE}/api/campaigns/40/tasks/details?first=2",
         json={"tasks": [{"id": 5, "geometry_wkt": "POINT (30 1)"}]},
     )
     call = browsers.call
