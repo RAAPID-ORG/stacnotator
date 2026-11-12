@@ -5,7 +5,6 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    computed_field,
     field_validator,
     model_validator,
 )
@@ -14,7 +13,13 @@ from shapely.geometry import LinearRing as ShapelyLinearRing
 from shapely.geometry import shape
 from shapely.validation import explain_validity
 
-from src.timeseries.indices import INDICES, INDICES_BY_KEY, SpectralIndex, index_for, render_formula
+from src.timeseries.expressions import (
+    BAND_ROLES,
+    MAX_EXPRESSION_LENGTH,
+    custom_index,
+    series_index,
+)
+from src.timeseries.indices import INDICES, SpectralIndex, render_formula
 from src.timeseries.sources import (
     SOURCES,
     TimeseriesSource,
@@ -70,6 +75,8 @@ class TimeseriesSourceOut(BaseModel):
     description: str
     coverage: str
     resolution_m: int
+    # The band roles a custom index may read from this source.
+    bands: list[str]
     # Which indices this source can actually compute, derived from its bands.
     index_keys: list[str]
 
@@ -92,7 +99,29 @@ def source_out(source: TimeseriesSource) -> TimeseriesSourceOut:
         description=source.description,
         coverage=source.coverage,
         resolution_m=source.scale_m,
+        bands=[role for role in BAND_ROLES if role in source.roles],
         index_keys=[index.key for index in indices_for_source(source)],
+    )
+
+
+class CustomIndexIn(BaseModel):
+    name: str
+    expression: str = Field(max_length=MAX_EXPRESSION_LENGTH)
+    domain_min: float = Field(allow_inf_nan=False)
+    domain_max: float = Field(allow_inf_nan=False)
+
+
+class CustomIndexOut(SpectralIndexOut):
+    # The sources that carry every band the expression reads.
+    source_keys: list[str]
+
+
+def custom_index_out(request: CustomIndexIn) -> CustomIndexOut:
+    """Raises ExpressionError when the index is not one we accept."""
+    index = custom_index(**request.model_dump())
+    return CustomIndexOut(
+        **index_out(index).model_dump(),
+        source_keys=[source.key for source in SOURCES if offers(source, index)],
     )
 
 
@@ -108,6 +137,10 @@ class TimeseriesCreate(BaseModel):
     end_ym: str
     data_source: str
     ts_type: str
+    # Set for a custom index, which ts_type then names.
+    expression: str | None = Field(default=None, max_length=MAX_EXPRESSION_LENGTH)
+    domain_min: float | None = Field(default=None, allow_inf_nan=False)
+    domain_max: float | None = Field(default=None, allow_inf_nan=False)
 
     @field_validator("window_name")
     @classmethod
@@ -129,7 +162,9 @@ class TimeseriesCreate(BaseModel):
         if source is None:
             raise ValueError(f"Unsupported data source: {self.data_source}")
 
-        index = index_for(self.ts_type)
+        if self.expression is not None and (self.domain_min is None or self.domain_max is None):
+            raise ValueError("A custom index needs a chart minimum and maximum")
+        index = series_index(self.ts_type, self.expression, self.domain_min, self.domain_max)
         if index is None:
             raise ValueError(f"Unknown index: {self.ts_type}")
 
@@ -153,15 +188,17 @@ class TimeseriesOut(BaseModel):
     end_ym: str
     data_source: str
     ts_type: str
+    expression: str | None = None
+    # The index this series plots, so the chart can scale its axis and explain
+    # itself without a second request.
+    index: SpectralIndexOut = Field(validation_alias="spectral_index")
 
     model_config = ConfigDict(from_attributes=True)
 
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def index(self) -> SpectralIndexOut:
-        """The index this series plots, so the chart can scale its axis and
-        explain itself without a second request."""
-        return index_out(INDICES_BY_KEY[self.ts_type])
+    @field_validator("index", mode="before")
+    @classmethod
+    def describe_index(cls, value: Any) -> Any:
+        return index_out(value) if isinstance(value, SpectralIndex) else value
 
 
 class TimeseriesOptionsOut(BaseModel):

@@ -230,6 +230,14 @@ describe('axisIdFor', () => {
     expect(axisIdFor(axes, gcvi)).toBe('y2');
   });
 
+  it('keeps two custom indices of one name apart by their ranges', () => {
+    const narrow = index('CIre', 0, 1);
+    const wide = index('CIre', 0, 10);
+    const axes = seriesAxes([narrow, wide]);
+    expect(axisIdFor(axes, narrow)).toBe('y');
+    expect(axisIdFor(axes, wide)).toBe('y2');
+  });
+
   it('puts an unrecognised series on the left axis', () => {
     expect(axisIdFor(seriesAxes([index('NDVI', -0.2, 1)]), null)).toBe('y');
   });

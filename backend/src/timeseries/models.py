@@ -1,4 +1,5 @@
 from sqlalchemy import (
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -8,6 +9,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
+from src.timeseries.expressions import series_index
+from src.timeseries.indices import SpectralIndex
 
 
 class TimeseriesWindow(Base):
@@ -56,8 +59,12 @@ class Timeseries(Base):
     end_ym: Mapped[str] = mapped_column(String(6), nullable=False)  # YYYYMM
     # A key of timeseries/sources.py (fetched through Earth Engine).
     data_source: Mapped[str] = mapped_column(String, nullable=False)
-    # A key of timeseries/indices.py.
+    # A key of timeseries/indices.py, or the name of the custom formula below.
     ts_type: Mapped[str] = mapped_column(String, nullable=False)
+    # A custom index an admin typed (see expressions.py) and its chart range.
+    expression: Mapped[str | None] = mapped_column(String)
+    domain_min: Mapped[float | None] = mapped_column(Float)
+    domain_max: Mapped[float | None] = mapped_column(Float)
 
     campaign = relationship("Campaign", back_populates="time_series")
     window: Mapped[TimeseriesWindow] = relationship(back_populates="series", lazy="joined")
@@ -65,3 +72,7 @@ class Timeseries(Base):
     @property
     def window_name(self) -> str:
         return self.window.name
+
+    @property
+    def spectral_index(self) -> SpectralIndex | None:
+        return series_index(self.ts_type, self.expression, self.domain_min, self.domain_max)

@@ -6,25 +6,25 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.timeseries.fetch import fetch_index_series, fetch_zonal_index_series
-from src.timeseries.indices import SpectralIndex, index_for
+from src.timeseries.indices import SpectralIndex
 from src.timeseries.models import Timeseries, TimeseriesWindow
 from src.timeseries.schemas import TimeseriesCreate
 from src.timeseries.sources import TimeseriesSource, source_for
 
 
-def _resolve(ts_type: str, data_source: str) -> tuple[TimeseriesSource, SpectralIndex]:
+def _resolve(
+    index: SpectralIndex | None, data_source: str
+) -> tuple[TimeseriesSource, SpectralIndex]:
     source = source_for(data_source)
     if source is None:
         raise ValueError(f"Unsupported data source: {data_source}")
-
-    index = index_for(ts_type)
     if index is None:
-        raise ValueError(f"Unknown index: {ts_type}")
+        raise ValueError("Unknown index")
     return source, index
 
 
 def get_timeseries_data(
-    ts_type: str,
+    index: SpectralIndex | None,
     data_source: str,
     latitude: float,
     longitude: float,
@@ -33,7 +33,7 @@ def get_timeseries_data(
 ) -> pd.DataFrame:
     """Resolve a stored series' source and index, then fetch its values. Raises
     ValueError if the stored combination is no longer one we can compute."""
-    source, index = _resolve(ts_type, data_source)
+    source, index = _resolve(index, data_source)
     return fetch_index_series(
         source,
         index,
@@ -45,13 +45,13 @@ def get_timeseries_data(
 
 
 def get_zonal_timeseries_data(
-    ts_type: str,
+    index: SpectralIndex | None,
     data_source: str,
     geometry: dict[str, Any],
     start_date: str,
     end_date: str,
 ) -> pd.DataFrame:
-    source, index = _resolve(ts_type, data_source)
+    source, index = _resolve(index, data_source)
     return fetch_zonal_index_series(
         source, index, geometry=geometry, start_date=start_date, end_date=end_date
     )

@@ -82,6 +82,8 @@ _S2_BANDS: dict[BandRole, str] = {
     "green": "B3",
     "red": "B4",
     "rededge1": "B5",
+    "rededge2": "B6",
+    "rededge3": "B7",
     "nir": "B8",
     "nir08": "B8A",
     "swir1": "B11",

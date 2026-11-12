@@ -1,6 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
+from src.timeseries.indices import INDICES_BY_KEY
 from src.timeseries.schemas import (
     TimeseriesCreate,
     TimeseriesOut,
@@ -91,6 +92,7 @@ class TestOutputCarriesTheIndexDescription:
             end_ym="202412",
             data_source="SENTINEL2",
             ts_type="GCVI",
+            spectral_index=INDICES_BY_KEY["GCVI"],
         )
         assert out.index is not None
         assert (out.index.domain_min, out.index.domain_max) == (0.0, 10.0)

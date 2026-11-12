@@ -12,6 +12,7 @@ from src.database import get_db
 from src.main import app
 from src.timeseries import router as ts_router
 from src.timeseries import service
+from src.timeseries.indices import INDICES_BY_KEY
 
 CAMPAIGN_ID = 4
 TS_ID = 55
@@ -35,6 +36,7 @@ def events(monkeypatch):
             end_ym="202403",
             ts_type="NDVI",
             data_source="MODIS",
+            spectral_index=INDICES_BY_KEY["NDVI"],
         )
 
     def fake_ee(**kwargs):
@@ -98,7 +100,7 @@ def test_zonal_series_releases_the_connection_and_passes_the_polygon(events, mon
     assert events == ["close", "earth_engine"]
     assert calls == [
         {
-            "ts_type": "NDVI",
+            "index": INDICES_BY_KEY["NDVI"],
             "data_source": "MODIS",
             "geometry": ZONE,
             "start_date": "2024-01-01",

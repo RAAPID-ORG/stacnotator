@@ -75,6 +75,22 @@ class _ImageTerm:
     def __rtruediv__(self, other: Any) -> "_ImageTerm":
         return _ImageTerm(ee.Image.constant(other).divide(self.image))
 
+    def __pow__(self, other: Any) -> "_ImageTerm":
+        return _ImageTerm(self.image.pow(self._value(other)))
+
+    def __rpow__(self, other: Any) -> "_ImageTerm":
+        return _ImageTerm(ee.Image.constant(other).pow(self.image))
+
+    def __neg__(self) -> "_ImageTerm":
+        return _ImageTerm(self.image.multiply(-1))
+
+    @classmethod
+    def apply(cls, name: str, args: list[Any]) -> "_ImageTerm":
+        """A custom-index function (expressions.FUNCTIONS); ee.Image has a method
+        of each name."""
+        first, *rest = (ee.Image(cls._value(arg)) for arg in args)
+        return _ImageTerm(getattr(first, name)(*rest))
+
 
 def index_image(image: Any, index: SpectralIndex) -> Any:
     """Evaluate an index formula against one prepared image, as a single band."""

@@ -351,16 +351,26 @@ export function seriesAxes(indices: (SpectralIndexOut | null | undefined)[]): Ch
   }
 
   let [near, far] = [bySpan.slice(0, splitAt).flat(), bySpan.slice(splitAt).flat()];
-  if (!near.some((index) => index.key === known[0].key)) [near, far] = [far, near];
+  if (!near.includes(known[0])) [near, far] = [far, near];
   return [axisOver('y', 'left', near), axisOver('y2', 'right', far)];
 }
 
-/** Which axis a series belongs on; the left one for anything unrecognised. */
+/** Which axis a series belongs on; the left one for anything unrecognised. Two
+ *  custom indices may share a name with different ranges, so the narrowest axis
+ *  that carries the name and spans the range wins. */
 export function axisIdFor(
   axes: ChartAxis[],
   index: SpectralIndexOut | null | undefined
 ): 'y' | 'y2' {
-  return axes.find((axis) => !!index && axis.indexKeys.includes(index.key))?.id ?? axes[0].id;
+  const fits = axes.filter(
+    (axis) =>
+      !!index &&
+      axis.indexKeys.includes(index.key) &&
+      axis.min <= index.domain_min &&
+      index.domain_max <= axis.max
+  );
+  fits.sort((a, b) => a.max - a.min - (b.max - b.min));
+  return fits[0]?.id ?? axes[0].id;
 }
 
 /** Muted horizontal lines at the values an index calls out, styled to match the

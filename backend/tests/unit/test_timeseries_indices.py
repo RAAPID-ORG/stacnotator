@@ -79,7 +79,7 @@ def test_formula_matches_hand_computed_value(key, expected):
         ("NDMI", "(NIR - SWIR1) / (NIR + SWIR1)"),
         ("NBR", "(NIR - SWIR2) / (NIR + SWIR2)"),
         ("MNDWI", "(Green - SWIR1) / (Green + SWIR1)"),
-        ("NDRE", "(NIRnarrow - RedEdge) / (NIRnarrow + RedEdge)"),
+        ("NDRE", "(NIRnarrow - RedEdge1) / (NIRnarrow + RedEdge1)"),
         (
             "TCW",
             "0.0315 * Blue + 0.2021 * Green + 0.3102 * Red + 0.1594 * NIR "

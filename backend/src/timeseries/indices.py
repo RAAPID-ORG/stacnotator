@@ -17,7 +17,9 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Literal
 
-BandRole = Literal["blue", "green", "red", "rededge1", "nir", "nir08", "swir1", "swir2"]
+BandRole = Literal[
+    "blue", "green", "red", "rededge1", "rededge2", "rededge3", "nir", "nir08", "swir1", "swir2"
+]
 
 Bands = Mapping[BandRole, Any]
 Formula = Callable[[Bands], Any]
@@ -141,14 +143,16 @@ ROLE_LABELS: dict[BandRole, str] = {
     "blue": "Blue",
     "green": "Green",
     "red": "Red",
-    "rededge1": "RedEdge",
+    "rededge1": "RedEdge1",
+    "rededge2": "RedEdge2",
+    "rededge3": "RedEdge3",
     "nir": "NIR",
     "nir08": "NIRnarrow",
     "swir1": "SWIR1",
     "swir2": "SWIR2",
 }
 
-_SUM, _PRODUCT, _ATOM = 1, 2, 3
+_SUM, _PRODUCT, _UNARY, _POWER, _ATOM = range(1, 6)
 
 
 @dataclass(frozen=True)
@@ -169,15 +173,22 @@ class _Term:
 
     @staticmethod
     def _of(value: Any) -> "_Term":
-        return value if isinstance(value, _Term) else _Term(f"{value:g}", _ATOM)
+        if isinstance(value, _Term):
+            return value
+        # A negative constant binds like unary minus: (-2) ** x is not -2 ** x.
+        # 15 significant digits shows a typed constant as typed, never rounded.
+        return _Term(f"{value:.15g}", _UNARY if value < 0 else _ATOM)
 
     def _combine(self, other: Any, operator: str, precedence: int) -> "_Term":
         right = _Term._of(other)
-        # Subtraction and division do not associate, so a right operand at the
-        # same precedence keeps its brackets: a - (b - c) is not a - b - c.
-        right_minimum = precedence + 1 if operator in "-/" else precedence
+        # An operand at the same precedence keeps its brackets unless dropping them
+        # means the same thing: a - (b - c) is not a - b - c, and power groups to
+        # the right (a ** b ** c is a ** (b ** c)).
+        groups_right = operator == "**"
+        left_minimum = precedence + 1 if groups_right else precedence
+        right_minimum = precedence if groups_right or operator in "+*" else precedence + 1
         return _Term(
-            f"{self._bracketed(precedence)} {operator} {right._bracketed(right_minimum)}",
+            f"{self._bracketed(left_minimum)} {operator} {right._bracketed(right_minimum)}",
             precedence,
         )
 
@@ -193,6 +204,9 @@ class _Term:
     def __truediv__(self, other: Any) -> "_Term":
         return self._combine(other, "/", _PRODUCT)
 
+    def __pow__(self, other: Any) -> "_Term":
+        return self._combine(other, "**", _POWER)
+
     # The reflected forms cannot delegate to the plain ones even where the
     # operation commutes: the operands have to render in the order written.
     def __radd__(self, other: Any) -> "_Term":
@@ -206,6 +220,16 @@ class _Term:
 
     def __rtruediv__(self, other: Any) -> "_Term":
         return _Term._of(other)._combine(self, "/", _PRODUCT)
+
+    def __rpow__(self, other: Any) -> "_Term":
+        return _Term._of(other)._combine(self, "**", _POWER)
+
+    def __neg__(self) -> "_Term":
+        return _Term(f"-{self._bracketed(_UNARY)}", _UNARY)
+
+    @classmethod
+    def apply(cls, name: str, args: list[Any]) -> "_Term":
+        return _Term(f"{name}({', '.join(_Term._of(arg).text for arg in args)})", _ATOM)
 
 
 def render_formula(index: SpectralIndex) -> str:

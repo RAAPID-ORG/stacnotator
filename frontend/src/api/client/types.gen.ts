@@ -2116,6 +2116,62 @@ export type ConfidenceFacet = {
 };
 
 /**
+ * CustomIndexIn
+ */
+export type CustomIndexIn = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Expression
+     */
+    expression: string;
+    /**
+     * Domain Min
+     */
+    domain_min: number;
+    /**
+     * Domain Max
+     */
+    domain_max: number;
+};
+
+/**
+ * CustomIndexOut
+ */
+export type CustomIndexOut = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Formula
+     */
+    formula: string;
+    /**
+     * Domain Min
+     */
+    domain_min: number;
+    /**
+     * Domain Max
+     */
+    domain_max: number;
+    /**
+     * Reference Lines
+     */
+    reference_lines: Array<number>;
+    /**
+     * Source Keys
+     */
+    source_keys: Array<string>;
+};
+
+/**
  * CustomMapCreate
  */
 export type CustomMapCreate = {
@@ -4960,6 +5016,18 @@ export type TimeseriesCreate = {
      * Ts Type
      */
     ts_type: string;
+    /**
+     * Expression
+     */
+    expression?: string | null;
+    /**
+     * Domain Min
+     */
+    domain_min?: number | null;
+    /**
+     * Domain Max
+     */
+    domain_max?: number | null;
 };
 
 /**
@@ -5035,10 +5103,10 @@ export type TimeseriesOut = {
      */
     ts_type: string;
     /**
-     * The index this series plots, so the chart can scale its axis and
-     * explain itself without a second request.
+     * Expression
      */
-    readonly index: SpectralIndexOut;
+    expression?: string | null;
+    index: SpectralIndexOut;
 };
 
 /**
@@ -5065,6 +5133,10 @@ export type TimeseriesSourceOut = {
      * Resolution M
      */
     resolution_m: number;
+    /**
+     * Bands
+     */
+    bands: Array<string>;
     /**
      * Index Keys
      */
@@ -5935,189 +6007,6 @@ export type ZonalTimeseriesRequest = {
 };
 
 /**
- * CampaignOut
- */
-export type CampaignOutWritable = {
-    /**
-     * Id
-     */
-    id: number;
-    /**
-     * Project Id
-     */
-    project_id: number;
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Created At
-     */
-    created_at: string;
-    /**
-     * Is Public
-     */
-    is_public?: boolean;
-    /**
-     * Registration Status
-     */
-    registration_status?: string;
-    /**
-     * Embedding Status
-     */
-    embedding_status?: string;
-    /**
-     * Registration Errors
-     */
-    registration_errors?: Array<{
-        [key: string]: unknown;
-    }> | null;
-    /**
-     * Embedding Errors
-     */
-    embedding_errors?: Array<{
-        [key: string]: unknown;
-    }> | null;
-    /**
-     * Annotations Version
-     */
-    annotations_version?: number;
-    /**
-     * Viewer Is Admin
-     */
-    viewer_is_admin?: boolean;
-    /**
-     * Viewer Is Member
-     */
-    viewer_is_member?: boolean;
-    /**
-     * Viewer Is Authoritative Reviewer
-     */
-    viewer_is_authoritative_reviewer?: boolean;
-    settings: CampaignSettingsOut;
-    /**
-     * Imagery Sources
-     */
-    imagery_sources: Array<ImagerySourceOut>;
-    /**
-     * Imagery Views
-     */
-    imagery_views: Array<ImageryViewOut>;
-    /**
-     * Basemaps
-     */
-    basemaps: Array<BasemapOut>;
-    /**
-     * Custom Maps
-     */
-    custom_maps?: Array<CustomMapOut>;
-    /**
-     * Vector Layers
-     */
-    vector_layers?: Array<VectorLayerOut>;
-    /**
-     * Time Series
-     */
-    time_series: Array<TimeseriesOutWritable>;
-};
-
-/**
- * CampaignOutFull
- *
- * A campaign with its main canvas layouts, validated with the viewer's
- * user_id in the context so their personal layouts come along.
- */
-export type CampaignOutFullWritable = {
-    /**
-     * Id
-     */
-    id: number;
-    /**
-     * Project Id
-     */
-    project_id: number;
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Created At
-     */
-    created_at: string;
-    /**
-     * Is Public
-     */
-    is_public?: boolean;
-    /**
-     * Registration Status
-     */
-    registration_status?: string;
-    /**
-     * Embedding Status
-     */
-    embedding_status?: string;
-    /**
-     * Registration Errors
-     */
-    registration_errors?: Array<{
-        [key: string]: unknown;
-    }> | null;
-    /**
-     * Embedding Errors
-     */
-    embedding_errors?: Array<{
-        [key: string]: unknown;
-    }> | null;
-    /**
-     * Annotations Version
-     */
-    annotations_version?: number;
-    /**
-     * Viewer Is Admin
-     */
-    viewer_is_admin?: boolean;
-    /**
-     * Viewer Is Member
-     */
-    viewer_is_member?: boolean;
-    /**
-     * Viewer Is Authoritative Reviewer
-     */
-    viewer_is_authoritative_reviewer?: boolean;
-    settings: CampaignSettingsOut;
-    /**
-     * Imagery Sources
-     */
-    imagery_sources: Array<ImagerySourceOut>;
-    /**
-     * Imagery Views
-     */
-    imagery_views: Array<ImageryViewOut>;
-    /**
-     * Basemaps
-     */
-    basemaps: Array<BasemapOut>;
-    /**
-     * Custom Maps
-     */
-    custom_maps?: Array<CustomMapOut>;
-    /**
-     * Vector Layers
-     */
-    vector_layers?: Array<VectorLayerOut>;
-    /**
-     * Time Series
-     */
-    time_series: Array<TimeseriesOutWritable>;
-    default_main_canvas_layout?: CanvasLayoutOut | null;
-    personal_main_canvas_layout?: CanvasLayoutOut | null;
-    /**
-     * Imagery Renew At
-     */
-    imagery_renew_at?: string | null;
-};
-
-/**
  * MeOut
  *
  * The signed-in user's own record. Carries both terms versions so the client
@@ -6152,60 +6041,6 @@ export type MeOutWritable = {
      * Terms Accepted Version
      */
     terms_accepted_version?: string | null;
-};
-
-/**
- * TimeseriesBulkCreateResponse
- */
-export type TimeseriesBulkCreateResponseWritable = {
-    /**
-     * New Items
-     */
-    new_items: Array<TimeseriesOutWritable>;
-};
-
-/**
- * TimeseriesOut
- *
- * What comes back carries the resolved index description besides the keys.
- */
-export type TimeseriesOutWritable = {
-    /**
-     * Id
-     */
-    id: number;
-    /**
-     * Campaign Id
-     */
-    campaign_id: number;
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Window Id
-     */
-    window_id: number;
-    /**
-     * Window Name
-     */
-    window_name: string;
-    /**
-     * Start Ym
-     */
-    start_ym: string;
-    /**
-     * End Ym
-     */
-    end_ym: string;
-    /**
-     * Data Source
-     */
-    data_source: string;
-    /**
-     * Ts Type
-     */
-    ts_type: string;
 };
 
 export type MeData = {
@@ -9337,6 +9172,31 @@ export type GetTimeseriesCreationOptionsResponses = {
 };
 
 export type GetTimeseriesCreationOptionsResponse = GetTimeseriesCreationOptionsResponses[keyof GetTimeseriesCreationOptionsResponses];
+
+export type PreviewCustomIndexData = {
+    body: CustomIndexIn;
+    path?: never;
+    query?: never;
+    url: '/api/timeseries/custom-indices/preview';
+};
+
+export type PreviewCustomIndexErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PreviewCustomIndexError = PreviewCustomIndexErrors[keyof PreviewCustomIndexErrors];
+
+export type PreviewCustomIndexResponses = {
+    /**
+     * Successful Response
+     */
+    200: CustomIndexOut;
+};
+
+export type PreviewCustomIndexResponse = PreviewCustomIndexResponses[keyof PreviewCustomIndexResponses];
 
 export type RenameTimeseriesWindowData = {
     body: TimeseriesWindowRenameRequest;
