@@ -41,7 +41,8 @@ function loadDetailsIntoForm(details: TaskOut, currentUserId: string | null): vo
   if (!mine) return;
   const work = useWorkStore.getState();
   work.setFormValues(mine.form_values ?? {});
-  work.setSliceNotes(toNotes(mine.slice_comments));
+  // Notes drafted while the details loaded win over the stored ones on their slice.
+  work.setSliceNotes({ ...toNotes(mine.slice_comments), ...work.sliceNotes });
 }
 
 /** Holds the form fields' place while the viewer's stored answers load. */

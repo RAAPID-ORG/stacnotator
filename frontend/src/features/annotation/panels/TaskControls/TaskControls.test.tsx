@@ -281,3 +281,36 @@ describe('TaskControls validate toggle', () => {
     }
   });
 });
+
+describe('TaskControls stored answers', () => {
+  const note = (sliceId: number, text: string) => ({
+    slice_id: sliceId,
+    text,
+    source_name: null,
+    start_date: null,
+    end_date: null,
+  });
+
+  it('keeps slice notes drafted while the stored answer was loading', async () => {
+    const answered = makeTask({
+      id: 3,
+      annotation_number: 3,
+      annotations: [
+        makeTaskAnnotation({ id: 11, created_by_user_id: 'u1', slice_comments: [note(1, 'old')] }),
+      ],
+    });
+    seed(OPEN_POLICY, [answered]);
+    useTasksStore.setState({ currentDetails: null });
+    render(<TaskControls />);
+
+    act(() => useWorkStore.getState().setSliceNotes({ 2: note(2, 'typed meanwhile') }));
+    act(() => useTasksStore.setState({ currentDetails: answered }));
+
+    await waitFor(() =>
+      expect(useWorkStore.getState().sliceNotes).toEqual({
+        1: note(1, 'old'),
+        2: note(2, 'typed meanwhile'),
+      })
+    );
+  });
+});

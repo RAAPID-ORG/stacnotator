@@ -180,9 +180,9 @@ def task_summary_json(
     # are, which makes JIT compilation look worth it: it cost more than the query.
     db.execute(text("SET LOCAL jit = off"))
     # An author's first answer can commit between the lookup above and the statement,
-    # which then has no rule for them; the statement names such authors, and one more
-    # pass with them included settles it.
-    for _ in range(3):
+    # which then has no rule for them; the statement names such authors and runs again
+    # with them included. A body with an author lacking a rule is never returned.
+    while True:
         completion = completion_by_author(db, campaign, authors)
         ordered = sorted(authors)
         body, unknown = db.execute(
@@ -198,7 +198,6 @@ def task_summary_json(
             },
         ).one()
         if not unknown:
-            break
+            result: str = body
+            return result.encode()
         authors |= {UUID(a) for a in unknown}
-    result: str = body
-    return result.encode()
