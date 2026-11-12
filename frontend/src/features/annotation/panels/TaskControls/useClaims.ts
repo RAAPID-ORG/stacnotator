@@ -1,6 +1,7 @@
 import i18n from '~/shared/i18n';
 import { useEffect } from 'react';
-import { claimTask, type TaskOut } from '~/api/client';
+import { claimTask } from '~/api/client';
+import type { TaskRow } from '~/shared/utils/taskSummary';
 import { handleError } from '~/shared/utils/errorHandler';
 import { getActiveClaim, isClaimable } from '../../campaign/tasks';
 
@@ -10,7 +11,7 @@ export const CLAIM_RENEW_MS = 10 * 60 * 1000;
 
 export interface ClaimTaskParams {
   campaignId: number;
-  task: TaskOut;
+  task: TaskRow;
   currentUserId: string;
   now: number;
 }
@@ -19,7 +20,7 @@ export interface ClaimTaskParams {
  *  the server says about its holder - which may be somebody else. Contention
  *  is not an error: the badge shows who is on it and labelling stays allowed.
  *  Returns null when there was nothing to do. */
-export async function requestClaim(params: ClaimTaskParams): Promise<TaskOut | null> {
+export async function requestClaim(params: ClaimTaskParams): Promise<TaskRow | null> {
   const { campaignId, task, currentUserId, now } = params;
   const claim = getActiveClaim(task, now);
   if (claim && claim.userId !== currentUserId) return null;
@@ -48,8 +49,8 @@ export interface UseClaimsOptions {
   /** Reads live task-list state; called at claim time, not effect-setup
    *  time, so a 10-minute-later renewal claims the current task even if the
    *  list changed since this effect last (re)ran. */
-  getTask: () => TaskOut | null;
-  onClaimed: (task: TaskOut) => void;
+  getTask: () => TaskRow | null;
+  onClaimed: (task: TaskRow) => void;
 }
 
 export function useClaims(options: UseClaimsOptions): void {
@@ -65,7 +66,7 @@ export function useClaims(options: UseClaimsOptions): void {
       // A claim is best-effort: the request can fail (offline, 500) and the
       // renewal timer must survive it, so the failure is reported once and
       // swallowed rather than escaping as an unhandled rejection.
-      let updated: TaskOut | null;
+      let updated: TaskRow | null;
       try {
         updated = await requestClaim({ campaignId, task, currentUserId, now: Date.now() });
       } catch (error) {

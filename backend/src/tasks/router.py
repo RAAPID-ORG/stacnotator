@@ -4,6 +4,7 @@ them, who holds one, and importing them."""
 import io
 import zipfile
 from datetime import datetime
+from typing import Annotated
 
 from fastapi import (
     APIRouter,
@@ -12,13 +13,13 @@ from fastapi import (
     Form,
     HTTPException,
     Query,
+    Response,
     UploadFile,
 )
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
-from src.annotation import spatial
 from src.annotation.tiles import InvalidBBoxError, parse_bbox
 from src.auth.dependencies import require_authenticated_user
 from src.auth.models import User
@@ -26,7 +27,7 @@ from src.campaigns.dependencies import require_campaign_access, require_campaign
 from src.campaigns.models import Campaign
 from src.database import get_db
 from src.routing import attachment_headers
-from src.tasks import assignments, claims, embeddings, ingest, service, task_sets
+from src.tasks import assignments, claims, embeddings, ingest, service, summary, task_sets
 from src.tasks.schemas import (
     AssignReviewersRequest,
     AssignTasksToUsersRequest,
@@ -37,17 +38,19 @@ from src.tasks.schemas import (
     ImportTaskAssignmentsResult,
     MoveTasksToSetRequest,
     MoveTasksToSetResult,
-    TaskChangesOut,
     TaskDensityCell,
     TaskListOut,
-    TaskOut,
     TaskSetCreate,
     TaskSetOut,
     TaskSetRename,
+    TaskSummaryOut,
     UnassignTasksRequest,
     ValidateLabelSubmissionsResponse,
 )
 from src.tasks.task_sets import require_task_set
+
+# Details serve the tasks one view shows at a time (the current one, a table page).
+MAX_TASK_DETAILS = 200
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
@@ -57,35 +60,38 @@ router = APIRouter(
 )
 
 
-@router.get("/tasks", response_model=TaskListOut)
-def list_tasks(
-    campaign_id: int,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_access),
-):
-    tasks = service.get_tasks(db, campaign)
-    return TaskListOut(campaign_id=campaign.id, tasks=tasks)
-
-
-@router.get(
-    "/tasks/changes",
-    response_model=TaskChangesOut,
-)
-def list_task_changes(
+@router.get("/tasks/summary", response_model=TaskSummaryOut)
+def get_task_summary(
     campaign_id: int,
     since: datetime | None = None,
     db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
     campaign: Campaign = Depends(require_campaign_access),
-) -> TaskChangesOut:
-    """Tasks changed since ``since``, so one annotator's list reflects
-    everyone's work and the admins' edits without reloading it. Without ``since``
-    it only hands back the cursor, like the annotation changes poll."""
-    now = spatial.server_now(db)
-    if since is None:
-        return TaskChangesOut(server_time=now, tasks=[])
-    task_ids = service.get_changed_task_ids(db, campaign.id, since)
-    tasks = service.get_tasks(db, campaign, task_ids) if task_ids else []
-    return TaskChangesOut(server_time=now, tasks=tasks)
+) -> Response:
+    """Every task of the campaign as a columnar summary, or with ``since`` only the
+    tasks changed since that cursor, so a page keeps one list current without
+    reloading it. Built by Postgres and passed through as it comes."""
+    task_ids = None if since is None else service.get_changed_task_ids(db, campaign.id, since)
+    body = summary.task_summary_json(db, campaign, task_ids, with_email=user.is_platform_admin)
+    return Response(content=body, media_type="application/json")
+
+
+@router.get("/tasks/details", response_model=TaskListOut)
+def get_task_details(
+    campaign_id: int,
+    ids: Annotated[list[int] | None, Query(max_length=MAX_TASK_DETAILS)] = None,
+    first: Annotated[int | None, Query(ge=1, le=MAX_TASK_DETAILS)] = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
+    campaign: Campaign = Depends(require_campaign_access),
+) -> TaskListOut:
+    """Everything about a few tasks, including what the summary leaves out: geometry,
+    form values, slice notes and the imagery each answer was given on. The tasks are
+    either ``ids`` or the ``first`` few in annotation order."""
+    if (ids is None) == (first is None):
+        raise HTTPException(status_code=422, detail="Give either ids or first")
+    tasks = service.read_tasks(db, campaign, ids, with_email=user.is_platform_admin, first=first)
+    return TaskListOut(campaign_id=campaign.id, tasks=tasks)
 
 
 @router.post(
@@ -138,8 +144,9 @@ def claim_next_task(
         user_id=user.id,
         task_set_id=task_set_id,
         after_annotation_number=after_annotation_number,
+        with_email=user.is_platform_admin,
     )
-    return ClaimNextResponse(task=TaskOut.model_validate(task) if task else None)
+    return ClaimNextResponse(task=task)
 
 
 @router.get(

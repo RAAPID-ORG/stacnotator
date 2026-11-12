@@ -1,12 +1,12 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as api from '~/api/client';
-import type { TaskOut } from '~/api/client';
+import type { TaskRow } from '~/shared/utils/taskSummary';
 import {
   apiSuccess,
   makeClaimTaskResponse,
-  makeTask,
-  makeTaskAnnotation,
+  makeTaskRow,
+  makeTaskRowAnswer,
 } from '~/features/annotation/testing/fixtures';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { CLAIM_RENEW_MS, requestClaim, useClaims } from './useClaims';
@@ -16,7 +16,7 @@ vi.mock('~/api/client', async () => {
   return { ...actual, claimTask: vi.fn() };
 });
 
-const UNCLAIMED_TASK: TaskOut = makeTask({
+const UNCLAIMED_TASK: TaskRow = makeTaskRow({
   id: 1,
   annotation_number: 1,
   task_status: 'pending',
@@ -72,9 +72,9 @@ describe('requestClaim', () => {
   });
 
   it('is a no-op for a task we neither hold nor can claim (already labeled)', async () => {
-    const labeledTask: TaskOut = {
+    const labeledTask: TaskRow = {
       ...UNCLAIMED_TASK,
-      annotations: [makeTaskAnnotation({ id: 5, label_id: 2, created_by_user_id: 'someone-else' })],
+      annotations: [makeTaskRowAnswer({ id: 5, label_id: 2, created_by_user_id: 'someone-else' })],
     };
 
     const result = await requestClaim({
@@ -89,7 +89,7 @@ describe('requestClaim', () => {
   });
 
   it('does not re-request a claim we took moments ago', async () => {
-    const heldTask: TaskOut = {
+    const heldTask: TaskRow = {
       ...UNCLAIMED_TASK,
       claimed_by_user_id: 'u1',
       claimed_at: new Date(0).toISOString(),
@@ -107,7 +107,7 @@ describe('requestClaim', () => {
   });
 
   it('renews our own claim once it is old enough to be worth refreshing', async () => {
-    const heldTask: TaskOut = {
+    const heldTask: TaskRow = {
       ...UNCLAIMED_TASK,
       claimed_by_user_id: 'u1',
       claimed_at: new Date(0).toISOString(),
@@ -127,7 +127,7 @@ describe('requestClaim', () => {
   });
 
   it('leaves a task somebody else holds alone', async () => {
-    const heldByOther: TaskOut = {
+    const heldByOther: TaskRow = {
       ...UNCLAIMED_TASK,
       claimed_by_user_id: 'u2',
       claimed_at: new Date(0).toISOString(),

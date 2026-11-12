@@ -2,8 +2,11 @@ import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import type { TaskOut } from '~/api/client';
+import { Skeleton } from '~/shared/ui/Skeleton';
+import type { TaskRow } from '~/shared/utils/taskSummary';
 import { isLabelGroupActive } from '../../campaign/annotation';
 import { toNotes } from '../../campaign/sliceComments';
+import { awaitingOwnAnswer } from '../../campaign/tasks';
 import { useCampaign, useCampaignStore, useCatalog } from '../../stores/campaign';
 import { useWorkStore } from '../../stores/work';
 import { activeGroupClass } from '../../components/FormFields';
@@ -14,12 +17,13 @@ import { ReviewList } from './ReviewList';
 import { ActionBar, CommentSection, ConfidenceSection, FieldsSection } from './sections';
 import { sectionCellClass, sectionGridClass } from './styles';
 import { sectionHeaderClass } from '../../components/FormFields';
-import { currentTask, useTasksStore } from '../../stores/tasks';
+import { currentTask, useCurrentTaskDetails, useTasksStore } from '../../stores/tasks';
 import { useClaims } from './useClaims';
 
 /** Populates the work-store form from a task's existing annotation by the
- *  current user, or blanks it for a task with none yet. */
-function loadTaskIntoForm(task: TaskOut | null, currentUserId: string | null): void {
+ *  current user, or blanks it for a task with none yet. Form values and slice
+ *  notes follow with the details (`loadDetailsIntoForm`). */
+function loadTaskIntoForm(task: TaskRow | null, currentUserId: string | null): void {
   const work = useWorkStore.getState();
   const mine = task?.annotations.find((a) => a.created_by_user_id === currentUserId) ?? null;
   work.setSelectedLabelId(mine?.label_id ?? null);
@@ -27,9 +31,32 @@ function loadTaskIntoForm(task: TaskOut | null, currentUserId: string | null): v
   work.setConfidence(mine?.confidence ?? DEFAULT_CONFIDENCE);
   work.setFlagged(mine?.flagged_for_review ?? false);
   work.setFlagComment(mine?.flag_comment ?? '');
-  work.setFormValues(mine?.form_values ?? {});
-  work.setSliceNotes(toNotes(mine?.slice_comments));
+  work.setFormValues({});
+  work.setSliceNotes({});
   work.setActiveFieldIndex(null);
+}
+
+function loadDetailsIntoForm(details: TaskOut, currentUserId: string | null): void {
+  const mine = details.annotations.find((a) => a.created_by_user_id === currentUserId);
+  if (!mine) return;
+  const work = useWorkStore.getState();
+  work.setFormValues(mine.form_values ?? {});
+  // Notes drafted while the details loaded win over the stored ones on their slice.
+  work.setSliceNotes({ ...toNotes(mine.slice_comments), ...work.sliceNotes });
+}
+
+/** Holds the form fields' place while the viewer's stored answers load. */
+function FieldsSkeleton({ count }: { count: number }) {
+  return (
+    <>
+      {Array.from({ length: count }, (_, i) => (
+        <div key={i} className={`${sectionCellClass} gap-1.5`}>
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-7 w-full" />
+        </div>
+      ))}
+    </>
+  );
 }
 
 export function TaskControls() {
@@ -50,6 +77,7 @@ export function TaskControls() {
   const setKnnValidationEnabled = useTasksStore((s) => s.setKnnValidationEnabled);
   const isReviewMode = useCampaignStore((s) => s.isReviewMode);
   const task = visibleTasks[currentIndex] ?? null;
+  const details = useCurrentTaskDetails();
 
   const selectedLabelId = useWorkStore((s) => s.selectedLabelId);
   const activeFieldIndex = useWorkStore((s) => s.activeFieldIndex);
@@ -70,6 +98,10 @@ export function TaskControls() {
     if (!drawTask) loadTaskIntoForm(task, currentUserId);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload the form whenever the current task identity or user changes, not on every object replacement or keystroke against it
   }, [task?.id, currentUserId]);
+  useEffect(() => {
+    if (!drawTask && details) loadDetailsIntoForm(details, currentUserId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per task: a refetch after a merge must not overwrite edits in progress
+  }, [details?.id, currentUserId]);
 
   useClaims({
     campaignId: campaign.id,
@@ -98,7 +130,9 @@ export function TaskControls() {
     // the full width on top.
     <div className="@container flex h-full w-full flex-col bg-white">
       <div data-task-scroll className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-        {isReviewMode && <ReviewList task={task} currentUserId={currentUserId} labels={labels} />}
+        {isReviewMode && (
+          <ReviewList task={task} details={details} currentUserId={currentUserId} labels={labels} />
+        )}
         {drawTask ? (
           <ExploreControls />
         ) : (
@@ -138,7 +172,11 @@ export function TaskControls() {
                 disabled={isSubmitting}
               />
             </div>
-            <FieldsSection />
+            {awaitingOwnAnswer(task, details, currentUserId) ? (
+              <FieldsSkeleton count={fields.length} />
+            ) : (
+              <FieldsSection />
+            )}
             <CommentSection />
             <ConfidenceSection />
           </div>

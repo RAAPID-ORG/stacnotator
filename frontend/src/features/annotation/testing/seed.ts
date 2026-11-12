@@ -4,6 +4,7 @@ import { useCampaignStore, type WorkMode } from '../stores/campaign';
 import { useImageryStore } from '../stores/imagery';
 import { useLayoutStore } from '../stores/layout';
 import { useTasksStore } from '../stores/tasks';
+import { taskRowFromTaskOut } from '~/shared/utils/taskSummary';
 import { useWorkStore } from '../stores/work';
 import type { TaskOut, CampaignOutFull, TaskSetOut } from '~/api/client';
 import type { TaskFilter } from '../campaign/tasks';
@@ -50,12 +51,18 @@ export function seedCampaign(campaign: CampaignOutFull, options: SeedOptions = {
   });
   useLayoutStore.setState({ currentLayout: layout, savedLayout: layout, editing: false });
   useImageryStore.getState().reset({});
+  const tasks = options.tasks ?? [];
   useTasksStore.getState().initialize({
-    tasks: options.tasks ?? [],
+    tasks: tasks.map(taskRowFromTaskOut),
     taskSets: options.taskSets ?? [],
+    syncCursor: null,
     filter: options.filter ?? DEFAULT_FILTER,
     catalog,
     now: options.now ?? 0,
   });
+  // As if the current task's details had already arrived.
+  const { visibleTasks, currentIndex } = useTasksStore.getState();
+  const details = tasks.find((task) => task.id === visibleTasks[currentIndex]?.id) ?? null;
+  useTasksStore.setState({ currentDetails: details });
   return catalog;
 }

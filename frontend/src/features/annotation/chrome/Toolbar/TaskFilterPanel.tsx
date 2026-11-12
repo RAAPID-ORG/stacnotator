@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import type { TaskOut, TaskSetOut } from '~/api/client';
+import type { TaskSetOut } from '~/api/client';
+import type { TaskRow } from '~/shared/utils/taskSummary';
 import { extendedLabels } from '../../campaign/annotation';
 import { TASK_STATUSES, type TaskStatus } from '~/shared/utils/taskStatus';
 import { computeTaskProgress, UNASSIGNED, UNLABELLED, type TaskFilter } from '../../campaign/tasks';
@@ -7,7 +8,7 @@ import { useCampaignStore } from '../../stores/campaign';
 import { IconFlag } from '~/shared/ui/Icons';
 
 export interface TaskFilterPanelProps {
-  tasks: TaskOut[];
+  tasks: TaskRow[];
   taskSets: TaskSetOut[];
   taskFilter: TaskFilter;
   onTaskFilterChange: (patch: Partial<TaskFilter>) => void;

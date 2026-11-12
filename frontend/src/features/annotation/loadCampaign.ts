@@ -1,4 +1,5 @@
-import { listTasks, getCampaignWithImageryWindows, listTaskSets } from '~/api/client';
+import { getCampaignWithImageryWindows, getTaskSummary, listTaskSets } from '~/api/client';
+import { decodeTaskSummary } from '~/shared/utils/taskSummary';
 import { restoreSnapshot } from './campaign/imageryNav';
 import { layoutForView } from './canvas/grid';
 import { openingWorkMode, seedFilter } from './campaign/tasks';
@@ -38,15 +39,16 @@ export async function loadCampaign(
   campaignId: number,
   options: LoadOptions
 ): Promise<{ annotationId: number | null }> {
-  const [campaignRes, tasksRes, setsRes] = await Promise.all([
+  const [campaignRes, summaryRes, setsRes] = await Promise.all([
     getCampaignWithImageryWindows({ path: { campaign_id: campaignId } }),
-    listTasks({ path: { campaign_id: campaignId } }),
+    getTaskSummary({ path: { campaign_id: campaignId } }),
     listTaskSets({ path: { campaign_id: campaignId } }),
   ]);
 
   const campaign = campaignRes.data;
   if (!campaign) throw new Error(`loadCampaign: no data for ${campaignId}`);
-  const tasks = tasksRes.data?.tasks ?? [];
+  const summary = summaryRes.data;
+  const tasks = summary ? decodeTaskSummary(summary) : [];
   const taskSets = setsRes.data ?? [];
   const catalog = catalogFor(campaign);
   const view = campaign.imagery_views[0] ?? null;
@@ -95,6 +97,7 @@ export async function loadCampaign(
   useTasksStore.getState().initialize({
     tasks,
     taskSets,
+    syncCursor: summary?.server_time ?? null,
     filter,
     catalog,
     now: options.now,

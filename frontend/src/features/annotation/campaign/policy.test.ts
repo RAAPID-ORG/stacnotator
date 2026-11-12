@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { PolicyAudience } from '~/api/client';
 import type { PolicyContext } from '~/features/campaigns/utils/labellingPolicy';
-import { makeCampaign, makeTask, makeTaskAnnotation } from '../testing/fixtures';
+import { makeCampaign, makeTaskRow, makeTaskRowAnswer } from '../testing/fixtures';
 import { canModifyAnnotation } from './annotation';
 import { openingWorkMode } from './tasks';
 
@@ -56,13 +56,13 @@ describe('openingWorkMode', () => {
   const member = ctx({ isMember: true });
 
   it('opens on Tasks while a task the viewer may answer still waits on them', () => {
-    expect(openingWorkMode([makeTask()], policy, member)).toBe('tasks');
+    expect(openingWorkMode([makeTaskRow()], policy, member)).toBe('tasks');
   });
 
   it('opens on Explore once every task is finished or answered by the viewer', () => {
     const tasks = [
-      makeTask({ id: 1, task_status: 'done' }),
-      makeTask({ id: 2, annotations: [makeTaskAnnotation({ created_by_user_id: USER })] }),
+      makeTaskRow({ id: 1, task_status: 'done' }),
+      makeTaskRow({ id: 2, annotations: [makeTaskRowAnswer({ created_by_user_id: USER })] }),
     ];
     expect(openingWorkMode(tasks, policy, member)).toBe('explore');
   });

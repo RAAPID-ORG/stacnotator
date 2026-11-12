@@ -4534,23 +4534,6 @@ export type TaskAssignmentOut = {
 };
 
 /**
- * TaskChangesOut
- *
- * Tasks that changed since a cursor, re-read whole, and the cursor for the
- * next poll. Same clock as :class:`AnnotationChangesOut`.
- */
-export type TaskChangesOut = {
-    /**
-     * Server Time
-     */
-    server_time: string;
-    /**
-     * Tasks
-     */
-    tasks: Array<TaskOut>;
-};
-
-/**
  * TaskDensityCell
  *
  * One grid cell's worth of tasks sharing a status and a label: where they sit and
@@ -4732,6 +4715,171 @@ export type TaskSubmitResponse = {
      */
     assignment_status: 'pending' | 'done' | 'skipped';
     annotation: AnnotationFromTaskOut;
+};
+
+/**
+ * TaskSummaryAnswers
+ *
+ * Each task row, without what only one task's view shows (its form values, slice
+ * notes and imagery): `GET /tasks/details` has those.
+ */
+export type TaskSummaryAnswers = {
+    /**
+     * Id
+     */
+    id: Array<number>;
+    /**
+     * Task
+     */
+    task: Array<number>;
+    /**
+     * User
+     */
+    user: Array<number>;
+    /**
+     * Label Id
+     */
+    label_id: Array<number | null>;
+    /**
+     * Outcome
+     */
+    outcome: Array<'labelled' | 'skipped' | 'drawn' | 'none_found'>;
+    /**
+     * Confidence
+     */
+    confidence: Array<number | null>;
+    /**
+     * Flagged For Review
+     */
+    flagged_for_review: Array<boolean>;
+    /**
+     * Active Seconds
+     */
+    active_seconds: Array<number | null>;
+    /**
+     * Is Authoritative
+     */
+    is_authoritative: Array<boolean>;
+    /**
+     * Counts Toward Completion
+     */
+    counts_toward_completion: Array<boolean>;
+    /**
+     * Comment
+     */
+    comment: Array<string | null>;
+    /**
+     * Flag Comment
+     */
+    flag_comment: Array<string | null>;
+    /**
+     * Updated At
+     */
+    updated_at: Array<string>;
+    /**
+     * Answered Field Ids
+     */
+    answered_field_ids: Array<Array<string>>;
+};
+
+/**
+ * TaskSummaryAssignments
+ */
+export type TaskSummaryAssignments = {
+    /**
+     * Task
+     */
+    task: Array<number>;
+    /**
+     * User
+     */
+    user: Array<number>;
+    /**
+     * Status
+     */
+    status: Array<'pending' | 'done' | 'skipped'>;
+};
+
+/**
+ * TaskSummaryOut
+ */
+export type TaskSummaryOut = {
+    /**
+     * Campaign Id
+     */
+    campaign_id: number;
+    /**
+     * Server Time
+     */
+    server_time: string;
+    users: TaskSummaryUsers;
+    tasks: TaskSummaryTasks;
+    assignments: TaskSummaryAssignments;
+    answers: TaskSummaryAnswers;
+};
+
+/**
+ * TaskSummaryTasks
+ */
+export type TaskSummaryTasks = {
+    /**
+     * Id
+     */
+    id: Array<number>;
+    /**
+     * Annotation Number
+     */
+    annotation_number: Array<number>;
+    /**
+     * Task Set Id
+     */
+    task_set_id: Array<number>;
+    /**
+     * Task Status
+     */
+    task_status: Array<'pending' | 'partial' | 'done' | 'skipped' | 'conflicting'>;
+    /**
+     * Claimed By
+     */
+    claimed_by: Array<number | null>;
+    /**
+     * Claimed At
+     */
+    claimed_at: Array<string | null>;
+    /**
+     * Lon
+     */
+    lon: Array<number>;
+    /**
+     * Lat
+     */
+    lat: Array<number>;
+    /**
+     * Nearby Annotation Count
+     */
+    nearby_annotation_count: Array<number>;
+    /**
+     * Drawn By
+     */
+    drawn_by: Array<Array<number>>;
+};
+
+/**
+ * TaskSummaryUsers
+ */
+export type TaskSummaryUsers = {
+    /**
+     * Id
+     */
+    id: Array<string>;
+    /**
+     * Display Name
+     */
+    display_name: Array<string>;
+    /**
+     * Email
+     */
+    email: Array<string | null>;
 };
 
 /**
@@ -8342,65 +8490,7 @@ export type GetAnnotationDensityResponses = {
 
 export type GetAnnotationDensityResponse = GetAnnotationDensityResponses[keyof GetAnnotationDensityResponses];
 
-export type DeleteTasksData = {
-    body: DeleteTasksRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/tasks';
-};
-
-export type DeleteTasksErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type DeleteTasksError = DeleteTasksErrors[keyof DeleteTasksErrors];
-
-export type DeleteTasksResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
-export type ListTasksData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/tasks';
-};
-
-export type ListTasksErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ListTasksError = ListTasksErrors[keyof ListTasksErrors];
-
-export type ListTasksResponses = {
-    /**
-     * Successful Response
-     */
-    200: TaskListOut;
-};
-
-export type ListTasksResponse = ListTasksResponses[keyof ListTasksResponses];
-
-export type ListTaskChangesData = {
+export type GetTaskSummaryData = {
     body?: never;
     path: {
         /**
@@ -8414,26 +8504,65 @@ export type ListTaskChangesData = {
          */
         since?: string | null;
     };
-    url: '/api/campaigns/{campaign_id}/tasks/changes';
+    url: '/api/campaigns/{campaign_id}/tasks/summary';
 };
 
-export type ListTaskChangesErrors = {
+export type GetTaskSummaryErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type ListTaskChangesError = ListTaskChangesErrors[keyof ListTaskChangesErrors];
+export type GetTaskSummaryError = GetTaskSummaryErrors[keyof GetTaskSummaryErrors];
 
-export type ListTaskChangesResponses = {
+export type GetTaskSummaryResponses = {
     /**
      * Successful Response
      */
-    200: TaskChangesOut;
+    200: TaskSummaryOut;
 };
 
-export type ListTaskChangesResponse = ListTaskChangesResponses[keyof ListTaskChangesResponses];
+export type GetTaskSummaryResponse = GetTaskSummaryResponses[keyof GetTaskSummaryResponses];
+
+export type GetTaskDetailsData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: {
+        /**
+         * Ids
+         */
+        ids?: Array<number> | null;
+        /**
+         * First
+         */
+        first?: number | null;
+    };
+    url: '/api/campaigns/{campaign_id}/tasks/details';
+};
+
+export type GetTaskDetailsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetTaskDetailsError = GetTaskDetailsErrors[keyof GetTaskDetailsErrors];
+
+export type GetTaskDetailsResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskListOut;
+};
+
+export type GetTaskDetailsResponse = GetTaskDetailsResponses[keyof GetTaskDetailsResponses];
 
 export type ClaimTaskData = {
     body?: never;
@@ -8737,6 +8866,34 @@ export type AssignReviewersErrors = {
 export type AssignReviewersError = AssignReviewersErrors[keyof AssignReviewersErrors];
 
 export type AssignReviewersResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type DeleteTasksData = {
+    body: DeleteTasksRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/tasks';
+};
+
+export type DeleteTasksErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteTasksError = DeleteTasksErrors[keyof DeleteTasksErrors];
+
+export type DeleteTasksResponses = {
     /**
      * Successful Response
      */

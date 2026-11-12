@@ -45,10 +45,10 @@ from src.tasks.completion import (
     attach_counts_toward_completion,
 )
 from src.tasks.models import Task
-from src.tasks.schemas import TaskOut, TaskStatusOut, TaskSubmitResponse
+from src.tasks.schemas import TaskStatusOut, TaskSubmitResponse
 from src.tasks.service import (
-    get_task,
-    get_user_assignment_status,
+    assignment_status_of,
+    read_task,
     require_task_access,
     task_for_annotating,
 )
@@ -423,14 +423,13 @@ def submit_task_annotation(
         user_id=user_id,
     )
 
-    refreshed_task = get_task(db, task_id, campaign)
-    if refreshed_task is None:
+    task_out = read_task(db, campaign, task_id, with_email=False)
+    if task_out is None:
         raise HTTPException(status_code=404, detail="Annotation task not found in this campaign")
-    task_out = TaskOut.model_validate(refreshed_task)
     return TaskSubmitResponse(
         annotation=annotation,
         task_status=task_out.task_status,
-        assignment_status=get_user_assignment_status(refreshed_task, user_id),
+        assignment_status=assignment_status_of(task_out, user_id),
     )
 
 
@@ -813,12 +812,12 @@ def delete_annotation_with_status(
     if task_id is None:
         return None
 
-    task = get_task(db, task_id, campaign)
+    task = read_task(db, campaign, task_id, with_email=False)
     if task is None:
         return None
     return TaskStatusOut(
-        task_status=TaskOut.model_validate(task).task_status,
-        assignment_status=get_user_assignment_status(task, user_id),
+        task_status=task.task_status,
+        assignment_status=assignment_status_of(task, user_id),
     )
 
 

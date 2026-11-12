@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { answeredFields, formatFormValue, type FormField } from './formValues';
+import { answeredFields, formatFormValue, hasAnsweredFields, type FormField } from './formValues';
 
 const category: FormField = {
   id: 1,
@@ -53,5 +53,13 @@ describe('answeredFields', () => {
   it('is empty when nothing was answered', () => {
     expect(answeredFields([category], null)).toEqual([]);
     expect(answeredFields([category], {})).toEqual([]);
+  });
+});
+
+describe('hasAnsweredFields', () => {
+  it('counts only fields the form still defines', () => {
+    expect(hasAnsweredFields([category, text], ['3'])).toBe(true);
+    expect(hasAnsweredFields([category, text], ['99'])).toBe(false);
+    expect(hasAnsweredFields([category], [])).toBe(false);
   });
 });

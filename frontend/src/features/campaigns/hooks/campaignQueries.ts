@@ -3,13 +3,12 @@ import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-quer
 import { useTranslation } from 'react-i18next';
 import type {
   AnnotationListItemOut,
-  TaskOut,
   ListAnnotationsForCampaignData,
   TaskSetOut,
 } from '~/api/client';
 import {
-  listTasksOptions,
-  listTasksQueryKey,
+  getTaskSummaryOptions,
+  getTaskSummaryQueryKey,
   getCampaignOptions,
   getCampaignSummaryOptions,
   getCampaignQueryKey,
@@ -22,6 +21,7 @@ import {
   listTaskSetsQueryKey,
 } from '~/api/queries';
 import { SHARED_WORK, RUN_POLL_MS } from '~/api/queryClient';
+import { decodeTaskSummary, type TaskRow } from '~/shared/utils/taskSummary';
 
 /**
  * How a campaign and the work inside it are read, in one place, because the
@@ -47,7 +47,7 @@ type MaybeRegistering = { registration_status?: string; embedding_status?: strin
 export const isRegistering = (campaign: MaybeRegistering) =>
   campaign?.registration_status === 'registering' || campaign?.embedding_status === 'registering';
 
-const NO_TASKS: TaskOut[] = [];
+const NO_TASKS: TaskRow[] = [];
 const NO_TASK_SETS: TaskSetOut[] = [];
 const NO_IDS: number[] = [];
 const NO_ANNOTATIONS: AnnotationListItemOut[] = [];
@@ -91,18 +91,22 @@ export const useCampaign = (campaignId: number, options?: { pollWhileRegistering
   return { campaign: data, loading: isPending };
 };
 
-/** Every task in the campaign. `enabled: false` is for the review table when a
- *  page hands it a scoped list of its own instead. */
+/** Every task in the campaign, as summary rows. `enabled: false` is for the review
+ *  table when a page hands it a scoped list of its own instead.
+ *
+ *  `select` is a stable module function, so the rows are decoded once per fetched
+ *  summary rather than on every render. */
 export const useCampaignTasks = (campaignId: number, options?: { enabled?: boolean }) => {
   const { t } = useTranslation('campaigns');
   const enabled = options?.enabled ?? true;
   const { data, isPending } = useQuery({
-    ...listTasksOptions({ path: { campaign_id: campaignId } }),
+    ...getTaskSummaryOptions({ path: { campaign_id: campaignId } }),
     ...SHARED_WORK,
     enabled,
+    select: decodeTaskSummary,
     meta: { errorMessage: t('errors.loadTasks') },
   });
-  return { tasks: data?.tasks ?? NO_TASKS, loading: enabled && isPending };
+  return { tasks: data ?? NO_TASKS, loading: enabled && isPending };
 };
 
 /** The campaign's task sets, whose labelled/total counters move as annotators
@@ -167,7 +171,7 @@ export const useRefreshCampaignTasks = (campaignId: number) => {
   return useCallback(
     () =>
       queryClient.invalidateQueries({
-        queryKey: listTasksQueryKey({ path: { campaign_id: campaignId } }),
+        queryKey: getTaskSummaryQueryKey({ path: { campaign_id: campaignId } }),
       }),
     [queryClient, campaignId]
   );

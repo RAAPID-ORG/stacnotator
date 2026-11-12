@@ -7,8 +7,8 @@ import {
   updateAnnotation,
   type AnnotationCreate,
   type AnnotationOut,
-  type TaskOut,
 } from '~/api/client';
+import type { TaskRow } from '~/shared/utils/taskSummary';
 import { useLayoutStore as useGlobalLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 import i18n from '~/shared/i18n';
@@ -286,7 +286,7 @@ function withoutShapes(
 
 /** Whether this user has shapes saved as draw task `task`'s answer. */
 export function drewFor(
-  task: TaskOut,
+  task: TaskRow,
   userId: string | null,
   drawnShapes: ReadonlyMap<number, number[]>
 ): boolean {

@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { test, expect } from './fixtures/annotator-fixture';
 import { TEST_USER_ID } from './fixtures/mock-data';
+import { routeTaskList } from './fixtures/task-summary';
 
 const CAMPAIGN_ID = Number(process.env.BENCH_CAMPAIGN_ID ?? 113);
 const TEST_TILE = Buffer.from(
@@ -14,13 +15,12 @@ from src.main import app
 from src.database import SessionLocal
 from src.campaigns.service import get_campaign_full
 from src.campaigns.schemas import CampaignOutFull
-from src.tasks.service import get_tasks
-from src.tasks.schemas import TaskOut
+from src.tasks.service import read_tasks
 
 db = SessionLocal()
 campaign = get_campaign_full(db, ${CAMPAIGN_ID})
 out = CampaignOutFull.from_orm(campaign).model_dump(mode='json')
-tasks = [TaskOut.model_validate(task).model_dump(mode='json') for task in get_tasks(db, campaign)]
+tasks = [task.model_dump(mode='json') for task in read_tasks(db, campaign, with_email=False)]
 print(json.dumps({'campaign': out, 'tasks': tasks}))
 db.close()
 `;
@@ -175,9 +175,7 @@ test(`campaign ${CAMPAIGN_ID} retries a transient foreground tile after cycling 
   await annotationPage.route('**/api/campaigns/*/detailed', (route) =>
     route.fulfill({ json: real.campaign })
   );
-  await annotationPage.route('**/api/campaigns/*/tasks', (route) =>
-    route.fulfill({ json: { campaign_id: CAMPAIGN_ID, tasks } })
-  );
+  await routeTaskList(annotationPage, () => ({ campaign_id: CAMPAIGN_ID, tasks }));
   await annotationPage.evaluate(() => {
     const key = 'annotation:prefs';
     const stored = JSON.parse(localStorage.getItem(key) || '{}');
@@ -262,9 +260,7 @@ test(`campaign ${CAMPAIGN_ID} cold random-task benchmark`, async ({ annotationPa
   await annotationPage.route('**/api/campaigns/*/detailed', async (route) => {
     await route.fulfill({ json: real.campaign });
   });
-  await annotationPage.route('**/api/campaigns/*/tasks', async (route) => {
-    await route.fulfill({ json: { campaign_id: CAMPAIGN_ID, tasks } });
-  });
+  await routeTaskList(annotationPage, () => ({ campaign_id: CAMPAIGN_ID, tasks }));
   await annotationPage.reload({ waitUntil: 'domcontentloaded', timeout: 60_000 });
   await annotationPage.waitForSelector('[data-tour="controls"]', { timeout: 30_000 });
   await waitForBenchmarkNavigation(annotationPage);

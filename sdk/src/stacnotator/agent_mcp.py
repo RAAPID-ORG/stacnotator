@@ -1057,14 +1057,15 @@ async def preview_campaign(
             f"Imagery registration is {summary['registration_status']}"
             f" ({summary.get('registration_errors')}); wait for get_campaign to say ready."
         )
-    tasks = (await _api(_http().get, f"/campaigns/{campaign_id}/tasks"))["tasks"]
+    first = {"first": max(1, min(task_count, 5))}
+    tasks = (await _api(_http().get, f"/campaigns/{campaign_id}/tasks/details", first))["tasks"]
     if not tasks:
         raise ToolError("The campaign has no tasks yet: add_tasks first.")
     key = f"preview:{campaign_id}:{uuid4()}"
     try:
         views = await _browsers().call(key, campaign_id, "defaultViews")
         out: list[str | Image] = []
-        for task in tasks[: max(1, min(task_count, 5))]:
+        for task in tasks:
             agent_task = _preview_task(task)
             rendered = await _browsers().call(key, campaign_id, "render", agent_task, views, limits)
             result, images = _pack({"task": agent_task}, rendered)

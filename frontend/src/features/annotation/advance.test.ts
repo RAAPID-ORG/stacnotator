@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as api from '~/api/client';
-import { apiSuccess, makeCampaign, makeTask, makeTaskAnnotation } from './testing/fixtures';
+import {
+  apiSuccess,
+  makeCampaign,
+  makeTask,
+  makeTaskAnnotation,
+  makeTaskRow,
+} from './testing/fixtures';
 import { seedCampaign } from './testing/seed';
 import { UNASSIGNED, type TaskFilter } from './campaign/tasks';
 import { useTasksStore } from './stores/tasks';
@@ -90,11 +96,12 @@ describe('advance', () => {
       filter: POOL,
     });
     useTasksStore.getState().replaceTask(
-      {
-        ...free(1),
+      makeTaskRow({
+        id: 1,
+        annotation_number: 1,
         task_status: 'done',
-        annotations: [makeTaskAnnotation({ created_by_user_id: 'u1' })],
-      },
+        annotations: [{ created_by_user_id: 'u1' }],
+      }),
       catalog
     );
     vi.mocked(api.claimNextTask).mockResolvedValue(apiSuccess({ task: null }));
