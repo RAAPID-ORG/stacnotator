@@ -6,8 +6,10 @@ import { createCustomMap, listCustomMaps, updateCustomMap } from '~/api/client/s
 import { renderWithQuery } from '~/shared/testing/renderWithQuery';
 import { CustomMapsEditor } from './CustomMapsEditor';
 
+const permissions = vi.hoisted(() => ({ allowsInternalStorage: true }));
+
 vi.mock('~/shared/hooks/useProjectTilers', () => ({
-  useProjectTilers: () => ({ tilers: [], allowsInternalStorage: true }),
+  useProjectTilers: () => ({ tilers: [], ...permissions }),
 }));
 
 vi.mock('~/api/client/sdk.gen', async () => {
@@ -47,6 +49,7 @@ const MAP: CustomMapOut = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  permissions.allowsInternalStorage = true;
   vi.mocked(listCustomMaps).mockResolvedValue({
     data: [],
     request: new Request('https://app.test/api/campaigns/5/custom-maps'),
@@ -59,12 +62,18 @@ const openCreate = async () => {
   await userEvent.click(screen.getByRole('button', { name: '+ Add raster layer' }));
   await userEvent.type(screen.getByTestId('custom-map-name'), 'Private prediction');
   await userEvent.type(screen.getByTestId('custom-map-url'), URL);
-  await userEvent.click(screen.getByLabelText('Private Azure storage (own SAS token)'));
+  expect((screen.getByRole('radio', { name: 'Public URL' }) as HTMLInputElement).checked).toBe(
+    true
+  );
+  expect(screen.queryByLabelText('SAS token')).toBeNull();
+  await userEvent.click(
+    screen.getByRole('radio', { name: 'Private Azure storage (own SAS token)' })
+  );
 };
 
-const openEdit = async () => {
+const openEdit = async (map = MAP) => {
   vi.mocked(listCustomMaps).mockResolvedValue({
-    data: [MAP],
+    data: [map],
     request: new Request('https://app.test/api/campaigns/5/custom-maps'),
     response: new Response(),
   });
@@ -84,9 +93,10 @@ describe('custom map private storage access', () => {
     await userEvent.clear(input);
     await pasteToken(SAS);
     expect((submit as HTMLButtonElement).disabled).toBe(false);
-    expect((screen.getByTestId('custom-map-internal-storage') as HTMLInputElement).disabled).toBe(
-      true
-    );
+    expect(
+      (screen.getByRole('radio', { name: /Hosted in internal storage/ }) as HTMLInputElement)
+        .checked
+    ).toBe(false);
     await userEvent.click(submit);
     await waitFor(() => expect(createCustomMap).toHaveBeenCalledOnce());
     expect(vi.mocked(createCustomMap).mock.calls[0][0]?.body).toMatchObject({
@@ -116,11 +126,49 @@ describe('custom map private storage access', () => {
     });
   });
 
-  it('explicitly removes the saved access when switching to public storage', async () => {
+  it.each([
+    { name: 'Public URL', internal: false },
+    { name: /Hosted in internal storage/, internal: true },
+  ])('removes saved SAS access when switching to $name', async ({ name, internal }) => {
     await openEdit();
-    await userEvent.click(screen.getByLabelText('Private Azure storage (own SAS token)'));
+    await userEvent.click(screen.getByRole('radio', { name }));
+    expect(screen.queryByLabelText('SAS token')).toBeNull();
+    expect(
+      (
+        screen.getByRole('radio', {
+          name: 'Private Azure storage (own SAS token)',
+        }) as HTMLInputElement
+      ).checked
+    ).toBe(false);
     await userEvent.click(screen.getByRole('button', { name: 'Save map' }));
     await waitFor(() => expect(updateCustomMap).toHaveBeenCalledOnce());
-    expect(vi.mocked(updateCustomMap).mock.calls[0][0]?.body?.storage_access).toBeNull();
+    expect(vi.mocked(updateCustomMap).mock.calls[0][0]?.body).toMatchObject({
+      storage_access: null,
+      internal_storage: internal,
+    });
+  });
+
+  it('selects saved internal storage and clears it when switching to SAS access', async () => {
+    await openEdit({ ...MAP, storage_access: null, internal_storage: true });
+    expect(
+      (screen.getByRole('radio', { name: /Hosted in internal storage/ }) as HTMLInputElement)
+        .checked
+    ).toBe(true);
+    await userEvent.click(
+      screen.getByRole('radio', { name: 'Private Azure storage (own SAS token)' })
+    );
+    await pasteToken(SAS);
+    await userEvent.click(screen.getByRole('button', { name: 'Save map' }));
+    await waitFor(() => expect(updateCustomMap).toHaveBeenCalledOnce());
+    expect(vi.mocked(updateCustomMap).mock.calls[0][0]?.body).toMatchObject({
+      internal_storage: false,
+      storage_access: { kind: 'azure_sas', secret: SAS },
+    });
+  });
+
+  it('hides internal storage when the organization does not permit it', async () => {
+    permissions.allowsInternalStorage = false;
+    await openCreate();
+    expect(screen.queryByRole('radio', { name: /Hosted in internal storage/ })).toBeNull();
   });
 });

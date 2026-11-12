@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useProjectTilers } from '~/shared/hooks/useProjectTilers';
@@ -33,8 +33,7 @@ interface FormState {
   rescale_max: string;
   entries: Array<{ value: string; color: string; label: string }>;
   max_native_zoom: string;
-  internal_storage: boolean;
-  private_storage: boolean;
+  storage_mode: 'public' | 'private' | 'internal';
   sas_token: string;
   storage_expiry: string | null;
 }
@@ -49,8 +48,7 @@ const defaultForm = (): FormState => ({
   rescale_max: '1',
   entries: [{ value: '1', color: CATEGORICAL_PALETTE[0], label: '' }],
   max_native_zoom: '',
-  internal_storage: false,
-  private_storage: false,
+  storage_mode: 'public',
   sas_token: '',
   storage_expiry: null,
 });
@@ -71,8 +69,7 @@ const formFromMap = (m: CustomMapOut): FormState => {
       ? entries.map((e) => ({ value: String(e.value), color: e.color, label: e.label ?? '' }))
       : defaultForm().entries,
     max_native_zoom: m.max_native_zoom != null ? String(m.max_native_zoom) : '',
-    internal_storage: m.internal_storage ?? false,
-    private_storage: !!m.storage_access,
+    storage_mode: m.storage_access ? 'private' : m.internal_storage ? 'internal' : 'public',
     sas_token: '',
     storage_expiry: m.storage_access?.expires_at ?? null,
   };
@@ -129,6 +126,7 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
   // Memoised so the effects below can depend on it rather than on the owner's
   // parts, and so a re-render never re-runs the fetch.
   const { t } = useTranslation(['campaigns', 'common']);
+  const storageGroupName = useId();
   const api = useMemo(() => customMapApi(ownerKind, ownerId), [ownerKind, ownerId]);
   const { allowsInternalStorage } = useProjectTilers(projectId);
   const queryClient = useQueryClient();
@@ -197,7 +195,8 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
   const submitting = save.isPending;
   const savedAccess = maps.find((m) => m.id === editingId)?.storage_access;
   const sasReading = form.sas_token.trim() ? readSasToken(form.sas_token) : null;
-  const invalidAccess = form.private_storage && (sasReading ? 'error' in sasReading : !savedAccess);
+  const invalidAccess =
+    form.storage_mode === 'private' && (sasReading ? 'error' in sasReading : !savedAccess);
 
   const remove = useMutation({
     mutationFn: (mapId: number) => api.remove(mapId),
@@ -238,12 +237,13 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
       // Omitted when the project cannot use internal storage, so editing a map never
       // downgrades a flag the user cannot see; the backend defaults it to false on
       // create and leaves it on update.
-      ...(allowsInternalStorage ? { internal_storage: form.internal_storage } : {}),
-      storage_access: form.private_storage
-        ? sasReading && 'token' in sasReading
-          ? { kind: 'azure_sas', secret: sasReading.token }
-          : undefined
-        : null,
+      ...(allowsInternalStorage ? { internal_storage: form.storage_mode === 'internal' } : {}),
+      storage_access:
+        form.storage_mode === 'private'
+          ? sasReading && 'token' in sasReading
+            ? { kind: 'azure_sas', secret: sasReading.token }
+            : undefined
+          : null,
     });
   };
 
@@ -426,39 +426,66 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
             </ul>
           </div>
 
-          {ownerKind === 'campaign' && (
-            <div className="space-y-2">
+          <fieldset className="space-y-2">
+            <legend className="text-xs font-medium text-neutral-700 mb-1">
+              {t('customMaps.storageAccess')}
+            </legend>
+            <label className="flex items-center gap-2 text-xs text-neutral-700">
+              <input
+                type="radio"
+                name={storageGroupName}
+                checked={form.storage_mode === 'public'}
+                onChange={() => setForm((f) => ({ ...f, storage_mode: 'public', sas_token: '' }))}
+              />
+              {t('customMaps.publicStorage')}
+            </label>
+            {ownerKind === 'campaign' && (
               <label className="flex items-center gap-2 text-xs text-neutral-700">
                 <input
-                  type="checkbox"
-                  checked={form.private_storage}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      private_storage: e.target.checked,
-                      internal_storage: e.target.checked ? false : f.internal_storage,
-                      sas_token: '',
-                    }))
+                  type="radio"
+                  name={storageGroupName}
+                  checked={form.storage_mode === 'private'}
+                  onChange={() =>
+                    setForm((f) => ({ ...f, storage_mode: 'private', sas_token: '' }))
                   }
                 />
                 {t('customMaps.privateStorage')}
               </label>
-              {form.private_storage && (
-                <>
-                  <SasTokenField
-                    value={form.sas_token}
-                    onChange={(sas_token) => setForm((f) => ({ ...f, sas_token }))}
-                    configured={!!savedAccess}
-                    expiresAt={form.storage_expiry}
-                    placeholder={savedAccess ? t('customMaps.replaceToken') : undefined}
-                  />
-                  {!savedAccess && !form.sas_token.trim() && (
-                    <p className="text-[11px] text-neutral-500">{t('customMaps.provideToken')}</p>
-                  )}
-                </>
-              )}
-            </div>
-          )}
+            )}
+            {allowsInternalStorage && (
+              <label className="flex items-start gap-2 text-xs text-neutral-700">
+                <input
+                  type="radio"
+                  name={storageGroupName}
+                  className="mt-0.5"
+                  checked={form.storage_mode === 'internal'}
+                  onChange={() =>
+                    setForm((f) => ({ ...f, storage_mode: 'internal', sas_token: '' }))
+                  }
+                />
+                <span>
+                  {t('customMaps.internalStorage')}
+                  <span className="block text-[11px] text-neutral-500 leading-snug">
+                    {t('customMaps.internalStorageHint')}
+                  </span>
+                </span>
+              </label>
+            )}
+            {form.storage_mode === 'private' && (
+              <>
+                <SasTokenField
+                  value={form.sas_token}
+                  onChange={(sas_token) => setForm((f) => ({ ...f, sas_token }))}
+                  configured={!!savedAccess}
+                  expiresAt={form.storage_expiry}
+                  placeholder={savedAccess ? t('customMaps.replaceToken') : undefined}
+                />
+                {!savedAccess && !form.sas_token.trim() && (
+                  <p className="text-[11px] text-neutral-500">{t('customMaps.provideToken')}</p>
+                )}
+              </>
+            )}
+          </fieldset>
 
           <div>
             <label className="block text-xs font-medium text-neutral-700 mb-1">
@@ -478,27 +505,6 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
               {t('customMaps.experimentHint')}
             </p>
           </div>
-
-          {allowsInternalStorage && (
-            <div>
-              <label className="flex items-start gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="mt-0.5"
-                  checked={form.internal_storage}
-                  disabled={form.private_storage}
-                  onChange={(e) => setForm((f) => ({ ...f, internal_storage: e.target.checked }))}
-                  data-testid="custom-map-internal-storage"
-                />
-                <span className="text-xs text-neutral-700">
-                  <span className="font-medium">{t('customMaps.internalStorage')}</span>
-                  <span className="block text-[11px] text-neutral-500 leading-snug">
-                    {t('customMaps.internalStorageHint')}
-                  </span>
-                </span>
-              </label>
-            </div>
-          )}
 
           <div>
             <span className="block text-xs font-medium text-neutral-700 mb-1">
