@@ -37,7 +37,7 @@ const NO_TILERS: string[] = [];
 
 /** /auth/users returns the detailed shape only to platform admins. */
 const isDetailedUser = (user: UserOut | UserOutDetailed): user is UserOutDetailed =>
-  'is_admin' in user;
+  'is_platform_admin' in user;
 
 const RefreshButton = ({ onClick, busy }: { onClick: () => void; busy: boolean }) => {
   const { t } = useTranslation('settings');

@@ -47,3 +47,40 @@ it('separates platform organizations and users into tabs, loading only the activ
   expect(screen.getByText(/Platform users/)).toBeTruthy();
   expect(document.getElementById('tab-organizations')).toBeNull();
 });
+
+it('shows platform admins and regular users returned by the users endpoint', async () => {
+  vi.mocked(listUsers).mockResolvedValueOnce({
+    error: undefined,
+    data: [
+      {
+        id: 'admin',
+        email: 'admin@example.test',
+        display_name: 'Admin',
+        is_platform_admin: true,
+        issuer: 'local',
+        external_uid: 'admin',
+      },
+      {
+        id: 'user',
+        email: 'user@example.test',
+        display_name: 'Regular User',
+        is_platform_admin: false,
+        issuer: 'local',
+        external_uid: 'user',
+      },
+    ],
+  });
+
+  renderWithQuery(
+    <MemoryRouter>
+      <PlatformAdminPage />
+    </MemoryRouter>
+  );
+  await userEvent.click(screen.getByRole('tab', { name: 'Users' }));
+
+  const adminEmail = await screen.findByText('admin@example.test');
+  const userEmail = screen.getByText('user@example.test');
+  expect(adminEmail.closest('tr')?.querySelector('[data-user-role="admin"]')).toBeTruthy();
+  expect(userEmail.closest('tr')?.querySelector('[data-user-role="user"]')).toBeTruthy();
+  expect(screen.queryByText('No users found')).toBeNull();
+});
