@@ -843,13 +843,15 @@
       "projection": "Cualquier proyección con datum WGS84 (se admiten zonas UTM y EPSG:4326/3857).",
       "notValidated": "No se valida automáticamente: un archivo no válido o que no sea COG no se mostrará."
     },
+    "storageAccess": "Acceso al almacenamiento",
+    "publicStorage": "URL pública",
     "privateStorage": "Almacenamiento privado de Azure (token SAS propio)",
     "replaceToken": "Pega un token nuevo para reemplazarlo",
     "provideToken": "Proporciona un token SAS de solo lectura.",
     "experimentLink": "Enlace al experimento",
     "experimentHint": "Se enlaza desde un icono junto al mapa, p. ej., la ejecución de MLflow que lo generó.",
     "internalStorage": "Alojado en almacenamiento interno",
-    "internalStorageHint": "Márcalo si el archivo está en nuestro propio almacenamiento de Azure, para que el tiler lo lea con su identidad administrada. Déjalo sin marcar para archivos públicos o alojados en AWS.",
+    "internalStorageHint": "El tiler lee el archivo de nuestro almacenamiento de Azure con su identidad administrada.",
     "renderMode": "Modo de representación",
     "modes": {
       "continuous": "Continuo",

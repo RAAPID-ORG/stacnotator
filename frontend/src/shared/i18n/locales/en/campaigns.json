@@ -801,13 +801,15 @@
       "projection": "Any projection with a WGS84 datum (UTM zones and EPSG:4326/3857 are all handled).",
       "notValidated": "Not validated automatically - an invalid or non-COG file will not render."
     },
+    "storageAccess": "Storage access",
+    "publicStorage": "Public URL",
     "privateStorage": "Private Azure storage (own SAS token)",
     "replaceToken": "Paste a new token to replace it",
     "provideToken": "Provide a read-only SAS token.",
     "experimentLink": "Experiment link",
     "experimentHint": "Linked from an icon next to the map, e.g. the MLflow run that produced it.",
     "internalStorage": "Hosted in internal storage",
-    "internalStorageHint": "Check this if the file lives in our own Azure storage, so the tiler reads it with its managed identity. Leave unchecked for public or AWS-hosted files.",
+    "internalStorageHint": "The tiler reads the file from our Azure storage using its managed identity.",
     "renderMode": "Render mode",
     "modes": {
       "continuous": "Continuous",
