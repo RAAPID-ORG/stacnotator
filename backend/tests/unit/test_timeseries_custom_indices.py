@@ -213,6 +213,47 @@ class TestEarthEngineAdapter:
         assert built.value == pytest.approx(index.formula(BANDS))
 
 
+class _MaskedBand:
+    """Just enough of ee.Image's masking to check where(): a masked test or
+    replacement keeps the input, and mask() itself is always valid."""
+
+    def __init__(self, value, valid=True):
+        self.value = value
+        self.valid = valid
+
+    def mask(self):
+        return _MaskedBand(1.0 if self.valid else 0.0)
+
+    def where(self, test, value):
+        if not self.valid or not test.valid or not value.valid or not test.value:
+            return self
+        return value
+
+    def min(self, other):
+        return _MaskedBand(min(self.value, other.value), self.valid and other.valid)
+
+    def updateMask(self, mask):  # noqa: N802 - the Earth Engine method name
+        return _MaskedBand(self.value, self.valid and mask.valid and bool(mask.value))
+
+
+class TestWhereKeepsMasks:
+    where = staticmethod(fetch._IMAGE_FUNCTIONS["where"])
+
+    def test_masked_branch_under_a_constant_test_stays_masked(self):
+        nir = _MaskedBand(0.4, valid=False)
+        assert not self.where(_MaskedBand(1.0), nir, _MaskedBand(0.0)).valid
+
+    def test_masked_test_stays_masked(self):
+        test = _MaskedBand(1.0, valid=False)
+        assert not self.where(test, _MaskedBand(1.0), _MaskedBand(0.0)).valid
+
+    @pytest.mark.parametrize(("test", "expected"), [(1.0, 0.4), (0.0, 0.0)])
+    def test_valid_pixels_pick_a_branch(self, test, expected):
+        picked = self.where(_MaskedBand(test), _MaskedBand(0.4), _MaskedBand(0.0))
+        assert picked.valid
+        assert picked.value == expected
+
+
 def _draft(**overrides):
     fields = {"name": "MyIdx", "expression": " nir - red ", "domain_min": 0, "domain_max": 1}
     return CustomIndexIn(**{**fields, **overrides})

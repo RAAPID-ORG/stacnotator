@@ -37,4 +37,20 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # The previous release resolves every series through the built-in indices,
+    # so a series plotting a custom one would break its campaign's reads.
+    in_use = (
+        op.get_bind()
+        .execute(
+            sa.text(
+                "SELECT count(*) FROM data.time_series ts JOIN data.custom_indices ci"
+                " ON ci.campaign_id = ts.campaign_id AND ci.name = ts.ts_type"
+            )
+        )
+        .scalar_one()
+    )
+    if in_use:
+        raise RuntimeError(
+            f"{in_use} time series plot a custom index; remove them before downgrading"
+        )
     op.drop_table("custom_indices", schema="data")

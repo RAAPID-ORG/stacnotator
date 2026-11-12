@@ -113,13 +113,17 @@ _IMAGE_FUNCTIONS: dict[str, Callable[..., Any]] = {
     "min": lambda a, b: a.min(b),
     "max": lambda a, b: a.max(b),
     "clamp": lambda x, low, high: x.max(low).min(high),
-    # where() keeps the mask of the image it is called on, so with two constant
-    # branches a cloud-masked pixel would come back as a value; the condition's
-    # mask carries the bands' masks through.
-    "where": lambda condition, then, otherwise: otherwise.where(condition, then).updateMask(
-        condition.mask()
-    ),
+    "where": lambda condition, then, otherwise: _where(condition, then, otherwise),
 }
+
+
+def _where(condition: Any, then: Any, otherwise: Any) -> Any:
+    """Earth Engine's where() keeps the image it is called on wherever the test or
+    the replacement is masked, so a masked band would come back as the other
+    branch's value. The result is valid only where the condition and the branch
+    it picked are."""
+    picked_mask = otherwise.mask().where(condition, then.mask())
+    return otherwise.where(condition, then).updateMask(condition.mask().min(picked_mask))
 
 
 def index_image(image: Any, index: SpectralIndex) -> Any:
