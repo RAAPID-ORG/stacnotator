@@ -152,7 +152,7 @@ ROLE_LABELS: dict[BandRole, str] = {
     "swir2": "SWIR2",
 }
 
-_COMPARE, _SUM, _PRODUCT, _UNARY, _POWER, _ATOM = range(6)
+_SUM, _PRODUCT, _UNARY, _POWER, _ATOM = range(1, 6)
 
 
 @dataclass(frozen=True)
@@ -181,10 +181,10 @@ class _Term:
     def _combine(self, other: Any, operator: str, precedence: int) -> "_Term":
         right = _Term._of(other)
         # An operand at the same precedence keeps its brackets unless dropping them
-        # means the same thing: a - (b - c) is not a - b - c, power groups to the
-        # right (a ** b ** c is a ** (b ** c)), and comparisons do not chain.
+        # means the same thing: a - (b - c) is not a - b - c, and power groups to
+        # the right (a ** b ** c is a ** (b ** c)).
         groups_right = operator == "**"
-        left_minimum = precedence + 1 if groups_right or precedence == _COMPARE else precedence
+        left_minimum = precedence + 1 if groups_right else precedence
         right_minimum = precedence if groups_right or operator in "+*" else precedence + 1
         return _Term(
             f"{self._bracketed(left_minimum)} {operator} {right._bracketed(right_minimum)}",
@@ -226,20 +226,6 @@ class _Term:
     def __neg__(self) -> "_Term":
         return _Term(f"-{self._bracketed(_UNARY)}", _UNARY)
 
-    # Python hands `0.2 < nir` to nir's __gt__, so a constant on the left renders
-    # as the same condition with the band first.
-    def __lt__(self, other: Any) -> "_Term":
-        return self._combine(other, "<", _COMPARE)
-
-    def __le__(self, other: Any) -> "_Term":
-        return self._combine(other, "<=", _COMPARE)
-
-    def __gt__(self, other: Any) -> "_Term":
-        return self._combine(other, ">", _COMPARE)
-
-    def __ge__(self, other: Any) -> "_Term":
-        return self._combine(other, ">=", _COMPARE)
-
     @classmethod
     def apply(cls, name: str, args: list[Any]) -> "_Term":
         return _Term(f"{name}({', '.join(_Term._of(arg).text for arg in args)})", _ATOM)
@@ -248,4 +234,5 @@ class _Term:
 def render_formula(index: SpectralIndex) -> str:
     """The index's formula as text, written in band roles."""
     bands = {role: _Term(ROLE_LABELS[role], _ATOM) for role in index.roles}
-    return _Term._of(index.formula(bands)).text
+    rendered: _Term = index.formula(bands)
+    return rendered.text

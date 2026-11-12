@@ -11,8 +11,8 @@ from src.campaigns.dependencies import require_campaign_access
 from src.database import get_db
 from src.main import app
 from src.timeseries import router as ts_router
+from src.timeseries import service
 from src.timeseries.indices import INDICES_BY_KEY
-from src.timeseries.sources import SOURCES_BY_KEY
 
 CAMPAIGN_ID = 4
 TS_ID = 55
@@ -39,12 +39,12 @@ def events(monkeypatch):
             spectral_index=INDICES_BY_KEY["NDVI"],
         )
 
-    def fake_ee(*args, **kwargs):
+    def fake_ee(**kwargs):
         log.append("earth_engine")
         return pd.DataFrame([{"date": "2024-01-01", "value": 0.5}])
 
     monkeypatch.setattr(ts_router.service, "get_timeseries_by_id", fake_get_ts)
-    monkeypatch.setattr(ts_router, "fetch_index_series", fake_ee)
+    monkeypatch.setattr(service, "get_timeseries_data", fake_ee)
     monkeypatch.setattr(ts_router, "ensure_earth_engine", lambda: True)
 
     app.dependency_overrides[get_db] = lambda: fake_db
@@ -77,14 +77,14 @@ ZONE = {
 def _zonal(events, monkeypatch, fetched=None, **request):
     calls: list[dict] = []
 
-    def fake_zonal(source, index, **kwargs):
+    def fake_zonal(**kwargs):
         events.append("earth_engine")
-        calls.append({"source": source, "index": index, **kwargs})
+        calls.append(kwargs)
         if isinstance(fetched, Exception):
             raise fetched
         return pd.DataFrame([{"time": pd.Timestamp("2024-01-05"), "values": 0.4, "cloud": 0}])
 
-    monkeypatch.setattr(ts_router, "fetch_zonal_index_series", fake_zonal)
+    monkeypatch.setattr(service, "get_zonal_timeseries_data", fake_zonal)
     client = TestClient(app, headers={"Authorization": "Bearer t"})
     resp = client.post(
         f"/api/campaigns/{request.get('campaign_id', CAMPAIGN_ID)}/timeseries/{TS_ID}/data",
@@ -100,8 +100,8 @@ def test_zonal_series_releases_the_connection_and_passes_the_polygon(events, mon
     assert events == ["close", "earth_engine"]
     assert calls == [
         {
-            "source": SOURCES_BY_KEY["MODIS"],
             "index": INDICES_BY_KEY["NDVI"],
+            "data_source": "MODIS",
             "geometry": ZONE,
             "start_date": "2024-01-01",
             "end_date": "2024-04-01",
@@ -136,21 +136,10 @@ def test_zonal_series_of_another_campaign_is_not_found(events, monkeypatch):
     [
         (ts_router.RateLimited("quota"), 503),
         (ts_router.UpstreamFailed("Too many pixels"), 502),
+        (ValueError("MODIS cannot supply the bands NDRE needs"), 400),
     ],
 )
 def test_zonal_series_maps_earth_engine_errors(events, monkeypatch, error, status):
     resp, _ = _zonal(events, monkeypatch, fetched=error)
 
     assert resp.status_code == status
-
-
-def test_a_series_its_source_cannot_compute_is_refused_before_earth_engine(events, monkeypatch):
-    stored = ts_router.service.get_timeseries_by_id(TS_ID, None)
-    stored.ts_type, stored.spectral_index = "NDRE", INDICES_BY_KEY["NDRE"]
-    monkeypatch.setattr(ts_router.service, "get_timeseries_by_id", lambda ts_id, db: stored)
-
-    resp, _ = _zonal(events, monkeypatch)
-
-    assert resp.status_code == 400
-    assert "NDRE" in resp.json()["detail"]
-    assert events == []

@@ -88,24 +88,16 @@ const savedSeries: TimeseriesOut = {
 const redEdge: CustomIndexOut = {
   key: 'CIre',
   label: 'CIre',
-  formula: 'NIR / RedEdge - 1',
-  expression: 'nir / rededge1 - 1',
+  formula: 'NIR / RedEdge1 - 1',
   domain_min: 0,
   domain_max: 10,
   reference_lines: [],
   source_keys: ['sentinel'],
 };
 
-function Editor({
-  existingTimeseries = [],
-  initialCustomIndices = [],
-}: {
-  existingTimeseries?: TimeseriesOut[];
-  initialCustomIndices?: CustomIndexOut[];
-}) {
+function Editor({ existingTimeseries = [] }: { existingTimeseries?: TimeseriesOut[] }) {
   const [form, setForm] = useState(initialForm);
   const [saved, setSaved] = useState(existingTimeseries);
-  const [customIndices, setCustomIndices] = useState(initialCustomIndices);
   return (
     <StepAddTimeseries
       items={form.timeseries_configs ?? []}
@@ -116,13 +108,6 @@ function Editor({
       }}
       existingTimeseries={saved}
       onRemoveExisting={onRemoveExisting}
-      customIndices={customIndices}
-      onSaveCustomIndex={async (_body, original, described) =>
-        setCustomIndices([...customIndices.filter((index) => index.key !== original), described])
-      }
-      onRemoveCustomIndex={(name) =>
-        setCustomIndices(customIndices.filter((index) => index.key !== name))
-      }
       onRenameExistingPanel={async (oldName, newName) => {
         await onRenameExistingPanel(oldName, newName);
         setSaved((series) =>
@@ -135,13 +120,8 @@ function Editor({
   );
 }
 
-async function openEditor(
-  existingTimeseries: TimeseriesOut[] = [],
-  initialCustomIndices: CustomIndexOut[] = []
-) {
-  renderWithQuery(
-    <Editor existingTimeseries={existingTimeseries} initialCustomIndices={initialCustomIndices} />
-  );
+async function openEditor(existingTimeseries: TimeseriesOut[] = []) {
+  renderWithQuery(<Editor existingTimeseries={existingTimeseries} />);
   await waitFor(() =>
     expect(screen.getAllByRole('button', { name: 'Add series' })[0]).toHaveProperty(
       'disabled',
@@ -346,16 +326,28 @@ describe('Panel-first timeseries setup', () => {
     expect(onRemoveExisting).toHaveBeenCalledWith(5);
   });
 
-  it('offers a custom index only on the sources that carry its bands', async () => {
-    await openEditor([], [redEdge]);
-    const group = screen.getByRole('region', { name: `${DEFAULT_TIMESERIES_WINDOW_NAME} panel` });
+  it('offers the custom indices already used on a source for reuse there', async () => {
+    const saved = {
+      ...savedSeries,
+      ts_type: 'CIre',
+      expression: 'nir / rededge1 - 1',
+      index: redEdge,
+    };
+    await openEditor([saved]);
+    const group = screen.getByRole('region', { name: 'Vegetation panel' });
     await userEvent.click(within(group).getByRole('button', { name: 'Add series' }));
     const source = within(group).getByRole('combobox', { name: 'Data source' });
     await userEvent.selectOptions(source, 'sentinel');
     await userEvent.selectOptions(within(group).getByRole('combobox', { name: 'Index' }), 'CIre');
-    expect(within(group).getByText('NIR / RedEdge - 1')).toBeTruthy();
+    expect(lastConfigs()[0]).toMatchObject({
+      ts_type: 'CIre',
+      expression: 'nir / rededge1 - 1',
+      domain_min: 0,
+      domain_max: 10,
+    });
     await userEvent.selectOptions(source, 'landsat');
     expect(within(group).queryByRole('option', { name: 'CIre' })).toBeNull();
+    expect(lastConfigs()[0]).toMatchObject({ ts_type: '', expression: null });
   });
 
   it('defines a custom index from the index picker and selects it', async () => {
@@ -377,12 +369,21 @@ describe('Panel-first timeseries setup', () => {
       'nir / rededge1 - 1'
     );
     await waitFor(() =>
-      expect(screen.getByTestId('custom-index-preview').textContent).toBe('NIR / RedEdge - 1')
+      expect(screen.getByTestId('custom-index-preview').textContent).toBe('NIR / RedEdge1 - 1')
     );
     await userEvent.click(within(group).getByRole('button', { name: 'Add index' }));
 
-    expect(lastConfigs()[0]).toMatchObject({ ts_type: 'CIre' });
-    expect(within(group).getByRole('button', { name: 'Edit CIre' })).toBeTruthy();
+    expect(lastConfigs()[0]).toMatchObject({
+      ts_type: 'CIre',
+      expression: 'nir / rededge1 - 1',
+      domain_min: -1,
+      domain_max: 1,
+    });
+    await userEvent.click(within(group).getByRole('button', { name: 'Edit CIre' }));
+    expect(within(group).getByRole('textbox', { name: 'Formula' })).toHaveProperty(
+      'value',
+      'nir / rededge1 - 1'
+    );
   });
 
   it('shows why the backend refused a formula and keeps it unsaved', async () => {
@@ -404,34 +405,6 @@ describe('Panel-first timeseries setup', () => {
     await userEvent.type(screen.getByRole('textbox', { name: 'Formula' }), 'nri');
     expect(await screen.findByText("Unknown band 'nri'")).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Add index' })).toHaveProperty('disabled', true);
-  });
-
-  it('edits the chosen custom index in place and keeps one in use from being deleted', async () => {
-    preview({ ...redEdge, expression: 'nir / rededge1', formula: 'NIR / RedEdge' });
-    await openEditor([{ ...savedSeries, ts_type: 'CIre' }], [redEdge]);
-    const group = screen.getByRole('region', { name: 'Vegetation panel' });
-    await userEvent.click(within(group).getByRole('button', { name: 'Add series' }));
-    await userEvent.selectOptions(
-      within(group).getByRole('combobox', { name: 'Data source' }),
-      'sentinel'
-    );
-    await userEvent.selectOptions(within(group).getByRole('combobox', { name: 'Index' }), 'CIre');
-    await userEvent.click(within(group).getByRole('button', { name: 'Edit CIre' }));
-
-    expect(within(group).getByRole('button', { name: 'Delete CIre' })).toHaveProperty(
-      'disabled',
-      true
-    );
-    const formula = within(group).getByRole('textbox', { name: 'Formula' });
-    expect(formula).toHaveProperty('value', 'nir / rededge1 - 1');
-    await userEvent.clear(formula);
-    await userEvent.type(formula, 'nir / rededge1');
-    await waitFor(() =>
-      expect(screen.getByTestId('custom-index-preview').textContent).toBe('NIR / RedEdge')
-    );
-    await userEvent.click(within(group).getByRole('button', { name: 'Save' }));
-    expect(within(group).getByText('NIR / RedEdge')).toBeTruthy();
-    expect(within(group).queryByText('NIR / RedEdge - 1')).toBeNull();
   });
 
   it('will not give a series an index its source cannot compute', async () => {

@@ -6,7 +6,6 @@ it evaluates the formula, asks Earth Engine for the values at a point, and shape
 the result. Failures surface as the domain errors below for the router to map.
 """
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -85,45 +84,12 @@ class _ImageTerm:
     def __neg__(self) -> "_ImageTerm":
         return _ImageTerm(self.image.multiply(-1))
 
-    # Python hands `0.2 < nir` to nir's __gt__, which is the same test.
-    def __lt__(self, other: Any) -> "_ImageTerm":
-        return _ImageTerm(self.image.lt(self._value(other)))
-
-    def __le__(self, other: Any) -> "_ImageTerm":
-        return _ImageTerm(self.image.lte(self._value(other)))
-
-    def __gt__(self, other: Any) -> "_ImageTerm":
-        return _ImageTerm(self.image.gt(self._value(other)))
-
-    def __ge__(self, other: Any) -> "_ImageTerm":
-        return _ImageTerm(self.image.gte(self._value(other)))
-
     @classmethod
     def apply(cls, name: str, args: list[Any]) -> "_ImageTerm":
-        """The custom-index functions (expressions.FUNCTIONS) as image methods."""
-        images = [ee.Image(cls._value(arg)) for arg in args]
-        return _ImageTerm(_IMAGE_FUNCTIONS[name](*images))
-
-
-_IMAGE_FUNCTIONS: dict[str, Callable[..., Any]] = {
-    "sqrt": lambda x: x.sqrt(),
-    "abs": lambda x: x.abs(),
-    "log": lambda x: x.log(),
-    "exp": lambda x: x.exp(),
-    "min": lambda a, b: a.min(b),
-    "max": lambda a, b: a.max(b),
-    "clamp": lambda x, low, high: x.max(low).min(high),
-    "where": lambda condition, then, otherwise: _where(condition, then, otherwise),
-}
-
-
-def _where(condition: Any, then: Any, otherwise: Any) -> Any:
-    """Earth Engine's where() keeps the image it is called on wherever the test or
-    the replacement is masked, so a masked band would come back as the other
-    branch's value. The result is valid only where the condition and the branch
-    it picked are."""
-    picked_mask = otherwise.mask().where(condition, then.mask())
-    return otherwise.where(condition, then).updateMask(condition.mask().min(picked_mask))
+        """A custom-index function (expressions.FUNCTIONS); ee.Image has a method
+        of each name."""
+        first, *rest = (ee.Image(cls._value(arg)) for arg in args)
+        return _ImageTerm(getattr(first, name)(*rest))
 
 
 def index_image(image: Any, index: SpectralIndex) -> Any:

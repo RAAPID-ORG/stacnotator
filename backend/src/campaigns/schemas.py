@@ -22,7 +22,7 @@ from src.imagery.schemas import (
     ImageryViewOut,
 )
 from src.projects.access import VISIBILITY_PUBLIC, ProjectFlags
-from src.timeseries.schemas import CustomIndexIn, CustomIndexOut, TimeseriesCreate, TimeseriesOut
+from src.timeseries.schemas import TimeseriesCreate, TimeseriesOut
 
 # ============================================================================
 # Campaign Related Schemas
@@ -260,7 +260,6 @@ class CampaignOut(CampaignSummaryOut):
     custom_maps: list[CustomMapOut] = []
     vector_layers: list[VectorLayerOut] = []
     time_series: list[TimeseriesOut]
-    custom_indices: list[CustomIndexOut] = []
 
 
 class CampaignSettingsLocksOut(BaseModel):
@@ -276,8 +275,6 @@ class CampaignCreate(BaseModel):
     settings: CampaignSettingsCreate
     imagery_editor_state: ImageryEditorStateCreate | None = None
     timeseries_configs: list[TimeseriesCreate] | None = None
-    # Created before the series, so a series may name one of them.
-    custom_indices: list[CustomIndexIn] = []
     labelling_policy: LabellingPolicy | None = None
 
 

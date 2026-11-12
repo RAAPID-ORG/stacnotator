@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import {
   type CustomIndexIn,
-  type CustomIndexOut,
   type SpectralIndexOut,
   type TimeseriesCreate,
   type TimeseriesOptionsOut,
@@ -28,21 +27,29 @@ const emptyTimeseries = (windowName: string): TimeseriesCreate => ({
   ts_type: '',
 });
 
-/** What the chosen source can compute, built-ins in the registry's order and the
- *  campaign's own apart. Empty until a source is picked, which is what keeps an index
- *  the source has no bands for from being offered at all. */
+const NOT_CUSTOM = { expression: null, domain_min: null, domain_max: null };
+
+/** What the chosen source can compute, in the registry's order. Empty until a
+ *  source is picked, which is what keeps an index the source has no bands for
+ *  from being offered at all. */
 function availableIndices(
   options: TimeseriesOptionsOut | null,
-  customIndices: CustomIndexOut[],
   sourceKey: string
-): { builtIn: SpectralIndexOut[]; custom: CustomIndexOut[] } {
+): SpectralIndexOut[] {
   const source = options?.sources.find((s) => s.key === sourceKey);
-  if (!options || !source) return { builtIn: [], custom: [] };
-  return {
-    builtIn: options.indices.filter((index) => source.index_keys.includes(index.key)),
-    custom: customIndices.filter((index) => index.source_keys.includes(sourceKey)),
-  };
+  if (!options || !source) return [];
+  return options.indices.filter((index) => source.index_keys.includes(index.key));
 }
+
+const customOf = (series: TimeseriesCreate): CustomIndexIn | null =>
+  series.expression && series.domain_min != null && series.domain_max != null
+    ? {
+        name: series.ts_type,
+        expression: series.expression,
+        domain_min: series.domain_min,
+        domain_max: series.domain_max,
+      }
+    : null;
 
 const formatYm = (ym: string) => (ym.length === 6 ? `${ym.slice(0, 4)}-${ym.slice(4)}` : ym);
 
@@ -60,9 +67,6 @@ export const StepAddTimeseries = ({
   existingTimeseries = [],
   onRemoveExisting,
   onRenameExistingPanel,
-  customIndices,
-  onSaveCustomIndex,
-  onRemoveCustomIndex,
   saving = false,
 }: {
   /** The series being added. */
@@ -73,13 +77,6 @@ export const StepAddTimeseries = ({
   existingTimeseries?: TimeseriesOut[];
   onRemoveExisting?: (id: number) => void;
   onRenameExistingPanel?: (oldName: string, newName: string) => Promise<void>;
-  customIndices: CustomIndexOut[];
-  onSaveCustomIndex: (
-    body: CustomIndexIn,
-    original: string | null,
-    described: CustomIndexOut
-  ) => Promise<void>;
-  onRemoveCustomIndex: (name: string) => void;
   saving?: boolean;
 }) => {
   const { t } = useTranslation(['campaigns', 'common']);
@@ -93,11 +90,8 @@ export const StepAddTimeseries = ({
   const [editingGroup, setEditingGroup] = useState<{ original: string; name: string } | null>(null);
   const [renameError, setRenameError] = useState('');
   const [renaming, setRenaming] = useState(false);
-  // The step holds still while an index is written, so the series list it then
-  // updates is the one on screen.
-  const [savingIndex, setSavingIndex] = useState(false);
-  // The new series whose custom index is being defined (editing: null) or edited.
-  const [defining, setDefining] = useState<{ index: number; editing: string | null } | null>(null);
+  // The new series whose custom index is being defined.
+  const [defining, setDefining] = useState<number | null>(null);
 
   const groupName = (name?: string | null) => name?.trim() || DEFAULT_TIMESERIES_WINDOW_NAME;
   const windowOptions = Array.from(
@@ -116,6 +110,22 @@ export const StepAddTimeseries = ({
 
   const setItems = onChange;
 
+  /** Custom indices the campaign already uses on a source, offered for reuse there. */
+  const customIndices = (sourceKey: string): CustomIndexIn[] => {
+    const all = [
+      ...existingTimeseries.map((ts) => ({
+        ...ts,
+        domain_min: ts.index.domain_min,
+        domain_max: ts.index.domain_max,
+      })),
+      ...items,
+    ]
+      .filter((series) => series.data_source === sourceKey)
+      .map(customOf)
+      .filter((custom) => custom !== null);
+    return all.filter((custom, i) => all.findIndex((c) => c.name === custom.name) === i);
+  };
+
   const updateItem = (index: number, updates: Partial<TimeseriesCreate>) => {
     const next = [...items];
     next[index] = { ...next[index], ...updates };
@@ -129,41 +139,30 @@ export const StepAddTimeseries = ({
     setItems(items.filter((_, i) => i !== index));
   };
 
-  /** Switching source drops an index the new one cannot compute, so the form
+  /** Switching source drops an index the new one may not compute, so the form
    *  never holds a pairing the backend would reject. */
   const selectSource = (index: number, sourceKey: string) => {
-    const { builtIn, custom } = availableIndices(tsOptions, customIndices, sourceKey);
-    const stillOffered = [...builtIn, ...custom].some(
+    const stillOffered = availableIndices(tsOptions, sourceKey).some(
       (candidate) => candidate.key === items[index]?.ts_type
     );
-    if (!stillOffered && defining?.index === index) setDefining(null);
+    if (defining === index) setDefining(null);
     updateItem(index, {
       data_source: sourceKey,
       ts_type: stillOffered ? items[index].ts_type : '',
+      ...NOT_CUSTOM,
     });
   };
 
-  const saveCustomIndex = async (
-    index: number,
-    body: CustomIndexIn,
-    original: string | null,
-    described: CustomIndexOut
-  ) => {
-    setSavingIndex(true);
-    try {
-      await onSaveCustomIndex(body, original, described);
-    } finally {
-      setSavingIndex(false);
+  const selectIndex = (index: number, key: string) => {
+    if (key === NEW_CUSTOM_INDEX) {
+      setDefining(index);
+      return;
     }
     setDefining(null);
-    // New series follow a rename, and drop an index their source can no longer compute.
-    setItems(
-      items.map((series, i) => {
-        if (original === null) return i === index ? { ...series, ts_type: described.key } : series;
-        if (series.ts_type !== original) return series;
-        const fits = described.source_keys.includes(series.data_source);
-        return { ...series, ts_type: fits ? described.key : '' };
-      })
+    const custom = customIndices(items[index].data_source).find((c) => c.name === key);
+    updateItem(
+      index,
+      custom ? { ...custom, ts_type: custom.name } : { ts_type: key, ...NOT_CUSTOM }
     );
   };
 
@@ -286,14 +285,12 @@ export const StepAddTimeseries = ({
 
   const newSeriesRow = (i: TimeseriesCreate, index: number) => {
     const source = tsOptions?.sources.find((s) => s.key === i.data_source);
-    const offered = availableIndices(tsOptions, customIndices, i.data_source);
-    const chosenCustom = offered.custom.find((custom) => custom.key === i.ts_type);
-    const chosenIndex =
-      chosenCustom ?? offered.builtIn.find((candidate) => candidate.key === i.ts_type);
-    const definingHere = defining?.index === index ? defining : null;
-    const editingCustom = definingHere?.editing
-      ? (customIndices.find((custom) => custom.key === definingHere.editing) ?? null)
-      : null;
+    const builtIn = availableIndices(tsOptions, i.data_source);
+    const custom = customIndices(i.data_source);
+    const chosenCustom = customOf(i);
+    const formula =
+      chosenCustom?.expression ?? builtIn.find((option) => option.key === i.ts_type)?.formula;
+    const definingHere = defining === index;
 
     return (
       <li
@@ -332,25 +329,23 @@ export const StepAddTimeseries = ({
             <Caption>{t('timeseriesStep.index')}</Caption>
             <Select
               size="sm"
-              value={definingHere && !definingHere.editing ? NEW_CUSTOM_INDEX : i.ts_type}
+              value={definingHere && !chosenCustom ? NEW_CUSTOM_INDEX : i.ts_type}
               disabled={!i.data_source}
-              onChange={(e) => {
-                if (e.target.value === NEW_CUSTOM_INDEX) {
-                  setDefining({ index, editing: null });
-                  return;
-                }
-                if (definingHere) setDefining(null);
-                updateItem(index, { ts_type: e.target.value });
-              }}
+              onChange={(e) => selectIndex(index, e.target.value)}
             >
               <option value="">
                 {i.data_source
                   ? t('timeseriesStep.selectIndex')
                   : t('timeseriesStep.pickSourceFirst')}
               </option>
-              {[...offered.builtIn, ...offered.custom].map((option) => (
+              {builtIn.map((option) => (
                 <option key={option.key} value={option.key}>
                   {option.label}
+                </option>
+              ))}
+              {custom.map((option) => (
+                <option key={option.name} value={option.name}>
+                  {option.name}
                 </option>
               ))}
               <option value={NEW_CUSTOM_INDEX}>{t('customIndices.new')}</option>
@@ -389,46 +384,29 @@ export const StepAddTimeseries = ({
             bands={source?.bands ?? []}
             sourceKey={i.data_source}
             sourceLabel={source?.label ?? i.data_source}
-            editing={editingCustom}
-            takenNames={customIndices
-              .map((custom) => custom.key)
-              .filter((name) => name !== definingHere.editing)}
-            canDelete={
-              !!editingCustom &&
-              !existingTimeseries.some((ts) => ts.ts_type === editingCustom.key) &&
-              !items.some(
-                (series, other) => other !== index && series.ts_type === editingCustom.key
-              )
-            }
-            onSave={(body, described) =>
-              saveCustomIndex(index, body, definingHere.editing, described)
-            }
-            onDelete={() => {
-              if (!editingCustom) return;
-              onRemoveCustomIndex(editingCustom.key);
+            initial={chosenCustom}
+            onUse={(index_) => {
               setDefining(null);
-              updateItem(index, { ts_type: '' });
+              updateItem(index, { ...index_, ts_type: index_.name });
             }}
             onCancel={() => setDefining(null)}
           />
         ) : (
-          (chosenIndex || source) && (
+          (formula || source) && (
             <p className="flex flex-wrap items-baseline gap-x-2 text-xs text-neutral-500">
-              {chosenIndex && (
-                <span className="font-mono text-neutral-700 break-all">{chosenIndex.formula}</span>
-              )}
+              {formula && <span className="font-mono text-neutral-700 break-all">{formula}</span>}
               {chosenCustom && (
                 <button
                   type="button"
                   className="text-brand-600 hover:text-brand-700 hover:underline underline-offset-4 cursor-pointer"
-                  onClick={() => setDefining({ index, editing: chosenCustom.key })}
+                  onClick={() => setDefining(index)}
                 >
-                  {t('customIndices.edit', { name: chosenCustom.label })}
+                  {t('customIndices.edit', { name: chosenCustom.name })}
                 </button>
               )}
               {source && (
                 <span>
-                  {chosenIndex && '· '}
+                  {formula && '· '}
                   {source.label}, {source.resolution_m} m, {source.coverage}
                 </span>
               )}
@@ -440,7 +418,7 @@ export const StepAddTimeseries = ({
   };
 
   return (
-    <fieldset className="space-y-5 min-w-0" disabled={renaming || saving || savingIndex}>
+    <fieldset className="space-y-5 min-w-0" disabled={renaming || saving}>
       <div>
         <h3 className="section-heading">{t('timeseriesStep.title')}</h3>
         <p className="section-description">{t('timeseriesStep.description')}</p>

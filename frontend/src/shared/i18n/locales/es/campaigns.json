@@ -141,9 +141,7 @@
       "deleteCampaign": "No se pudo eliminar la campaña",
       "deleteTimeseries": "No se pudo eliminar la serie temporal",
       "addTimeseries": "No se pudieron añadir las series temporales",
-      "renamePanel": "No se pudo renombrar el panel de series temporales",
-      "saveCustomIndex": "No se pudo guardar el índice personalizado",
-      "deleteCustomIndex": "No se pudo eliminar el índice personalizado"
+      "renamePanel": "No se pudo renombrar el panel de series temporales"
     },
     "toasts": {
       "nameSaved": "Nombre de la campaña actualizado correctamente",
@@ -152,9 +150,7 @@
       "timeseriesAdded_one": "Se añadió {{count}} serie temporal correctamente",
       "timeseriesAdded_many": "Se añadieron {{count}} series temporales correctamente",
       "timeseriesAdded_other": "Se añadieron {{count}} series temporales correctamente",
-      "panelRenamed": "Panel renombrado correctamente",
-      "customIndexSaved": "Índice personalizado guardado",
-      "customIndexDeleted": "Índice personalizado eliminado"
+      "panelRenamed": "Panel renombrado correctamente"
     },
     "subtitle": "Gestiona la configuración y las imágenes de tu campaña.",
     "waitingForSetup": "Esperando a que termine la configuración en segundo plano...",
@@ -591,17 +587,13 @@
     "edit": "Editar {{name}}",
     "name": "Nombre del índice",
     "expression": "Fórmula",
-    "help": "Bandas: {{bands}}. Funciones: {{functions}}. Operadores: + - * / ** y < <= > >=. Se calcula por píxel en cada imagen.",
+    "help": "Bandas: {{bands}}. Funciones: {{functions}}. Operadores: + - * / **. Se calcula por píxel en cada imagen.",
     "axisMin": "Mín. gráfico",
     "axisMax": "Máx. gráfico",
-    "duplicate": "Ya existe un índice con este nombre.",
     "badNumber": "El rango del gráfico debe ser numérico.",
     "previewFailed": "No se pudo comprobar esta fórmula",
-    "inUse": "Otra serie usa este índice.",
     "add": "Añadir índice",
-    "referenceLines": "Líneas de referencia",
     "previewHint": "La fórmula se comprueba mientras escribes.",
-    "delete": "Eliminar {{name}}",
     "notOnSource": "{{source}} no tiene las bandas que lee esta fórmula."
   },
   "startAnnotating": "Empezar a anotar",

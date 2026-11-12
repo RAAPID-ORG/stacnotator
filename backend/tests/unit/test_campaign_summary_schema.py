@@ -8,7 +8,6 @@ IMAGERY_FIELDS = {
     "custom_maps",
     "vector_layers",
     "time_series",
-    "custom_indices",
 }
 
 

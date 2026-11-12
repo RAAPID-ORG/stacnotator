@@ -59,13 +59,25 @@ def _create(**overrides):
     )
 
 
-class TestSourceValidation:
+class TestSourceAndIndexValidation:
+    """A series that names an index its source cannot compute would save fine and
+    then fail for every annotator who opened it, so it is refused up front."""
+
+    def test_rejects_an_index_the_source_lacks_the_bands_for(self):
+        with pytest.raises(ValidationError, match="NDRE"):
+            _create(data_source="MODIS", ts_type="NDRE")
+
+    def test_rejects_an_unknown_index(self):
+        with pytest.raises(ValidationError, match="Unknown index"):
+            _create(ts_type="NDXX")
+
     def test_rejects_an_unknown_source(self):
         with pytest.raises(ValidationError, match="Unsupported data source"):
             _create(data_source="SENTINEL3")
 
-    def test_stores_the_canonical_source_key(self):
-        assert _create(data_source="LANDSAT").data_source == "LANDSAT"
+    def test_accepts_the_indices_a_source_does_carry(self):
+        assert _create(data_source="LANDSAT", ts_type="NBR").ts_type == "NBR"
+        assert _create(data_source="SENTINEL2", ts_type="NDRE").ts_type == "NDRE"
 
 
 class TestOutputCarriesTheIndexDescription:

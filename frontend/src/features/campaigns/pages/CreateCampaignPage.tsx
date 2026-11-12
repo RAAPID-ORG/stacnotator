@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate, useNavigate } from 'react-router-dom';
-import type { CampaignCreate, CustomIndexIn, CustomIndexOut, ProjectUserOut } from '~/api/client';
+import type { CampaignCreate, ProjectUserOut } from '~/api/client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createCampaignMutation,
@@ -36,14 +36,6 @@ import { FadeIn } from '~/shared/ui/motion';
 import { capitalizeFirst } from '~/shared/utils/utility';
 
 const NO_USERS: ProjectUserOut[] = [];
-
-const toCustomIndexIn = (index: CustomIndexOut): CustomIndexIn => ({
-  name: index.key,
-  expression: index.expression,
-  domain_min: index.domain_min,
-  domain_max: index.domain_max,
-  reference_lines: index.reference_lines,
-});
 
 export const CreateCampaignPage = () => {
   const { t } = useTranslation(['campaigns', 'common']);
@@ -107,8 +99,6 @@ export const CreateCampaignPage = () => {
   }, [projectIsPublic]);
 
   const [imageryState, setImageryState] = useState<ImageryStepState>(createInitialImageryState);
-  // Described by the backend's preview, so the step can offer each on the sources it fits.
-  const [customIndices, setCustomIndices] = useState<CustomIndexOut[]>([]);
 
   const validation: FullValidationResult = useMemo(
     () => validateFullForm(form, imageryState),
@@ -148,17 +138,6 @@ export const CreateCampaignPage = () => {
           <StepAddTimeseries
             items={form.timeseries_configs ?? []}
             onChange={(timeseries_configs) => setForm({ ...form, timeseries_configs })}
-            customIndices={customIndices}
-            onSaveCustomIndex={async (_body, original, described) =>
-              setCustomIndices(
-                original === null
-                  ? [...customIndices, described]
-                  : customIndices.map((index) => (index.key === original ? described : index))
-              )
-            }
-            onRemoveCustomIndex={(name) =>
-              setCustomIndices(customIndices.filter((index) => index.key !== name))
-            }
           />
         );
       case 'StepReview':
@@ -205,7 +184,7 @@ export const CreateCampaignPage = () => {
     if (isSubmitting) return;
     setShowValidation(true);
     if (!validation.isValid) return;
-    create.mutate({ body: { ...form, custom_indices: customIndices.map(toCustomIndexIn) } });
+    create.mutate({ body: form });
   };
 
   // Only project admins may add campaigns to a project.

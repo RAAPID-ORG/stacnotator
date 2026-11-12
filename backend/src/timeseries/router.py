@@ -11,12 +11,8 @@ from src.campaigns.models import Campaign
 from src.database import get_db
 from src.earth_engine import ensure_earth_engine
 from src.timeseries import service
-from src.timeseries.fetch import (
-    RateLimited,
-    UpstreamFailed,
-    fetch_index_series,
-    fetch_zonal_index_series,
-)
+from src.timeseries.expressions import ExpressionError
+from src.timeseries.fetch import RateLimited, UpstreamFailed
 from src.timeseries.indices import SpectralIndex
 from src.timeseries.schemas import (
     CustomIndexIn,
@@ -27,10 +23,10 @@ from src.timeseries.schemas import (
     TimeseriesOptionsOut,
     TimeseriesWindowRenameRequest,
     ZonalTimeseriesRequest,
+    custom_index_out,
     timeseries_options,
     ym_range_to_dates,
 )
-from src.timeseries.sources import TimeseriesSource
 
 router = APIRouter(
     tags=["Time Series"],
@@ -59,48 +55,12 @@ def get_timeseries_creation_options():
 
 @router.post("/timeseries/custom-indices/preview", response_model=CustomIndexOut)
 def preview_custom_index(request: CustomIndexIn):
-    """Check a custom index without saving it: its rendered formula and the sources
-    that can compute it, or a 422 saying what is wrong with the expression."""
-    return CustomIndexOut.model_validate(request)
-
-
-@router.post(
-    "/campaigns/{campaign_id}/timeseries/custom-indices",
-    response_model=CustomIndexOut,
-    status_code=201,
-)
-def create_custom_index(
-    campaign_id: int,
-    request: CustomIndexIn,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
-):
-    return CustomIndexOut.model_validate(service.create_custom_index(db, campaign_id, request))
-
-
-@router.put(
-    "/campaigns/{campaign_id}/timeseries/custom-indices/{name}", response_model=CustomIndexOut
-)
-def update_custom_index(
-    campaign_id: int,
-    name: str,
-    request: CustomIndexIn,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
-):
-    return CustomIndexOut.model_validate(
-        service.update_custom_index(db, campaign_id, name, request)
-    )
-
-
-@router.delete("/campaigns/{campaign_id}/timeseries/custom-indices/{name}", status_code=204)
-def delete_custom_index(
-    campaign_id: int,
-    name: str,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
-):
-    service.delete_custom_index(db, campaign_id, name)
+    """Check a custom index as it is typed: its rendered formula and the sources
+    that can compute it, or a 422 saying what to change."""
+    try:
+        return custom_index_out(request)
+    except ExpressionError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.patch("/campaigns/{campaign_id}/timeseries/windows/{window_id}", status_code=204)
@@ -118,10 +78,10 @@ def _series_data(
     campaign_id: int,
     timeseries_id: int,
     db: Session,
-    fetch: Callable[[TimeseriesSource, SpectralIndex, str, str], pd.DataFrame],
+    fetch: Callable[[SpectralIndex | None, str, str, str], pd.DataFrame],
 ) -> TimeseriesDataResponse:
     """Look up a campaign's series, release the DB connection, then run `fetch`
-    (source, index, start, end) against Earth Engine with errors mapped."""
+    (index, data_source, start, end) against Earth Engine with errors mapped."""
     timeseries = service.get_timeseries_by_id(timeseries_id, db)
     if timeseries.campaign_id != campaign_id:
         raise HTTPException(status_code=404, detail="Timeseries not found")
@@ -132,12 +92,10 @@ def _series_data(
         raise HTTPException(
             status_code=400, detail=f"Timeseries has an invalid date range: {exc}"
         ) from exc
-    try:
-        source, index = service.series_definition(timeseries)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     # Free the pooled connection back before the slow Earth Engine call.
+    index = timeseries.spectral_index
+    data_source = timeseries.data_source
     db.close()
 
     if not ensure_earth_engine():
@@ -147,7 +105,9 @@ def _series_data(
         )
 
     try:
-        timeseries_data_df = fetch(source, index, start, end)
+        timeseries_data_df = fetch(index, data_source, start, end)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RateLimited as exc:
         raise HTTPException(
             status_code=503,
@@ -181,9 +141,9 @@ def get_timeseries_data(
         campaign_id,
         timeseries_id,
         db,
-        lambda source, index, start, end: fetch_index_series(
-            source,
-            index,
+        lambda index, data_source, start, end: service.get_timeseries_data(
+            index=index,
+            data_source=data_source,
             latitude=latitude,
             longitude=longitude,
             start_date=start,
@@ -211,9 +171,9 @@ def get_zonal_timeseries_data(
         campaign_id,
         timeseries_id,
         db,
-        lambda source, index, start, end: fetch_zonal_index_series(
-            source,
-            index,
+        lambda index, data_source, start, end: service.get_zonal_timeseries_data(
+            index=index,
+            data_source=data_source,
             geometry=geometry,
             start_date=start,
             end_date=end,

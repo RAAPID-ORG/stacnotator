@@ -134,9 +134,7 @@
       "deleteCampaign": "Failed to delete campaign",
       "deleteTimeseries": "Failed to delete timeseries",
       "addTimeseries": "Failed to add timeseries",
-      "renamePanel": "Failed to rename timeseries panel",
-      "saveCustomIndex": "Failed to save the custom index",
-      "deleteCustomIndex": "Failed to remove the custom index"
+      "renamePanel": "Failed to rename timeseries panel"
     },
     "toasts": {
       "nameSaved": "Campaign name updated successfully",
@@ -144,9 +142,7 @@
       "timeseriesDeleted": "Timeseries deleted successfully",
       "timeseriesAdded_one": "{{count}} timeseries added successfully",
       "timeseriesAdded_other": "{{count}} timeseries added successfully",
-      "panelRenamed": "Panel renamed successfully",
-      "customIndexSaved": "Custom index saved",
-      "customIndexDeleted": "Custom index removed"
+      "panelRenamed": "Panel renamed successfully"
     },
     "subtitle": "Manage your campaign settings and imagery.",
     "waitingForSetup": "Waiting for background setup to complete...",
@@ -562,17 +558,13 @@
     "edit": "Edit {{name}}",
     "name": "Index name",
     "expression": "Formula",
-    "help": "Bands: {{bands}}. Functions: {{functions}}. Operators: + - * / ** and < <= > >=. Computed per pixel on each image.",
+    "help": "Bands: {{bands}}. Functions: {{functions}}. Operators: + - * / **. Computed per pixel on each image.",
     "axisMin": "Chart min",
     "axisMax": "Chart max",
-    "duplicate": "An index with this name already exists.",
     "badNumber": "The chart range must be numbers.",
     "previewFailed": "Could not check this formula",
-    "inUse": "Another series plots this index.",
     "add": "Add index",
-    "referenceLines": "Reference lines",
     "previewHint": "The formula is checked as you type.",
-    "delete": "Delete {{name}}",
     "notOnSource": "{{source}} does not have the bands this formula reads."
   },
   "startAnnotating": "Start annotating",

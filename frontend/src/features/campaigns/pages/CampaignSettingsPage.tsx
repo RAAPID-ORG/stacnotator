@@ -24,24 +24,19 @@ import { FadeIn } from '~/shared/ui/motion';
 
 import {
   type BasemapOut,
-  type CustomIndexIn,
-  type CustomIndexOut,
   type ImagerySourceOut,
   type ProjectUserOut,
   type TimeseriesCreate,
   type TimeseriesOut,
 } from '~/api/client';
 import {
-  createCustomIndexMutation,
   createTimeseriesForCampaignMutation,
-  deleteCustomIndexMutation,
   deleteCampaignMutation,
   deleteTimeseriesMutation,
   getProjectUsersOptions,
   listProjectCampaignsQueryKey,
   renameTimeseriesWindowMutation,
   updateCampaignMutation,
-  updateCustomIndexMutation,
 } from '~/api/queries';
 import { useCampaign, useRefreshCampaign } from '../hooks/campaignQueries';
 
@@ -54,7 +49,6 @@ const isSettingsTab = (tab: string | null): tab is SettingsTab =>
 const NO_IMAGERY: ImagerySourceOut[] = [];
 const NO_BASEMAPS: BasemapOut[] = [];
 const NO_TIMESERIES: TimeseriesOut[] = [];
-const NO_CUSTOM_INDICES: CustomIndexOut[] = [];
 const NO_USERS: ProjectUserOut[] = [];
 
 export const CampaignSettingsPage = () => {
@@ -79,7 +73,6 @@ export const CampaignSettingsPage = () => {
   const projectId = campaign?.project_id ?? routeProjectId;
   const imagery = campaign?.imagery_sources ?? NO_IMAGERY;
   const timeseries = campaign?.time_series ?? NO_TIMESERIES;
-  const customIndices = campaign?.custom_indices ?? NO_CUSTOM_INDICES;
 
   const [campaignName, setCampaignName] = useState('');
   const [newTimeseries, setNewTimeseries] = useState<TimeseriesCreate[]>([]);
@@ -205,36 +198,6 @@ export const CampaignSettingsPage = () => {
     },
   });
 
-  const createCustomIndex = useMutation({
-    ...createCustomIndexMutation(),
-    meta: { errorMessage: t('settingsPage.errors.saveCustomIndex') },
-  });
-  const updateCustomIndex = useMutation({
-    ...updateCustomIndexMutation(),
-    meta: { errorMessage: t('settingsPage.errors.saveCustomIndex') },
-  });
-  const removeCustomIndex = useMutation({
-    ...deleteCustomIndexMutation(),
-    meta: { errorMessage: t('settingsPage.errors.deleteCustomIndex') },
-    onSuccess: () => {
-      void refreshCampaign();
-      showAlert(t('settingsPage.toasts.customIndexDeleted'), 'success');
-    },
-  });
-
-  const handleSaveCustomIndex = async (body: CustomIndexIn, original: string | null) => {
-    if (original === null) {
-      await createCustomIndex.mutateAsync({ path: { campaign_id: campaignId }, body });
-    } else {
-      await updateCustomIndex.mutateAsync({
-        path: { campaign_id: campaignId, name: original },
-        body,
-      });
-    }
-    await refreshCampaign();
-    showAlert(t('settingsPage.toasts.customIndexSaved'), 'success');
-  };
-
   const renamePanel = useMutation({
     ...renameTimeseriesWindowMutation(),
     meta: { errorMessage: t('settingsPage.errors.renamePanel') },
@@ -259,7 +222,6 @@ export const CampaignSettingsPage = () => {
     removeCampaign.isPending ||
     removeTimeseries.isPending ||
     addTimeseries.isPending ||
-    removeCustomIndex.isPending ||
     renamePanel.isPending;
 
   const handleSaveName = () => {
@@ -467,11 +429,6 @@ export const CampaignSettingsPage = () => {
                       handleAddTimeseries={handleAddTimeseries}
                       handleRenamePanel={handleRenamePanel}
                       setDeleteConfirm={setDeleteConfirm}
-                      customIndices={customIndices}
-                      handleSaveCustomIndex={handleSaveCustomIndex}
-                      handleRemoveCustomIndex={(name) =>
-                        removeCustomIndex.mutate({ path: { campaign_id: campaignId, name } })
-                      }
                       saving={saving}
                     />
                   )}

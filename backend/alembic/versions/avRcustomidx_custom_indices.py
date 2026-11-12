@@ -1,7 +1,12 @@
+"""Custom index formulas on time series
+
+Revision ID: avRcustomidx
+Revises: avQannundo
+"""
+
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
@@ -12,45 +17,19 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        "custom_indices",
-        sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column(
-            "campaign_id",
-            sa.Integer(),
-            sa.ForeignKey("data.campaigns.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column("name", sa.String(), nullable=False),
-        sa.Column("expression", sa.String(), nullable=False),
-        sa.Column("domain_min", sa.Float(), nullable=False),
-        sa.Column("domain_max", sa.Float(), nullable=False),
-        sa.Column(
-            "reference_lines",
-            postgresql.ARRAY(sa.Float()),
-            server_default="{}",
-            nullable=False,
-        ),
-        sa.UniqueConstraint("campaign_id", "name", name="uq_custom_indices_campaign_name"),
-        schema="data",
-    )
+    op.add_column("time_series", sa.Column("expression", sa.String()), schema="data")
+    op.add_column("time_series", sa.Column("domain_min", sa.Float()), schema="data")
+    op.add_column("time_series", sa.Column("domain_max", sa.Float()), schema="data")
 
 
 def downgrade() -> None:
-    # The previous release resolves every series through the built-in indices,
-    # so a series plotting a custom one would break its campaign's reads.
-    in_use = (
+    # The previous release resolves every series through the built-in indices.
+    custom = (
         op.get_bind()
-        .execute(
-            sa.text(
-                "SELECT count(*) FROM data.time_series ts JOIN data.custom_indices ci"
-                " ON ci.campaign_id = ts.campaign_id AND ci.name = ts.ts_type"
-            )
-        )
+        .execute(sa.text("SELECT count(*) FROM data.time_series WHERE expression IS NOT NULL"))
         .scalar_one()
     )
-    if in_use:
-        raise RuntimeError(
-            f"{in_use} time series plot a custom index; remove them before downgrading"
-        )
-    op.drop_table("custom_indices", schema="data")
+    if custom:
+        raise RuntimeError(f"{custom} time series plot a custom index; remove them first")
+    for column in ("expression", "domain_min", "domain_max"):
+        op.drop_column("time_series", column, schema="data")

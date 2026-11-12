@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import type { CustomIndexIn, CustomIndexOut, TimeseriesCreate, TimeseriesOut } from '~/api/client';
+import type { TimeseriesCreate, TimeseriesOut } from '~/api/client';
 import { StepAddTimeseries } from '~/features/campaigns/components/creation/steps/StepAddTimeseries';
 import { Button } from '~/shared/ui/forms';
 
@@ -11,9 +11,6 @@ interface Props {
   handleAddTimeseries: () => void;
   handleRenamePanel: (oldName: string, newName: string) => Promise<void>;
   setDeleteConfirm: (v: { timeseriesId?: number } | null) => void;
-  customIndices: CustomIndexOut[];
-  handleSaveCustomIndex: (body: CustomIndexIn, original: string | null) => Promise<void>;
-  handleRemoveCustomIndex: (name: string) => void;
   saving: boolean;
 }
 
@@ -24,9 +21,6 @@ export const TimeseriesTab: React.FC<Props> = ({
   handleAddTimeseries,
   handleRenamePanel,
   setDeleteConfirm,
-  customIndices,
-  handleSaveCustomIndex,
-  handleRemoveCustomIndex,
   saving,
 }) => {
   const { t } = useTranslation('campaigns');
@@ -44,9 +38,6 @@ export const TimeseriesTab: React.FC<Props> = ({
           existingTimeseries={timeseries}
           onRemoveExisting={(timeseriesId) => setDeleteConfirm({ timeseriesId })}
           onRenameExistingPanel={handleRenamePanel}
-          customIndices={customIndices}
-          onSaveCustomIndex={handleSaveCustomIndex}
-          onRemoveCustomIndex={handleRemoveCustomIndex}
           saving={saving}
         />
 

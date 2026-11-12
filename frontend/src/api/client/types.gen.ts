@@ -1196,10 +1196,6 @@ export type CampaignCreate = {
      * Timeseries Configs
      */
     timeseries_configs?: Array<TimeseriesCreate> | null;
-    /**
-     * Custom Indices
-     */
-    custom_indices?: Array<CustomIndexIn>;
     labelling_policy?: LabellingPolicy | null;
 };
 
@@ -1394,10 +1390,6 @@ export type CampaignOut = {
      * Time Series
      */
     time_series: Array<TimeseriesOut>;
-    /**
-     * Custom Indices
-     */
-    custom_indices?: Array<CustomIndexOut>;
 };
 
 /**
@@ -1488,10 +1480,6 @@ export type CampaignOutFull = {
      * Time Series
      */
     time_series: Array<TimeseriesOut>;
-    /**
-     * Custom Indices
-     */
-    custom_indices?: Array<CustomIndexOut>;
     default_main_canvas_layout?: CanvasLayoutOut | null;
     personal_main_canvas_layout?: CanvasLayoutOut | null;
     /**
@@ -2129,9 +2117,6 @@ export type ConfidenceFacet = {
 
 /**
  * CustomIndexIn
- *
- * A custom index as an admin writes it. Its name is what series store in
- * ts_type, so it is short, URL-safe and never a built-in key.
  */
 export type CustomIndexIn = {
     /**
@@ -2150,10 +2135,6 @@ export type CustomIndexIn = {
      * Domain Max
      */
     domain_max: number;
-    /**
-     * Reference Lines
-     */
-    reference_lines?: Array<number>;
 };
 
 /**
@@ -2184,10 +2165,6 @@ export type CustomIndexOut = {
      * Reference Lines
      */
     reference_lines: Array<number>;
-    /**
-     * Expression
-     */
-    expression: string;
     /**
      * Source Keys
      */
@@ -4891,6 +4868,18 @@ export type TimeseriesCreate = {
      * Ts Type
      */
     ts_type: string;
+    /**
+     * Expression
+     */
+    expression?: string | null;
+    /**
+     * Domain Min
+     */
+    domain_min?: number | null;
+    /**
+     * Domain Max
+     */
+    domain_max?: number | null;
 };
 
 /**
@@ -4965,6 +4954,10 @@ export type TimeseriesOut = {
      * Ts Type
      */
     ts_type: string;
+    /**
+     * Expression
+     */
+    expression?: string | null;
     index: SpectralIndexOut;
 };
 
@@ -9047,104 +9040,6 @@ export type PreviewCustomIndexResponses = {
 };
 
 export type PreviewCustomIndexResponse = PreviewCustomIndexResponses[keyof PreviewCustomIndexResponses];
-
-export type CreateCustomIndexData = {
-    body: CustomIndexIn;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/timeseries/custom-indices';
-};
-
-export type CreateCustomIndexErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type CreateCustomIndexError = CreateCustomIndexErrors[keyof CreateCustomIndexErrors];
-
-export type CreateCustomIndexResponses = {
-    /**
-     * Successful Response
-     */
-    201: CustomIndexOut;
-};
-
-export type CreateCustomIndexResponse = CreateCustomIndexResponses[keyof CreateCustomIndexResponses];
-
-export type DeleteCustomIndexData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * Name
-         */
-        name: string;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/timeseries/custom-indices/{name}';
-};
-
-export type DeleteCustomIndexErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type DeleteCustomIndexError = DeleteCustomIndexErrors[keyof DeleteCustomIndexErrors];
-
-export type DeleteCustomIndexResponses = {
-    /**
-     * Successful Response
-     */
-    204: void;
-};
-
-export type DeleteCustomIndexResponse = DeleteCustomIndexResponses[keyof DeleteCustomIndexResponses];
-
-export type UpdateCustomIndexData = {
-    body: CustomIndexIn;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * Name
-         */
-        name: string;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/timeseries/custom-indices/{name}';
-};
-
-export type UpdateCustomIndexErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateCustomIndexError = UpdateCustomIndexErrors[keyof UpdateCustomIndexErrors];
-
-export type UpdateCustomIndexResponses = {
-    /**
-     * Successful Response
-     */
-    200: CustomIndexOut;
-};
-
-export type UpdateCustomIndexResponse = UpdateCustomIndexResponses[keyof UpdateCustomIndexResponses];
 
 export type RenameTimeseriesWindowData = {
     body: TimeseriesWindowRenameRequest;
