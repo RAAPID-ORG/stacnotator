@@ -101,14 +101,27 @@ class ImageryRecipe(TypedDict, total=False):
 
 
 class TimeseriesSpec(TypedDict, total=False):
-    """A time series chart sampled at each task. data_source: a key from setup_options'
-    timeseries sources; ts_type: one of that source's index_keys. start_ym, end_ym: YYYYMM."""
+    """A chart sampled at each task. data_source: a source key from setup_options.
+    ts_type: one of its index_keys, or a custom index name (letter first, then letters,
+    digits or underscores, at most 24 characters, not a built-in name). For a custom
+    index, also give expression, domain_min and domain_max; preview_custom_index checks
+    them. start_ym, end_ym: YYYYMM. window_name groups charts into a named panel."""
 
+    __pydantic_config__ = ConfigDict(extra="forbid")  # type: ignore[misc]
     name: Required[str]
     data_source: Required[str]
     ts_type: Required[str]
     start_ym: Required[str]
     end_ym: Required[str]
+    window_name: str
+    expression: str
+    domain_min: float
+    domain_max: float
+
+
+class TimeseriesWindowRename(TypedDict):
+    window_id: int
+    name: str
 
 
 class CampaignSettings(TypedDict, total=False):
@@ -166,9 +179,9 @@ server = MCPServer(
     instructions=(
         "Set up STACNotator campaigns and label their tasks from rendered imagery. Tools "
         "that create or change campaigns (create_campaign, add_tasks, edit_campaign, "
-        "edit_imagery) are only here when the user granted them; when one you need is "
-        "missing, tell the user it was not granted and never make the change another way, "
-        "such as through the SDK or the API. Before any such change, follow the "
+        "edit_imagery, edit_timeseries) are only here when the user granted them; when one "
+        "you need is missing, tell the user it was not granted and never make the change "
+        "another way, such as through the SDK or the API. Before any such change, follow the "
         "stacnotator-campaign-setup skill: never invent the area, the period or the labels; "
         "ask the user and make the change only once they accept your proposal. Then "
         "get_campaign until imagery is ready -> "
@@ -852,6 +865,29 @@ async def setup_options(project_id: int) -> str:
     return _json(options)
 
 
+@server.tool(structured_output=False)
+async def preview_custom_index(
+    name: str, expression: str, domain_min: float, domain_max: float
+) -> str:
+    """Validate a custom time-series index without saving it. Returns its rendered
+    formula and compatible source_keys. Use setup_options for source bands. Expressions
+    accept band-role names, numbers, + - * / **, parentheses, sqrt, abs, log, exp, min and
+    max. The domain is the chart's minimum and maximum. To save it, set ts_type to name
+    and pass expression and both domain bounds in a TimeseriesSpec."""
+    return _json(
+        await _api(
+            _http().post,
+            "/timeseries/custom-indices/preview",
+            {
+                "name": name,
+                "expression": expression,
+                "domain_min": domain_min,
+                "domain_max": domain_max,
+            },
+        )
+    )
+
+
 @_grantable_tool
 async def create_campaign(
     project_id: int,
@@ -902,9 +938,67 @@ async def create_campaign(
 @_grantable_tool
 async def edit_campaign(campaign_id: int, settings: CampaignSettings) -> str:
     """Change an existing campaign's settings. Read the current values with get_campaign
-    first and agree the change with the user. Imagery is changed with edit_imagery."""
+    first and agree the change with the user. Use edit_imagery for imagery and
+    edit_timeseries for time series."""
     campaign = await _api(_http().patch, f"/campaigns/{campaign_id}", settings)
     return _json({"campaign_id": campaign_id, "settings": campaign["settings"]})
+
+
+@_grantable_tool
+async def edit_timeseries(
+    campaign_id: int,
+    timeseries: list[TimeseriesSpec] | None = None,
+    remove: list[int] | None = None,
+    rename_windows: list[TimeseriesWindowRename] | None = None,
+) -> str:
+    """Add or remove time series, or rename their panels. Read get_campaign first and
+    agree the change with the user. timeseries: new charts, including custom indices,
+    as in create_campaign; existing charts are kept. remove: existing series ids.
+    To change a chart's formula, source or dates, add its replacement and remove the old
+    id: replacements have new ids, so update any saved agent views using those ids.
+    Additions are saved before removals. window_name joins an existing panel or creates
+    one; removing a panel's last series deletes it. rename_windows: window_id and name,
+    keeping each panel's id and layout. Operations are not atomic; on failure inspect
+    get_campaign before retrying."""
+    if not timeseries and not remove and not rename_windows:
+        raise ToolError("Pass timeseries, remove or rename_windows.")
+    campaign = await _api(_http().get, f"/campaigns/{campaign_id}")
+    existing_ids = {ts["id"] for ts in campaign["time_series"]}
+    window_ids = {ts["window_id"] for ts in campaign["time_series"]}
+    if set(remove or []) - existing_ids:
+        raise ToolError("Every remove id must belong to this campaign's time series.")
+    if any(window["window_id"] not in window_ids for window in rename_windows or []):
+        raise ToolError("Every window_id must belong to this campaign's time series.")
+    added: list[dict[str, Any]] = []
+    try:
+        if timeseries:
+            result = await _api(
+                _http().post,
+                f"/campaigns/{campaign_id}/timeseries",
+                {"timeseries": timeseries},
+            )
+            added = result["new_items"]
+        for window in rename_windows or []:
+            await _api(
+                _http().patch,
+                f"/campaigns/{campaign_id}/timeseries/windows/{window['window_id']}",
+                {"name": window["name"]},
+            )
+        for series_id in dict.fromkeys(remove or []):
+            await _api(_http().delete, f"/campaigns/{campaign_id}/timeseries/{series_id}")
+    except (ToolError, RequestException) as exc:
+        raise ToolError(
+            f"Time-series editing failed; some changes may already be saved: {exc}. "
+            "Inspect get_campaign before retrying edit_timeseries."
+        ) from exc
+    return _json(
+        {
+            "campaign_id": campaign_id,
+            "added": added,
+            "removed": list(dict.fromkeys(remove or [])),
+            "renamed_windows": rename_windows or [],
+        }
+    )
 
 
 @_grantable_tool
@@ -1022,7 +1116,21 @@ async def get_campaign(campaign_id: int) -> str:
             "imagery": [_imagery_summary(source) for source in campaign["imagery_sources"]],
             "basemaps": [basemap["name"] for basemap in campaign["basemaps"]],
             "time_series": [
-                {k: ts.get(k) for k in ("name", "data_source", "ts_type", "start_ym", "end_ym")}
+                {
+                    k: ts.get(k)
+                    for k in (
+                        "id",
+                        "name",
+                        "window_id",
+                        "window_name",
+                        "data_source",
+                        "ts_type",
+                        "start_ym",
+                        "end_ym",
+                        "expression",
+                        "index",
+                    )
+                }
                 for ts in campaign["time_series"]
             ],
             "task_sets": await _task_sets(campaign_id),

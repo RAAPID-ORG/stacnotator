@@ -8,9 +8,10 @@ description: Set up a new STACNotator campaign or change an existing one through
 First ask the user for the full URL of the STACNotator to use (`https://...`), every session,
 even if you used one before; never assume or complete one. Then `login(url)`.
 
-**Only the tools you were given.** `create_campaign`, `add_tasks`, `edit_campaign` and
-`edit_imagery` are there only when the user granted them (`STACNOTATOR_MCP_ALLOW`). When one
-you need is missing, tell the user which one and stop. Never make the change another way,
+**Only the tools you were given.** `create_campaign`, `add_tasks`, `edit_campaign`,
+`edit_imagery` and `edit_timeseries` are there only when the user granted them
+(`STACNOTATOR_MCP_ALLOW`). When one you need is missing, tell the user which one and stop.
+Never make the change another way,
 such as through the SDK, the API or the app.
 
 **The user decides, you propose.** Never invent the area, the period, the labels or the
@@ -63,6 +64,20 @@ like a stored source becomes exactly that recipe, so list every window it should
 they are. Replacing a source the user made with the generator turns it into plain windows
 they can no longer re-cut with it: say so first. Changed imagery registers again, so
 follow with steps 6 and 7.
+
+Time series: `edit_timeseries(campaign_id, timeseries?, remove?, rename_windows?)`.
+New series use the same specification as `create_campaign`, with `window_name` to group
+them into panels. To change a formula, source or date range, add a replacement and put
+the old series id in `remove`; other series stay unchanged. Replacements get new ids,
+so update agent views that name them. Rename panels with `rename_windows` entries
+`{"window_id", "name"}`, keeping their ids and layouts. Read ids, expressions and chart
+domains from `get_campaign`. On failure, inspect it before retrying: operations are not atomic.
+
+For custom indices, use `preview_custom_index(name, expression, domain_min, domain_max)`
+before proposing the series. It validates the expression and lists compatible source
+keys; `setup_options` lists source bands. Set `ts_type` to the custom index name and pass
+`expression`, `domain_min` and `domain_max` with the series, both on creation and editing.
+Include the formula, chart range, source, dates and panel in the accepted proposal.
 
 ## Choosing imagery
 

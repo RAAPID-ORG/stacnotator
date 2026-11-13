@@ -19,6 +19,17 @@ IMAGE_BYTES = b"\xff\xd8\xfffake-jpeg"
 DEFAULT_VIEW = {"cells": [{"slice_id": 7}]}
 TASK = {"task_id": 5, "annotation_number": 1, "lat": 1.5, "lon": 30.0, "geometry_wkt": "POINT"}
 NEXT_TASK = {**TASK, "task_id": 6, "annotation_number": 2}
+CUSTOM_SERIES = {
+    "name": "Vegetation",
+    "window_name": "Growing season",
+    "data_source": "sentinel2",
+    "ts_type": "MyIndex",
+    "start_ym": "202601",
+    "end_ym": "202612",
+    "expression": "(nir - red) / (nir + red)",
+    "domain_min": -1.0,
+    "domain_max": 1.0,
+}
 
 
 class FakeBrowsers:
@@ -390,12 +401,15 @@ def test_create_campaign_builds_imagery_on_the_page_and_sets_the_guide(browsers,
     if guide is not None:
         settings["guide_markdown"] = guide
 
-    result = json.loads(asyncio.run(agent_mcp.create_campaign(3, settings, [recipe])))
+    result = json.loads(
+        asyncio.run(agent_mcp.create_campaign(3, settings, [recipe], timeseries=[CUSTOM_SERIES]))
+    )
 
     assert ("imagery", None, [recipe], None) in browsers.calls
     body = json.loads(created.calls[0].request.body)
     assert body["name"] == "Crops"
     assert body["settings"] == {"labels": [{"id": 1, "name": "Maize"}]}
+    assert body["timeseries_configs"] == [CUSTOM_SERIES]
     assert body["imagery_editor_state"]["sources"][0]["name"] == "Sentinel-2 L2A"
     if guide is None:
         assert not patched.calls
@@ -436,6 +450,99 @@ def test_create_campaign_preserves_identity_when_follow_up_fails(browsers, failu
     assert "get_campaign" in str(error.value)
     assert ("task sets failed" if failure == "task_sets" else "guide") in str(error.value)
     assert len(created.calls) == 1
+
+
+@responses.activate
+def test_custom_index_preview_returns_compatible_sources_and_reports_invalid_formulas(browsers):
+    preview = responses.post(
+        f"{BASE}/api/timeseries/custom-indices/preview",
+        json={"key": "MyIndex", "source_keys": ["sentinel2"]},
+    )
+    arguments = {
+        "name": CUSTOM_SERIES["ts_type"],
+        **{key: CUSTOM_SERIES[key] for key in ("expression", "domain_min", "domain_max")},
+    }
+
+    result = asyncio.run(_call("preview_custom_index", arguments))
+
+    assert not result.is_error
+    assert json.loads(result.content[0].text)["source_keys"] == ["sentinel2"]
+    assert json.loads(preview.calls[0].request.body) == arguments
+    preview.status = 422
+    preview.body = json.dumps({"detail": "Unknown band 'invalid'"})
+    result = asyncio.run(_call("preview_custom_index", arguments))
+    assert result.is_error and "Unknown band" in result.content[0].text
+
+
+@responses.activate
+def test_edit_timeseries_preserves_custom_fields_through_mcp_and_adds_before_removing(
+    browsers, monkeypatch
+):
+    responses.get(
+        f"{BASE}/api/campaigns/40",
+        json={"time_series": [{"id": 7, "window_id": 2}, {"id": 8, "window_id": 3}]},
+    )
+    created = responses.post(
+        f"{BASE}/api/campaigns/40/timeseries",
+        json={"new_items": [{"id": 9, **CUSTOM_SERIES}]},
+    )
+    renamed = responses.patch(f"{BASE}/api/campaigns/40/timeseries/windows/2", status=204)
+    responses.delete(f"{BASE}/api/campaigns/40/timeseries/7", status=204)
+    monkeypatch.setattr(agent_mcp, "_ALLOWED", {"edit_timeseries"})
+    agent_mcp._grantable_tool(agent_mcp.edit_timeseries)
+    try:
+        result = asyncio.run(
+            _call(
+                "edit_timeseries",
+                {
+                    "campaign_id": 40,
+                    "timeseries": [CUSTOM_SERIES],
+                    "remove": [7],
+                    "rename_windows": [{"window_id": 2, "name": "Renamed"}],
+                },
+            )
+        )
+    finally:
+        agent_mcp.server.remove_tool("edit_timeseries")
+
+    assert not result.is_error
+    assert json.loads(created.calls[0].request.body) == {"timeseries": [CUSTOM_SERIES]}
+    assert json.loads(renamed.calls[0].request.body) == {"name": "Renamed"}
+    assert [call.request.method for call in responses.calls] == ["GET", "POST", "PATCH", "DELETE"]
+    assert json.loads(result.content[0].text)["added"][0]["id"] == 9
+
+
+@responses.activate
+@pytest.mark.parametrize(
+    "changes",
+    [{"remove": [99]}, {"rename_windows": [{"window_id": 99, "name": "Wrong campaign"}]}],
+)
+def test_edit_timeseries_rejects_foreign_ids_before_writing(browsers, changes):
+    responses.get(f"{BASE}/api/campaigns/40", json={"time_series": []})
+    with pytest.raises(ToolError, match="must belong"):
+        asyncio.run(agent_mcp.edit_timeseries(40, timeseries=[CUSTOM_SERIES], **changes))
+    assert len(responses.calls) == 1
+
+
+@responses.activate
+@pytest.mark.parametrize("failure", ["create", "delete"])
+def test_edit_timeseries_failure_requires_inspection_and_never_deletes_after_failed_creation(
+    browsers, failure
+):
+    responses.get(f"{BASE}/api/campaigns/40", json={"time_series": [{"id": 7, "window_id": 2}]})
+    responses.post(
+        f"{BASE}/api/campaigns/40/timeseries",
+        status=422 if failure == "create" else 200,
+        json=(
+            {"detail": "Invalid expression"} if failure == "create" else {"new_items": [{"id": 9}]}
+        ),
+    )
+    deleted = responses.delete(
+        f"{BASE}/api/campaigns/40/timeseries/7", body=Timeout("delete timed out")
+    )
+    with pytest.raises(ToolError, match="Inspect get_campaign"):
+        asyncio.run(agent_mcp.edit_timeseries(40, timeseries=[CUSTOM_SERIES], remove=[7]))
+    assert len(deleted.calls) == (0 if failure == "create" else 1)
 
 
 @responses.activate
@@ -559,13 +666,26 @@ def test_get_campaign_identifies_dedicated_covers(browsers, dedicated):
                 }
             ],
             "basemaps": [],
-            "time_series": [],
+            "time_series": [
+                {
+                    "id": 9,
+                    "window_id": 2,
+                    **CUSTOM_SERIES,
+                    "index": {"domain_min": -1, "domain_max": 1},
+                }
+            ],
         },
     )
     responses.get(f"{BASE}/api/campaigns/40/task-sets", json=[])
 
     result = json.loads(asyncio.run(agent_mcp.get_campaign(40)))
 
+    assert result["time_series"][0] == {
+        "id": 9,
+        "window_id": 2,
+        **{k: v for k, v in CUSTOM_SERIES.items() if k not in ("domain_min", "domain_max")},
+        "index": {"domain_min": -1, "domain_max": 1},
+    }
     assert result["imagery"][0]["windows"][0] == {
         "name": "2026",
         "collection": "sentinel-2-l2a",
@@ -591,7 +711,7 @@ async def _call(name, arguments):
 
 @responses.activate
 def test_only_granted_tools_are_offered_and_they_refuse_unknown_settings(monkeypatch):
-    changing = {"create_campaign", "add_tasks", "edit_campaign", "edit_imagery"}
+    changing = {"create_campaign", "add_tasks", "edit_campaign", "edit_imagery", "edit_timeseries"}
     assert not changing & asyncio.run(_tool_names())
 
     monkeypatch.setattr(agent_mcp, "_ALLOWED", {"edit_campaign"})
