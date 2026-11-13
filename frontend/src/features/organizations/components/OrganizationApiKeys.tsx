@@ -152,7 +152,10 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
                     <Input
                       size="sm"
                       type="password"
-                      autoComplete="off"
+                      autoComplete="new-password"
+                      data-1p-ignore
+                      data-lpignore="true"
+                      spellCheck={false}
                       value={rotateValue}
                       onChange={(e) => setRotateValue(e.target.value)}
                       placeholder={t('apiKeys.newValuePlaceholder')}
@@ -160,6 +163,7 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
                     />
                     <Input
                       size="sm"
+                      autoComplete="off"
                       value={rotateHost}
                       onChange={(e) => setRotateHost(e.target.value)}
                       placeholder={TILE_HOST_PLACEHOLDER}
@@ -196,6 +200,9 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
             <Input
               id="org-key-name"
               size="sm"
+              autoComplete="off"
+              data-1p-ignore
+              data-lpignore="true"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={t('apiKeys.namePlaceholder')}
@@ -211,7 +218,10 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
               id="org-key-value"
               size="sm"
               type="password"
-              autoComplete="off"
+              autoComplete="new-password"
+              data-1p-ignore
+              data-lpignore="true"
+              spellCheck={false}
               value={value}
               onChange={(e) => setValue(e.target.value)}
               placeholder={t('apiKeys.keyPlaceholder')}
@@ -227,6 +237,7 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
             <Input
               id="org-key-host"
               size="sm"
+              autoComplete="off"
               value={host}
               onChange={(e) => setHost(e.target.value)}
               placeholder={TILE_HOST_PLACEHOLDER}
