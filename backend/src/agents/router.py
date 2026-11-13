@@ -6,12 +6,15 @@ from sqlalchemy.orm import Session
 
 from src.agents import service
 from src.agents.schemas import (
+    AgentDeferTask,
     AgentOut,
     AgentRegister,
     AgentsOverviewOut,
     AgentUpdate,
+    DeferredTaskOut,
     NextTasksOut,
     ReleasedTasksOut,
+    ResumedTasksOut,
 )
 from src.annotation.schemas import TaskAnswerCreate
 from src.auth.dependencies import require_authenticated_user
@@ -117,3 +120,23 @@ def annotate_agent_task(
     user: User = Depends(require_authenticated_user),
 ) -> TaskSubmitResponse:
     return service.submit_annotation(db, agent_id, user, task_id, body)
+
+
+@router.post("/agents/{agent_id}/tasks/{task_id}/defer", response_model=DeferredTaskOut)
+def defer_agent_task(
+    agent_id: UUID,
+    task_id: int,
+    body: AgentDeferTask,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
+) -> DeferredTaskOut:
+    return service.defer_task(db, agent_id, user, task_id, body.reason)
+
+
+@router.post("/agents/{agent_id}/resume-deferred", response_model=ResumedTasksOut)
+def resume_agent_deferred_tasks(
+    agent_id: UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
+) -> ResumedTasksOut:
+    return ResumedTasksOut(resumed=service.resume_deferred_tasks(db, agent_id, user))

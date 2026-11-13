@@ -182,6 +182,7 @@ export function campaignContext(campaign: CampaignOutFull) {
       group: t.window_name,
       data_source: t.data_source,
       index: t.ts_type,
+      index_definition: t.index,
       start_ym: t.start_ym,
       end_ym: t.end_ym,
     })),

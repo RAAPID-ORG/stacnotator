@@ -104,6 +104,36 @@ def browsers(monkeypatch):
 
 
 @responses.activate
+def test_empty_ready_queue_reports_unfinished_deferred_work(browsers):
+    responses.get(f"{BASE}/api/agents/{AGENT}", json=AGENT_OUT)
+    responses.post(
+        f"{BASE}/api/agents/{AGENT}/next",
+        json={"campaign_id": 12, "remaining": 2, "deferred": 2, "tasks": []},
+    )
+    agent_mcp._current_tasks[AGENT] = TASK
+    result = json.loads(asyncio.run(agent_mcp.next_task(AGENT))[0])
+    assert result["task"] is None
+    assert (result["remaining"], result["deferred"]) == (2, 2)
+    assert AGENT not in agent_mcp._current_tasks
+    assert not browsers.calls
+
+
+@responses.activate
+def test_defer_clears_the_current_task_only_after_acknowledgement(browsers):
+    responses.get(f"{BASE}/api/agents/{AGENT}", json=AGENT_OUT)
+    endpoint = f"{BASE}/api/agents/{AGENT}/tasks/5/defer"
+    responses.post(endpoint, status=409, json={"detail": "not assigned"})
+    responses.post(endpoint, json={"task_id": 5, "reason": "timeout"})
+    agent_mcp._current_tasks[AGENT] = TASK
+    with pytest.raises(ToolError, match="not assigned"):
+        asyncio.run(agent_mcp.defer_task(AGENT, 5, "timeout"))
+    assert agent_mcp._current_tasks[AGENT] == TASK
+    asyncio.run(agent_mcp.defer_task(AGENT, 5, "timeout"))
+    assert AGENT not in agent_mcp._current_tasks
+    assert browsers.recorded[-1]["action"] == "defer_task"
+
+
+@responses.activate
 def test_next_task_draws_the_task_and_preloads_the_ones_after_it(browsers):
     responses.get(f"{BASE}/api/agents/{AGENT}", json=AGENT_OUT)
     responses.post(

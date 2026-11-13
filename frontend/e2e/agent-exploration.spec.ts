@@ -164,3 +164,73 @@ test('a fitted global probe preserves raster scale below zoom zero', async ({ ap
   expect(Math.abs(result.longitude - 171.5625)).toBeLessThan(1);
   expect(result.probes).toMatchObject([{ lon: 171.5625 }]);
 });
+
+test('custom-index charts keep their domain and disclose outliers without changing rows', async ({
+  appPage: page,
+}) => {
+  const rep = {
+    ...MOCK_TIMESERIES_ENTRY,
+    id: 2,
+    name: 'REP',
+    ts_type: 'REP',
+    index: {
+      key: 'REP',
+      label: 'REP',
+      formula: '705 + 35 * (0.5 * (rededge3 + red) - rededge1) / (rededge2 - rededge1)',
+      domain_min: 690,
+      domain_max: 750,
+      reference_lines: [],
+    },
+  };
+  await page.route('**/api/campaigns/*/detailed', (route) =>
+    route.fulfill({ json: { ...MOCK_CAMPAIGN, time_series: [MOCK_TIMESERIES_ENTRY, rep] } })
+  );
+  await page.route('**/api/campaigns/*/timeseries/2/data*', (route) =>
+    route.fulfill({
+      json: {
+        data: [
+          { time: '20240101', values: 1825, cloud: 0 },
+          { time: '20240701', values: 732, cloud: 0 },
+          { time: '20240801', values: 738, cloud: 0 },
+        ],
+      },
+    })
+  );
+  await page.reload();
+  await expect(page.getByText('Agent render page - ready')).toBeVisible();
+  const result = await page.evaluate(async () => {
+    const api = window.stacnotatorAgent!;
+    const [image] = await api.render(
+      { task_id: 1, lat: 0, lon: 0, geometry_wkt: 'POINT(0 0)' },
+      [{ cells: [{ timeseries_ids: [1, 2] }], columns: 2, cell_px: 400 }],
+      { max_edge_px: 1600, max_megapixels: 4 }
+    );
+    if ('error' in image) throw new Error(image.error);
+    return { meta: image.meta, context: api.context() };
+  });
+  expect(result.meta).toMatchObject({
+    cells: [
+      {
+        axes: [
+          { id: 'y', min: -0.2, max: 1 },
+          { id: 'y2', min: 690, max: 750 },
+        ],
+        warning: '1 plotted values outside chart axes; see raw rows.',
+        series: [
+          { index: 'NDVI', axis: 'y', off_scale: 0 },
+          {
+            index: 'REP',
+            axis: 'y2',
+            off_scale: 1,
+            rows: [
+              ['20240101', 1825, 0],
+              ['20240701', 732, 0],
+              ['20240801', 738, 0],
+            ],
+          },
+        ],
+      },
+    ],
+  });
+  expect(result.context.timeseries[1].index_definition).toEqual(rep.index);
+});

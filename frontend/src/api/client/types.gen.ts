@@ -96,6 +96,16 @@ export type AddUsersByEmailResult = {
 };
 
 /**
+ * AgentDeferTask
+ */
+export type AgentDeferTask = {
+    /**
+     * Reason
+     */
+    reason: string;
+};
+
+/**
  * AgentOut
  */
 export type AgentOut = {
@@ -131,6 +141,14 @@ export type AgentOut = {
      * Takes Over Work
      */
     takes_over_work: boolean;
+    /**
+     * Task Set Id
+     */
+    task_set_id?: number | null;
+    /**
+     * Deferred
+     */
+    deferred?: number;
     /**
      * Last Active
      */
@@ -2344,6 +2362,24 @@ export type DateRangeValue = {
 };
 
 /**
+ * DeferredTaskOut
+ */
+export type DeferredTaskOut = {
+    /**
+     * Task Id
+     */
+    task_id: number;
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
  * DeleteTasksRequest
  *
  * Request to delete multiple annotation tasks.
@@ -3013,6 +3049,10 @@ export type NextTasksOut = {
      * Remaining
      */
     remaining: number;
+    /**
+     * Deferred
+     */
+    deferred?: number;
     /**
      * Tasks
      */
@@ -3988,6 +4028,16 @@ export type RenderParams = {
      * Max Items
      */
     max_items?: number | null;
+};
+
+/**
+ * ResumedTasksOut
+ */
+export type ResumedTasksOut = {
+    /**
+     * Resumed
+     */
+    resumed: number;
 };
 
 /**
@@ -11291,3 +11341,67 @@ export type AnnotateAgentTaskResponses = {
 };
 
 export type AnnotateAgentTaskResponse = AnnotateAgentTaskResponses[keyof AnnotateAgentTaskResponses];
+
+export type DeferAgentTaskData = {
+    body: AgentDeferTask;
+    path: {
+        /**
+         * Agent Id
+         */
+        agent_id: string;
+        /**
+         * Task Id
+         */
+        task_id: number;
+    };
+    query?: never;
+    url: '/api/agents/{agent_id}/tasks/{task_id}/defer';
+};
+
+export type DeferAgentTaskErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeferAgentTaskError = DeferAgentTaskErrors[keyof DeferAgentTaskErrors];
+
+export type DeferAgentTaskResponses = {
+    /**
+     * Successful Response
+     */
+    200: DeferredTaskOut;
+};
+
+export type DeferAgentTaskResponse = DeferAgentTaskResponses[keyof DeferAgentTaskResponses];
+
+export type ResumeAgentDeferredTasksData = {
+    body?: never;
+    path: {
+        /**
+         * Agent Id
+         */
+        agent_id: string;
+    };
+    query?: never;
+    url: '/api/agents/{agent_id}/resume-deferred';
+};
+
+export type ResumeAgentDeferredTasksErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ResumeAgentDeferredTasksError = ResumeAgentDeferredTasksErrors[keyof ResumeAgentDeferredTasksErrors];
+
+export type ResumeAgentDeferredTasksResponses = {
+    /**
+     * Successful Response
+     */
+    200: ResumedTasksOut;
+};
+
+export type ResumeAgentDeferredTasksResponse = ResumeAgentDeferredTasksResponses[keyof ResumeAgentDeferredTasksResponses];

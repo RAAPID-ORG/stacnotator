@@ -163,8 +163,20 @@ uvx --from "stacnotator-sdk[api] @ git+https://github.com/RAAPID-ORG/stacnotator
   first look still misses tiles, the model is told which cells, can ask for them again with
   `get_views`, and the label is flagged for review.
 - **Content filters.** When the API refuses a turn's images (Azure does for some scenes),
-  the turn is sent again without them and the label is flagged for review; when it refuses
-  even that, the task is skipped with the reason.
+  the task is deferred with the reason, not labelled or skipped. The runner never removes
+  images to get past a filter. Incomplete responses and exhausted model retries also defer
+  the affected task; the worker continues with ready work. A run with unresolved tasks
+  exits unsuccessfully, even if its other workers finished.
+- **Retries and timeouts.** `--request-timeout` defaults to 120 seconds per model request;
+  `--max-retries` defaults to 2 retries for transient errors, with the OpenAI client's
+  backoff and unchanged request evidence. These settings do not retry annotation writes.
+  Ambiguous submission failures stop that worker so you can check what the backend saved.
+- **No-skip studies.** `--no-skip` removes `skip_task` and rejects any attempted skip.
+  Interpretation uncertainty belongs in confidence and review flags according to your
+  instructions; operational failures remain unfinished, rather than becoming guessed labels.
+- **Work sharing.** Workers take queued work from agents with the same owner, campaign and
+  `task_set_id`. Use `--task-set-id` to isolate independent repeats or treatments.
+  The donor keeps its current task; deferred tasks are not transferred automatically.
 - **Model API.** The runner uses the OpenAI Responses API: OpenAI,
   Azure OpenAI and Azure AI Foundry through their v1 endpoint, or any service that implements
   it. `--model` is the model or Azure deployment name. Authentication is the API key in
@@ -177,7 +189,9 @@ uvx --from "stacnotator-sdk[api] @ git+https://github.com/RAAPID-ORG/stacnotator
 - **Image limits.** Views are fitted to `--max-image-edge-px` and `--max-image-megapixels`
   (2048 px and 4 MP by default); set them to what your model takes in without downscaling.
 - **Stopping and resuming.** Agents keep their unfinished tasks when a run stops. Resume with
-  `run --agent-id <id>` (repeatable) or free them with
+  `run --agent-id <id>` (repeatable). After inspecting a deferred failure in the logs, add
+  `--resume-deferred` to explicitly put those agents' deferred tasks back in their queues,
+  using the same instructions and evidence. To reassign unfinished tasks instead, use
   `stacnotator-label release --url ... --campaign <id>`.
 
 ## How it works
@@ -207,7 +221,8 @@ sequenceDiagram
 - **Agents are annotators.** Registering creates a user owned by the signed-in account, adds
   it to the project and assigns it tasks with the normal assignment code. Labels, skips,
   statistics and review rows are ordinary annotations. `data.labelling_agents` only records
-  the owner, campaign, description and the take-over setting.
+  the owner, campaign, optional task-set scope, description and the take-over setting.
+  Deferrals are separate records, not annotations, and still count as unfinished.
 - **Agents are not members.** They hold a project membership row so assignments work, but a
   run is temporary, so they are left out of the project members list, the users an admin can
   add, and the campaign's `users.csv`. Their work still shows up wherever annotations are
@@ -230,6 +245,10 @@ sequenceDiagram
   pixels inside the sample extent as numbers (mean colour, a green index, the share of
   bright and of missing pixels). Areas without tiles are hatched and flagged, and the red box
   is drawn outside the extent so nothing inside it is covered.
+- **Chart scales.** Headless time-series charts use the same index domains and dual-axis
+  selection as the annotation page. Captions and metadata disclose off-scale values;
+  the returned rows retain them rather than clipping the data. Campaign context includes
+  each index's formula and domain.
 - **Image limits.** Models downscale large images before they see them, which silently
   loses detail. The model states the largest image it takes in unchanged when it registers
   an agent, and every view is fitted to that by shrinking its cells.
@@ -266,8 +285,15 @@ sequenceDiagram
 - **Preloading.** Every `next_task` draws the agent's default views for its next two tasks in
   the background, so a steady loop gets its images without waiting. Default views live in
   the MCP server's memory and reset when it restarts.
-- **Take-over.** An agent with take-over on that runs out of tasks takes the last queued task
-  of the owner's agent on the campaign with the most work left.
+- **Take-over.** An agent with take-over on that runs out of ready tasks takes queued work
+  from the owner's agents in the same campaign and task-set scope. The donor keeps its
+  first ready task, and deferred tasks stay put. Agents registered before this migration
+  remain unscoped and only share with other unscoped agents; historical task-set scopes
+  cannot be reconstructed reliably.
+- **Deferred work.** MCP clients can call `defer_task` for an operational failure and
+  `resume_deferred_tasks` after investigating it. `next_task` returns `task: null` when no
+  ready work remains, but `remaining` still includes deferred tasks and `deferred` counts
+  them explicitly. Do not treat an empty ready queue as a completed run.
 
 ## Agents page
 
@@ -287,6 +313,8 @@ and how to install the plugin, and the campaign overview links to it under the t
 | `PATCH /agents/{agent_id}` | switch take-over |
 | `POST /agents/{agent_id}/next` | the current task and the next two, taking over work when empty |
 | `POST /agents/{agent_id}/tasks/{task_id}/annotate` | label or skip |
+| `POST /agents/{agent_id}/tasks/{task_id}/defer` | keep a failed task unfinished, with a reason |
+| `POST /agents/{agent_id}/resume-deferred` | explicitly return deferred tasks to the ready queue |
 
 ## Limits
 
