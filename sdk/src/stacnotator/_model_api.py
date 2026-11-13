@@ -50,7 +50,11 @@ class ModelReply:
     output_tokens: int = 0
 
 
-class ContentBlockedError(Exception):
+class ModelResponseError(Exception):
+    pass
+
+
+class ContentBlockedError(ModelResponseError):
     """The API refused the request or its answer on content policy grounds."""
 
 
@@ -120,13 +124,21 @@ class _ResponsesSession:
             params["tool_choice"] = "required"
         try:
             response = await self._api._client.responses.create(**params)
-        except openai.BadRequestError as exc:
-            if _is_content_filter(exc):
+        except openai.APIConnectionError as exc:
+            raise ModelResponseError(f"{type(exc).__name__}: {exc}") from exc
+        except openai.APIStatusError as exc:
+            if exc.status_code == 400 and _is_content_filter(exc):
                 raise ContentBlockedError(str(exc)) from exc
+            if exc.status_code in (408, 409, 429) or exc.status_code >= 500:
+                raise ModelResponseError(f"{type(exc).__name__}: {exc}") from exc
             raise
         incomplete = getattr(response, "incomplete_details", None)
         if incomplete is not None and incomplete.reason == "content_filter":
             raise ContentBlockedError("The answer was stopped by the content filter.")
+        if response.status != "completed":
+            raise ModelResponseError(
+                f"The answer is {response.status}: {getattr(incomplete, 'reason', None)}"
+            )
         self._previous = response.id
         calls = [
             ToolCall(item.call_id, item.name, _arguments(item.arguments))
@@ -194,6 +206,8 @@ def openai_client(
     api_key_env: str = "OPENAI_API_KEY",
     entra_scope: str | None = None,
     entra_tenant: str | None = None,
+    timeout: float = 120,
+    max_retries: int = 2,
 ) -> Any:
     """entra_scope: sign in with Microsoft Entra ID for this token scope instead of an API
     key; entra_tenant: the resource's tenant, when it is not your default one."""
@@ -209,4 +223,4 @@ def openai_client(
                 f"Set {api_key_env} to the API key, or sign in with Entra ID (--entra)."
             )
         api_key = key
-    return AsyncOpenAI(base_url=base_url, api_key=api_key, max_retries=6, timeout=600)
+    return AsyncOpenAI(base_url=base_url, api_key=api_key, max_retries=max_retries, timeout=timeout)

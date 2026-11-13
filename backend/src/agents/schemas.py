@@ -26,6 +26,8 @@ class AgentOut(BaseModel):
     assigned: int
     remaining: int
     takes_over_work: bool
+    task_set_id: int | None = None
+    deferred: int = 0
     # When this agent last submitted or changed an annotation; None before its first one.
     last_active: datetime | None
     created_at: datetime
@@ -42,6 +44,7 @@ class AgentTaskOut(BaseModel):
 class NextTasksOut(BaseModel):
     campaign_id: int
     remaining: int
+    deferred: int = 0
     # The first is the task to label now, the rest come after it so the caller can draw
     # them ahead. Empty once everything assigned is done.
     tasks: list[AgentTaskOut]
@@ -61,3 +64,17 @@ class AgentsOverviewOut(BaseModel):
 
 class ReleasedTasksOut(BaseModel):
     released: int
+
+
+class AgentDeferTask(BaseModel):
+    reason: str = Field(min_length=1, max_length=2000, pattern=r"\S")
+
+
+class DeferredTaskOut(BaseModel):
+    task_id: int
+    reason: str
+    created_at: datetime
+
+
+class ResumedTasksOut(BaseModel):
+    resumed: int

@@ -526,8 +526,10 @@ async def register_agent(
     max_image_edge_px, max_image_megapixels: the largest image the model doing the labelling
     takes in without downscaling it, from what that model knows about itself. Every image is
     fitted to them, so no detail is lost to downscaling.
-    takes_over_work: when this agent runs out of tasks, next_task moves a task over from
-    your other agents on the campaign that still have work queued.
+    takes_over_work: when ready tasks run out, next_task moves queued work from your other
+    agents with the same campaign and task_set_id. Deferred and in-progress tasks stay put.
+    task_set_id scopes both initial assignment and later takeover; None shares only with
+    other unscoped agents. Use a separate task set for each independent run or treatment.
     default_views: up to 4 views next_task returns for every task, drawn ahead for the
     tasks after it. Omit for a built-in overview; change later with set_default_views.
     watch_window: open the window showing the agents' latest views.
@@ -635,13 +637,26 @@ async def next_task(agent_id: str) -> list[str | Image]:
     Returns JSON {reply, task, remaining, views}, then the images; get_views centers and
     probe_timeseries pick pixels by reply and image number. Each view entry has its spec and
     either image (1-based position among the returned images) with meta (per-cell captions,
-    zoom, meters_per_pixel, time series values) or an error. task null means every assigned
-    task is done. The same task is returned until it is labelled or skipped.
+    zoom, meters_per_pixel, time series values) or an error. task null means no ready work
+    remains; remaining and deferred distinguish pending
+    failures from completion. The same task is returned until labelled, skipped or deferred.
     """
     result = await _api(_http().post, f"/agents/{agent_id}/next", {})
     if not result["tasks"]:
         _current_tasks.pop(agent_id, None)
-        return [_json({"task": None, "remaining": 0, "note": "All assigned tasks are done."})]
+        deferred = result.get("deferred", 0)
+        return [
+            _json(
+                {
+                    "task": None,
+                    "remaining": result["remaining"],
+                    "deferred": deferred,
+                    "note": "Deferred tasks remain unfinished."
+                    if deferred
+                    else "All assigned tasks are done.",
+                }
+            )
+        ]
     task, *upcoming = result["tasks"]
     _current_tasks[agent_id] = task
     views = await _views_of(agent_id)
@@ -650,7 +665,7 @@ async def next_task(agent_id: str) -> list[str | Image]:
     await _on_page(agent_id, "preload", upcoming, views, limits)
     return await _bundle(
         agent_id,
-        {"task": task, "remaining": result["remaining"]},
+        {"task": task, "remaining": result["remaining"], "deferred": result.get("deferred", 0)},
         rendered,
         "next_task",
         {"views": views},
@@ -778,6 +793,34 @@ async def skip_task(agent_id: str, task_id: int, comment: str) -> str:
     """Skip a task that cannot be labelled with confidence (no usable imagery, clouds,
     outside the guide's classes). comment says why."""
     return await _annotate(agent_id, task_id, {"label_id": None, "comment": comment})
+
+
+@server.tool(
+    structured_output=False,
+    description="Defer an unfinished task after an operational failure, without a label or skip. "
+    "Other ready tasks can continue; this task remains pending until explicitly resumed. "
+    "Do not use this instead of expressing genuine interpretation uncertainty in a label.",
+)
+async def defer_task(agent_id: str, task_id: int, reason: str) -> str:
+    result = await _api(
+        _http().post, f"/agents/{agent_id}/tasks/{task_id}/defer", {"reason": reason}
+    )
+    current = _current_tasks.pop(agent_id, None)
+    error = await _record_step(
+        agent_id, current or {"task_id": task_id}, "defer_task", {"reason": reason}, result
+    )
+    if error:
+        result = {**result, "recording_error": error}
+    return _json(result)
+
+
+@server.tool(
+    structured_output=False,
+    description="Explicitly return an agent's deferred tasks to its ready queue after checking "
+    "the failure. Does not change annotations, model instructions or evidence.",
+)
+async def resume_deferred_tasks(agent_id: str) -> str:
+    return _json(await _api(_http().post, f"/agents/{agent_id}/resume-deferred", {}))
 
 
 async def _annotate(agent_id: str, task_id: int, body: dict[str, Any]) -> str:

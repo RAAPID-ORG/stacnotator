@@ -10,12 +10,14 @@ from stacnotator import agent_mcp, api_labelling
 from stacnotator._model_api import (
     ContentBlockedError,
     ModelReply,
+    ModelResponseError,
     OpenAIResponses,
     ToolCall,
     ToolResult,
     ToolSpec,
     UserTurn,
 )
+from stacnotator.errors import ApiError
 
 AGENT = "agent-1"
 TASK = {"task_id": 5, "annotation_number": 1, "lat": 1.5, "lon": 30.0}
@@ -128,27 +130,59 @@ def test_the_last_turn_may_only_finish(server):
     assert answer.arguments["label_id"] is None and server[-1][0] == "skip_task"
 
 
-def test_images_the_content_filter_refuses_are_left_out_and_the_label_flagged(server):
+def test_content_filter_does_not_strip_evidence_or_create_a_skip(server):
+    model = ScriptedModel([ContentBlockedError("blocked")])
+    with pytest.raises(ContentBlockedError):
+        asyncio.run(labeller(model).label(AGENT, TASK, bundle()))
+    assert len(model.sent) == 1 and model.sent[0][0].images == [JPEG]
+    assert server == []
+
+
+def test_deferred_task_does_not_block_later_work_or_count_as_completion(server, monkeypatch):
+    model = ScriptedModel(
+        [ContentBlockedError("blocked")],
+        [call("submit_label", label_id=1, confidence=3, comment="clear canopy")],
+    )
+    second = bundle()
+    second[0] = json.dumps({**json.loads(second[0]), "task": {**TASK, "task_id": 6}})
+    pending = [bundle(), second, ['{"task": null, "remaining": 1, "deferred": 1}']]
+
+    async def next_task(agent_id):
+        return pending.pop(0)
+
+    async def defer_task(agent_id, task_id, reason):
+        server.append(("defer_task", {"task_id": task_id, "reason": reason}))
+
+    monkeypatch.setattr(agent_mcp, "next_task", next_task)
+    monkeypatch.setattr(agent_mcp, "defer_task", defer_task)
+    with pytest.raises(api_labelling.LabellingError, match="remain deferred"):
+        asyncio.run(labeller(model).work(AGENT, "test"))
+    assert [name for name, _ in server] == ["defer_task", "submit_label"]
+
+
+def test_no_skip_mode_rejects_even_a_hallucinated_skip_tool(server):
     model = ScriptedModel(
         [
-            ContentBlockedError("blocked"),
-            call("submit_label", label_id=1, confidence=2, comment="x"),
+            call("skip_task", comment="uncertain"),
+            call("submit_label", label_id=1, confidence=1, comment="provisional"),
         ]
     )
-    asyncio.run(labeller(model).label(AGENT, TASK, bundle()))
+    asyncio.run(labeller(model, no_skip=True, max_turns=2).label(AGENT, TASK, bundle()))
+    assert [name for name, _ in server] == ["submit_label"]
+    assert "skipping is disabled" in model.sent[1][0].text
+    assert model.only[-1] == ("submit_label",)
 
-    retried = model.sent[1][0]
-    assert retried.images == [] and api_labelling.IMAGES_WITHHELD in retried.text
-    assert server[-1][1]["flagged_for_review"]
 
+def test_ambiguous_submission_is_not_retried_or_deferred(server, monkeypatch):
+    async def submit(*args, **kwargs):
+        raise ToolError("server error") from ApiError(500, "server error")
 
-def test_a_task_the_filter_refuses_even_without_images_is_skipped(server):
-    model = ScriptedModel([ContentBlockedError("blocked"), ContentBlockedError("blocked")])
-    answer = asyncio.run(labeller(model).label(AGENT, TASK, bundle()))
-
-    assert answer.arguments["label_id"] is None
-    assert server == [("skip_task", {"comment": answer.arguments["comment"]})]
-    assert "content filter" in answer.arguments["comment"]
+    monkeypatch.setitem(api_labelling.TOOLS, "submit_label", submit)
+    model = ScriptedModel([call("submit_label", label_id=1, confidence=3, comment="green")])
+    with pytest.raises(api_labelling.LabellingError, match="may already be saved"):
+        asyncio.run(labeller(model).label(AGENT, TASK, bundle()))
+    assert len(model.sent) == 1
+    assert server == []
 
 
 def test_view_tools_hide_the_arguments_the_runner_binds():
@@ -159,6 +193,29 @@ def test_view_tools_hide_the_arguments_the_runner_binds():
     for spec in specs.values():
         assert not {"agent_id", "task_id"} & set(spec.parameters["properties"])
         assert not {"agent_id", "task_id"} & set(spec.parameters.get("required", []))
+    assert "skip_task" not in {spec.name for spec in api_labelling.tool_specs(tools, no_skip=True)}
+
+
+@pytest.mark.parametrize("reason", ["max_output_tokens", "content_filter"])
+def test_incomplete_response_never_executes_partial_tool_calls(server, reason):
+    async def create(**params):
+        return SimpleNamespace(
+            status="incomplete",
+            incomplete_details=SimpleNamespace(reason=reason),
+            output=[
+                SimpleNamespace(
+                    type="function_call",
+                    call_id="c1",
+                    name="skip_task",
+                    arguments='{"comment":"x"}',
+                )
+            ],
+        )
+
+    model = OpenAIResponses(SimpleNamespace(responses=SimpleNamespace(create=create)), "test")
+    with pytest.raises(ModelResponseError):
+        asyncio.run(labeller(model).label(AGENT, TASK, bundle()))
+    assert server == []
 
 
 def test_responses_session_chains_turns_and_returns_images_from_tools():
@@ -175,6 +232,7 @@ def test_responses_session_chains_turns_and_returns_images_from_tools():
             output_text="",
             usage=SimpleNamespace(input_tokens=10, output_tokens=2),
             incomplete_details=None,
+            status="completed",
         )
 
     client = SimpleNamespace(responses=SimpleNamespace(create=create))

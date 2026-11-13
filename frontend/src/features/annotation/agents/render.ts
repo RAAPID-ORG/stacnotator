@@ -28,7 +28,12 @@ import { geometryLocation } from '../campaign/probes';
 import { sceneSourceOf } from '../campaign/scenes';
 import { sliceRaster } from '../campaign/tileUrls';
 import { probeColor } from '../map/compose';
-import { collectSeriesLabels, formatDateLabel } from '../panels/Timeseries/chartData';
+import {
+  axisIdFor,
+  collectSeriesLabels,
+  formatDateLabel,
+  seriesAxes,
+} from '../panels/Timeseries/chartData';
 import { timeSeriesCache } from '../panels/Timeseries/cache';
 import { savitzkyGolay } from '../panels/Timeseries/smoothing';
 import { DEFAULT_TIMESERIES_CHART } from '../stores/prefs';
@@ -532,6 +537,13 @@ async function drawChart(
       };
     })
   );
+  const axes = seriesAxes(lines.map((line) => line.series?.index));
+  const outsideAxis = (line: (typeof lines)[number]) => {
+    const axis = axes.find((axis) => axis.id === axisIdFor(axes, line.series?.index))!;
+    return line.shown.filter((value) => value != null && (value < axis.min || value > axis.max))
+      .length;
+  };
+  const offScale = lines.reduce((total, line) => total + outsideAxis(line), 0);
 
   const canvas = document.createElement('canvas');
   canvas.width = rect.width;
@@ -547,6 +559,7 @@ async function drawChart(
         const pointColors = line.cloudy.map((cloudy) => (cloudy ? CLOUDY_DOT_COLOR : line.color));
         return {
           label: line.label,
+          yAxisID: axisIdFor(axes, line.series?.index),
           data: line.shown,
           borderDash: line.dash,
           borderColor: line.color,
@@ -564,6 +577,19 @@ async function drawChart(
       devicePixelRatio: 1,
       layout: { padding: { top: labelHeight(rect) + 4, right: 8, left: 4, bottom: 4 } },
       plugins: { legend: { position: 'top', align: 'end' } },
+      scales: Object.fromEntries(
+        axes.map((axis) => [
+          axis.id,
+          {
+            type: 'linear',
+            position: axis.position,
+            min: axis.min,
+            max: axis.max,
+            title: { display: true, text: axis.indexKeys.join(', ') },
+            grid: { drawOnChartArea: axis.id === 'y' },
+          },
+        ])
+      ),
     },
   });
 
@@ -584,17 +610,24 @@ async function drawChart(
     meta: {
       ...place,
       kind: 'timeseries',
+      axes,
+      ...(offScale
+        ? { warning: `${offScale} plotted values outside chart axes; see raw rows.` }
+        : {}),
       center,
       label: [
         'type' in points[0] ? 'time series (task polygon mean)' : 'time series',
         cell.remove_cloudy ? 'cloudy removed' : 'grey dots cloudy',
       ]
         .concat(cell.smoothed ? ['smoothed'] : [])
+        .concat(offScale ? [`${offScale} off-scale (see rows)`] : [])
         .join(', '),
       series: lines.map((line) => ({
         timeseries_id: line.id,
         name: line.series?.name,
         index: line.series?.ts_type,
+        axis: axisIdFor(axes, line.series?.index),
+        off_scale: outsideAxis(line),
         ...(probes.length ? { point: line.point } : {}),
         columns,
         rows: times.flatMap((time, t) => {

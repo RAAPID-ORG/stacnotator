@@ -31,6 +31,9 @@ class LabellingAgent(Base):
     campaign_id: Mapped[int] = mapped_column(
         ForeignKey("data.campaigns.id", ondelete="CASCADE"), nullable=False
     )
+    task_set_id: Mapped[int | None] = mapped_column(
+        ForeignKey("data.task_sets.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     # When its own tasks run out, take over tasks still waiting on its owner's other
     # agents in the campaign.
@@ -40,3 +43,17 @@ class LabellingAgent(Base):
     )
 
     user: Mapped[User] = relationship(foreign_keys=[user_id])
+
+
+class AgentTaskDeferral(Base):
+    __tablename__ = "agent_task_deferrals"
+    __table_args__ = {"schema": "data"}
+
+    agent_id: Mapped[UUID] = mapped_column(
+        ForeignKey("data.labelling_agents.user_id", ondelete="CASCADE"), primary_key=True
+    )
+    task_id: Mapped[int] = mapped_column(
+        ForeignKey("data.tasks.id", ondelete="CASCADE"), primary_key=True, index=True
+    )
+    reason: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

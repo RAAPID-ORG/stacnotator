@@ -10,6 +10,7 @@ file the user passes; this module only says how the tools and views work.
 
 import argparse
 import asyncio
+import inspect
 import json
 import logging
 import sys
@@ -24,16 +25,15 @@ from mcp.server.mcpserver.exceptions import ToolError
 
 from stacnotator import agent_mcp
 from stacnotator._model_api import (
-    ContentBlockedError,
-    ModelReply,
+    ModelResponseError,
     OpenAIResponses,
-    Session,
     ToolCall,
     ToolResult,
     ToolSpec,
     UserTurn,
     openai_client,
 )
+from stacnotator.errors import ApiError, StacnotatorError
 
 log = logging.getLogger("stacnotator.label")
 
@@ -69,7 +69,7 @@ it directly. Otherwise request one wider view to find it. Set the next view's ce
 No geographic coordinates needed. Omit center to return to the task.
 - Stop requesting views once there is enough evidence. Do not repeatedly retry an \
 unavailable source or keep exploring when the remaining uncertainty cannot be resolved.
-- Finish with submit_label, or skip_task when the imagery cannot tell. You have at most \
+- {finish_instruction} You have at most \
 {max_turns} replies, including the one that finishes; the last one must finish.
 
 # Reading the views
@@ -108,13 +108,6 @@ chart takes a full row; cell_px shrinks to fit the image limits.
 {instructions}
 """
 
-IMAGES_WITHHELD = (
-    "The model API's content filter refused the images of this message, so they are left "
-    "out: use the metadata and time series values above."
-)
-
-WITHHELD_FLAG = "decided without images the content filter refused"
-
 
 @dataclass
 class Answer:
@@ -144,22 +137,26 @@ def _missing_tiles(payload: dict[str, Any]) -> list[str]:
     ]
 
 
-def tool_specs(server_tools: list[Any]) -> list[ToolSpec]:
+def tool_specs(server_tools: list[Any], no_skip: bool = False) -> list[ToolSpec]:
     """The MCP server's labelling tools as the model sees them, without the arguments the
     runner fills in itself."""
     specs = []
     for tool in server_tools:
-        if tool.name not in TOOLS:
+        if tool.name not in TOOLS or (no_skip and tool.name == "skip_task"):
             continue
         schema = json.loads(json.dumps(tool.input_schema))
         for name in BOUND_ARGUMENTS:
             schema["properties"].pop(name, None)
         schema["required"] = [r for r in schema.get("required", []) if r not in BOUND_ARGUMENTS]
+        if tool.name == "submit_label" and "flagged_for_review" not in schema["required"]:
+            schema["required"].append("flagged_for_review")
         specs.append(ToolSpec(tool.name, tool.description or "", schema))
     return specs
 
 
-def system_prompt(context: dict[str, Any], instructions: str, max_turns: int) -> str:
+def system_prompt(
+    context: dict[str, Any], instructions: str, max_turns: int, no_skip: bool = False
+) -> str:
     # The campaign's own guide is left out: the instructions file is the one source of rules.
     campaign = {key: value for key, value in context.items() if key != "guide_markdown"}
     return SYSTEM_PROMPT.format(
@@ -167,6 +164,12 @@ def system_prompt(context: dict[str, Any], instructions: str, max_turns: int) ->
         max_turns=max_turns,
         campaign=json.dumps(campaign, indent=1),
         instructions=instructions.strip(),
+        finish_instruction=(
+            "Finish with submit_label. Skipping is prohibited; express uncertainty in confidence "
+            "and review flags without inventing evidence."
+            if no_skip
+            else "Finish with submit_label, or skip_task when the imagery cannot tell."
+        ),
     )
 
 
@@ -179,10 +182,12 @@ class Labeller:
         tools: list[ToolSpec],
         max_turns: int = 8,
         log_path: Path | None = None,
+        no_skip: bool = False,
     ):
         self._model = model
-        self._instructions = system_prompt(context, instructions, max_turns)
-        self._tools = tools
+        self._instructions = system_prompt(context, instructions, max_turns, no_skip)
+        self._tools = [tool for tool in tools if not no_skip or tool.name != "skip_task"]
+        self._finish_tools = ("submit_label",) if no_skip else FINISH_TOOLS
         self._max_turns = max_turns
         self._labels = {label["id"]: label["name"] for label in context["labels"]}
         self._log_path = log_path
@@ -192,12 +197,41 @@ class Labeller:
         done = 0
         while True:
             output = await agent_mcp.next_task(agent_id)
-            task = _split(output)[0]["task"]
+            payload = _split(output)[0]
+            task = payload["task"]
             if task is None:
+                if payload.get("remaining", 0):
+                    raise LabellingError(
+                        f"{name}: {payload['remaining']} tasks remain deferred, not completed"
+                    )
                 log.info("%s: no tasks left after %d", name, done)
                 return done
             started = time.monotonic()
-            answer = await self.label(agent_id, task, output)
+            try:
+                answer = await self.label(agent_id, task, output)
+            except ModelResponseError as exc:
+                reason = f"{type(exc).__name__}: {exc}"[:2000]
+                await agent_mcp.defer_task(agent_id, task["task_id"], reason)
+                log.error(
+                    "%s: task %s deferred, not labelled or skipped: %s",
+                    name,
+                    task["task_id"],
+                    reason,
+                )
+                if self._log_path is not None:
+                    with self._log_path.open("a") as file:
+                        file.write(
+                            json.dumps(
+                                {
+                                    "agent": name,
+                                    "task_id": task["task_id"],
+                                    "outcome": "deferred",
+                                    "reason": reason,
+                                }
+                            )
+                            + "\n"
+                        )
+                continue
             done += 1
             self._report(name, task, answer, time.monotonic() - started)
 
@@ -218,12 +252,7 @@ class Labeller:
                 + ". Ask for them again with get_views if you need them."
             )
             flags.append("imagery missing for: " + ", ".join(missing))
-        try:
-            return await self._session(agent_id, task["task_id"], UserTurn(text, images), flags)
-        except ContentBlockedError as exc:
-            comment = f"Skipped: the model API's content filter refused this task ({exc})"
-            await agent_mcp.skip_task(agent_id, task["task_id"], comment)
-            return Answer({"label_id": None, "comment": comment})
+        return await self._session(agent_id, task["task_id"], UserTurn(text, images), flags)
 
     async def _session(
         self, agent_id: str, task_id: int, opening: UserTurn, flags: list[str]
@@ -233,9 +262,7 @@ class Labeller:
         tokens = [0, 0]
         for turn in range(1, self._max_turns + 1):
             last = turn == self._max_turns
-            reply, withheld = await _send(session, items, FINISH_TOOLS if last else None)
-            if withheld and WITHHELD_FLAG not in flags:
-                flags.append(WITHHELD_FLAG)
+            reply = await session.send(items, self._finish_tools if last else None)
             tokens = [tokens[0] + reply.input_tokens, tokens[1] + reply.output_tokens]
             if not reply.tool_calls:
                 items = [UserTurn("Answer only through the tools: ask for views, or finish.")]
@@ -249,13 +276,15 @@ class Labeller:
                     )
                 results.append(result)
             items = results
-        raise LabellingError(f"no label for task {task_id} in {self._max_turns} turns")
+        raise ModelResponseError(f"no label for task {task_id} in {self._max_turns} turns")
 
     async def _run_tool(
         self, agent_id: str, task_id: int, call: ToolCall, flags: list[str]
     ) -> tuple[ToolResult, Answer | None]:
         if call.name not in TOOLS:
             return ToolResult(call.call_id, f"Error: there is no tool {call.name}."), None
+        if call.name == "skip_task" and call.name not in self._finish_tools:
+            return ToolResult(call.call_id, "Error: skipping is disabled for this run."), None
         if call.arguments is None:
             return ToolResult(call.call_id, "Error: the arguments are not valid JSON."), None
         arguments = {k: v for k, v in call.arguments.items() if k not in BOUND_ARGUMENTS}
@@ -266,8 +295,22 @@ class Labeller:
             arguments["flagged_for_review"] = True
             arguments["flag_comment"] = "; ".join(filter(None, [*comments, *flags]))
         try:
+            inspect.signature(TOOLS[call.name]).bind(agent_id, task_id, **arguments)
+        except TypeError as exc:
+            return ToolResult(call.call_id, f"Error: {exc}"), None
+        try:
             output = await TOOLS[call.name](agent_id, task_id, **arguments)
-        except (ToolError, TypeError) as exc:
+        except ToolError as exc:
+            cause = exc.__cause__
+            if (
+                call.name in FINISH_TOOLS
+                and isinstance(cause, StacnotatorError)
+                and (not isinstance(cause, ApiError) or cause.status not in (400, 422))
+            ):
+                raise LabellingError(
+                    f"Submission failed for task {task_id}; check its backend annotation before "
+                    f"resuming, because it may already be saved: {exc}"
+                ) from exc
             return ToolResult(call.call_id, f"Error: {exc}"), None
         if call.name in FINISH_TOOLS:
             if call.name == "skip_task":
@@ -308,22 +351,6 @@ class Labeller:
             file.write(json.dumps(record) + "\n")
 
 
-async def _send(
-    session: Session, items: list[UserTurn | ToolResult], only: tuple[str, ...] | None
-) -> tuple[ModelReply, bool]:
-    """Send a turn; when the content filter refuses its images, send it once more without
-    them. Returns the reply and whether images were left out."""
-    try:
-        return await session.send(items, only), False
-    except ContentBlockedError:
-        if not any(item.images for item in items):
-            raise
-    stripped = [
-        replace(item, images=[], text=f"{item.text}\n\n{IMAGES_WITHHELD}") for item in items
-    ]
-    return await session.send(stripped, only), True
-
-
 @dataclass
 class RunOptions:
     url: str
@@ -340,6 +367,8 @@ class RunOptions:
     max_image_megapixels: float = 4.0
     watch: bool = True
     log_path: Path | None = None
+    no_skip: bool = False
+    resume_deferred: bool = False
 
 
 async def run(options: RunOptions, model: OpenAIResponses) -> int:
@@ -352,6 +381,8 @@ async def run(options: RunOptions, model: OpenAIResponses) -> int:
     context: dict[str, Any] | None = None
     if options.agent_ids:
         for agent_id in options.agent_ids:
+            if options.resume_deferred:
+                await agent_mcp.resume_deferred_tasks(agent_id)
             await agent_mcp.set_image_limits(
                 agent_id, options.max_image_edge_px, options.max_image_megapixels
             )
@@ -385,9 +416,15 @@ async def run(options: RunOptions, model: OpenAIResponses) -> int:
         log.info("progress: %s", registered["agents_page"])
     if context is None:
         raise LabellingError("Pass --campaign or at least one --agent-id.")
-    tools = tool_specs(await agent_mcp.server.list_tools())
+    tools = tool_specs(await agent_mcp.server.list_tools(), options.no_skip)
     labeller = Labeller(
-        model, options.instructions, context, tools, options.max_turns, options.log_path
+        model,
+        options.instructions,
+        context,
+        tools,
+        options.max_turns,
+        options.log_path,
+        options.no_skip,
     )
     results = await asyncio.gather(
         *(labeller.work(agent_id, name) for agent_id, name in agents), return_exceptions=True
@@ -399,7 +436,8 @@ async def run(options: RunOptions, model: OpenAIResponses) -> int:
             log.error("%s (%s) stopped: %s", name, agent_id, result)
     if failed:
         log.error(
-            "Resume with --agent-id for the stopped agents, or free their tasks with "
+            "Resume with --agent-id (and --resume-deferred after checking deferred failures), "
+            "or free unfinished tasks with "
             "`stacnotator-label release`."
         )
     return 1 if failed else 0
@@ -437,6 +475,14 @@ def _parser() -> argparse.ArgumentParser:
     run_cmd.add_argument("--max-image-megapixels", type=float, default=4.0)
     run_cmd.add_argument("--no-watch", action="store_true", help="no window showing the views")
     run_cmd.add_argument("--log", type=Path, help="append one JSON line per task here")
+    run_cmd.add_argument(
+        "--no-skip", action="store_true", help="require labels, never skip outcomes"
+    )
+    run_cmd.add_argument(
+        "--resume-deferred",
+        action="store_true",
+        help="explicitly retry deferred tasks on the supplied --agent-id agents",
+    )
 
     model = run_cmd.add_argument_group("model API")
     model.add_argument("--model", required=True, help="model, or Azure deployment, name")
@@ -454,6 +500,10 @@ def _parser() -> argparse.ArgumentParser:
     model.add_argument("--entra-tenant", help="the resource's tenant id, if not your default")
     model.add_argument("--reasoning", help="reasoning effort, e.g. low, medium, high")
     model.add_argument("--image-detail", default="high")
+    model.add_argument(
+        "--request-timeout", type=float, default=120, help="seconds per model request"
+    )
+    model.add_argument("--max-retries", type=int, default=2, help="bounded transient model retries")
 
     release = commands.add_parser("release", help="free your agents' unfinished tasks")
     release.add_argument("--url", required=True)
@@ -465,6 +515,10 @@ def _parser() -> argparse.ArgumentParser:
 def _options(args: argparse.Namespace) -> RunOptions:
     if args.max_turns < 2 or args.agents < 1:
         raise SystemExit("--agents must be at least 1, --max-turns at least 2.")
+    if args.request_timeout <= 0 or args.max_retries < 0:
+        raise SystemExit("--request-timeout must be positive; --max-retries must be nonnegative.")
+    if args.resume_deferred and not args.agent_id:
+        raise SystemExit("--resume-deferred requires --agent-id.")
     instructions = args.instructions.read_text().strip()
     if not instructions:
         raise SystemExit(f"{args.instructions} is empty.")
@@ -482,6 +536,8 @@ def _options(args: argparse.Namespace) -> RunOptions:
         max_image_megapixels=args.max_image_megapixels,
         watch=not args.no_watch,
         log_path=args.log,
+        no_skip=args.no_skip,
+        resume_deferred=args.resume_deferred,
         instructions=instructions,
         max_turns=args.max_turns,
     )
@@ -505,7 +561,14 @@ def main(argv: list[str] | None = None) -> None:
             asyncio.run(_release(args.url, args.campaign, args.agent_id))
             return
         options = _options(args)
-        client = openai_client(args.base_url, args.api_key_env, args.entra, args.entra_tenant)
+        client = openai_client(
+            args.base_url,
+            args.api_key_env,
+            args.entra,
+            args.entra_tenant,
+            args.request_timeout,
+            args.max_retries,
+        )
         model = OpenAIResponses(client, args.model, args.reasoning, args.image_detail)
         sys.exit(asyncio.run(run(options, model)))
     except (ToolError, LabellingError, ValueError) as exc:
