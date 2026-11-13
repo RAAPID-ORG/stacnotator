@@ -12,8 +12,6 @@ interface SecretInputProps {
   masked?: boolean;
 }
 
-/** A write-only secret: masked by default, never autofilled, with its state inside the field
- *  rather than in a row of its own. */
 export const SecretInput = ({
   value,
   onChange,
@@ -29,7 +27,9 @@ export const SecretInput = ({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      autoComplete="off"
+      autoComplete="new-password"
+      data-1p-ignore
+      data-lpignore="true"
       spellCheck={false}
       aria-label={ariaLabel}
       className={`${fieldClass('sm')} pl-8 font-mono ${status ? 'pr-28' : ''}`}
