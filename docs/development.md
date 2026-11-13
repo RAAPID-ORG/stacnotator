@@ -39,9 +39,11 @@ branches without an open PR trigger no CI.
 The reusable `vulnerability-scan.yml` workflow uses Trivy to scan production images
 for known OS and library vulnerabilities, and the frontend lockfile for dependency
 vulnerabilities, including development/build dependencies. All severities are
-reported in the workflow logs. High and critical findings block production CI
-deployment and manual dev deployment, including findings without an available fix,
-unless they are listed in `.trivyignore.yaml`. Scanner errors also block deployment.
+reported in the workflow logs. High and critical OS findings block production CI
+deployment and manual dev deployment when a fix is available; unfixed OS findings
+remain visible in the report but do not block. High and critical application-library
+and frontend dependency findings block even without an available fix, unless covered
+by an applicable ignore entry. Scanner errors also block deployment.
 These scans cover newly built images, not continuous monitoring of deployed images.
 Deployment still rebuilds images, so the scans do not guarantee that the deployed
 artifacts contain exactly the same dependencies as the scanned images.
@@ -55,9 +57,10 @@ advisories.
 `.trivyignore.yaml` lists Debian advisories that have no fixed package and were
 triaged as not reachable from the backend or tiler. Each entry names its CVE,
 the affected packages and the reason, and expires on a set date. The report step
-still shows these findings. After an entry expires, the gate blocks on it again:
-recheck the reasoning, then extend the date or fix the finding. Add an entry only
-after the same triage; never raise the severity threshold instead.
+still shows these findings. An expired entry no longer suppresses a finding; it blocks
+when it meets the gate's severity and fix-availability rules. Recheck the reasoning
+before extending an entry. Add an entry only after the same triage; never raise the
+severity threshold instead.
 
 Tiler scans and deployments build the tiler's `main` branch unless the
 `TILER_REPO_REF` repository variable names another ref.
