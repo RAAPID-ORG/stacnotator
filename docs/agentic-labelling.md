@@ -52,6 +52,7 @@ only the ones named in `STACNOTATOR_MCP_ALLOW`, comma-separated, out of:
 | `add_tasks` | adds tasks from GeoJSON, or random or grid sampling |
 | `edit_campaign` | changes an existing campaign's settings, such as its name, guide, labels, area or form fields |
 | `edit_imagery` | adds, replaces or removes an existing campaign's imagery sources and sets its basemaps |
+| `edit_timeseries` | adds or removes time series (including custom indices) and renames their panels |
 
 Set the variable before you start the client, for example
 `STACNOTATOR_MCP_ALLOW=create_campaign,add_tasks claude`, or in Windows PowerShell
@@ -67,8 +68,22 @@ calendar for you to confirm), the labels and how tasks are placed. It then puts 
 proposal to you in the chat and, only once you accept it, creates the campaign, adds tasks
 (your GeoJSON, or random or grid sampling across the box), waits until the imagery is
 registered, draws the first tasks' views as a preview and gives you the link. Changing an
-existing campaign works the same way, through `get_campaign` and then `edit_campaign` or
-`edit_imagery`.
+existing campaign works the same way, through `get_campaign` and then `edit_campaign`,
+`edit_imagery` or `edit_timeseries`.
+
+Time series accept `window_name` to group charts into panels. For a custom index, set
+`ts_type` to its name and include `expression`, `domain_min` and `domain_max`.
+`preview_custom_index(name, expression, domain_min, domain_max)` checks the formula and
+returns the compatible sources without saving anything. `setup_options` lists each
+source's available band roles.
+
+`edit_timeseries(campaign_id, timeseries?, remove?, rename_windows?)` keeps existing charts
+unless their ids are in `remove`. To change a formula, source or date range, add its
+replacement and remove the old id; additions are saved first. The replacement has a new
+id, so update agent views that name it. `get_campaign` returns series and panel ids,
+expressions and chart domains. `rename_windows` takes `{"window_id", "name"}` entries and
+preserves panel ids and layouts. These operations are not atomic: if one fails, inspect
+`get_campaign` before retrying. Grant editing with `STACNOTATOR_MCP_ALLOW=edit_timeseries`.
 
 Imagery is described by recipes over the Planetary Computer collections the campaign wizard
 offers as presets. A recipe spells out each window, its slices and its cover as date ranges.
