@@ -43,13 +43,17 @@
     "annotationNumberAsc": "N.º de anotación (ascendente)",
     "annotationNumberDesc": "N.º de anotación (descendente)",
     "timeDesc": "Tiempo dedicado (más lentas primero)",
-    "timeAsc": "Tiempo dedicado (más rápidas primero)"
+    "timeAsc": "Tiempo dedicado (más rápidas primero)",
+    "newestFirst": "Más recientes primero",
+    "oldestFirst": "Más antiguas primero"
   },
   "densityMap": {
     "countHere": "{{n}} aquí",
     "show": "Mostrar {{name}}",
     "hide": "Ocultar {{name}}",
-    "loadFailed": "No se pudo cargar la distribución de anotaciones"
+    "loadFailed": "No se pudo cargar la distribución de anotaciones",
+    "openInExplore": "Abrir en Explorar",
+    "openInExploreHint": "Ver aquí las anotaciones sobre las imágenes de la campaña"
   },
   "userFilter": {
     "label": "Filtrar por usuario:",

@@ -354,5 +354,15 @@
     "confirmEdit": "Everyone in this campaign will see {{name}} drawn this way.",
     "confirmCreate": "Everyone in this campaign will be able to pick {{name}}.",
     "saveFailed": "Could not save the visualization"
+  },
+  "browse": {
+    "title": "Browse annotations",
+    "filters": "Filter and sort annotations",
+    "previous": "Previous annotation",
+    "next": "Next annotation",
+    "count_one": "{{count}} annotation",
+    "count_other": "{{count}} annotations",
+    "position": "{{n}} of {{total}}",
+    "loadFailed": "Failed to load annotations"
   }
 }

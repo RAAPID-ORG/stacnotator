@@ -1,11 +1,4 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type ReactNode,
-  type WheelEvent,
-} from 'react';
+import { useEffect, useLayoutEffect, useRef, type ReactNode, type WheelEvent } from 'react';
 import 'ol/ol.css';
 import OLMap from 'ol/Map';
 import View from 'ol/View';
@@ -14,7 +7,8 @@ import ScaleLine from 'ol/control/ScaleLine';
 import { defaults as defaultInteractions, DragPan, MouseWheelZoom } from 'ol/interaction';
 import Kinetic from 'ol/Kinetic';
 import { platformModifierKeyOnly } from 'ol/events/condition';
-import { fromLonLat, toLonLat } from 'ol/proj';
+import { fromLonLat, toLonLat, transformExtent } from 'ol/proj';
+import { intersects } from 'ol/extent';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import type { FeatureLike } from 'ol/Feature';
@@ -43,6 +37,12 @@ export interface MapAnchor {
   content: ReactNode;
   /** Pixel nudge off the anchor point, to clear the geometry underneath. */
   offset?: [number, number];
+  /** What the anchor belongs to, as [west, south, east, north]. While any of it is
+   *  in view the content is kept on screen; without it, the anchor point is. */
+  bounds?: [number, number, number, number];
+  /** Shown only above this zoom, like a layer's `minZoom`: controls for a shape
+   *  the map no longer draws would float over nothing. */
+  minZoom?: number;
 }
 
 export interface MapViewProps {
@@ -104,6 +104,7 @@ function hitAt(
 }
 
 const ANCHOR_MARGIN_PX = 6;
+const HIDDEN = { visibility: 'hidden' } as const;
 
 /**
  * Keeps an on-map anchor inside the map it belongs to. A selected annotation
@@ -147,15 +148,12 @@ export function MapView({
   const sketchLayerRef = useRef<SketchLayer | null>(null);
   const mounted = useRef(new Map<LayerId, MountedLayer>()).current;
   const hoverRef = useRef<FeatureHit | null>(null);
-  const [anchorPx, setAnchorPx] = useState<[number, number] | null>(null);
   const anchorRef = useRef<HTMLDivElement | null>(null);
-  const [anchorSize, setAnchorSize] = useState<[number, number]>([0, 0]);
-  const showAnchor = anchor != null && anchorPx != null;
-  const viewportSize = (): [number, number] | null => {
-    const element = containerRef.current;
-    return element ? [element.clientWidth, element.clientHeight] : null;
-  };
+  const showAnchor = anchor != null;
   const [anchorLon, anchorLat] = anchor?.at ?? [];
+  const [offsetX, offsetY] = anchor?.offset ?? [0, 0];
+  const boundsKey = anchor?.bounds?.join(',');
+  const anchorMinZoom = anchor?.minZoom;
 
   // The map is built once; handlers change on most renders, so they are read
   // through a ref rather than rebuilding it.
@@ -284,45 +282,52 @@ export function MapView({
     if (map && sketchLayer) attachInteractions(map, interactions, sketchLayer);
   }, [interactions]);
 
-  // postrender is the one event that covers pans, zooms, animations and
-  // resizes alike; the equality guard is what keeps it from re-rendering the
-  // anchor on every frame of a glide.
-  useEffect(() => {
+  // Positioned straight from postrender, in the frame the map was drawn in. Going
+  // through React state put the controls a frame behind, so they trailed the map
+  // through every pan and zoom.
+  useLayoutEffect(() => {
     const map = mapRef.current;
-    if (!map || anchorLon === undefined || anchorLat === undefined) {
-      setAnchorPx(null);
-      return;
-    }
+    const element = anchorRef.current;
+    if (!map || !element || anchorLon === undefined || anchorLat === undefined) return;
     const coordinate = fromLonLat([anchorLon, anchorLat]);
+    const bounds = boundsKey
+      ? transformExtent(boundsKey.split(',').map(Number), 'EPSG:4326', 'EPSG:3857')
+      : null;
     const update = () => {
       const pixel = map.getPixelFromCoordinate(coordinate);
-      setAnchorPx((prev) => {
-        if (!pixel) return null;
-        const next: [number, number] = [Math.round(pixel[0]), Math.round(pixel[1])];
-        return prev && prev[0] === next[0] && prev[1] === next[1] ? prev : next;
-      });
+      const size = map.getSize();
+      const zoom = map.getView().getZoom();
+      const inView =
+        !!pixel &&
+        !!size &&
+        !(anchorMinZoom !== undefined && zoom !== undefined && zoom <= anchorMinZoom) &&
+        (bounds
+          ? intersects(map.getView().calculateExtent(size), bounds)
+          : pixel[0] >= 0 && pixel[0] <= size[0] && pixel[1] >= 0 && pixel[1] <= size[1]);
+      // Pinned to the edge, controls for something out of view act on nothing visible.
+      if (!inView) {
+        element.style.visibility = 'hidden';
+        return;
+      }
+      const { left, top } = clampAnchorPosition(
+        [pixel[0], pixel[1]],
+        [offsetX, offsetY],
+        [element.offsetWidth, element.offsetHeight],
+        [size[0], size[1]]
+      );
+      element.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
+      element.style.visibility = 'visible';
     };
     update();
     map.on('postrender', update);
-    return () => map.un('postrender', update);
-  }, [anchorLon, anchorLat]);
-
-  // Observed rather than measured once: the content is a caller-supplied node
-  // that resizes in place with what it says - one button or three, one selected
-  // annotation or six - and its width is what decides where it may sit.
-  useLayoutEffect(() => {
-    const element = anchorRef.current;
-    if (!element || typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(() =>
-      setAnchorSize((prev) =>
-        prev[0] === element.offsetWidth && prev[1] === element.offsetHeight
-          ? prev
-          : [element.offsetWidth, element.offsetHeight]
-      )
-    );
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [showAnchor]);
+    // The content resizes in place (one button or three), and its size decides the clamp.
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
+    observer?.observe(element);
+    return () => {
+      map.un('postrender', update);
+      observer?.disconnect();
+    };
+  }, [showAnchor, anchorLon, anchorLat, offsetX, offsetY, boundsKey, anchorMinZoom]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -352,8 +357,8 @@ export function MapView({
       {showAnchor && (
         <div
           ref={anchorRef}
-          className="pointer-events-none absolute z-[1000]"
-          style={clampAnchorPosition(anchorPx, anchor.offset, anchorSize, viewportSize())}
+          className="pointer-events-none absolute left-0 top-0 z-[1000] will-change-transform"
+          style={HIDDEN}
         >
           {anchor.content}
         </div>

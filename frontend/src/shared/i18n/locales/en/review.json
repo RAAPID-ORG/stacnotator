@@ -40,13 +40,17 @@
     "annotationNumberAsc": "Annotation # (Ascending)",
     "annotationNumberDesc": "Annotation # (Descending)",
     "timeDesc": "Time spent (Slowest first)",
-    "timeAsc": "Time spent (Fastest first)"
+    "timeAsc": "Time spent (Fastest first)",
+    "newestFirst": "Newest first",
+    "oldestFirst": "Oldest first"
   },
   "densityMap": {
     "countHere": "{{n}} here",
     "show": "Show {{name}}",
     "hide": "Hide {{name}}",
-    "loadFailed": "Failed to load annotation distribution"
+    "loadFailed": "Failed to load annotation distribution",
+    "openInExplore": "Open in Explore",
+    "openInExploreHint": "See the annotations here on the campaign imagery"
   },
   "userFilter": {
     "label": "Filter by User:",

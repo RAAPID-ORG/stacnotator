@@ -169,6 +169,11 @@ const styleForLabel = (
 const FALLBACK_TILE_STYLE: StyleSpec = {
   fill: { color: 'rgba(120,120,120,0.2)' },
   stroke: { color: 'rgba(120,120,120,1)', width: 2 },
+  circle: {
+    radius: 5,
+    fill: { color: 'rgba(120,120,120,0.6)' },
+    stroke: { color: 'rgba(120,120,120,1)', width: 2 },
+  },
 };
 
 type TileStyleFn = (props: Record<string, unknown>) => StyleSpec;
@@ -382,7 +387,14 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
       features: state.draftFeatures,
       style: style
         ? toDraftStyleSpec(style)
-        : { stroke: { color: 'rgba(255,255,255,0.9)', width: 2, dash: [6, 4] } },
+        : {
+            stroke: { color: 'rgba(255,255,255,0.9)', width: 2, dash: [6, 4] },
+            circle: {
+              radius: 6,
+              fill: { color: 'rgba(120,120,120,0.6)' },
+              stroke: { color: 'rgba(255,255,255,0.9)', width: 2 },
+            },
+          },
       zIndex: DRAFT_Z,
     });
   }

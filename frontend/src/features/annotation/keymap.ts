@@ -37,6 +37,7 @@ import { usePrefsStore } from './stores/prefs';
 import { currentTask, useTasksStore } from './stores/tasks';
 import { historyAvailable, replayLabelling } from './stores/history';
 import { useWorkStore, type Tool } from './stores/work';
+import { useBrowseStore } from './stores/browse';
 import {
   finishDrawTask,
   goToNextTask,
@@ -439,6 +440,25 @@ function taskStepBindings(): Binding[] {
   ];
 }
 
+/** Explore only: a draw task's W and S step between tasks. */
+function browseBindings(): Binding[] {
+  const idle = () => useWorkStore.getState().draft.phase === 'idle';
+  return [
+    {
+      key: 'w',
+      help: t('keymap.previousAnnotation'),
+      when: idle,
+      run: () => void useBrowseStore.getState().step(-1),
+    },
+    {
+      key: 's',
+      help: t('keymap.nextAnnotation'),
+      when: idle,
+      run: () => void useBrowseStore.getState().step(1),
+    },
+  ];
+}
+
 /** A draw task is worked with Explore's drawing keys, plus stepping between
  *  tasks. Plain Enter already finishes a shape and saves its draft, so Done
  *  takes Shift+Enter. */
@@ -796,7 +816,7 @@ export function pageKeymap(): Binding[] {
   const editing = drawsShapes() && !isMobile ? editBindings() : [];
   const mode =
     workMode === 'explore'
-      ? exploreBindings()
+      ? [...exploreBindings(), ...browseBindings()]
       : drawsShapes()
         ? drawTaskBindings()
         : taskBindings();

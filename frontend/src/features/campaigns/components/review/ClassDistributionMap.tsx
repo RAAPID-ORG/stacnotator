@@ -12,6 +12,8 @@ import {
   type AreaBounds,
 } from './densityMap';
 import { labelColor } from '../../utils/labelColors';
+import { IconExternalLink } from '~/shared/ui/Icons';
+import type { LonLat } from '~/shared/map/types';
 
 /**
  * Where each class sits across the whole campaign.
@@ -36,6 +38,7 @@ interface ClassDistributionMapProps {
   labelCounts: LabelFacet[];
   labels: LabelBase[];
   bbox: AreaBounds;
+  onOpenInExplore: (center: LonLat) => void;
 }
 
 const NO_LABEL_COLOR = '#9CA3AF';
@@ -46,6 +49,7 @@ export const ClassDistributionMap: React.FC<ClassDistributionMapProps> = ({
   labelCounts,
   labels,
   bbox,
+  onOpenInExplore,
 }) => {
   const { t } = useTranslation('review');
   const { camera, view } = useDensityMap(bbox);
@@ -102,14 +106,26 @@ export const ClassDistributionMap: React.FC<ClassDistributionMapProps> = ({
     <div>
       <DensityLegend entries={legend} hidden={hidden} onToggle={toggle} />
 
-      <DensityMap
-        camera={camera}
-        area={bbox}
-        points={visible}
-        colorOf={(key) => colorOf(key === NO_LABEL_KEY ? null : key)}
-        nameOf={(key) => nameOf(key === NO_LABEL_KEY ? null : key)}
-        className="w-full h-96 rounded-lg border border-neutral-200"
-      />
+      <div className="relative">
+        <DensityMap
+          camera={camera}
+          area={bbox}
+          points={visible}
+          colorOf={(key) => colorOf(key === NO_LABEL_KEY ? null : key)}
+          nameOf={(key) => nameOf(key === NO_LABEL_KEY ? null : key)}
+          className="w-full h-96 rounded-lg border border-neutral-200"
+        />
+        <button
+          type="button"
+          onClick={() => onOpenInExplore(camera.getState().center)}
+          title={t('densityMap.openInExploreHint')}
+          data-testid="open-in-explore"
+          className="absolute top-2 right-2 flex items-center gap-1 rounded-md border border-neutral-200 bg-white/95 px-2 py-1 text-xs font-medium text-neutral-700 shadow-sm hover:bg-neutral-50 cursor-pointer"
+        >
+          <IconExternalLink className="h-3 w-3" />
+          {t('densityMap.openInExplore')}
+        </button>
+      </div>
     </div>
   );
 };
