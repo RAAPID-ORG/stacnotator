@@ -363,5 +363,16 @@
     "confirmEdit": "Todas las personas de esta campaña verán {{name}} dibujada así.",
     "confirmCreate": "Todas las personas de esta campaña podrán elegir {{name}}.",
     "saveFailed": "No se pudo guardar la visualización"
+  },
+  "browse": {
+    "title": "Recorrer anotaciones",
+    "filters": "Filtrar y ordenar anotaciones",
+    "previous": "Anotación anterior",
+    "next": "Siguiente anotación",
+    "count_one": "{{count}} anotación",
+    "count_many": "{{count}} anotaciones",
+    "count_other": "{{count}} anotaciones",
+    "position": "{{n}} de {{total}}",
+    "loadFailed": "No se pudieron cargar las anotaciones"
   }
 }

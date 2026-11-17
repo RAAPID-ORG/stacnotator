@@ -38,6 +38,10 @@ import { windowsShown } from './campaign/imagery';
 import { groupTimeseriesIntoWindows } from './campaign/timeseries';
 import { isAudienceMember } from '~/features/campaigns/utils/labellingPolicy';
 import {
+  annotationFiltersFromParams,
+  type AnnotationFilterState,
+} from '~/features/campaigns/components/review/annotationFilterState';
+import {
   coversPanels,
   defaultWindowItem,
   fromGridLayout,
@@ -76,6 +80,7 @@ import {
   setTaskTimingVisible,
 } from './taskTiming';
 import { useRemoteSync, useWorkStore } from './stores/work';
+import { useBrowseStore } from './stores/browse';
 
 type LoadState = 'loading' | 'ready' | 'failed';
 
@@ -86,6 +91,8 @@ interface DeepLink {
   isReviewMode: boolean;
   annotationId?: number;
   center?: [number, number];
+  browseFilters: AnnotationFilterState;
+  browsePosition?: number;
 }
 
 /** Number(null) is 0, so every numeric parameter needs the presence check. */
@@ -115,6 +122,8 @@ function parseDeepLink(params: URLSearchParams): DeepLink {
     isReviewMode: params.get('review') === 'true',
     annotationId: numberParam(params, 'annotation'),
     center: lat !== undefined && lon !== undefined ? [lon, lat] : undefined,
+    browseFilters: annotationFiltersFromParams(params),
+    browsePosition: numberParam(params, 'position'),
   };
 }
 
@@ -191,6 +200,7 @@ export function AnnotationPage() {
   useEffect(() => {
     const link = parseDeepLink(searchParams);
     setSearchParams({}, { replace: true });
+    useBrowseStore.getState().seed(link.browseFilters, link.browsePosition ?? null);
     setBypassRegistering(false);
     setAutoTourChecked(false);
     setSettingUpFirstView(false);
@@ -258,6 +268,7 @@ export function AnnotationPage() {
       cancelled = true;
       useTasksStore.getState().reset();
       useWorkStore.getState().resetAll();
+      useBrowseStore.getState().reset();
       useAppLayoutStore.getState().cancelConfirmDialog();
       resetNavMemory();
       resetTaskTiming();

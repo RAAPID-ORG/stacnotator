@@ -65,7 +65,9 @@
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
     "recenter": "Recenter map on the task (tasks) / fit to all annotations (explore)",
-    "switchSaveFailed": "Could not save the open annotation - it is still here, retry before switching."
+    "switchSaveFailed": "Could not save the open annotation - it is still here, retry before switching.",
+    "previousAnnotation": "Previous annotation",
+    "nextAnnotation": "Next annotation"
   },
   "page": {
     "breadcrumb": "Annotate",

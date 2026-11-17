@@ -225,6 +225,69 @@ test.describe('Explore renders', () => {
 // Tools & label selection
 // ---------------------------------------------------------------------------
 
+test.describe('Browse annotations', () => {
+  test.beforeEach(async ({ annotationPage, api }) => {
+    await loadExplore(annotationPage, api);
+  });
+
+  test('S and W step through the annotation list and open each one', async ({
+    annotationPage: page,
+  }) => {
+    const position = controls(page).getByTestId('browse-position');
+    await expect(position).toHaveText('3 annotations');
+
+    await page.keyboard.press('s');
+    await expect(position).toHaveText('1 of 3');
+    await expect(controls(page)).toContainText(`Selected annotation #${EXPLORE_ANN_CENTER.id}`);
+
+    await page.keyboard.press('s');
+    await expect(position).toHaveText('2 of 3');
+    await expect(controls(page)).toContainText(`Selected annotation #${EXPLORE_ANN_NE_FLAGGED.id}`);
+
+    await controls(page).getByTestId('browse-previous').click();
+    await expect(position).toHaveText('1 of 3');
+    await expect(controls(page)).toContainText(`Selected annotation #${EXPLORE_ANN_CENTER.id}`);
+  });
+
+  test('the selection buttons follow the shape and hide when it is out of view or not drawn', async ({
+    annotationPage: page,
+  }) => {
+    await page.keyboard.press('s');
+    const buttons = page.getByTestId('edit-controls');
+    await expect(buttons).toBeVisible();
+    const box = (await page.locator('[data-panel-role="main-map"] canvas').first().boundingBox())!;
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+    // Mid-drag, so every later pointer move pans the map by exactly as much.
+    await page.mouse.move(cx, cy);
+    await page.mouse.down();
+    await page.mouse.move(cx + 10, cy + 10, { steps: 2 });
+    const before = (await buttons.boundingBox())!;
+    await page.mouse.move(cx + 50, cy + 40, { steps: 4 });
+    const after = (await buttons.boundingBox())!;
+    expect([after.x - before.x, after.y - before.y]).toEqual([40, 30]);
+    await page.mouse.up();
+
+    // Zoomed out past where annotations are drawn, the shape is gone and so are they.
+    const zoomBy = async (deltaY: number) => {
+      for (let i = 0; i < 8; i++) {
+        await page.mouse.wheel(0, deltaY);
+        await page.waitForTimeout(150);
+      }
+    };
+    await zoomBy(400);
+    await expect(buttons).toBeHidden();
+    await zoomBy(-400);
+    await expect(buttons).toBeVisible();
+
+    await page.mouse.move(cx, cy);
+    await page.mouse.down();
+    await page.mouse.move(cx + box.width, cy, { steps: 6 });
+    await page.mouse.up();
+    await expect(buttons).toBeHidden();
+  });
+});
+
 test.describe('Tools and label selection', () => {
   test.beforeEach(async ({ annotationPage, api }) => {
     await loadExplore(annotationPage, api);

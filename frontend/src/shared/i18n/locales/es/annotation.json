@@ -65,7 +65,9 @@
     "zoomIn": "Acercar",
     "zoomOut": "Alejar",
     "recenter": "Recentrar el mapa en la tarea (tareas) / ajustar a todas las anotaciones (explorar)",
-    "switchSaveFailed": "No se pudo guardar la anotación abierta: sigue aquí, vuelve a intentarlo antes de cambiar."
+    "switchSaveFailed": "No se pudo guardar la anotación abierta: sigue aquí, vuelve a intentarlo antes de cambiar.",
+    "previousAnnotation": "Anotación anterior",
+    "nextAnnotation": "Siguiente anotación"
   },
   "page": {
     "breadcrumb": "Anotar",

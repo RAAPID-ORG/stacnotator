@@ -20,10 +20,16 @@ import { ClassDistributionMap } from './ClassDistributionMap';
 import { ExportMenu } from './ExportMenu';
 import { Button } from '~/shared/ui/forms';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
-import { UserFilterDropdown } from './UserFilterDropdown';
+import { AnnotationFilters } from './AnnotationFilters';
+import {
+  annotationFilterQuery,
+  annotationFiltersToParams,
+  NO_ANNOTATION_FILTERS,
+  type AnnotationFilterState,
+} from './annotationFilterState';
 import { IconChevronDown, IconChevronRight, IconFlag } from '~/shared/ui/Icons';
 import { Tooltip } from '~/shared/ui/Tooltip';
-import { isSortOption, type SortOption, type UserInfo } from './types';
+import { type UserInfo } from './types';
 import { FadeIn } from '~/shared/ui/motion';
 import { listRowCls, tableHeadRowCls } from '~/shared/ui/listRow';
 import type { ReactNode } from 'react';
@@ -59,15 +65,11 @@ export const AnnotationsReview = ({
   const queryClient = useQueryClient();
   const [offset, setOffset] = useState(0);
 
-  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
-  const [selectedLabelIds, setSelectedLabelIds] = useState<number[]>([]);
-  const [selectedConfidences, setSelectedConfidences] = useState<number[]>([]);
-  const [flaggedOnly, setFlaggedOnly] = useState(false);
+  const [filters, setFilters] = useState<AnnotationFilterState>(NO_ANNOTATION_FILTERS);
   const [searchQuery, setSearchQuery] = useState('');
   // What actually goes to the server. Typing re-queries on every keystroke otherwise,
   // and each answer rewrites the table under the reader's cursor.
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [sortOption, setSortOption] = useState<SortOption>('default');
 
   const [selectedAnnotationIds, setSelectedAnnotationIds] = useState<Set<number>>(new Set());
   // Answers are long enough to swamp the table, so one row opens at a time.
@@ -82,34 +84,23 @@ export const AnnotationsReview = ({
 
   // Narrowing a filter can leave the reader on an offset past the end of its own
   // results, so any change to what is being asked for returns them to the first page.
-  const filters = useMemo(
+  const query = useMemo(
     () => ({
-      sort: sortOption,
-      flagged_only: flaggedOnly,
-      ...(selectedUserIds.length ? { user_ids: selectedUserIds } : {}),
-      ...(selectedLabelIds.length ? { label_ids: selectedLabelIds } : {}),
-      ...(selectedConfidences.length ? { confidences: selectedConfidences } : {}),
+      ...annotationFilterQuery(filters),
       ...(debouncedSearch ? { search: debouncedSearch } : {}),
     }),
-    [
-      sortOption,
-      flaggedOnly,
-      selectedUserIds,
-      selectedLabelIds,
-      selectedConfidences,
-      debouncedSearch,
-    ]
+    [filters, debouncedSearch]
   );
 
   useEffect(() => {
     setOffset((current) => (current === 0 ? current : 0));
-  }, [campaignId, filters]);
+  }, [campaignId, query]);
 
   const facets = useAnnotationFacets(campaignId);
   const { items, total, loading, refreshing } = useAnnotationsPage(campaignId, {
     limit: PAGE_SIZE,
     offset,
-    ...filters,
+    ...query,
   });
 
   const uniqueUsers = useMemo(
@@ -215,23 +206,36 @@ export const AnnotationsReview = ({
     });
   };
 
+  // Explore opens with the table's filters, so its annotation stepper walks the same
+  // list. The row's position only holds without a search, which Explore does not carry.
+  const exploreUrl = (open?: { lat: number; lon: number; id?: number; position?: number }) => {
+    const params = new URLSearchParams({ mode: 'explore' });
+    if (open) {
+      params.set('lat', String(open.lat));
+      params.set('lon', String(open.lon));
+      if (open.id !== undefined) params.set('annotation', String(open.id));
+      if (open.position !== undefined && !debouncedSearch)
+        params.set('position', String(open.position));
+    }
+    annotationFiltersToParams(filters, params);
+    return `${annotatePath}?${params}`;
+  };
+
   // Open the annotator where the annotation came from: task-bound ones jump
   // to their task in Tasks mode, standalone ones open Explore centred on the
   // annotation. Without an explicit mode the annotator would seed from
   // campaign.mode and open the first task regardless of origin.
-  const handleNavigateToAnnotation = (ann: AnnotationListItemOut) => {
+  const handleNavigateToAnnotation = (ann: AnnotationListItemOut, position: number) => {
     if (ann.task_id != null) {
       navigate(`${annotatePath}?task=${ann.task_id}&review=true`);
       return;
     }
     // The centroid comes from the database now; the row never carries a geometry.
-    if (ann.centroid_lat != null && ann.centroid_lon != null) {
-      navigate(
-        `${annotatePath}?mode=explore&lat=${ann.centroid_lat}&lon=${ann.centroid_lon}&annotation=${ann.id}`
-      );
-    } else {
-      navigate(`${annotatePath}?mode=explore`);
-    }
+    navigate(
+      ann.centroid_lat != null && ann.centroid_lon != null
+        ? exploreUrl({ lat: ann.centroid_lat, lon: ann.centroid_lon, id: ann.id, position })
+        : exploreUrl()
+    );
   };
 
   const getUserDisplayName = (ann: AnnotationListItemOut): string => {
@@ -297,6 +301,7 @@ export const AnnotationsReview = ({
                   east: campaign.settings.bbox_east,
                   north: campaign.settings.bbox_north,
                 }}
+                onOpenInExplore={([lon, lat]) => navigate(exploreUrl({ lat, lon }))}
               />
             </div>
           </div>
@@ -310,142 +315,13 @@ export const AnnotationsReview = ({
               {headerActions}
             </div>
             <div className="flex flex-wrap items-center gap-4">
-              {/* Label Filter */}
-              {labels.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium text-neutral-700">
-                    {t('annotations.labelFilter')}
-                  </label>
-                  <div className="flex gap-1 flex-wrap">
-                    <button
-                      onClick={() => setSelectedLabelIds([])}
-                      className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                        selectedLabelIds.length === 0
-                          ? 'bg-brand-600 text-white'
-                          : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-                      }`}
-                    >
-                      {t('all')}
-                    </button>
-                    {labels.map((label) => (
-                      <button
-                        key={label.id}
-                        onClick={() =>
-                          setSelectedLabelIds(
-                            selectedLabelIds.includes(label.id)
-                              ? selectedLabelIds.filter((id) => id !== label.id)
-                              : [...selectedLabelIds, label.id]
-                          )
-                        }
-                        className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                          selectedLabelIds.includes(label.id)
-                            ? 'bg-brand-600 text-white'
-                            : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-                        }`}
-                      >
-                        {label.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* User Filter */}
-              <UserFilterDropdown
+              <AnnotationFilters
+                value={filters}
+                onChange={setFilters}
+                labels={labels}
                 users={uniqueUsers}
-                selectedUserIds={selectedUserIds}
-                setSelectedUserIds={setSelectedUserIds}
                 currentUserId={currentUser?.id}
               />
-
-              {/* Confidence Filter */}
-              <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-neutral-700">
-                  {t('annotations.confidenceFilter')}
-                </label>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => setSelectedConfidences([])}
-                    className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                      selectedConfidences.length === 0
-                        ? 'bg-brand-600 text-white'
-                        : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-                    }`}
-                  >
-                    {t('all')}
-                  </button>
-                  {[1, 2, 3, 4, 5].map((c) => (
-                    <button
-                      key={c}
-                      onClick={() =>
-                        setSelectedConfidences(
-                          selectedConfidences.includes(c)
-                            ? selectedConfidences.filter((x) => x !== c)
-                            : [...selectedConfidences, c]
-                        )
-                      }
-                      className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                        selectedConfidences.includes(c)
-                          ? 'bg-brand-600 text-white'
-                          : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-                      }`}
-                    >
-                      {c}
-                    </button>
-                  ))}
-                  <button
-                    onClick={() =>
-                      setSelectedConfidences(
-                        selectedConfidences.includes(0)
-                          ? selectedConfidences.filter((x) => x !== 0)
-                          : [...selectedConfidences, 0]
-                      )
-                    }
-                    className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                      selectedConfidences.includes(0)
-                        ? 'bg-brand-600 text-white'
-                        : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-                    }`}
-                    title={t('annotations.noRatingTitle')}
-                  >
-                    {t('noRating')}
-                  </button>
-                </div>
-              </div>
-
-              {/* Flagged Filter */}
-              <button
-                onClick={() => setFlaggedOnly((v) => !v)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors border ${
-                  flaggedOnly
-                    ? 'bg-rose-100 text-rose-800 border-rose-300'
-                    : 'bg-neutral-100 text-neutral-700 border-transparent hover:bg-neutral-200'
-                }`}
-                title={t('annotations.flaggedOnlyTitle')}
-              >
-                <IconFlag className="w-3.5 h-3.5" />
-                <span>{t('flaggedOnly')}</span>
-              </button>
-
-              {/* Sort By */}
-              <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-neutral-700">
-                  {t('annotations.sortBy')}
-                </label>
-                <select
-                  value={sortOption}
-                  onChange={(e) => {
-                    if (isSortOption(e.target.value)) setSortOption(e.target.value);
-                  }}
-                  className="px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-600 bg-white"
-                >
-                  <option value="default">{t('sort.default')}</option>
-                  <option value="confidence-asc">{t('sort.confidenceAsc')}</option>
-                  <option value="confidence-desc">{t('sort.confidenceDesc')}</option>
-                  <option value="id-asc">{t('sort.idAsc')}</option>
-                  <option value="id-desc">{t('sort.idDesc')}</option>
-                </select>
-              </div>
 
               {/* Search */}
               <div className="flex items-center gap-2 ml-auto">
@@ -687,7 +563,7 @@ export const AnnotationsReview = ({
                         </td>
                         <td className="px-4 py-3">
                           <button
-                            onClick={() => handleNavigateToAnnotation(ann)}
+                            onClick={() => handleNavigateToAnnotation(ann, offset + index)}
                             className="text-brand-700 hover:text-brand-900 text-sm font-medium transition-colors"
                           >
                             {t('view')}

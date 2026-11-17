@@ -11,7 +11,7 @@ import {
 import { labelSwatch } from '../../campaign/labelStyle';
 import { useImageryStore } from '../../stores/imagery';
 import { usePrefsStore } from '../../stores/prefs';
-import { useCampaign } from '../../stores/campaign';
+import { useCampaign, useCampaignStore } from '../../stores/campaign';
 import { useWorkStore, type Tool } from '../../stores/work';
 import { helpRows } from '../../hotkeys';
 import { activeGroupClass, FormFields, sectionHeaderClass } from '../../components/FormFields';
@@ -19,6 +19,7 @@ import { LabelChips } from '../../components/LabelChips';
 import { ProbeModeControl } from '../../components/ProbeModeControl';
 import { CHIP_MIN_WIDTH } from '../../components/chipGrid';
 import { DraftCatalog } from './DraftCatalog';
+import { BrowseAnnotations } from './BrowseAnnotations';
 import { EditDetails } from './EditDetails';
 import { LabelStyleEditor } from './LabelStyleEditor';
 
@@ -154,6 +155,8 @@ export function ExploreControls() {
   const { t } = useTranslation('panels');
   const campaign = useCampaign();
   const tool = useWorkStore((s) => s.tool);
+  // Draw tasks reuse this panel, and there W/S step tasks, not annotations.
+  const isExplore = useCampaignStore((s) => s.workMode === 'explore');
   const [styling, setStyling] = useState(false);
   const [styleEditorLabelId, setStyleEditorLabelId] = useState<number | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -205,8 +208,8 @@ export function ExploreControls() {
   };
 
   return (
-    <div className="w-full h-full p-2 bg-white overflow-y-auto">
-      <div className="flex flex-col gap-3">
+    <div className="flex h-full w-full flex-col bg-white">
+      <div className="min-h-0 flex-1 overflow-y-auto p-2 flex flex-col gap-3">
         <div className="flex flex-col gap-1.5">
           <div id="explore-tools" className="flex flex-wrap gap-1.5">
             {availableTools.map((def) => (
@@ -389,6 +392,7 @@ export function ExploreControls() {
 
         <ShortcutLegend />
       </div>
+      {isExplore && <BrowseAnnotations />}
     </div>
   );
 }

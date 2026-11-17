@@ -11,10 +11,15 @@ import { windowsShown } from '../../campaign/imagery';
 import { awaitingImageryRegistration } from '../../campaign/tileUrls';
 import { computeTaskProgress } from '../../campaign/tasks';
 import { handleProbeClick, useDrawingInteractions, useEditDrawnId } from '../../drawing';
-import { geometryTopRight, missingRequiredFields } from '../../campaign/annotation';
+import { extentOf, geometryTopRight, missingRequiredFields } from '../../campaign/annotation';
 import { useCameraZoom } from '~/shared/map/Camera';
 import { applyCameraTarget, fitAnnotations, focusCameraTarget, mainCamera } from '../../map/camera';
-import { annotationsVisibleAt, composeLayers, type ComposeState } from '../../map/compose';
+import {
+  ANNOTATION_TILE_MIN_ZOOM,
+  annotationsVisibleAt,
+  composeLayers,
+  type ComposeState,
+} from '../../map/compose';
 import { MapView, type MapAnchor } from '~/shared/map/MapView';
 import { CenterCrosshair } from '../../components/CenterCrosshair';
 import { ProbeModeControl } from '../../components/ProbeModeControl';
@@ -333,16 +338,9 @@ function taskProbeClick(event: MapClickEvent): void {
   if (useWorkStore.getState().tool === 'timeseries') handleProbeClick(event);
 }
 
-/**
- * The annotation tiles are empty below their zoom floor, by design: a
- * continental view of a dense campaign is a query nobody wants. Unexplained,
- * that reads as a campaign nobody has worked on, so it is explained.
- */
 function AnnotationToolNotice() {
   const { t } = useTranslation('panels');
   const drawsShapes = useDrawsShapes();
-  const showAnnotations = useImageryStore((s) => s.showAnnotations);
-  const zoom = useCameraZoom(mainCamera);
   const isExplore = useCampaignStore((s) => s.workMode === 'explore');
   const tool = useWorkStore((s) => s.tool);
   const probeMode = useWorkStore((s) => s.probeMode);
@@ -363,9 +361,6 @@ function AnnotationToolNotice() {
         </span>
       </StatusPill>
     );
-  }
-  if (drawsShapes && showAnnotations && !annotationsVisibleAt(zoom)) {
-    return <StatusPill>{t('mainMap.zoomIn')}</StatusPill>;
   }
   if (
     drawsShapes &&
@@ -421,8 +416,23 @@ function MapNotice({ waitingForRegistration }: { waitingForRegistration: boolean
   const needsLabel = useWorkStore((s) => s.tool === 'annotate' && s.selectedLabelId === null);
   const sceneNotice = useSceneNotice();
   const loadingTiles = useForegroundLoading();
+  const showAnnotations = useImageryStore((s) => s.showAnnotations);
+  const probing = useWorkStore((s) => s.tool === 'timeseries');
+  const zoom = useCameraZoom(mainCamera);
 
   if (waitingForRegistration) return null;
+  // The annotation tiles are empty below their zoom floor, by design. Unexplained,
+  // that reads as a campaign nobody has worked on. It outranks a label prompt or
+  // tiles still loading, which stay true at any zoom and would hide it for good.
+  if (drawsShapes && showAnnotations && !probing && !annotationsVisibleAt(zoom)) {
+    return (
+      sceneNotice ?? (
+        <StatusPill>
+          <span data-testid="zoom-in-notice">{t('mainMap.zoomIn')}</span>
+        </StatusPill>
+      )
+    );
+  }
   if (drawsShapes && needsLabel) {
     return (
       <StatusPill>
@@ -464,6 +474,7 @@ export function MainMapBody() {
   const formValues = useWorkStore((s) => s.formValues);
   const selection = useWorkStore((s) => s.selection);
   const selectionAnchor = useWorkStore((s) => s.selectionAnchor);
+  const editGeometry = useWorkStore((s) => s.edit?.pending ?? s.edit?.geometry ?? null);
   // Draw/edit/box-select belong to the map they act on, so this is where the
   // drawing feature's wiring is mounted.
   const { interactions, onMapClick: drawingClick } = useDrawingInteractions();
@@ -602,7 +613,14 @@ export function MainMapBody() {
           offset: [10, -5],
         }
       : selection.length > 0 && selectionAnchor
-        ? { at: selectionAnchor, content: <SelectionControls />, offset: [10, -5] }
+        ? {
+            at: selectionAnchor,
+            content: <SelectionControls />,
+            offset: [10, -5],
+            bounds: editGeometry ? extentOf(editGeometry) : undefined,
+            // The edit tool draws its shape at any zoom; otherwise it lives in the tiles.
+            minZoom: editDrawnId === null ? ANNOTATION_TILE_MIN_ZOOM - 1 : undefined,
+          }
         : null;
 
   return (

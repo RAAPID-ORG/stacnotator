@@ -4,7 +4,7 @@ import { useWorkStore } from '../../stores/work';
 import { commitEdit, deleteSelection } from '../../drawing';
 
 const buttonClass =
-  'pointer-events-auto rounded-full p-1.5 text-white shadow-lg transition-all hover:scale-110 ' +
+  'pointer-events-auto rounded-full p-1 text-white shadow-lg transition-all hover:scale-110 ' +
   'disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:scale-100 cursor-pointer';
 
 const CHECK_PATH = 'M20 6L9 17l-5-5';
@@ -14,8 +14,8 @@ const CLOSE_PATH = 'M18 6L6 18M6 6l12 12';
 
 const Icon = ({ path }: { path: string }) => (
   <svg
-    width="16"
-    height="16"
+    width="14"
+    height="14"
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
