@@ -249,7 +249,7 @@
     "info": {
       "dots": "Each dot is one observation. <strong>Colored dots</strong> are clear-day observations (one color per series). <strong>Gray dots</strong> are observations flagged as cloudy.",
       "removeCloudy": "<strong>Remove cloudy</strong> excludes gray observations from the plot and smoothing, without changing the source data.",
-      "smooth": "<strong>Smooth</strong> fits a Savitzky-Golay filter in observation order, not elapsed days, and restarts at duplicate timestamps. There is no time-gap cutoff. Cloudy points influence the fit unless Remove cloudy is enabled. Hover to compare raw and smoothed values.",
+      "smooth": "<strong>Smooth</strong> fits a Savitzky-Golay filter in observation order, not elapsed days. Cloudy points influence the fit unless Remove cloudy is enabled. Hover to compare raw and smoothed values.",
       "showDots": "<strong>Dots</strong> toggles observation markers. Boundary triangles still flag values outside the axis; hover to read their actual values. These points are not connected to the line."
     }
   },

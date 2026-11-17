@@ -43,20 +43,14 @@ export function prepareObservations(
   if (!smoothing) return observations;
 
   const visible = observations.filter((row) => !row.filtered);
-  let start = 0;
-  for (let end = 1; end <= visible.length; end++) {
-    if (end < visible.length && visible[end].x !== visible[end - 1].x) continue;
-    const segment = visible.slice(start, end);
-    const smoothed = savitzkyGolay(
-      segment.map((row) => row.values),
-      smoothing.window,
-      smoothing.order
-    );
-    segment.forEach((row, i) => {
-      row.smoothed = smoothed[i];
-    });
-    start = end;
-  }
+  const smoothed = savitzkyGolay(
+    visible.map((row) => row.values),
+    smoothing.window,
+    smoothing.order
+  );
+  visible.forEach((row, i) => {
+    row.smoothed = smoothed[i];
+  });
   return observations;
 }
 

@@ -241,8 +241,8 @@ sequenceDiagram
   `source_row` is the one-based position in that series' API response, and `filtered=1`
   identifies cloud-flagged observations hidden from the plot and smoothing. Exact
   duplicate timestamps remain separate rows; `source_row` is not a satellite scene ID.
-  Optional Savitzky-Golay smoothing uses observation order, not elapsed days, and is
-  restarted at duplicate timestamps, not long gaps. No resampling or compositing occurs.
+  Optional Savitzky-Golay smoothing uses retained observation order, not elapsed days.
+  No resampling or compositing occurs.
 - **Image limits.** Models downscale large images before they see them, which silently
   loses detail. The model states the largest image it takes in unchanged when it registers
   an agent, and every view is fitted to that by shrinking its cells.

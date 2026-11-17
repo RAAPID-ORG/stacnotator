@@ -30,7 +30,7 @@ describe('chart observations', () => {
     expect(rows.map((r) => r.values)).toEqual([730, 720.123456789, 740, 735]);
   });
 
-  it('smooths by observation order regardless of time gaps while filtering clouds and retaining duplicates', () => {
+  it('smooths by retained observation order regardless of time gaps or duplicate timestamps', () => {
     const rows = [
       ...[1, 2, 3, 4, 5].map((day) => row(`2021-06-0${day}`, 700)),
       row('2021-06-12', 750, 1),
@@ -41,13 +41,12 @@ describe('chart observations', () => {
     const prepared = prepareObservations(rows, true, { window: 5, order: 2 });
     const denseRows = rows.map((r, i) => ({
       ...r,
-      time: new Date(Date.UTC(2021, 5, Math.min(i + 1, 12))).toISOString(),
+      time: new Date(Date.UTC(2021, 5, i + 1)).toISOString(),
     }));
     const dense = prepareObservations(denseRows, true, { window: 5, order: 2 });
     expect(prepared.map((r) => r.smoothed)).toEqual(dense.map((r) => r.smoothed));
     expect(prepared[4].smoothed).toBeGreaterThan(700);
     expect(prepared.slice(5, 7).map((r) => r.smoothed)).toEqual([null, null]);
-    expect(prepared[12].smoothed).toBe(710);
   });
 
   it('marks raw overflow even when smoothing brings the fitted value into range', () => {

@@ -521,7 +521,6 @@ async function drawChart(
         series,
         point,
         label: lineLabel(name, point, ids.length, probes.length),
-        color,
         dash: p === 0 ? [] : SERIES_DASHES[i % SERIES_DASHES.length],
         observations,
         dataset,

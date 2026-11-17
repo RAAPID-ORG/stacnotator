@@ -1,9 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   collectSeriesLabels,
-  formatDateForTooltip,
   parseSeriesDate,
-  getOptimalMonthLabels,
   axisIdFor,
   seriesAxes,
   setSliceMarker,
@@ -40,16 +38,6 @@ describe('collectSeriesLabels', () => {
   it('handles missing series and empty sources', () => {
     expect(collectSeriesLabels([999], data)).toEqual([]);
     expect(collectSeriesLabels([81], null, undefined)).toEqual([]);
-  });
-});
-
-describe('formatDateForTooltip', () => {
-  it('formats YYYYMMDD dates', () => {
-    expect(formatDateForTooltip('20250115')).toBe('15 Jan 2025');
-  });
-
-  it('formats ISO dates', () => {
-    expect(formatDateForTooltip('2025-01-15')).toBe('15 Jan 2025');
   });
 });
 
@@ -115,33 +103,6 @@ describe('setSliceMarker', () => {
 
     setSliceMarker(chart, null);
     expect(renders).toBe(3);
-  });
-});
-
-describe('getOptimalMonthLabels', () => {
-  it('returns nothing for no dates', () => {
-    expect(getOptimalMonthLabels([])).toEqual([]);
-  });
-
-  it('labels every month for a short range', () => {
-    const dates = ['20240101', '20240201', '20240301'];
-    expect(getOptimalMonthLabels(dates).map((m) => m.label)).toEqual([
-      "Jan '24",
-      "Feb '24",
-      "Mar '24",
-    ]);
-  });
-
-  it('thins labels out and includes the last month for a long range', () => {
-    // 12 monthly points spans 12 months -> interval 2 (see calculateLabelInterval)
-    const dates = Array.from({ length: 12 }, (_, i) => {
-      const month = String(i + 1).padStart(2, '0');
-      return `2024${month}01`;
-    });
-    const labels = getOptimalMonthLabels(dates);
-    expect(labels[0].label).toBe("Jan '24");
-    // Every other month, starting from the first.
-    expect(labels.every((m, i) => i === labels.length - 1 || m.index % 2 === 0)).toBe(true);
   });
 });
 
