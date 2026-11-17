@@ -174,10 +174,11 @@
     "workInProgress": "Guides for STACNotator are a work in progress and will appear here."
   },
   "taskProgress": {
-    "all": "All",
     "yours": "Yours",
     "count": "{{done}} / {{total}}",
     "allLabel": "Tasks completed",
-    "yoursLabel": "Your assigned tasks completed"
+    "yoursLabel": "Your assigned tasks completed",
+    "allTooltip": "All tasks done: {{count}}",
+    "yoursTooltip": "Your assigned tasks answered: {{count}}"
   }
 }

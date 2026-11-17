@@ -342,10 +342,10 @@ const CampaignRow = ({
       </div>
       <div className="flex shrink-0 items-center gap-4">
         {canOpen && (
-          <div className="w-24 text-[11px] leading-none text-neutral-500">
+          <div className="w-28 text-[11px] leading-none text-neutral-500">
             {progress ? (
               progress.num_tasks > 0 ? (
-                <TaskProgress progress={progress} />
+                <TaskProgress progress={progress} compact />
               ) : (
                 <span>{t('page.noTasks')}</span>
               )
@@ -354,7 +354,7 @@ const CampaignRow = ({
                 {t('page.loadProgressFailed')}
               </span>
             ) : (
-              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-3 w-28" />
             )}
           </div>
         )}

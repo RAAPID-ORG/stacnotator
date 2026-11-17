@@ -37,7 +37,11 @@ test.describe('Projects list', () => {
     await expect(
       row.getByRole('progressbar', { name: 'Your assigned tasks completed', exact: true })
     ).toHaveAttribute('aria-valuemax', '3');
-    await expect(row.getByText('2 / 3', { exact: true })).toBeVisible();
+    await expect(row.getByText('Yours 2 / 3', { exact: true })).toBeVisible();
+    await row.getByText('4 / 10', { exact: true }).hover();
+    await expect(appPage.getByRole('tooltip')).toHaveText(
+      'All tasks done: 4 / 10\nYour assigned tasks answered: 2 / 3'
+    );
     await expect(row.getByText('40%')).toHaveCount(0);
     await expect(row.getByTestId('export-menu-trigger')).toHaveText('');
     await row.getByTestId('export-menu-trigger').focus();
@@ -278,9 +282,9 @@ test.describe('Projects list', () => {
         .locator('.surface')
         .filter({ has: appPage.getByRole('heading', { name, exact: true }) });
     await expect(card('All tasks').getByText('8 / 20', { exact: true })).toBeVisible();
-    await expect(card('All tasks').getByText('1 / 4', { exact: true })).toBeVisible();
+    await expect(card('All tasks').getByText('Yours 1 / 4', { exact: true })).toBeVisible();
     await expect(card('North').getByText('3 / 10', { exact: true })).toBeVisible();
-    await expect(card('North').getByText('1 / 4', { exact: true })).toBeVisible();
+    await expect(card('North').getByText('Yours 1 / 4', { exact: true })).toBeVisible();
     await expect(card('South').getByText('5 / 10', { exact: true })).toBeVisible();
     await expect(card('South').getByText('Yours')).toHaveCount(0);
   });

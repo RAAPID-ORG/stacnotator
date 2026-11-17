@@ -174,10 +174,11 @@
     "workInProgress": "Las guías de STACNotator están en preparación y aparecerán aquí."
   },
   "taskProgress": {
-    "all": "Todas",
     "yours": "Tuyas",
     "count": "{{done}} / {{total}}",
     "allLabel": "Tareas completadas",
-    "yoursLabel": "Tus tareas asignadas completadas"
+    "yoursLabel": "Tus tareas asignadas completadas",
+    "allTooltip": "Tareas completadas en total: {{count}}",
+    "yoursTooltip": "Tus tareas asignadas respondidas: {{count}}"
   }
 }
