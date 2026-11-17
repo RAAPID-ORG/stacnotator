@@ -354,7 +354,10 @@ export function makeTaskSet(overrides: Partial<TaskSetOut> = {}): TaskSetOut {
     name: 'Set 1',
     created_at: '2024-01-01T00:00:00Z',
     num_tasks: 0,
-    num_labeled: 0,
+    num_done: 0,
+    num_conflicting: 0,
+    num_assigned: 0,
+    num_assigned_done: 0,
     ...overrides,
   };
 }

@@ -1168,7 +1168,7 @@ export const deleteTasks = <ThrowOnError extends boolean = false>(options: Optio
 /**
  * List Task Sets
  *
- * Task sets of a campaign with per-set task counts (member-accessible).
+ * Task sets of a campaign with per-set progress (member-accessible).
  */
 export const listTaskSets = <ThrowOnError extends boolean = false>(options: Options<ListTaskSetsData, ThrowOnError>) => (options.client ?? client).get<ListTaskSetsResponses, ListTaskSetsErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

@@ -53,9 +53,14 @@ class TaskListOut(BaseModel):
 
 
 class TaskProgressOut(BaseModel):
-    total: int
-    done: int
-    conflicting: int
+    """Tasks done by the task status rule, and the viewer's own assigned tasks they
+    answered."""
+
+    num_tasks: int
+    num_done: int
+    num_conflicting: int
+    num_assigned: int
+    num_assigned_done: int
 
 
 class CampaignProgressOut(TaskProgressOut):
@@ -281,12 +286,10 @@ class UnassignTasksRequest(BaseModel):
     user_ids: list[UUID] | None = None
 
 
-class TaskSetOut(BaseModel):
+class TaskSetOut(TaskProgressOut):
     id: int
     name: str
     created_at: datetime
-    num_tasks: int
-    num_labeled: int
 
 
 class TaskSetCreate(BaseModel):

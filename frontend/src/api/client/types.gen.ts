@@ -1493,17 +1493,25 @@ export type CampaignOutFull = {
  */
 export type CampaignProgressOut = {
     /**
-     * Total
+     * Num Tasks
      */
-    total: number;
+    num_tasks: number;
     /**
-     * Done
+     * Num Done
      */
-    done: number;
+    num_done: number;
     /**
-     * Conflicting
+     * Num Conflicting
      */
-    conflicting: number;
+    num_conflicting: number;
+    /**
+     * Num Assigned
+     */
+    num_assigned: number;
+    /**
+     * Num Assigned Done
+     */
+    num_assigned_done: number;
     /**
      * Campaign Id
      */
@@ -4682,6 +4690,26 @@ export type TaskSetCreate = {
  */
 export type TaskSetOut = {
     /**
+     * Num Tasks
+     */
+    num_tasks: number;
+    /**
+     * Num Done
+     */
+    num_done: number;
+    /**
+     * Num Conflicting
+     */
+    num_conflicting: number;
+    /**
+     * Num Assigned
+     */
+    num_assigned: number;
+    /**
+     * Num Assigned Done
+     */
+    num_assigned_done: number;
+    /**
      * Id
      */
     id: number;
@@ -4693,14 +4721,6 @@ export type TaskSetOut = {
      * Created At
      */
     created_at: string;
-    /**
-     * Num Tasks
-     */
-    num_tasks: number;
-    /**
-     * Num Labeled
-     */
-    num_labeled: number;
 };
 
 /**

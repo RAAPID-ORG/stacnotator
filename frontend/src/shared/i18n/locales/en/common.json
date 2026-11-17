@@ -172,5 +172,12 @@
     "title": "Help & guides",
     "comingSoon": "Coming soon",
     "workInProgress": "Guides for STACNotator are a work in progress and will appear here."
+  },
+  "taskProgress": {
+    "all": "All",
+    "yours": "Yours",
+    "count": "{{done}} / {{total}}",
+    "allLabel": "Tasks completed",
+    "yoursLabel": "Your assigned tasks completed"
   }
 }

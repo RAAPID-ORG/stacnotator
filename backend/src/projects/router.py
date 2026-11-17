@@ -117,9 +117,12 @@ def list_project_campaigns(
 def list_project_campaigns_progress(
     project_id: int,
     db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
     project: Project = Depends(require_project_access),
 ):
-    return CampaignsProgressResponse(items=service.list_project_campaigns_progress(db, project))
+    return CampaignsProgressResponse(
+        items=service.list_project_campaigns_progress(db, project, user)
+    )
 
 
 @router.get("/{project_id}/tilers", response_model=ProjectTilersOut)

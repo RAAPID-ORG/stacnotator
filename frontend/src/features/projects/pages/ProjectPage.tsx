@@ -23,6 +23,7 @@ import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Button, IconButton } from '~/shared/ui/forms';
 import { IconCopy, IconDocument, IconGlobe, IconPlus, IconSettings } from '~/shared/ui/Icons';
 import { FadeIn } from '~/shared/ui/motion';
+import { TaskProgress } from '~/shared/ui/TaskProgress';
 import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
 import {
   isProjectSection,
@@ -341,30 +342,10 @@ const CampaignRow = ({
       </div>
       <div className="flex shrink-0 items-center gap-4">
         {canOpen && (
-          <div className="flex w-20 flex-col items-end gap-1 text-[11px] leading-none text-neutral-500 tabular-nums">
+          <div className="w-24 text-[11px] leading-none text-neutral-500">
             {progress ? (
-              progress.total > 0 ? (
-                <>
-                  <span className="whitespace-nowrap">
-                    {t('page.tasksCompleted', {
-                      done: progress.done.toLocaleString(),
-                      total: progress.total.toLocaleString(),
-                    })}
-                  </span>
-                  <div
-                    className="h-1.5 w-20 shrink-0 overflow-hidden rounded-full bg-neutral-100"
-                    role="progressbar"
-                    aria-valuenow={progress.done}
-                    aria-valuemin={0}
-                    aria-valuemax={progress.total}
-                    aria-label={t('page.completionFor', { name: campaign.name })}
-                  >
-                    <div
-                      className="h-full rounded-full bg-brand-600 transition-[width]"
-                      style={{ width: `${(progress.done / progress.total) * 100}%` }}
-                    />
-                  </div>
-                </>
+              progress.num_tasks > 0 ? (
+                <TaskProgress progress={progress} />
               ) : (
                 <span>{t('page.noTasks')}</span>
               )
@@ -373,7 +354,7 @@ const CampaignRow = ({
                 {t('page.loadProgressFailed')}
               </span>
             ) : (
-              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-3 w-24" />
             )}
           </div>
         )}
@@ -382,8 +363,8 @@ const CampaignRow = ({
             <ExportMenu
               campaignId={campaign.id}
               campaignName={campaign.name}
-              showMergeToggle={progress != null && progress.total > 0}
-              hasConflicts={(progress?.conflicting ?? 0) > 0}
+              showMergeToggle={progress != null && progress.num_tasks > 0}
+              hasConflicts={(progress?.num_conflicting ?? 0) > 0}
               iconOnly
             />
           )}

@@ -274,9 +274,11 @@ async function installOrgProjectMocks(page: Page, api: ApiCapture): Promise<void
       json: {
         items: MOCK_PROJECT_CAMPAIGNS.items.map((c) => ({
           campaign_id: c.id,
-          total: 10,
-          done: 4,
-          conflicting: 1,
+          num_tasks: 10,
+          num_done: 4,
+          num_conflicting: 1,
+          num_assigned: 3,
+          num_assigned_done: 2,
         })),
       },
     })

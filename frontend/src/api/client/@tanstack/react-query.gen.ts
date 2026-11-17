@@ -1904,7 +1904,7 @@ export const listTaskSetsQueryKey = (options: Options<ListTaskSetsData>) => crea
 /**
  * List Task Sets
  *
- * Task sets of a campaign with per-set task counts (member-accessible).
+ * Task sets of a campaign with per-set progress (member-accessible).
  */
 export const listTaskSetsOptions = (options: Options<ListTaskSetsData>) => queryOptions<ListTaskSetsResponse, ListTaskSetsError, ListTaskSetsResponse, ReturnType<typeof listTaskSetsQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {

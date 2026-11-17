@@ -7,7 +7,7 @@ TaskSummaryOut and hands back the bytes. Python supplies only what the rules nee
 author, which is a handful of people however many tasks there are.
 """
 
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 from uuid import UUID
 
 from sqlalchemy import Row, select, text
@@ -61,17 +61,26 @@ _UNKNOWN_AUTHORS_SQL = """
 
 _PROGRESS_SQL = (
     """
-WITH scope AS (SELECT id FROM data.tasks WHERE campaign_id = :campaign_id),
+WITH scope AS (SELECT id, task_set_id FROM data.tasks WHERE campaign_id = :campaign_id),
 """  # noqa: S608 - only SQL constants are joined; values are bound
     + _STATUS_INPUTS_SQL
     + """
-SELECT count(*),
+SELECT ts.id,
+       count(t.id),
        count(*) FILTER (WHERE st.status = 'done'),
        count(*) FILTER (WHERE st.status = 'conflicting'),
+       count(mine.task_id),
+       count(*) FILTER (WHERE mine.status = 'done'),
 """
     + _UNKNOWN_AUTHORS_SQL
     + """
-FROM scope t LEFT JOIN task_statuses st ON st.task_id = t.id
+FROM data.task_sets ts
+LEFT JOIN scope t ON t.task_set_id = ts.id
+LEFT JOIN task_statuses st ON st.task_id = t.id
+LEFT JOIN assignee_statuses mine
+    ON mine.task_id = t.id AND mine.user_id = CAST(:viewer_id AS uuid)
+WHERE ts.campaign_id = :campaign_id
+GROUP BY ts.id
 """
 )
 
@@ -196,13 +205,33 @@ def task_summary_json(
     *,
     with_email: bool,
 ) -> bytes:
-    body: str = _execute(db, campaign, _SUMMARY_SQL, task_ids, with_email=with_email)[0]
+    body: str = _execute(db, campaign, _SUMMARY_SQL, task_ids, with_email=with_email)[0][0]
     return body.encode()
 
 
-def task_progress(db: Session, campaign: Campaign) -> TaskProgressOut:
-    total, done, conflicting, _ = _execute(db, campaign, _PROGRESS_SQL)
-    return TaskProgressOut(total=total, done=done, conflicting=conflicting)
+def task_set_progress(
+    db: Session, campaign: Campaign, viewer_id: UUID
+) -> dict[int, TaskProgressOut]:
+    """Progress of each task set: tasks done by the status rule, and the viewer's own
+    assignments (review ones included) they answered."""
+    rows = _execute(db, campaign, _PROGRESS_SQL, viewer_id=viewer_id)
+    return {
+        set_id: TaskProgressOut(
+            num_tasks=tasks,
+            num_done=done,
+            num_conflicting=conflicting,
+            num_assigned=assigned,
+            num_assigned_done=assigned_done,
+        )
+        for set_id, tasks, done, conflicting, assigned, assigned_done, _ in rows
+    }
+
+
+def campaign_progress(db: Session, campaign: Campaign, viewer_id: UUID) -> TaskProgressOut:
+    sets = task_set_progress(db, campaign, viewer_id).values()
+    return TaskProgressOut(
+        **{field: sum(getattr(p, field) for p in sets) for field in TaskProgressOut.model_fields}
+    )
 
 
 def _execute(
@@ -212,7 +241,8 @@ def _execute(
     task_ids: Collection[int] | None = None,
     *,
     with_email: bool = False,
-) -> Row:
+    viewer_id: UUID | None = None,
+) -> Sequence[Row]:
     """Run a status statement; its last column names authors it had no rule for."""
     authored = select(Annotation.created_by_user_id).where(
         Annotation.campaign_id == campaign.id, Annotation.task_id.is_not(None)
@@ -229,19 +259,20 @@ def _execute(
     while True:
         completion = completion_by_author(db, campaign, authors)
         ordered = sorted(authors)
-        row = db.execute(
+        rows = db.execute(
             text(statement),
             {
                 "campaign_id": campaign.id,
                 "task_ids": list(task_ids) if task_ids is not None else None,
                 "with_email": with_email,
+                "viewer_id": str(viewer_id) if viewer_id else None,
                 "authors": [str(a) for a in ordered],
                 "on_unassigned_task": [completion[a].on_unassigned_task for a in ordered],
                 "when_assigned": [completion[a].when_assigned for a in ordered],
                 "when_not_assigned": [completion[a].when_not_assigned for a in ordered],
             },
-        ).one()
-        unknown = row[-1]
+        ).all()
+        unknown = rows[0][-1] if rows else None
         if not unknown:
-            return row
+            return rows
         authors |= {UUID(a) for a in unknown}

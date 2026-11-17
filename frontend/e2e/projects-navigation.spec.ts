@@ -30,7 +30,14 @@ test.describe('Projects list', () => {
     );
     await appPage.goto('/projects/7');
     const row = appPage.getByTestId('campaign-row').first();
+    await expect(
+      row.getByRole('progressbar', { name: 'Tasks completed', exact: true })
+    ).toHaveAttribute('aria-valuenow', '4');
     await expect(row.getByText('4 / 10', { exact: true })).toBeVisible();
+    await expect(
+      row.getByRole('progressbar', { name: 'Your assigned tasks completed', exact: true })
+    ).toHaveAttribute('aria-valuemax', '3');
+    await expect(row.getByText('2 / 3', { exact: true })).toBeVisible();
     await expect(row.getByText('40%')).toHaveCount(0);
     await expect(row.getByTestId('export-menu-trigger')).toHaveText('');
     await row.getByTestId('export-menu-trigger').focus();
@@ -53,9 +60,11 @@ test.describe('Projects list', () => {
         json: {
           items: MOCK_PROJECT_CAMPAIGNS.items.map((c) => ({
             campaign_id: c.id,
-            total: 0,
-            done: 0,
-            conflicting: 0,
+            num_tasks: 0,
+            num_done: 0,
+            num_conflicting: 0,
+            num_assigned: 0,
+            num_assigned_done: 0,
           })),
         },
       })
@@ -236,6 +245,44 @@ test.describe('Projects list', () => {
     await expect(
       appPage.getByRole('heading', { name: MOCK_TASK_SETS[0].name, exact: true })
     ).toBeVisible();
+  });
+
+  test('task set cards show completed tasks and the viewer’s assigned tasks', async ({
+    appPage,
+  }) => {
+    const progress = (done: number, assigned: number, assignedDone: number) => ({
+      num_tasks: 10,
+      num_done: done,
+      num_conflicting: 0,
+      num_assigned: assigned,
+      num_assigned_done: assignedDone,
+    });
+    await appPage.route('**/api/campaigns/*/task-sets', (route) =>
+      route.fulfill({
+        json: [
+          { ...MOCK_TASK_SETS[0], id: 1, name: 'North', ...progress(3, 4, 1) },
+          { ...MOCK_TASK_SETS[0], id: 2, name: 'South', ...progress(5, 0, 0) },
+        ],
+      })
+    );
+    await appPage.route('**/api/campaigns/*/agents', (route) =>
+      route.fulfill({ json: { agents: [] } })
+    );
+    await appPage.route('**/api/campaigns/*/annotations/facets', (route) =>
+      route.fulfill({ json: { total: 0, labels: [], users: [] } })
+    );
+    await appPage.goto('/projects/7/campaigns/42');
+
+    const card = (name: string) =>
+      appPage
+        .locator('.surface')
+        .filter({ has: appPage.getByRole('heading', { name, exact: true }) });
+    await expect(card('All tasks').getByText('8 / 20', { exact: true })).toBeVisible();
+    await expect(card('All tasks').getByText('1 / 4', { exact: true })).toBeVisible();
+    await expect(card('North').getByText('3 / 10', { exact: true })).toBeVisible();
+    await expect(card('North').getByText('1 / 4', { exact: true })).toBeVisible();
+    await expect(card('South').getByText('5 / 10', { exact: true })).toBeVisible();
+    await expect(card('South').getByText('Yours')).toHaveCount(0);
   });
 
   test('switching organization leaves the current project for the new organization', async ({

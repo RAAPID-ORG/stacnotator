@@ -5,8 +5,26 @@ import type { TaskSetOut } from '~/api/client';
 import { TaskScopeBar } from './TaskScopeBar';
 
 const taskSets: TaskSetOut[] = [
-  { id: 1, name: 'Training', created_at: '2024-01-01', num_tasks: 12, num_labeled: 0 },
-  { id: 2, name: 'Validation', created_at: '2024-01-01', num_tasks: 8, num_labeled: 0 },
+  {
+    id: 1,
+    name: 'Training',
+    created_at: '2024-01-01',
+    num_tasks: 12,
+    num_done: 0,
+    num_conflicting: 0,
+    num_assigned: 0,
+    num_assigned_done: 0,
+  },
+  {
+    id: 2,
+    name: 'Validation',
+    created_at: '2024-01-01',
+    num_tasks: 8,
+    num_done: 0,
+    num_conflicting: 0,
+    num_assigned: 0,
+    num_assigned_done: 0,
+  },
 ];
 
 describe('TaskScopeBar', () => {

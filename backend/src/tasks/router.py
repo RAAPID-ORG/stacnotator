@@ -325,10 +325,11 @@ def delete_tasks(
 def list_task_sets(
     campaign_id: int,
     db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
     campaign: Campaign = Depends(require_campaign_access),
 ):
-    """Task sets of a campaign with per-set task counts (member-accessible)."""
-    return task_sets.list_task_sets_with_stats(db, campaign.id)
+    """Task sets of a campaign with per-set progress (member-accessible)."""
+    return task_sets.list_task_sets_with_stats(db, campaign, user.id)
 
 
 @router.post("/task-sets", response_model=TaskSetOut, status_code=201)
@@ -344,7 +345,10 @@ def create_task_set(
         name=created.name,
         created_at=created.created_at,
         num_tasks=0,
-        num_labeled=0,
+        num_done=0,
+        num_conflicting=0,
+        num_assigned=0,
+        num_assigned_done=0,
     )
 
 
@@ -354,11 +358,12 @@ def rename_task_set(
     task_set_id: int,
     req: TaskSetRename,
     db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
     campaign: Campaign = Depends(require_campaign_admin),
 ):
     task_sets.rename_task_set(db, campaign.id, task_set_id, req.name)
-    stats = task_sets.list_task_sets_with_stats(db, campaign.id)
-    return next(s for s in stats if s["id"] == task_set_id)
+    stats = task_sets.list_task_sets_with_stats(db, campaign, user.id)
+    return next(s for s in stats if s.id == task_set_id)
 
 
 @router.delete("/task-sets/{task_set_id}", status_code=204)

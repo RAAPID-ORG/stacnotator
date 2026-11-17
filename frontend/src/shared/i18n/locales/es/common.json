@@ -172,5 +172,12 @@
     "title": "Ayuda y guías",
     "comingSoon": "Próximamente",
     "workInProgress": "Las guías de STACNotator están en preparación y aparecerán aquí."
+  },
+  "taskProgress": {
+    "all": "Todas",
+    "yours": "Tuyas",
+    "count": "{{done}} / {{total}}",
+    "allLabel": "Tareas completadas",
+    "yoursLabel": "Tus tareas asignadas completadas"
   }
 }
