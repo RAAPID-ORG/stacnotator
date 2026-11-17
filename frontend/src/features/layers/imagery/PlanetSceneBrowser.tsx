@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Trans, useTranslation } from 'react-i18next';
+import { useTranslation } from 'react-i18next';
 import {
   planPlanetScenes,
   type PlanetCredentials,
@@ -8,6 +8,7 @@ import {
   type PlanetScenesGenerationConfig,
 } from '~/api/client';
 import { Modal } from '~/shared/ui/Modal';
+import { Tooltip } from '~/shared/ui/Tooltip';
 import { Button, DateField, Input, Select } from '~/shared/ui/forms';
 import i18n from '~/shared/i18n';
 import { handleError } from '~/shared/utils/errorHandler';
@@ -15,6 +16,8 @@ import { formatSliceLabel, formatWindowLabel } from '~/shared/utils/utility';
 import { PlanetKeyConnect } from './PlanetKeyConnect';
 import { createId, emptySource } from './types';
 import type { CollectionItem, ImagerySlice, ImagerySource } from './types';
+import { PlanPreview } from './PlanPreview';
+import { WizardSteps } from './WizardSteps';
 
 interface PlanetSceneBrowserProps {
   projectId: number;
@@ -57,18 +60,23 @@ const span = (period: Period) => period.interval * APPROXIMATE_DAYS[period.unit]
 const PeriodField = ({
   label,
   help,
+  info,
   value,
   onChange,
 }: {
   label: string;
   help: string;
+  info?: string;
   value: Period;
   onChange: (period: Period) => void;
 }) => {
   const { t } = useTranslation('imagery');
   return (
     <div className="space-y-1">
-      <label className="text-xs text-neutral-700 font-medium">{label}</label>
+      <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
+        {label}
+        {info && <Tooltip text={info} />}
+      </label>
       <p className="text-[11px] text-neutral-500 leading-snug">{help}</p>
       <div className="flex items-center gap-2">
         <span className="text-xs text-neutral-500">{t('scenes.every')}</span>
@@ -249,29 +257,35 @@ export const PlanetSceneBrowser = ({ projectId, onAdd, onClose }: PlanetSceneBro
       onClose={onClose}
       maxWidth="max-w-2xl"
       footer={
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] text-neutral-500">
-            {windows?.length
-              ? t('planet.summary', {
-                  windows: t('planet.windows', { count: windows.length }),
-                  slices: t('planet.slices', { count: sliceTotal }),
-                })
-              : ''}
-          </span>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => void add()}
-            disabled={submitting || !windows?.length || !credentials}
-          >
-            {submitting ? t('wizard.adding') : t('wizard.addSource')}
-          </Button>
-        </div>
+        <PlanPreview
+          rows={(windows ?? []).map((window) => ({
+            key: window.start_date,
+            label: formatWindowLabel(window.start_date, window.end_date, windowPeriod.unit),
+            slices: window.slices.map((slice) =>
+              formatSliceLabel(slice.start_date, slice.end_date, slicePeriod.unit, 0)
+            ),
+            cover: window.cover ? t('scenes.coverStacked') : t('scenes.coverFirst'),
+          }))}
+          summary={t('planet.summary', {
+            windows: t('planet.windows', { count: windows?.length ?? 0 }),
+            slices: t('planet.slices', { count: sliceTotal }),
+          })}
+          help={t('scenes.datesOnly')}
+          action={
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => void add()}
+              disabled={submitting || !windows?.length || !credentials}
+            >
+              {submitting ? t('wizard.adding') : t('wizard.addSource')}
+            </Button>
+          }
+        />
       }
     >
       <div className="p-4 space-y-4">
-        <p className="text-[11px] text-neutral-500 leading-snug">{t('scenes.intro')}</p>
-        <p className="text-[11px] text-neutral-500 leading-snug">{t('scenes.datesOnly')}</p>
+        <WizardSteps steps={[]} current={0} onBack={onClose} />
 
         <PlanetKeyConnect projectId={projectId} onChange={setCredentials} />
 
@@ -301,6 +315,7 @@ export const PlanetSceneBrowser = ({ projectId, onAdd, onClose }: PlanetSceneBro
           <PeriodField
             label={t('scenes.newSlice')}
             help={t('scenes.newSliceHelp')}
+            info={t('scenes.intro')}
             value={slicePeriod}
             onChange={setSlicePeriod}
           />
@@ -358,34 +373,6 @@ export const PlanetSceneBrowser = ({ projectId, onAdd, onClose }: PlanetSceneBro
             <p className="text-[11px] text-amber-700 rounded-md bg-amber-50 border border-amber-200 p-2">
               {t('scenes.manySlices', { count: sliceTotal })}
             </p>
-          )}
-
-          {!!windows?.length && (
-            <div className="space-y-1.5">
-              <p className="text-xs text-neutral-700 font-medium">{t('scenes.preview')}</p>
-              <ul className="text-[11px] text-neutral-600 space-y-0.5 max-h-48 overflow-y-auto">
-                {windows.map((window) => (
-                  <li key={window.start_date}>
-                    <Trans
-                      t={t}
-                      i18nKey={window.cover ? 'scenes.windowItemCover' : 'scenes.windowItem'}
-                      values={{
-                        label: formatWindowLabel(
-                          window.start_date,
-                          window.end_date,
-                          windowPeriod.unit
-                        ),
-                        count: window.slices.length,
-                      }}
-                      components={{ strong: <strong /> }}
-                    />
-                  </li>
-                ))}
-              </ul>
-              <p className="text-[11px] text-neutral-500 leading-snug">
-                {t('scenes.nothingBuilt')}
-              </p>
-            </div>
           )}
         </div>
       </div>
