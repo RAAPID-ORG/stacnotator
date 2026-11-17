@@ -40,7 +40,6 @@ from src.tasks.schemas import (
     MoveTasksToSetResult,
     TaskDensityCell,
     TaskListOut,
-    TaskProgressOut,
     TaskSetCreate,
     TaskSetOut,
     TaskSetRename,
@@ -59,15 +58,6 @@ router = APIRouter(
     tags=["Tasks"],
     dependencies=[Depends(bearer), Depends(require_authenticated_user)],
 )
-
-
-@router.get("/tasks/progress", response_model=TaskProgressOut)
-def get_task_progress(
-    campaign_id: int,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_access),
-) -> Response:
-    return Response(content=summary.task_progress_json(db, campaign), media_type="application/json")
 
 
 @router.get("/tasks/summary", response_model=TaskSummaryOut)

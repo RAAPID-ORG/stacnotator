@@ -1489,6 +1489,28 @@ export type CampaignOutFull = {
 };
 
 /**
+ * CampaignProgressOut
+ */
+export type CampaignProgressOut = {
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * Done
+     */
+    done: number;
+    /**
+     * Conflicting
+     */
+    conflicting: number;
+    /**
+     * Campaign Id
+     */
+    campaign_id: number;
+};
+
+/**
  * CampaignSettingsCreate
  */
 export type CampaignSettingsCreate = {
@@ -1798,6 +1820,16 @@ export type CampaignsListResponse = {
      * Items
      */
     items: Array<CampaignListItemOut>;
+};
+
+/**
+ * CampaignsProgressResponse
+ */
+export type CampaignsProgressResponse = {
+    /**
+     * Items
+     */
+    items: Array<CampaignProgressOut>;
 };
 
 /**
@@ -4636,24 +4668,6 @@ export type TaskOut = {
 };
 
 /**
- * TaskProgressOut
- */
-export type TaskProgressOut = {
-    /**
-     * Total
-     */
-    total: number;
-    /**
-     * Done
-     */
-    done: number;
-    /**
-     * Conflicting
-     */
-    conflicting: number;
-};
-
-/**
  * TaskSetCreate
  */
 export type TaskSetCreate = {
@@ -7117,6 +7131,36 @@ export type ListProjectCampaignsResponses = {
 
 export type ListProjectCampaignsResponse = ListProjectCampaignsResponses[keyof ListProjectCampaignsResponses];
 
+export type ListProjectCampaignsProgressData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: number;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/campaigns/progress';
+};
+
+export type ListProjectCampaignsProgressErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListProjectCampaignsProgressError = ListProjectCampaignsProgressErrors[keyof ListProjectCampaignsProgressErrors];
+
+export type ListProjectCampaignsProgressResponses = {
+    /**
+     * Successful Response
+     */
+    200: CampaignsProgressResponse;
+};
+
+export type ListProjectCampaignsProgressResponse = ListProjectCampaignsProgressResponses[keyof ListProjectCampaignsProgressResponses];
+
 export type GetProjectTilersData = {
     body?: never;
     path: {
@@ -8507,36 +8551,6 @@ export type GetAnnotationDensityResponses = {
 };
 
 export type GetAnnotationDensityResponse = GetAnnotationDensityResponses[keyof GetAnnotationDensityResponses];
-
-export type GetTaskProgressData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/tasks/progress';
-};
-
-export type GetTaskProgressErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetTaskProgressError = GetTaskProgressErrors[keyof GetTaskProgressErrors];
-
-export type GetTaskProgressResponses = {
-    /**
-     * Successful Response
-     */
-    200: TaskProgressOut;
-};
-
-export type GetTaskProgressResponse = GetTaskProgressResponses[keyof GetTaskProgressResponses];
 
 export type GetTaskSummaryData = {
     body?: never;

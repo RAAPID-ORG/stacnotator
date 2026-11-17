@@ -41,7 +41,8 @@ export const ROUTE = {
   organizationInvites: /\/api\/organizations\/\d+\/invites(\/\d+)?(\?.*)?$/,
   projects: /\/api\/projects\/(\?.*)?$/,
   project: /\/api\/projects\/\d+(\?.*)?$/,
-  projectCampaigns: /\/api\/projects\/\d+\/campaigns/,
+  projectCampaigns: /\/api\/projects\/\d+\/campaigns(\?|$)/,
+  projectCampaignsProgress: /\/api\/projects\/\d+\/campaigns\/progress/,
   projectInvites: /\/api\/projects\/\d+\/invites(\/\d+)?(\?.*)?$/,
   projectTilers: /\/api\/projects\/\d+\/tilers/,
   projectUsers: /\/api\/projects\/\d+\/users(\?.*)?$/,
@@ -268,8 +269,17 @@ async function installOrgProjectMocks(page: Page, api: ApiCapture): Promise<void
     await route.fulfill({ json: MOCK_PROJECT_CAMPAIGNS });
   });
 
-  await page.route('**/api/campaigns/*/tasks/progress', (route) =>
-    route.fulfill({ json: { total: 10, done: 4, conflicting: 1 } })
+  await page.route(ROUTE.projectCampaignsProgress, (route) =>
+    route.fulfill({
+      json: {
+        items: MOCK_PROJECT_CAMPAIGNS.items.map((c) => ({
+          campaign_id: c.id,
+          total: 10,
+          done: 4,
+          conflicting: 1,
+        })),
+      },
+    })
   );
 
   // The imagery editors read the project's tiler allowlist; the hook degrades

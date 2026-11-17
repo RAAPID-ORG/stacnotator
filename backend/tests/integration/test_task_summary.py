@@ -18,7 +18,7 @@ from src.projects.models import Project, ProjectUser
 from src.tasks import service
 from src.tasks.models import Task, TaskAssignment, TaskSet
 from src.tasks.schemas import TaskProgressOut, TaskSummaryOut
-from src.tasks.summary import task_progress_json, task_summary_json
+from src.tasks.summary import task_progress, task_summary_json
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("AGENT_DATABASE_TESTS") != "1",
@@ -258,7 +258,7 @@ def test_progress_counts_only_completed_tasks(varied_campaign):
     db, campaign = varied_campaign
     tasks = service.read_tasks(db, campaign, with_email=False)
 
-    progress = TaskProgressOut.model_validate_json(task_progress_json(db, campaign))
+    progress = task_progress(db, campaign)
 
     assert progress.total == len(tasks)
     assert progress.done == sum(task.task_status == "done" for task in tasks)
@@ -269,9 +269,7 @@ def test_progress_counts_only_completed_tasks(varied_campaign):
     db.execute(delete(Task).where(Task.campaign_id == campaign.id))
     db.flush()
 
-    assert TaskProgressOut.model_validate_json(task_progress_json(db, campaign)) == TaskProgressOut(
-        total=0, done=0, conflicting=0
-    )
+    assert task_progress(db, campaign) == TaskProgressOut(total=0, done=0, conflicting=0)
 
 
 def test_details_can_be_the_first_few_tasks(varied_campaign):

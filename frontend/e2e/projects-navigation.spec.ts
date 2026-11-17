@@ -48,8 +48,17 @@ test.describe('Projects list', () => {
   });
 
   test('campaign progress distinguishes empty campaigns and failed reads', async ({ appPage }) => {
-    await appPage.route('**/api/campaigns/*/tasks/progress', (route) =>
-      route.fulfill({ json: { total: 0, done: 0, conflicting: 0 } })
+    await appPage.route(ROUTE.projectCampaignsProgress, (route) =>
+      route.fulfill({
+        json: {
+          items: MOCK_PROJECT_CAMPAIGNS.items.map((c) => ({
+            campaign_id: c.id,
+            total: 0,
+            done: 0,
+            conflicting: 0,
+          })),
+        },
+      })
     );
     await appPage.goto('/projects/7');
     const row = appPage.getByTestId('campaign-row').first();
@@ -57,7 +66,7 @@ test.describe('Projects list', () => {
     await expect(row.getByRole('progressbar')).toHaveCount(0);
     await expect(row.getByTestId('export-menu-trigger')).toBeEnabled();
 
-    await appPage.route('**/api/campaigns/*/tasks/progress', (route) =>
+    await appPage.route(ROUTE.projectCampaignsProgress, (route) =>
       route.fulfill({ status: 500, json: { detail: 'Unavailable' } })
     );
     await appPage.reload();

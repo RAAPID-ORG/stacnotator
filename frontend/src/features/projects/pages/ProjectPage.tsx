@@ -5,11 +5,16 @@ import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { campaignPath, newCampaignPath, projectsPath } from '~/app/routes';
 import { useProject } from '~/app/projectRoute';
-import { getTaskProgressOptions, listProjectCampaignsOptions } from '~/api/queries';
+import { listProjectCampaignsOptions, listProjectCampaignsProgressOptions } from '~/api/queries';
 import { SHARED_WORK } from '~/api/queryClient';
 import { ExportMenu } from '~/features/campaigns/components/review/ExportMenu';
 import { isRegistering } from '~/features/campaigns/hooks/campaignQueries';
-import { type CampaignListItemOut, type CampaignOut, type ProjectOut } from '~/api/client';
+import {
+  type CampaignListItemOut,
+  type CampaignOut,
+  type CampaignProgressOut,
+  type ProjectOut,
+} from '~/api/client';
 import { DuplicateCampaignModal } from '~/features/campaigns/components/DuplicateCampaignModal';
 import { ProjectSettingsSection } from '~/features/projects/components/ProjectSettingsSection';
 import { ProjectUsersSection } from '~/features/projects/components/ProjectUsersSection';
@@ -62,6 +67,11 @@ export const ProjectPage = () => {
       query.state.data?.items.some(isRegistering) ? REGISTRATION_POLL_MS : false,
   });
   const campaigns = campaignsData?.items ?? NO_CAMPAIGNS;
+  const { data: progressData, isError: progressError } = useQuery({
+    ...listProjectCampaignsProgressOptions({ path: { project_id: projectId } }),
+    ...SHARED_WORK,
+    meta: { errorMessage: t('page.loadProgressFailed'), showUser: false },
+  });
 
   useEffect(() => {
     setBreadcrumbs([
@@ -107,6 +117,8 @@ export const ProjectPage = () => {
             campaigns={campaigns}
             campaignsLoading={campaignsLoading}
             campaignsError={campaignsError}
+            progress={progressData?.items}
+            progressError={progressError}
             requestedSection={requestedSection}
             onOpenCampaign={(campaign) => navigate(campaignPath(project.id, campaign.id))}
             onOpenCampaignSettings={(campaign) =>
@@ -136,6 +148,8 @@ interface ProjectSectionViewProps {
   campaigns: CampaignListItemOut[];
   campaignsLoading: boolean;
   campaignsError: boolean;
+  progress: CampaignProgressOut[] | undefined;
+  progressError: boolean;
   requestedSection: ProjectSection;
   onOpenCampaign: (campaign: CampaignListItemOut) => void;
   onOpenCampaignSettings: (campaign: CampaignListItemOut) => void;
@@ -149,6 +163,8 @@ const ProjectSectionView = ({
   campaigns,
   campaignsLoading,
   campaignsError,
+  progress,
+  progressError,
   requestedSection,
   onOpenCampaign,
   onOpenCampaignSettings,
@@ -168,6 +184,8 @@ const ProjectSectionView = ({
             campaigns={campaigns}
             loading={campaignsLoading}
             error={campaignsError}
+            progress={progress}
+            progressError={progressError}
             canCreate={isAdmin}
             onOpen={onOpenCampaign}
             onOpenSettings={onOpenCampaignSettings}
@@ -194,6 +212,8 @@ interface CampaignsListProps {
   campaigns: CampaignListItemOut[];
   loading: boolean;
   error: boolean;
+  progress: CampaignProgressOut[] | undefined;
+  progressError: boolean;
   canCreate: boolean;
   onOpen: (campaign: CampaignListItemOut) => void;
   onOpenSettings: (campaign: CampaignListItemOut) => void;
@@ -205,6 +225,8 @@ const CampaignsList = ({
   campaigns,
   loading,
   error,
+  progress,
+  progressError,
   canCreate,
   onOpen,
   onOpenSettings,
@@ -246,6 +268,8 @@ const CampaignsList = ({
             <CampaignRow
               key={campaign.id}
               campaign={campaign}
+              progress={progress?.find((p) => p.campaign_id === campaign.id)}
+              progressError={progressError}
               onOpen={() => onOpen(campaign)}
               onOpenSettings={() => onOpenSettings(campaign)}
               onDuplicate={() => onDuplicate(campaign)}
@@ -259,11 +283,15 @@ const CampaignsList = ({
 
 const CampaignRow = ({
   campaign,
+  progress,
+  progressError,
   onOpen,
   onOpenSettings,
   onDuplicate,
 }: {
   campaign: CampaignListItemOut;
+  progress: CampaignProgressOut | undefined;
+  progressError: boolean;
   onOpen: () => void;
   onOpenSettings: () => void;
   onDuplicate: () => void;
@@ -277,12 +305,6 @@ const CampaignRow = ({
   // that and let an admin keep editing settings meanwhile. Only annotating is
   // actually blocked, and the annotation page gates itself.
   const canOpen = isMember || isPublic;
-  const { data: progress, isError: progressError } = useQuery({
-    ...getTaskProgressOptions({ path: { campaign_id: campaign.id } }),
-    ...SHARED_WORK,
-    enabled: canOpen,
-    meta: { errorMessage: t('page.loadProgressFailed'), showUser: false },
-  });
   return (
     <li
       data-testid="campaign-row"

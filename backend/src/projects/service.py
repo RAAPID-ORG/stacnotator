@@ -23,6 +23,8 @@ from src.projects.access import VISIBILITY_PUBLIC, ProjectFlags
 from src.projects.models import Project, ProjectUser
 from src.projects.schemas import ProjectOut, ProjectTilersOut, TilerOption
 from src.projects.viewer import ViewerStanding, project_flags
+from src.tasks.schemas import CampaignProgressOut
+from src.tasks.summary import task_progress
 from src.tilers import registry
 
 
@@ -104,6 +106,14 @@ def list_project_campaigns(db: Session, project: Project, user: User) -> list[Ca
         .order_by(Campaign.created_at.desc())
     ).all()
     return [CampaignListItemOut.for_viewer(c, project, flags) for c in campaigns]
+
+
+def list_project_campaigns_progress(db: Session, project: Project) -> list[CampaignProgressOut]:
+    campaigns = db.scalars(select(Campaign).where(Campaign.project_id == project.id)).all()
+    return [
+        CampaignProgressOut(campaign_id=c.id, **task_progress(db, c).model_dump())
+        for c in campaigns
+    ]
 
 
 def get_project_out(db: Session, project: Project, user: User) -> ProjectOut:

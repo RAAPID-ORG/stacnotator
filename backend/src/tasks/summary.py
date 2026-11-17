@@ -10,12 +10,13 @@ author, which is a handful of people however many tasks there are.
 from collections.abc import Collection
 from uuid import UUID
 
-from sqlalchemy import select, text
+from sqlalchemy import Row, select, text
 from sqlalchemy.orm import Session
 
 from src.annotation.models import Annotation
 from src.campaigns.models import Campaign
 from src.tasks.completion import completion_by_author
+from src.tasks.schemas import TaskProgressOut
 from src.tasks.status import STATUS_SQL
 
 _STATUS_INPUTS_SQL = (
@@ -64,11 +65,9 @@ WITH scope AS (SELECT id FROM data.tasks WHERE campaign_id = :campaign_id),
 """  # noqa: S608 - only SQL constants are joined; values are bound
     + _STATUS_INPUTS_SQL
     + """
-SELECT CAST(json_build_object(
-    'total', count(*),
-    'done', count(*) FILTER (WHERE st.status = 'done'),
-    'conflicting', count(*) FILTER (WHERE st.status = 'conflicting')
-) AS text),
+SELECT count(*),
+       count(*) FILTER (WHERE st.status = 'done'),
+       count(*) FILTER (WHERE st.status = 'conflicting'),
 """
     + _UNKNOWN_AUTHORS_SQL
     + """
@@ -197,21 +196,24 @@ def task_summary_json(
     *,
     with_email: bool,
 ) -> bytes:
-    return _task_json(db, campaign, task_ids, with_email=with_email, statement=_SUMMARY_SQL)
+    body: str = _execute(db, campaign, _SUMMARY_SQL, task_ids, with_email=with_email)[0]
+    return body.encode()
 
 
-def task_progress_json(db: Session, campaign: Campaign) -> bytes:
-    return _task_json(db, campaign, None, with_email=False, statement=_PROGRESS_SQL)
+def task_progress(db: Session, campaign: Campaign) -> TaskProgressOut:
+    total, done, conflicting, _ = _execute(db, campaign, _PROGRESS_SQL)
+    return TaskProgressOut(total=total, done=done, conflicting=conflicting)
 
 
-def _task_json(
+def _execute(
     db: Session,
     campaign: Campaign,
-    task_ids: Collection[int] | None,
-    *,
-    with_email: bool,
     statement: str,
-) -> bytes:
+    task_ids: Collection[int] | None = None,
+    *,
+    with_email: bool = False,
+) -> Row:
+    """Run a status statement; its last column names authors it had no rule for."""
     authored = select(Annotation.created_by_user_id).where(
         Annotation.campaign_id == campaign.id, Annotation.task_id.is_not(None)
     )
@@ -223,11 +225,11 @@ def _task_json(
     db.execute(text("SET LOCAL jit = off"))
     # An author's first answer can commit between the lookup above and the statement,
     # which then has no rule for them; the statement names such authors and runs again
-    # with them included. A body with an author lacking a rule is never returned.
+    # with them included. A result with an author lacking a rule is never returned.
     while True:
         completion = completion_by_author(db, campaign, authors)
         ordered = sorted(authors)
-        body, unknown = db.execute(
+        row = db.execute(
             text(statement),
             {
                 "campaign_id": campaign.id,
@@ -239,7 +241,7 @@ def _task_json(
                 "when_not_assigned": [completion[a].when_not_assigned for a in ordered],
             },
         ).one()
+        unknown = row[-1]
         if not unknown:
-            result: str = body
-            return result.encode()
+            return row
         authors |= {UUID(a) for a in unknown}
