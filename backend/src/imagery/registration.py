@@ -3,9 +3,10 @@
 What is missing is read off the rows (``tiles.missing_providers``): a save that changes
 a search drops the mosaics it made stale, and the next run registers whatever is
 missing, against MPC or a hosted tiler, in parallel and off the request path. A source
-refresh re-ingests what a hosted tiler already holds. MPC forgets a search after a day,
-so one about to expire counts as missing, and opening a map registers it again
-(``renew_expiring_mpc_mosaics``).
+refresh re-ingests what a hosted tiler already holds. MPC stamps a search with an
+expiry a day out but can drop it well before then, so opening a map asks MPC whether it
+still holds the owner's oldest search, and registers all of them again when it does not
+or the stamp is about to run out (``renew_expiring_mpc_mosaics``).
 
 Planet scene sources register nothing: a search is bounded by an area, and theirs
 is wherever an annotator is standing - see ``service.search_planet_scenes_in_view``.
@@ -39,7 +40,8 @@ from src.visualizers.models import Visualizer
 
 logger = logging.getLogger(__name__)
 
-MPC_REGISTER_URL = "https://planetarycomputer.microsoft.com/api/data/v1/mosaic/register"
+MPC_MOSAIC_URL = "https://planetarycomputer.microsoft.com/api/data/v1/mosaic"
+MPC_REGISTER_URL = f"{MPC_MOSAIC_URL}/register"
 
 
 def sanitize_error_message(exc: Exception, *, fallback: str) -> str:
@@ -132,13 +134,14 @@ def missing_mosaics(sources: list[ImagerySource]) -> list[MosaicOrder]:
     return orders
 
 
-def drop_mosaics(sources: list[ImagerySource]) -> None:
-    """Forget every mosaic of these sources - for when the area they were searched
-    over has moved. Does not flush."""
+def drop_mosaics(sources: list[ImagerySource], provider: str | None = None) -> None:
+    """Forget the mosaics of these sources, or only those on one provider - for when
+    the area they were searched over has moved, or MPC dropped its searches. Does not
+    flush."""
     for source in sources:
         for collection in source.collections:
             for sl in collection.slices:
-                sl.mosaics.clear()
+                sl.mosaics = [m for m in sl.mosaics if provider and m.provider != provider]
 
 
 def _owner_sources(db: Session, owner: LayerOwner) -> list[ImagerySource]:
@@ -375,9 +378,10 @@ def commit_and_register(db: Session, owner: Campaign | Visualizer, bbox) -> None
 
 
 def renew_expiring_mpc_mosaics(db: Session, owner: Campaign | Visualizer) -> datetime | None:
-    """Start the run that registers again the owner's MPC mosaics that expired or soon
-    will, and otherwise return when the first is due, for an open map to read its
-    tiles again then. A cheap read of the ids first, as this runs on every open."""
+    """Start the run that registers the owner's MPC mosaics again when MPC dropped the
+    oldest or it is about to expire, and otherwise return when it will be, for an open
+    map to read its tiles again then. This runs on every open, so it reads only the ids
+    and asks MPC about one search: the oldest, which MPC drops first."""
     if owner.registration_status == "registering":
         return None
     mosaic_ids = db.scalars(
@@ -389,11 +393,25 @@ def renew_expiring_mpc_mosaics(db: Session, owner: Campaign | Visualizer) -> dat
     ).all()
     if not mosaic_ids:
         return None
-    due = min(tiles.mpc_expiry(m) for m in mosaic_ids) - tiles.MPC_RENEW_BEFORE_SECONDS
-    if due > time.time():
+    oldest = min(mosaic_ids, key=tiles.mpc_expiry)
+    due = tiles.mpc_expiry(oldest) - tiles.MPC_RENEW_BEFORE_SECONDS
+    if due > time.time() and not _mpc_dropped(oldest):
         return datetime.fromtimestamp(due, UTC)
+    logger.info("Registering MPC search %s and the rest of its owner's again", oldest)
+    drop_mosaics(_owner_sources(db, owner.layer_owner), provider=registry.MPC)
     commit_and_register(db, owner, owner.bbox)
     return None
+
+
+def _mpc_dropped(mosaic_id: str) -> bool:
+    """Whether MPC says it no longer holds this search. Only that answer counts: when
+    MPC cannot be asked, the search is kept and the next open asks again."""
+    try:
+        response = httpx.get(f"{MPC_MOSAIC_URL}/{mosaic_id}/info", timeout=5)
+    except httpx.HTTPError:
+        logger.warning("Could not ask MPC about search %s", mosaic_id, exc_info=True)
+        return False
+    return response.status_code in (404, 410)
 
 
 def refreshable_collection_ids(db: Session, source_id: int, campaign_id: int) -> list[int]:

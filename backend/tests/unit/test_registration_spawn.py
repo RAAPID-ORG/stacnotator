@@ -206,27 +206,50 @@ def renewal(monkeypatch):
     monkeypatch.setattr(registration.time, "time", lambda: 1_000_000)
     register = MagicMock()
     monkeypatch.setattr(registration, "commit_and_register", register)
+    source = _source()
+    for sl in source.collections[0].slices:
+        sl.mosaics = [
+            SliceMosaic(provider="mpc", mosaic_id=f"pc1.1050000.{sl.id}"),
+            SliceMosaic(provider="test-tiler", mosaic_id=f"hosted-{sl.id}"),
+        ]
+    monkeypatch.setattr(registration, "_owner_sources", lambda db, owner: [source])
     owner = MagicMock(registration_status="ready", layer_owner=LayerOwner(campaign_id=7))
 
-    def renew(*mosaic_ids):
+    def renew(*mosaic_ids, dropped=()):
+        asked = []
+        monkeypatch.setattr(registration, "_mpc_dropped", lambda m: asked.append(m) or m in dropped)
         db = MagicMock()
         db.scalars.return_value.all.return_value = list(mosaic_ids)
-        return registration.renew_expiring_mpc_mosaics(db, owner)
+        return registration.renew_expiring_mpc_mosaics(db, owner), asked
 
-    return renew, register
+    return renew, register, source
 
 
-def test_opening_a_map_whose_mpc_imagery_expires_soon_registers_it_again(renewal):
-    renew, register = renewal
+def test_mpc_imagery_about_to_expire_is_registered_again(renewal):
+    renew, register, source = renewal
 
-    assert renew("pc1.1100000.cd34", "pc1.1003600.ab12") is None
+    assert renew("pc1.1100000.cd34", "pc1.1003600.ab12") == (None, [])
     register.assert_called_once()
+    assert {m.provider for sl in source.collections[0].slices for m in sl.mosaics} == {"test-tiler"}
 
 
-def test_lasting_mpc_imagery_is_due_before_the_first_expires(renewal):
-    renew, register = renewal
+def test_an_open_map_reads_lasting_mpc_imagery_again_just_before_it_expires(renewal):
+    renew, register, _ = renewal
 
-    renew_at = renew("pc1.1100000.cd34", "pc1.1050000.ef56")
+    renew_at, asked = renew("pc1.1100000.cd34", "pc1.1050000.ef56")
 
+    assert asked == ["pc1.1050000.ef56"]
     assert renew_at == datetime.fromtimestamp(1_050_000 - 4 * 3600, UTC)
     register.assert_not_called()
+
+
+def test_mpc_dropping_the_oldest_search_early_registers_all_mpc_imagery_again(renewal):
+    renew, register, source = renewal
+
+    assert renew("pc1.1100000.cd34", "pc1.1050000.ef56", dropped={"pc1.1050000.ef56"})[0] is None
+
+    register.assert_called_once()
+    assert [m.provider for sl in source.collections[0].slices for m in sl.mosaics] == [
+        "test-tiler",
+        "test-tiler",
+    ]

@@ -15,8 +15,8 @@ from src.tilers import providers, registry
 if TYPE_CHECKING:
     from src.imagery.models import ImageryCollection, ImagerySlice, SliceMosaic, SliceTile
 
-# MPC forgets a search a day after registering it, so one is registered again this
-# long before then.
+# MPC stamps a search with an expiry a day out, so one is registered again this long
+# before then.
 MPC_RENEW_BEFORE_SECONDS = 4 * 3600
 
 
@@ -64,9 +64,9 @@ def cloud_cover_ceiling(query: dict | list | None) -> float | None:
 
 
 def mpc_expiry(mosaic_id: str) -> int:
-    """When MPC forgets a search: the unix time it stamps on the id
+    """The latest MPC keeps a search: the unix time it stamps on the id
     (``pc1.<expiry>.<hash>``), or 0 for an id from before it stamped them, all of
-    which it has forgotten."""
+    which it has forgotten. It can drop one sooner."""
     parts = mosaic_id.split(".")
     if len(parts) == 3 and parts[0] == "pc1" and parts[1].isdigit():
         return int(parts[1])
