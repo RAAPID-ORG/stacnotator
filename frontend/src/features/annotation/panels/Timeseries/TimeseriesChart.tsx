@@ -10,7 +10,6 @@ import {
   Title,
   Tooltip,
   Legend,
-  CategoryScale,
   type ActiveElement,
   type ChartDataset,
   type ChartEvent,
@@ -26,8 +25,6 @@ import type { TimeSeriesData } from './cache';
 import type { TimeseriesLocation } from '../../campaign/probes';
 import {
   collectSeriesLabels,
-  formatDateForTooltip,
-  getOptimalMonthLabels,
   parseSeriesDate,
   axisIdFor,
   referenceLinePlugin,
@@ -36,7 +33,13 @@ import {
   sliceMarkerFor,
   sliceMarkerPlugin,
 } from './chartData';
-import { savitzkyGolay } from './smoothing';
+import {
+  DAY_MS,
+  elapsedTimeScale,
+  prepareObservations,
+  seriesDataset,
+  type SeriesPoint,
+} from './chartSeries';
 import { usePrefsStore } from '../../stores/prefs';
 
 ChartJS.register(
@@ -47,22 +50,18 @@ ChartJS.register(
   Title,
   Tooltip,
   Legend,
-  CategoryScale,
   sliceMarkerPlugin,
   referenceLinePlugin,
   zoomPlugin
 );
 
 const COLORS = ['#2563eb', '#16a34a', '#dc2626', '#7c3aed', '#ea580c', '#0891b2'];
-const CLOUDY_DOT_COLOR = 'rgb(162, 159, 155)';
 
 /** A probe's lines take the colour of its map marker, so several series at one
  *  probe are told apart by dash instead. */
 const SERIES_DASHES = [[], [6, 3], [2, 2], [8, 3, 2, 3]];
 
-const MIN_VISIBLE_POINTS = 3;
-
-type LineDataset = ChartDataset<'line', (number | null)[]>;
+type LineDataset = ChartDataset<'line', SeriesPoint[]>;
 
 /** One location on the chart: the task's own point (probeIndex null) or a
  *  probe the user dropped. */
@@ -85,7 +84,7 @@ export function Chart({ series, points }: ChartProps) {
   const catalog = useCatalog();
   const view = useCampaignStore((s) => s.view);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const chartRef = useRef<ChartJS<'line'> | null>(null);
+  const chartRef = useRef<ChartJS<'line', SeriesPoint[]> | null>(null);
 
   // Held in the preference store, not here: switching task drops this chart
   // back to a spinner and unmounts it, so local state would reset every time.
@@ -148,7 +147,6 @@ export function Chart({ series, points }: ChartProps) {
       series.map((ts) => ts.id),
       ...points.map(({ data }) => data)
     );
-    const monthLabels = getOptimalMonthLabels(labels);
     const dotRadius = showDots ? 1.5 : 0;
 
     const buildDataset = (
@@ -158,46 +156,19 @@ export function Chart({ series, points }: ChartProps) {
       point: ChartPoint,
       datasetIndex: number
     ): LineDataset => {
-      const rows = source[ts.id] ?? [];
-      const rowMap = new Map(rows.map((r) => [r.time, r]));
       const color =
         point.probeIndex === null ? COLORS[index % COLORS.length] : probeColor(point.probeIndex);
-
-      const rawData = labels.map((time) => {
-        const row = rowMap.get(time);
-        if (!row) return null;
-        if (removeCloudy && row.cloud === 1) return null;
-        return row.values;
-      });
-      const finalData = smoothEnabled
-        ? savitzkyGolay(rawData, smoothing.window, smoothing.order)
-        : rawData;
+      const observations = prepareObservations(
+        source[ts.id] ?? [],
+        removeCloudy,
+        smoothEnabled ? smoothing : undefined
+      );
+      const axis = axes.find((axis) => axis.id === axisIdFor(axes, ts.index))!;
 
       return {
+        ...seriesDataset(observations, axis, color, dotRadius),
         label: `${ts.name}${point.label}`,
-        yAxisID: axisIdFor(axes, ts.index),
         borderDash: point.probeIndex === null ? [] : SERIES_DASHES[index % SERIES_DASHES.length],
-        data: finalData,
-        borderColor: color,
-        backgroundColor: color,
-        pointRadius: labels.map((time) => {
-          const row = rowMap.get(time);
-          if (!row) return 0;
-          if (removeCloudy && row.cloud === 1) return 0;
-          return dotRadius;
-        }),
-        pointBackgroundColor: labels.map((time) => {
-          const row = rowMap.get(time);
-          if (!row) return color;
-          return row.cloud === 1 ? CLOUDY_DOT_COLOR : color;
-        }),
-        pointBorderColor: labels.map((time) => {
-          const row = rowMap.get(time);
-          if (!row) return color;
-          return row.cloud === 1 ? CLOUDY_DOT_COLOR : color;
-        }),
-        tension: 0.1,
-        spanGaps: true,
         hidden: hiddenDatasets.has(datasetIndex),
       };
     };
@@ -206,7 +177,10 @@ export function Chart({ series, points }: ChartProps) {
       series.map((ts, index) => buildDataset(ts, index, data, point, group * series.length + index))
     );
 
-    return { labels, datasets, monthLabels };
+    const offScale = datasets
+      .filter((dataset) => !dataset.hidden)
+      .reduce((count, dataset) => count + dataset.data.filter((point) => point.overflow).length, 0);
+    return { labels, datasets, offScale };
   }, [series, points, removeCloudy, showDots, smoothEnabled, smoothing, hiddenDatasets, axes]);
 
   // Resolve the slice currently shown on the map so its date range can be
@@ -233,11 +207,8 @@ export function Chart({ series, points }: ChartProps) {
       if (!labels.length || event.x == null) return;
       const xScale = chart.scales.x;
       if (!xScale) return;
-      const rawIdx = xScale.getValueForPixel(event.x);
-      if (rawIdx == null) return;
-      const labelIdx = Math.max(0, Math.min(labels.length - 1, Math.round(rawIdx)));
-      const clickedTime = parseSeriesDate(labels[labelIdx]);
-      if (Number.isNaN(clickedTime)) return;
+      const clickedTime = xScale.getValueForPixel(event.x);
+      if (clickedTime == null || !Number.isFinite(clickedTime)) return;
 
       const target = nearestSlice(catalog, clickedTime, useImageryStore.getState().address, view);
       if (target) setImageryAddress(target);
@@ -271,13 +242,23 @@ export function Chart({ series, points }: ChartProps) {
           callbacks: {
             title: (items) => {
               if (!items.length) return '';
-              const dateStr = chartData.labels[items[0].dataIndex];
-              return dateStr ? formatDateForTooltip(dateStr) : '';
+              const point = chartData.datasets[items[0].datasetIndex].data[items[0].dataIndex];
+              return `${point.observation.time} (#${point.observation.sourceRow})`;
+            },
+            label: (item) => {
+              const point = chartData.datasets[item.datasetIndex].data[item.dataIndex];
+              const row = point.observation;
+              return [
+                `${item.dataset.label}: ${row.values}`,
+                ...(row.smoothed !== null
+                  ? [t('timeseries.smoothedValue', { value: row.smoothed })]
+                  : []),
+              ];
             },
           },
         },
         zoom: {
-          limits: { x: { minRange: MIN_VISIBLE_POINTS } },
+          limits: { x: { minRange: DAY_MS } },
           pan: { enabled: true, mode: 'x', onPanComplete: handleZoomOrPanComplete },
           zoom: {
             wheel: { enabled: true, modifierKey: 'ctrl', speed: 0.15 },
@@ -287,19 +268,7 @@ export function Chart({ series, points }: ChartProps) {
         },
       },
       scales: {
-        x: {
-          ticks: {
-            maxRotation: 45,
-            minRotation: 45,
-            font: { size: 8 },
-            callback: (_value, index) => {
-              const monthLabel = chartData.monthLabels.find((m) => m.index === index);
-              return monthLabel ? monthLabel.label : null;
-            },
-            autoSkip: false,
-          },
-          grid: { display: false },
-        },
+        x: elapsedTimeScale(chartData.labels.map(parseSeriesDate)),
         ...Object.fromEntries(
           axes.map((axis) => [
             axis.id,
@@ -329,13 +298,13 @@ export function Chart({ series, points }: ChartProps) {
         line: { borderWidth: 1.5 },
       },
     };
-  }, [handleChartClick, catalog, chartData, handleZoomOrPanComplete, axes, axisColor]);
+  }, [handleChartClick, catalog, chartData, handleZoomOrPanComplete, axes, axisColor, t]);
 
   // Create the chart.js instance once; destroy it on unmount.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const chart = new ChartJS(canvas, {
+    const chart = new ChartJS<'line', SeriesPoint[]>(canvas, {
       type: 'line',
       data: { labels: [], datasets: [] },
       options: {},
@@ -351,7 +320,7 @@ export function Chart({ series, points }: ChartProps) {
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
-    chart.data = { labels: chartData.labels, datasets: chartData.datasets };
+    chart.data = { datasets: chartData.datasets };
     chart.options = chartOptions;
     chart.update();
   }, [chartData, chartOptions]);
@@ -423,6 +392,12 @@ export function Chart({ series, points }: ChartProps) {
         </div>
       </div>
 
+      <div className="text-[9px] text-neutral-500">
+        {t('timeseries.lineNote')}
+        {smoothEnabled && ` ${t('timeseries.smoothingNote')}`}
+        {chartData.offScale > 0 &&
+          ` ${t('timeseries.offScaleNote', { count: chartData.offScale })}`}
+      </div>
       <div className="flex-1 min-h-0 w-full">
         <canvas ref={canvasRef} />
       </div>

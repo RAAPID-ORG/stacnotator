@@ -229,9 +229,14 @@
     "showSeries": "Show {{name}}",
     "hideSeries": "Hide {{name}}",
     "resetZoom": "Reset zoom",
+    "lineNote": "Lines are visual guides, not observations between dates.",
+    "smoothingNote": "Smoothing uses observation order, not elapsed days.",
+    "smoothedValue": "Smoothed: {{value}}",
+    "offScaleNote_one": "{{count}} off-scale observation: boundary triangles mark overflow; hover for values.",
+    "offScaleNote_other": "{{count}} off-scale observations: boundary triangles mark overflow; hover for values.",
     "options": {
       "removeCloudy": "Remove cloudy",
-      "removeCloudyTitle": "Removes cloud-flagged days (shown as gray dots) from the series",
+      "removeCloudyTitle": "Hides cloud-flagged observations (gray dots) from the plot",
       "smooth": "Smooth",
       "smoothTitle": "Savitzky-Golay Smoothing.",
       "windowTitle": "Window size for Savitzky-Golay smoothing (odd number >= 5, larger = smoother)",
@@ -239,13 +244,13 @@
       "orderTitle": "Polynomial order (>= 1, must be less than window size)",
       "orderShort": "P",
       "dots": "Dots",
-      "dotsTitle": "Show or hide the per-observation dots (line is always shown)"
+      "dotsTitle": "Show or hide observation dots; overflow triangles remain visible"
     },
     "info": {
       "dots": "Each dot is one observation. <strong>Colored dots</strong> are clear-day observations (one color per series). <strong>Gray dots</strong> are observations flagged as cloudy.",
-      "removeCloudy": "<strong>Remove cloudy</strong> drops the gray observations from both the raw series and the smoothed line.",
-      "smooth": "<strong>Smooth</strong> fits a Savitzky-Golay filter. If you leave cloudy points in, the filter pulls the smoothed line toward them - usually Remove cloudy + Smooth together is what you want.",
-      "showDots": "<strong>Dots</strong> toggles whether the per-observation markers are drawn."
+      "removeCloudy": "<strong>Remove cloudy</strong> excludes gray observations from the plot and smoothing, without changing the source data.",
+      "smooth": "<strong>Smooth</strong> fits a Savitzky-Golay filter in observation order, not elapsed days. Cloudy points influence the fit unless Remove cloudy is enabled. Hover to compare raw and smoothed values.",
+      "showDots": "<strong>Dots</strong> toggles observation markers. Boundary triangles still flag values outside the axis; hover to read their actual values. These points are not connected to the line."
     }
   },
   "task": {

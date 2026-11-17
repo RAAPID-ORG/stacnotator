@@ -1,9 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   collectSeriesLabels,
-  formatDateForTooltip,
   parseSeriesDate,
-  getOptimalMonthLabels,
   axisIdFor,
   seriesAxes,
   setSliceMarker,
@@ -43,16 +41,6 @@ describe('collectSeriesLabels', () => {
   });
 });
 
-describe('formatDateForTooltip', () => {
-  it('formats YYYYMMDD dates', () => {
-    expect(formatDateForTooltip('20250115')).toBe('15 Jan 2025');
-  });
-
-  it('formats ISO dates', () => {
-    expect(formatDateForTooltip('2025-01-15')).toBe('15 Jan 2025');
-  });
-});
-
 describe('parseSeriesDate', () => {
   it('parses YYYYMMDD as UTC midnight', () => {
     expect(parseSeriesDate('20250115')).toBe(Date.UTC(2025, 0, 15));
@@ -66,23 +54,27 @@ describe('parseSeriesDate', () => {
 describe('sliceMarkerFor', () => {
   const labels = ['20240101', '20240201', '20240301', '20240401'];
 
-  it('spans every label inside the slice', () => {
+  it('uses the actual slice dates on the elapsed-time axis', () => {
     expect(sliceMarkerFor(labels, '2024-02-01', '2024-03-31')).toEqual({
-      startIdx: 1,
-      endIdx: 2,
+      startTime: Date.UTC(2024, 1, 1),
+      endTime: Date.UTC(2024, 2, 31),
     });
   });
 
-  it('snaps to the nearest label when the slice covers none', () => {
+  it('keeps the marker inside a data gap rather than snapping to an observation', () => {
     expect(sliceMarkerFor(labels, '2024-03-10', '2024-03-20')).toEqual({
-      startIdx: 2,
-      endIdx: 2,
+      startTime: Date.UTC(2024, 2, 10),
+      endTime: Date.UTC(2024, 2, 20),
     });
   });
 
   it('tracks the slice as it moves along the axis', () => {
-    expect(sliceMarkerFor(labels, '2024-01-01', '2024-01-31')?.startIdx).toBe(0);
-    expect(sliceMarkerFor(labels, '2024-04-01', '2024-04-30')?.startIdx).toBe(3);
+    expect(sliceMarkerFor(labels, '2024-01-01', '2024-01-31')?.startTime).toBe(
+      Date.UTC(2024, 0, 1)
+    );
+    expect(sliceMarkerFor(labels, '2024-04-01', '2024-04-30')?.startTime).toBe(
+      Date.UTC(2024, 3, 1)
+    );
   });
 
   it('returns nothing without a date range or labels', () => {
@@ -100,44 +92,17 @@ describe('setSliceMarker', () => {
       },
     };
 
-    setSliceMarker(chart, { startIdx: 1, endIdx: 2 });
+    setSliceMarker(chart, { startTime: 1, endTime: 2 });
     expect(renders).toBe(1);
 
-    setSliceMarker(chart, { startIdx: 1, endIdx: 2 });
+    setSliceMarker(chart, { startTime: 1, endTime: 2 });
     expect(renders).toBe(1);
 
-    setSliceMarker(chart, { startIdx: 3, endIdx: 3 });
+    setSliceMarker(chart, { startTime: 3, endTime: 3 });
     expect(renders).toBe(2);
 
     setSliceMarker(chart, null);
     expect(renders).toBe(3);
-  });
-});
-
-describe('getOptimalMonthLabels', () => {
-  it('returns nothing for no dates', () => {
-    expect(getOptimalMonthLabels([])).toEqual([]);
-  });
-
-  it('labels every month for a short range', () => {
-    const dates = ['20240101', '20240201', '20240301'];
-    expect(getOptimalMonthLabels(dates).map((m) => m.label)).toEqual([
-      "Jan '24",
-      "Feb '24",
-      "Mar '24",
-    ]);
-  });
-
-  it('thins labels out and includes the last month for a long range', () => {
-    // 12 monthly points spans 12 months -> interval 2 (see calculateLabelInterval)
-    const dates = Array.from({ length: 12 }, (_, i) => {
-      const month = String(i + 1).padStart(2, '0');
-      return `2024${month}01`;
-    });
-    const labels = getOptimalMonthLabels(dates);
-    expect(labels[0].label).toBe("Jan '24");
-    // Every other month, starting from the first.
-    expect(labels.every((m, i) => i === labels.length - 1 || m.index % 2 === 0)).toBe(true);
   });
 });
 
