@@ -15,12 +15,9 @@ from src.tilers import providers, registry
 if TYPE_CHECKING:
     from src.imagery.models import ImageryCollection, ImagerySlice, SliceMosaic, SliceTile
 
-# MPC stamps a search with an expiry a day out, so one is registered again this long
-# before then.
-MPC_RENEW_BEFORE_SECONDS = 4 * 3600
-# MPC also drops searches well before that stamp, so an open map asks it this often
-# whether it still holds them.
-MPC_CHECK_SECONDS = 15 * 60
+# MPC can drop a search well before the expiry it stamps on it, so an open map asks it
+# this often whether it still holds them.
+MPC_CHECK_SECONDS = 3600
 
 
 def visualization_params(collection: "ImageryCollection", sl: "ImagerySlice") -> dict[int, dict]:
@@ -76,16 +73,16 @@ def mpc_expiry(mosaic_id: str) -> int:
     return 0
 
 
-def _lasts(mosaic: "SliceMosaic", seconds: float) -> bool:
-    return mosaic.provider != registry.MPC or mpc_expiry(mosaic.mosaic_id) > time.time() + seconds
+def _live(mosaic: "SliceMosaic") -> bool:
+    return mosaic.provider != registry.MPC or mpc_expiry(mosaic.mosaic_id) > time.time()
 
 
 def missing_providers(collection: "ImageryCollection", sl: "ImagerySlice") -> set[str | None]:
     """Providers this slice's visualizations need a mosaic on and it has none, or only
-    one MPC is about to forget."""
+    one past its MPC expiry."""
     if not collection.is_stac:
         return set()
-    have = {m.provider for m in sl.mosaics if _lasts(m, MPC_RENEW_BEFORE_SECONDS)}
+    have = {m.provider for m in sl.mosaics if _live(m)}
     needed = {provider_for(collection, p) for p in visualization_params(collection, sl).values()}
     return needed - have
 
@@ -97,7 +94,7 @@ def slice_tiles(collection: "ImageryCollection", sl: "ImagerySlice") -> list["Sl
 
     if not collection.is_stac:
         return [SliceTile(t.visualization_id, t.url, None) for t in sl.templates]
-    mosaics = {m.provider: m.mosaic_id for m in sl.mosaics if _lasts(m, 0)}
+    mosaics = {m.provider: m.mosaic_id for m in sl.mosaics if _live(m)}
     tiles = []
     for visualization_id, params in sorted(visualization_params(collection, sl).items()):
         provider = provider_for(collection, params)

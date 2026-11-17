@@ -225,20 +225,21 @@ def renewal(monkeypatch):
     return renew, register, source
 
 
-def test_opening_a_map_whose_mpc_imagery_expires_soon_registers_it_again(renewal):
-    renew, register, _ = renewal
+def test_mpc_imagery_expiring_before_the_next_check_is_registered_again(renewal):
+    renew, register, source = renewal
 
-    assert renew("pc1.1100000.cd34", "pc1.1003600.ab12") == (None, [])
+    assert renew("pc1.1100000.cd34", "pc1.1001800.ab12") == (None, [])
     register.assert_called_once()
+    assert {m.provider for sl in source.collections[0].slices for m in sl.mosaics} == {"test-tiler"}
 
 
-def test_lasting_mpc_imagery_is_checked_again_well_before_it_expires(renewal):
+def test_lasting_mpc_imagery_is_checked_again_in_an_hour(renewal):
     renew, register, _ = renewal
 
     renew_at, asked = renew("pc1.1100000.cd34", "pc1.1050000.ef56")
 
     assert asked == ["pc1.1050000.ef56"]
-    assert renew_at == datetime.fromtimestamp(1_000_000 + 15 * 60, UTC)
+    assert renew_at == datetime.fromtimestamp(1_000_000 + 3600, UTC)
     register.assert_not_called()
 
 

@@ -4,10 +4,9 @@ What is missing is read off the rows (``tiles.missing_providers``): a save that 
 a search drops the mosaics it made stale, and the next run registers whatever is
 missing, against MPC or a hosted tiler, in parallel and off the request path. A source
 refresh re-ingests what a hosted tiler already holds. MPC stamps a search with an
-expiry a day out, so one about to expire counts as missing, and opening a map registers
-it again (``renew_expiring_mpc_mosaics``). MPC can drop searches before that stamp, so
-the same step asks MPC whether it still holds the owner's oldest search, and registers
-all of them again when it does not.
+expiry a day out but can drop it well before then, so opening a map asks MPC whether it
+still holds the owner's oldest search, and registers all of them again when it does not
+or the stamp runs out before the next check (``renew_expiring_mpc_mosaics``).
 
 Planet scene sources register nothing: a search is bounded by an area, and theirs
 is wherever an annotator is standing - see ``service.search_planet_scenes_in_view``.
@@ -379,10 +378,10 @@ def commit_and_register(db: Session, owner: Campaign | Visualizer, bbox) -> None
 
 
 def renew_expiring_mpc_mosaics(db: Session, owner: Campaign | Visualizer) -> datetime | None:
-    """Start the run that registers again the owner's MPC mosaics that expired, soon
-    will, or MPC already dropped, and otherwise return when to check again, for an open
-    map to read its tiles again then. This runs on every open, so it reads only the ids
-    and asks MPC about one search: the oldest, which MPC drops first."""
+    """Start the run that registers the owner's MPC mosaics again when MPC dropped the
+    oldest or it expires before the next check, and otherwise return when to check
+    again, for an open map to read its tiles again then. This runs on every open, so it
+    reads only the ids and asks MPC about one search: the oldest, which MPC drops first."""
     if owner.registration_status == "registering":
         return None
     mosaic_ids = db.scalars(
@@ -395,13 +394,11 @@ def renew_expiring_mpc_mosaics(db: Session, owner: Campaign | Visualizer) -> dat
     if not mosaic_ids:
         return None
     oldest = min(mosaic_ids, key=tiles.mpc_expiry)
-    due = tiles.mpc_expiry(oldest) - tiles.MPC_RENEW_BEFORE_SECONDS
-    now = time.time()
-    if due > now and not _mpc_dropped(oldest):
-        return datetime.fromtimestamp(min(due, now + tiles.MPC_CHECK_SECONDS), UTC)
-    if due > now:
-        logger.warning("MPC dropped search %s early; registering again", oldest)
-        drop_mosaics(_owner_sources(db, owner.layer_owner), provider=registry.MPC)
+    next_check = time.time() + tiles.MPC_CHECK_SECONDS
+    if tiles.mpc_expiry(oldest) > next_check and not _mpc_dropped(oldest):
+        return datetime.fromtimestamp(next_check, UTC)
+    logger.info("Registering MPC search %s and the rest of its owner's again", oldest)
+    drop_mosaics(_owner_sources(db, owner.layer_owner), provider=registry.MPC)
     commit_and_register(db, owner, owner.bbox)
     return None
 
