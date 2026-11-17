@@ -524,11 +524,9 @@ async function drawChart(
         dash: p === 0 ? [] : SERIES_DASHES[i % SERIES_DASHES.length],
         observations,
         dataset,
-        offScale: dataset.data.filter((point) => point.overflow).length,
       };
     })
   );
-  const offScale = lines.reduce((sum, line) => sum + line.offScale, 0);
 
   const canvas = document.createElement('canvas');
   canvas.width = rect.width;
@@ -561,6 +559,7 @@ async function drawChart(
               position: axis.position,
               min: axis.min,
               max: axis.max,
+              ticks: { maxTicksLimit: 5, includeBounds: false },
               title: { display: true, text: axis.indexKeys.join(', ') },
               grid: { drawOnChartArea: axis.id === 'y' },
             },
@@ -595,32 +594,19 @@ async function drawChart(
       ...place,
       kind: 'timeseries',
       axes,
-      line_interpretation: 'Connecting lines are visual guides, not observations between dates.',
-      smoothing: cell.smoothed
-        ? { ...smoothing, spacing: 'observation order, not elapsed days' }
-        : null,
-      ...(offScale
-        ? {
-            warning: `${offScale} off-scale observations marked with boundary triangles; see raw rows.`,
-          }
-        : {}),
+      smoothing: cell.smoothed ? smoothing : null,
       center,
       label: [
         'type' in points[0] ? 'time series (task polygon mean)' : 'time series',
         cell.remove_cloudy ? 'cloudy removed' : 'grey dots cloudy',
       ]
-        .concat(cell.smoothed ? ['observation-order smoothing'] : [])
-        .concat(
-          ['lines are visual guides'],
-          offScale ? [`${offScale} off-scale triangles (see rows)`] : []
-        )
+        .concat(cell.smoothed ? ['smoothed'] : [])
         .join(', '),
       series: lines.map((line) => ({
         timeseries_id: line.id,
         name: line.series?.name,
         index: line.series?.ts_type,
         axis: line.dataset.yAxisID,
-        off_scale: line.offScale,
         ...(probes.length ? { point: line.point } : {}),
         columns,
         rows: line.observations.map((observation) => [

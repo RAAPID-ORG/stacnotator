@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { prepareObservations, seriesDataset, seriesPoints } from './chartSeries';
+import {
+  DAY_MS,
+  elapsedTimeTicks,
+  prepareObservations,
+  seriesDataset,
+  seriesPoints,
+} from './chartSeries';
 import { seriesAxes } from './chartData';
 
 const axis = seriesAxes([
@@ -26,7 +32,7 @@ describe('chart observations', () => {
     expect(prepared.map((r) => r.sourceRow)).toEqual([2, 3, 4, 1]);
     expect(prepared[0].values).toBe(720.123456789);
     expect(prepared[2].time).toBe(rows[3].time);
-    expect(seriesPoints(prepared, axis).map((p) => p.observation.sourceRow)).toEqual([2, 3, 1]);
+    expect(seriesPoints(prepared).map((p) => p.observation.sourceRow)).toEqual([2, 3, 1]);
     expect(rows.map((r) => r.values)).toEqual([730, 720.123456789, 740, 735]);
   });
 
@@ -49,16 +55,33 @@ describe('chart observations', () => {
     expect(prepared.slice(5, 7).map((r) => r.smoothed)).toEqual([null, null]);
   });
 
-  it('marks raw overflow even when smoothing brings the fitted value into range', () => {
+  it('retains unclamped values without special markers and respects smoothing', () => {
     const observations = prepareObservations([row('20210601', 1100), row('20210602', 500)], false);
+    expect(seriesPoints(observations).map((p) => p.y)).toEqual([1100, 500]);
     observations[0].smoothed = 730;
     const dataset = seriesDataset(observations, axis, '#2563eb', 0);
-    expect(dataset.data.map((p) => [p.y, p.overflow, p.observation.values])).toEqual([
-      [760, 1, 1100],
-      [680, -1, 500],
+    expect(dataset.data.map((p) => [p.y, p.observation.values])).toEqual([
+      [730, 1100],
+      [500, 500],
     ]);
-    expect(dataset.pointStyle).toEqual(['triangle', 'triangle']);
-    expect(dataset.pointRadius).toEqual([4, 4]);
+    expect(dataset.pointStyle).toBe('circle');
+    expect(dataset.pointRadius).toBe(0);
+    expect(dataset.segment).toBeUndefined();
+  });
+
+  it('uses equal whole-day tick steps across irregular dates and adjusts after zooming', () => {
+    const min = Date.parse('2021-06-01T10:00:00Z');
+    const max = Date.parse('2021-07-31T10:00:00Z');
+    const ticks = elapsedTimeTicks(min, max);
+    expect(ticks.length).toBeGreaterThan(3);
+    expect(ticks.every((value) => value >= min && value <= max && value % DAY_MS === 0)).toBe(true);
+    expect(ticks.slice(1).map((value, i) => value - ticks[i])).toEqual(
+      Array(ticks.length - 1).fill(14 * DAY_MS)
+    );
+    const zoomed = elapsedTimeTicks(min, min + DAY_MS);
+    expect(zoomed.slice(1).map((value, i) => value - zoomed[i])).toEqual(
+      Array(zoomed.length - 1).fill(DAY_MS / 4)
+    );
   });
 
   it('rejects invalid observations rather than silently dropping them', () => {

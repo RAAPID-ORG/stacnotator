@@ -177,10 +177,7 @@ export function Chart({ series, points }: ChartProps) {
       series.map((ts, index) => buildDataset(ts, index, data, point, group * series.length + index))
     );
 
-    const offScale = datasets
-      .filter((dataset) => !dataset.hidden)
-      .reduce((count, dataset) => count + dataset.data.filter((point) => point.overflow).length, 0);
-    return { labels, datasets, offScale };
+    return { labels, datasets };
   }, [series, points, removeCloudy, showDots, smoothEnabled, smoothing, hiddenDatasets, axes]);
 
   // Resolve the slice currently shown on the map so its date range can be
@@ -276,7 +273,12 @@ export function Chart({ series, points }: ChartProps) {
               position: axis.position,
               min: axis.min,
               max: axis.max,
-              ticks: { font: { size: 8 }, maxTicksLimit: 5, color: axisColor(axis.id) },
+              ticks: {
+                font: { size: 8 },
+                maxTicksLimit: 5,
+                includeBounds: false,
+                color: axisColor(axis.id),
+              },
               title:
                 axes.length > 1
                   ? {
@@ -392,13 +394,7 @@ export function Chart({ series, points }: ChartProps) {
         </div>
       </div>
 
-      <div className="text-[9px] text-neutral-500">
-        {t('timeseries.lineNote')}
-        {smoothEnabled && ` ${t('timeseries.smoothingNote')}`}
-        {chartData.offScale > 0 &&
-          ` ${t('timeseries.offScaleNote', { count: chartData.offScale })}`}
-      </div>
-      <div className="flex-1 min-h-0 w-full">
+      <div className="relative flex-1 min-h-0 w-full">
         <canvas ref={canvasRef} />
       </div>
     </div>
