@@ -5,7 +5,6 @@ import { parseSeriesDate, type ChartAxis } from './chartData';
 import { savitzkyGolay } from './smoothing';
 
 export const DAY_MS = 86_400_000;
-export const MAX_GAP_MS = 14 * DAY_MS;
 
 export interface SeriesObservation extends TimeSeriesRow {
   x: number;
@@ -46,8 +45,7 @@ export function prepareObservations(
   const visible = observations.filter((row) => !row.filtered);
   let start = 0;
   for (let end = 1; end <= visible.length; end++) {
-    const gap = end < visible.length ? visible[end].x - visible[end - 1].x : Infinity;
-    if (gap > 0 && gap <= MAX_GAP_MS) continue;
+    if (end < visible.length && visible[end].x !== visible[end - 1].x) continue;
     const segment = visible.slice(start, end);
     const smoothed = savitzkyGolay(
       segment.map((row) => row.values),
@@ -99,15 +97,14 @@ export function seriesDataset(
     pointRadius: data.map((point) => (point.overflow ? 4 : dotRadius)),
     pointStyle: data.map((point) => (point.overflow ? 'triangle' : 'circle')),
     pointRotation: data.map((point) => (point.overflow < 0 ? 180 : 0)),
-    spanGaps: MAX_GAP_MS,
+    spanGaps: true,
     clip: 8,
     tension: 0,
     segment: {
       borderColor: ({ p0DataIndex, p1DataIndex }) => {
         const from = data[p0DataIndex];
         const to = data[p1DataIndex];
-        // Chart.js can merge numeric spanGaps boundaries when splitting styled segments.
-        return from.overflow || to.overflow || to.x - from.x > MAX_GAP_MS ? 'transparent' : color;
+        return from.overflow || to.overflow ? 'transparent' : color;
       },
     },
   };

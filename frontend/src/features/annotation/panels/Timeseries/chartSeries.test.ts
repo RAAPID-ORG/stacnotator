@@ -30,7 +30,7 @@ describe('chart observations', () => {
     expect(rows.map((r) => r.values)).toEqual([730, 720.123456789, 740, 735]);
   });
 
-  it('does not smooth across a cloudy gap or duplicate timestamp', () => {
+  it('smooths by observation order regardless of time gaps while filtering clouds and retaining duplicates', () => {
     const rows = [
       ...[1, 2, 3, 4, 5].map((day) => row(`2021-06-0${day}`, 700)),
       row('2021-06-12', 750, 1),
@@ -39,9 +39,14 @@ describe('chart observations', () => {
       row('2021-07-05', 710),
     ];
     const prepared = prepareObservations(rows, true, { window: 5, order: 2 });
-    expect(prepared.slice(0, 5).every((r) => Math.abs(r.smoothed! - 700) < 1e-8)).toBe(true);
+    const denseRows = rows.map((r, i) => ({
+      ...r,
+      time: new Date(Date.UTC(2021, 5, Math.min(i + 1, 12))).toISOString(),
+    }));
+    const dense = prepareObservations(denseRows, true, { window: 5, order: 2 });
+    expect(prepared.map((r) => r.smoothed)).toEqual(dense.map((r) => r.smoothed));
+    expect(prepared[4].smoothed).toBeGreaterThan(700);
     expect(prepared.slice(5, 7).map((r) => r.smoothed)).toEqual([null, null]);
-    expect(prepared.slice(7, 12).every((r) => Math.abs(r.smoothed! - 740) < 1e-8)).toBe(true);
     expect(prepared[12].smoothed).toBe(710);
   });
 

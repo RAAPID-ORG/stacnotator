@@ -30,7 +30,6 @@ import { probeColor } from '../map/compose';
 import { axisIdFor, seriesAxes } from '../panels/Timeseries/chartData';
 import {
   elapsedTimeScale,
-  MAX_GAP_MS,
   prepareObservations,
   seriesDataset,
 } from '../panels/Timeseries/chartSeries';
@@ -597,9 +596,9 @@ async function drawChart(
       ...place,
       kind: 'timeseries',
       axes,
-      max_gap_days: MAX_GAP_MS / 86_400_000,
+      line_interpretation: 'Connecting lines are visual guides, not observations between dates.',
       smoothing: cell.smoothed
-        ? { ...smoothing, spacing: 'observation order within gaps <=14 days' }
+        ? { ...smoothing, spacing: 'observation order, not elapsed days' }
         : null,
       ...(offScale
         ? {
@@ -613,7 +612,7 @@ async function drawChart(
       ]
         .concat(cell.smoothed ? ['observation-order smoothing'] : [])
         .concat(
-          ['gaps >14d broken'],
+          ['lines are visual guides'],
           offScale ? [`${offScale} off-scale triangles (see rows)`] : []
         )
         .join(', '),

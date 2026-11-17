@@ -54,7 +54,7 @@ test.beforeEach(async ({ annotationPage: page }) => {
 });
 
 for (const surface of ['agent', 'interactive'] as const) {
-  test(`${surface} plots elapsed dates, breaks gaps and discloses REP overflow`, async ({
+  test(`${surface} plots connecting guides across gaps and discloses REP overflow`, async ({
     appPage: page,
   }) => {
     let image: string;
@@ -73,7 +73,8 @@ for (const surface of ['agent', 'interactive'] as const) {
       expect(result.meta).toMatchObject({
         cells: [
           {
-            max_gap_days: 14,
+            line_interpretation:
+              'Connecting lines are visual guides, not observations between dates.',
             axes: [
               { min: -0.2, max: 1 },
               { min: 680, max: 760 },
@@ -98,7 +99,7 @@ for (const surface of ['agent', 'interactive'] as const) {
       const canvas = page.locator('[data-panel-role="timeseries"] canvas');
       await expect(canvas).toBeVisible();
       await expect(
-        page.getByText('Gaps over 14 days are not connected.', { exact: false })
+        page.getByText('Lines are visual guides, not observations between dates.', { exact: false })
       ).toBeVisible();
       // Wait for the chart animation to finish by observing stable pixels.
       let previous = '';
@@ -137,8 +138,6 @@ for (const surface of ['agent', 'interactive'] as const) {
         left: blueXs.filter((x) => x < 0.3).length,
         gap: blueXs.filter((x) => x >= 0.3 && x <= 0.7).length,
         right: blueXs.filter((x) => x > 0.7).length,
-        leftEnd: Math.max(...blueXs.filter((x) => x < 0.3)),
-        rightStart: Math.min(...blueXs.filter((x) => x > 0.7)),
       };
     }, image);
     const imagePath = test
@@ -151,8 +150,6 @@ for (const surface of ['agent', 'interactive'] as const) {
     });
     expect(pixels.left).toBeGreaterThan(5);
     expect(pixels.right).toBeGreaterThan(5);
-    expect(pixels.gap).toBe(0);
-    expect(pixels.leftEnd).toBeLessThan(0.22);
-    expect(pixels.rightStart).toBeGreaterThan(0.78);
+    expect(pixels.gap).toBeGreaterThan(50);
   });
 }

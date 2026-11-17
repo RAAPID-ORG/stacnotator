@@ -393,7 +393,7 @@ export function Chart({ series, points }: ChartProps) {
       </div>
 
       <div className="text-[9px] text-neutral-500">
-        {t('timeseries.gapNote')}
+        {t('timeseries.lineNote')}
         {smoothEnabled && ` ${t('timeseries.smoothingNote')}`}
         {chartData.offScale > 0 &&
           ` ${t('timeseries.offScaleNote', { count: chartData.offScale })}`}
