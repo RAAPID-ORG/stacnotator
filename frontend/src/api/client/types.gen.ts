@@ -1489,6 +1489,36 @@ export type CampaignOutFull = {
 };
 
 /**
+ * CampaignProgressOut
+ */
+export type CampaignProgressOut = {
+    /**
+     * Num Tasks
+     */
+    num_tasks: number;
+    /**
+     * Num Done
+     */
+    num_done: number;
+    /**
+     * Num Conflicting
+     */
+    num_conflicting: number;
+    /**
+     * Num Assigned
+     */
+    num_assigned: number;
+    /**
+     * Num Assigned Done
+     */
+    num_assigned_done: number;
+    /**
+     * Campaign Id
+     */
+    campaign_id: number;
+};
+
+/**
  * CampaignSettingsCreate
  */
 export type CampaignSettingsCreate = {
@@ -1798,6 +1828,16 @@ export type CampaignsListResponse = {
      * Items
      */
     items: Array<CampaignListItemOut>;
+};
+
+/**
+ * CampaignsProgressResponse
+ */
+export type CampaignsProgressResponse = {
+    /**
+     * Items
+     */
+    items: Array<CampaignProgressOut>;
 };
 
 /**
@@ -4650,6 +4690,26 @@ export type TaskSetCreate = {
  */
 export type TaskSetOut = {
     /**
+     * Num Tasks
+     */
+    num_tasks: number;
+    /**
+     * Num Done
+     */
+    num_done: number;
+    /**
+     * Num Conflicting
+     */
+    num_conflicting: number;
+    /**
+     * Num Assigned
+     */
+    num_assigned: number;
+    /**
+     * Num Assigned Done
+     */
+    num_assigned_done: number;
+    /**
      * Id
      */
     id: number;
@@ -4661,14 +4721,6 @@ export type TaskSetOut = {
      * Created At
      */
     created_at: string;
-    /**
-     * Num Tasks
-     */
-    num_tasks: number;
-    /**
-     * Num Labeled
-     */
-    num_labeled: number;
 };
 
 /**
@@ -7098,6 +7150,36 @@ export type ListProjectCampaignsResponses = {
 };
 
 export type ListProjectCampaignsResponse = ListProjectCampaignsResponses[keyof ListProjectCampaignsResponses];
+
+export type ListProjectCampaignsProgressData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: number;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/campaigns/progress';
+};
+
+export type ListProjectCampaignsProgressErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListProjectCampaignsProgressError = ListProjectCampaignsProgressErrors[keyof ListProjectCampaignsProgressErrors];
+
+export type ListProjectCampaignsProgressResponses = {
+    /**
+     * Successful Response
+     */
+    200: CampaignsProgressResponse;
+};
+
+export type ListProjectCampaignsProgressResponse = ListProjectCampaignsProgressResponses[keyof ListProjectCampaignsProgressResponses];
 
 export type GetProjectTilersData = {
     body?: never;

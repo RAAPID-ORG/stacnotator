@@ -145,7 +145,7 @@ Predefined-task campaigns need tasks in place before annotators can work. Tasks 
 task sets (e.g. a first batch, then a "round-2" set once labeling wraps on the first):
 
 ```python
-campaign.task_sets()   # id, name, num_tasks, num_labeled
+campaign.task_sets()   # id, name, num_tasks, num_done
 ```
 
 `upload_tasks` accepts a DataFrame with `lat`/`lon` columns (extra columns become task
@@ -258,7 +258,7 @@ Campaign.overlays()                              # -> DataFrame
 Campaign.register_vector_overlay(pmtiles_url, name=None,
                              source_layer=None, color="#3b82f6")
 Campaign.vector_overlays()                       # -> DataFrame
-Campaign.task_sets()                             # -> DataFrame: id, name, num_tasks, num_labeled
+Campaign.task_sets()                             # -> DataFrame: id, name, num_tasks, num_done
 Campaign.upload_tasks(data, task_set, create_missing=False)  # -> num tasks created
 
 utils.array_to_cog(data, bounds, dst, crs="EPSG:4326",

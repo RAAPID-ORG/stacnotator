@@ -13,7 +13,10 @@ const set = (id: number, name: string, numTasks: number) => ({
   name,
   created_at: '2026-01-01T00:00:00Z',
   num_tasks: numTasks,
-  num_labeled: 0,
+  num_done: 0,
+  num_conflicting: 0,
+  num_assigned: 0,
+  num_assigned_done: 0,
 });
 
 /**

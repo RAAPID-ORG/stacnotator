@@ -94,6 +94,8 @@
     "noCampaignsCannotCreate": "You'll see campaigns here once one is created.",
     "publicCampaign": "Public campaign",
     "initializing": "Initializing",
+    "noTasks": "No tasks",
+    "loadProgressFailed": "Failed to load task progress",
     "campaignSettings": "Campaign settings",
     "settingsFor": "Settings for {{name}}",
     "duplicateCampaign": "Duplicate campaign",

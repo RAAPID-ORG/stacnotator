@@ -81,7 +81,7 @@ class Campaign:
 
     def task_sets(self) -> pd.DataFrame:
         """Task sets of this campaign with per-set task counts."""
-        columns = ["id", "name", "num_tasks", "num_labeled"]
+        columns = ["id", "name", "num_tasks", "num_done"]
         return pd.DataFrame(self._list_task_sets(), columns=columns)
 
     def upload_tasks(

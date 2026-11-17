@@ -7,28 +7,20 @@ TaskSummaryOut and hands back the bytes. Python supplies only what the rules nee
 author, which is a handful of people however many tasks there are.
 """
 
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 from uuid import UUID
 
-from sqlalchemy import select, text
+from sqlalchemy import Row, select, text
 from sqlalchemy.orm import Session
 
 from src.annotation.models import Annotation
 from src.campaigns.models import Campaign
 from src.tasks.completion import completion_by_author
+from src.tasks.schemas import TaskProgressOut
 from src.tasks.status import STATUS_SQL
 
-_SUMMARY_SQL = (
+_STATUS_INPUTS_SQL = (
     """
-WITH scope AS (
-    SELECT id, annotation_number, task_set_id, claimed_by_user_id, claimed_at,
-           round(CAST(ST_X(ST_Centroid(geometry)) AS numeric), 6) AS lon,
-           round(CAST(ST_Y(ST_Centroid(geometry)) AS numeric), 6) AS lat,
-           row_number() OVER (ORDER BY annotation_number) - 1 AS i
-    FROM data.tasks
-    WHERE campaign_id = :campaign_id
-      AND (CAST(:task_ids AS int[]) IS NULL OR id = ANY(CAST(:task_ids AS int[])))
-),
 status_assignments AS (
     SELECT ta.task_id, ta.user_id, ta.is_review
     FROM data.task_assignments ta JOIN scope ON scope.id = ta.task_id
@@ -60,6 +52,51 @@ status_answers AS (
 ),
 """  # noqa: S608 - joins constants; every value is a bound parameter
     + STATUS_SQL
+)
+
+_UNKNOWN_AUTHORS_SQL = """
+(SELECT array_agg(DISTINCT CAST(r.created_by_user_id AS text)) FROM raw_answers r
+ WHERE NOT EXISTS (SELECT 1 FROM completion c WHERE c.user_id = r.created_by_user_id))
+"""
+
+_PROGRESS_SQL = (
+    """
+WITH scope AS (SELECT id, task_set_id FROM data.tasks WHERE campaign_id = :campaign_id),
+"""  # noqa: S608 - only SQL constants are joined; values are bound
+    + _STATUS_INPUTS_SQL
+    + """
+SELECT ts.id,
+       count(t.id),
+       count(*) FILTER (WHERE st.status = 'done'),
+       count(*) FILTER (WHERE st.status = 'conflicting'),
+       count(mine.task_id),
+       count(*) FILTER (WHERE mine.status = 'done'),
+"""
+    + _UNKNOWN_AUTHORS_SQL
+    + """
+FROM data.task_sets ts
+LEFT JOIN scope t ON t.task_set_id = ts.id
+LEFT JOIN task_statuses st ON st.task_id = t.id
+LEFT JOIN assignee_statuses mine
+    ON mine.task_id = t.id AND mine.user_id = CAST(:viewer_id AS uuid)
+WHERE ts.campaign_id = :campaign_id
+GROUP BY ts.id
+"""
+)
+
+_SUMMARY_SQL = (
+    """
+WITH scope AS (
+    SELECT id, annotation_number, task_set_id, claimed_by_user_id, claimed_at,
+           round(CAST(ST_X(ST_Centroid(geometry)) AS numeric), 6) AS lon,
+           round(CAST(ST_Y(ST_Centroid(geometry)) AS numeric), 6) AS lat,
+           row_number() OVER (ORDER BY annotation_number) - 1 AS i
+    FROM data.tasks
+    WHERE campaign_id = :campaign_id
+      AND (CAST(:task_ids AS int[]) IS NULL OR id = ANY(CAST(:task_ids AS int[])))
+),
+"""  # noqa: S608 - only SQL constants are joined; values are bound
+    + _STATUS_INPUTS_SQL
     + """,
 drawn AS (
     SELECT DISTINCT a.output_of_task_id AS task_id, a.created_by_user_id AS user_id
@@ -156,9 +193,8 @@ SELECT CAST(json_build_object(
     'assignments', (SELECT j FROM assignment_cols),
     'answers', (SELECT j FROM answer_cols)
 ) AS text),
-(SELECT array_agg(DISTINCT CAST(r.created_by_user_id AS text)) FROM raw_answers r
- WHERE NOT EXISTS (SELECT 1 FROM completion c WHERE c.user_id = r.created_by_user_id))
 """
+    + _UNKNOWN_AUTHORS_SQL
 )
 
 
@@ -169,7 +205,45 @@ def task_summary_json(
     *,
     with_email: bool,
 ) -> bytes:
-    """The TaskSummaryOut of a campaign's tasks, or of ``task_ids`` only, as JSON."""
+    body: str = _execute(db, campaign, _SUMMARY_SQL, task_ids, with_email=with_email)[0][0]
+    return body.encode()
+
+
+def task_set_progress(
+    db: Session, campaign: Campaign, viewer_id: UUID
+) -> dict[int, TaskProgressOut]:
+    """Progress of each task set: tasks done by the status rule, and the viewer's own
+    assignments (review ones included) they answered."""
+    rows = _execute(db, campaign, _PROGRESS_SQL, viewer_id=viewer_id)
+    return {
+        set_id: TaskProgressOut(
+            num_tasks=tasks,
+            num_done=done,
+            num_conflicting=conflicting,
+            num_assigned=assigned,
+            num_assigned_done=assigned_done,
+        )
+        for set_id, tasks, done, conflicting, assigned, assigned_done, _ in rows
+    }
+
+
+def campaign_progress(db: Session, campaign: Campaign, viewer_id: UUID) -> TaskProgressOut:
+    sets = task_set_progress(db, campaign, viewer_id).values()
+    return TaskProgressOut(
+        **{field: sum(getattr(p, field) for p in sets) for field in TaskProgressOut.model_fields}
+    )
+
+
+def _execute(
+    db: Session,
+    campaign: Campaign,
+    statement: str,
+    task_ids: Collection[int] | None = None,
+    *,
+    with_email: bool = False,
+    viewer_id: UUID | None = None,
+) -> Sequence[Row]:
+    """Run a status statement; its last column names authors it had no rule for."""
     authored = select(Annotation.created_by_user_id).where(
         Annotation.campaign_id == campaign.id, Annotation.task_id.is_not(None)
     )
@@ -181,23 +255,24 @@ def task_summary_json(
     db.execute(text("SET LOCAL jit = off"))
     # An author's first answer can commit between the lookup above and the statement,
     # which then has no rule for them; the statement names such authors and runs again
-    # with them included. A body with an author lacking a rule is never returned.
+    # with them included. A result with an author lacking a rule is never returned.
     while True:
         completion = completion_by_author(db, campaign, authors)
         ordered = sorted(authors)
-        body, unknown = db.execute(
-            text(_SUMMARY_SQL),
+        rows = db.execute(
+            text(statement),
             {
                 "campaign_id": campaign.id,
                 "task_ids": list(task_ids) if task_ids is not None else None,
                 "with_email": with_email,
+                "viewer_id": str(viewer_id) if viewer_id else None,
                 "authors": [str(a) for a in ordered],
                 "on_unassigned_task": [completion[a].on_unassigned_task for a in ordered],
                 "when_assigned": [completion[a].when_assigned for a in ordered],
                 "when_not_assigned": [completion[a].when_not_assigned for a in ordered],
             },
-        ).one()
+        ).all()
+        unknown = rows[0][-1] if rows else None
         if not unknown:
-            result: str = body
-            return result.encode()
+            return rows
         authors |= {UUID(a) for a in unknown}

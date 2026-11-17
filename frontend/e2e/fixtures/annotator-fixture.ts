@@ -41,7 +41,8 @@ export const ROUTE = {
   organizationInvites: /\/api\/organizations\/\d+\/invites(\/\d+)?(\?.*)?$/,
   projects: /\/api\/projects\/(\?.*)?$/,
   project: /\/api\/projects\/\d+(\?.*)?$/,
-  projectCampaigns: /\/api\/projects\/\d+\/campaigns/,
+  projectCampaigns: /\/api\/projects\/\d+\/campaigns(\?|$)/,
+  projectCampaignsProgress: /\/api\/projects\/\d+\/campaigns\/progress/,
   projectInvites: /\/api\/projects\/\d+\/invites(\/\d+)?(\?.*)?$/,
   projectTilers: /\/api\/projects\/\d+\/tilers/,
   projectUsers: /\/api\/projects\/\d+\/users(\?.*)?$/,
@@ -267,6 +268,21 @@ async function installOrgProjectMocks(page: Page, api: ApiCapture): Promise<void
     if (route.request().method() !== 'GET') return route.fallback();
     await route.fulfill({ json: MOCK_PROJECT_CAMPAIGNS });
   });
+
+  await page.route(ROUTE.projectCampaignsProgress, (route) =>
+    route.fulfill({
+      json: {
+        items: MOCK_PROJECT_CAMPAIGNS.items.map((c) => ({
+          campaign_id: c.id,
+          num_tasks: 10,
+          num_done: 4,
+          num_conflicting: 1,
+          num_assigned: 3,
+          num_assigned_done: 2,
+        })),
+      },
+    })
+  );
 
   // The imagery editors read the project's tiler allowlist; the hook degrades
   // to "no tilers" on failure, so mock it to keep that path deterministic.
