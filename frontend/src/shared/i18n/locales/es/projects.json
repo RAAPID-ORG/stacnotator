@@ -96,6 +96,8 @@
     "noCampaignsCannotCreate": "Verás campañas aquí cuando se cree alguna.",
     "publicCampaign": "Campaña pública",
     "initializing": "Inicializando",
+    "noTasks": "Sin tareas",
+    "loadProgressFailed": "No se pudo cargar el progreso de las tareas",
     "campaignSettings": "Configuración de la campaña",
     "settingsFor": "Configuración de {{name}}",
     "duplicateCampaign": "Duplicar campaña",

@@ -10,7 +10,7 @@ import {
 import { useDismissOnOutside } from '~/shared/hooks/useDismissOnOutside';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { BarButton } from '~/shared/ui/BarButton';
-import { Button } from '~/shared/ui/forms';
+import { Button, IconButton } from '~/shared/ui/forms';
 import { IconChevronDown, IconDownload } from '~/shared/ui/Icons';
 import { Dropdown } from '~/shared/ui/motion';
 import { Spinner } from '~/shared/ui/Spinner';
@@ -26,6 +26,7 @@ interface ExportMenuProps {
   disabled?: boolean;
   /** The annotation toolbar's compact trigger rather than a page button. */
   compact?: boolean;
+  iconOnly?: boolean;
 }
 
 function hasStringDetail(error: unknown): error is { detail: string } {
@@ -63,6 +64,7 @@ export function ExportMenu({
   hasConflicts = false,
   disabled = false,
   compact = false,
+  iconOnly = false,
 }: ExportMenuProps) {
   const { t } = useTranslation('review');
   const [open, setOpen] = useState(false);
@@ -102,7 +104,19 @@ export function ExportMenu({
   const busy = exporting !== null;
   return (
     <div ref={containerRef} className="relative">
-      {compact ? (
+      {iconOnly ? (
+        <IconButton
+          className="h-7 w-7 hover:bg-neutral-100"
+          onClick={() => setOpen((o) => !o)}
+          disabled={busy || disabled}
+          title={busy ? t('export.exporting') : t('export.title')}
+          aria-label={busy ? t('export.exporting') : t('export.title')}
+          aria-expanded={open}
+          data-testid="export-menu-trigger"
+        >
+          {busy ? <Spinner size="xs" /> : <IconDownload className="h-4 w-4" />}
+        </IconButton>
+      ) : compact ? (
         <BarButton
           icon={IconDownload}
           label={busy ? t('export.exporting') : t('export.label')}

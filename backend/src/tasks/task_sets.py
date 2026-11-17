@@ -1,13 +1,17 @@
 """Task set management: named groups of annotation tasks within a campaign."""
 
+from uuid import UUID
+
 from fastapi import HTTPException
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from src.annotation.models import Annotation
+from src.campaigns.models import Campaign
 from src.tasks import assignments
 from src.tasks.models import Task, TaskSet
+from src.tasks.schemas import TaskSetOut
 from src.tasks.service import delete_tasks
+from src.tasks.summary import task_set_progress
 
 DEFAULT_TASK_SET_NAME = "Default"
 
@@ -35,33 +39,14 @@ def _require_free_name(db: Session, campaign_id: int, name: str) -> None:
         )
 
 
-def list_task_sets_with_stats(db: Session, campaign_id: int) -> list[dict]:
-    rows = db.execute(
-        select(
-            TaskSet.id,
-            TaskSet.name,
-            TaskSet.created_at,
-            func.count(func.distinct(Task.id)).label("num_tasks"),
-            func.count(func.distinct(Annotation.task_id))
-            .filter(Annotation.outcome != "skipped")
-            .label("num_labeled"),
-        )
-        .select_from(TaskSet)
-        .outerjoin(Task, Task.task_set_id == TaskSet.id)
-        .outerjoin(Annotation, Annotation.task_id == Task.id)
-        .where(TaskSet.campaign_id == campaign_id)
-        .group_by(TaskSet.id, TaskSet.name, TaskSet.created_at)
-        .order_by(TaskSet.id)
-    ).all()
+def list_task_sets_with_stats(db: Session, campaign: Campaign, viewer_id: UUID) -> list[TaskSetOut]:
+    progress = task_set_progress(db, campaign, viewer_id)
+    sets = db.scalars(
+        select(TaskSet).where(TaskSet.campaign_id == campaign.id).order_by(TaskSet.id)
+    )
     return [
-        {
-            "id": row.id,
-            "name": row.name,
-            "created_at": row.created_at,
-            "num_tasks": row.num_tasks,
-            "num_labeled": row.num_labeled,
-        }
-        for row in rows
+        TaskSetOut(id=s.id, name=s.name, created_at=s.created_at, **progress[s.id].model_dump())
+        for s in sets
     ]
 
 

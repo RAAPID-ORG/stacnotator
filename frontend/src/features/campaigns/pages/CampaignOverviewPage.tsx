@@ -19,6 +19,7 @@ import { isAudienceMember } from '~/features/campaigns/utils/labellingPolicy';
 import { useAccountStore } from '~/shared/stores/account.store';
 import { campaignPath } from '~/app/routes';
 import { InlineAddAction } from '~/shared/ui/InlineAddAction';
+import { TaskProgress, type TaskProgressCounts } from '~/shared/ui/TaskProgress';
 import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
 import {
   AREA_ESTIMATION_ENABLED,
@@ -102,9 +103,8 @@ export const CampaignOverviewPage = () => {
   const createdDate = campaign ? new Date(campaign.created_at).toLocaleDateString() : null;
   const agentCount = agentsOverview?.agents.length ?? null;
   const isMember = (campaign?.viewer_is_member ?? false) || isAdmin;
-  const totalTasks = taskSets.reduce((sum, set) => sum + set.num_tasks, 0);
-  const totalLabeled = taskSets.reduce((sum, set) => sum + set.num_labeled, 0);
-  const hasTasks = totalTasks > 0;
+  const totalProgress = sumTaskProgress(taskSets);
+  const hasTasks = totalProgress.num_tasks > 0;
   const mayExplore =
     campaign != null &&
     isAudienceMember(campaign.settings.labelling_policy.explore, {
@@ -270,8 +270,7 @@ export const CampaignOverviewPage = () => {
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <AllTasksCard
-                    totalLabeled={totalLabeled}
-                    totalTasks={totalTasks}
+                    progress={totalProgress}
                     onOpen={() =>
                       navigate(`${campaignPath(projectId, campaignId, 'annotate')}?mode=tasks`)
                     }
@@ -405,21 +404,29 @@ export const CampaignOverviewPage = () => {
   );
 };
 
+const sumTaskProgress = (sets: TaskProgressCounts[]): TaskProgressCounts => {
+  const total = (field: keyof TaskProgressCounts) => sets.reduce((sum, set) => sum + set[field], 0);
+  return {
+    num_tasks: total('num_tasks'),
+    num_done: total('num_done'),
+    num_conflicting: total('num_conflicting'),
+    num_assigned: total('num_assigned'),
+    num_assigned_done: total('num_assigned_done'),
+  };
+};
+
 const AllTasksCard = ({
-  totalLabeled,
-  totalTasks,
+  progress,
   onOpen,
   onView,
 }: {
-  totalLabeled: number;
-  totalTasks: number;
+  progress: TaskProgressCounts;
   onOpen: () => void;
   // The task list is readable by every campaign member; what it offers to do
   // with the tasks is what admin rights gate, inside the page itself.
   onView: () => void;
 }) => {
   const { t } = useTranslation('campaigns');
-  const percent = Math.round((totalLabeled / totalTasks) * 100);
 
   return (
     <div className="surface h-full flex flex-col border-2 border-brand-300">
@@ -429,17 +436,7 @@ const AllTasksCard = ({
         </h3>
         <p className="text-[11px] text-brand-600 mt-0.5 font-medium">{t('overview.acrossSets')}</p>
 
-        <div className="mt-4">
-          <div className="h-1.5 rounded-full bg-neutral-100 overflow-hidden">
-            <div
-              className="h-full rounded-full bg-brand-600 transition-[width]"
-              style={{ width: `${percent}%` }}
-            />
-          </div>
-          <p className="text-xs text-neutral-500 mt-1.5">
-            {t('overview.labeled', { labeled: totalLabeled, total: totalTasks })}
-          </p>
-        </div>
+        <TaskProgress progress={progress} className="mt-4" />
 
         <div className="mt-4 flex-1 flex items-end gap-2">
           <Button onClick={onOpen} className="flex-1">
@@ -465,7 +462,6 @@ const TaskSetCard = ({
 }) => {
   const { t } = useTranslation('campaigns');
   const isEmpty = taskSet.num_tasks === 0;
-  const percent = isEmpty ? 0 : Math.round((taskSet.num_labeled / taskSet.num_tasks) * 100);
   const createdDate = new Date(taskSet.created_at).toLocaleDateString();
 
   return (
@@ -476,19 +472,11 @@ const TaskSetCard = ({
           {t('overview.created', { date: createdDate })}
         </p>
 
-        <div className="mt-4">
-          <div className="h-1.5 rounded-full bg-neutral-100 overflow-hidden">
-            <div
-              className="h-full rounded-full bg-brand-600 transition-[width]"
-              style={{ width: `${percent}%` }}
-            />
-          </div>
-          <p className="text-xs text-neutral-500 mt-1.5">
-            {isEmpty
-              ? t('overview.noTasks.title')
-              : t('overview.labeled', { labeled: taskSet.num_labeled, total: taskSet.num_tasks })}
-          </p>
-        </div>
+        {isEmpty ? (
+          <p className="mt-4 text-xs text-neutral-500">{t('overview.noTasks.title')}</p>
+        ) : (
+          <TaskProgress progress={taskSet} className="mt-4" />
+        )}
 
         <div className="mt-4 flex-1 flex items-end gap-2">
           <Button onClick={onOpen} className="flex-1" disabled={isEmpty}>

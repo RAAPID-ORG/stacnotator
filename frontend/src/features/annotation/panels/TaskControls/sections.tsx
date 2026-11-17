@@ -147,6 +147,7 @@ export function ActionBar({ task }: { task: TaskRow }) {
   const catalog = useCatalog();
   const currentUserId = useCampaignStore((s) => s.currentUserId);
   const isBusy = useTasksStore((s) => s.isSubmitting);
+  const isStepping = useTasksStore((s) => s.isStepping);
   const previous = useTasksStore((s) => s.previous);
   const latest = useTasksStore((s) => s.latest);
   const stepsBack = useTasksStore((s) => Math.max(0, s.history.length - 1 - s.historyPos));
@@ -180,17 +181,18 @@ export function ActionBar({ task }: { task: TaskRow }) {
     currentUserId,
     useWorkStore((s) => s.drawnShapes)
   );
-  const submitLabel = isBusy
-    ? t('task.submitting')
-    : drawTask
-      ? t('task.done')
-      : asAuthoritative
-        ? t('task.submitAuthoritative')
-        : isRemovingLabel(readiness)
-          ? t('task.removeLabel')
-          : hasExistingLabel
-            ? t('task.update')
-            : t('task.submit');
+  const submitLabel =
+    isBusy && !isStepping
+      ? t('task.submitting')
+      : drawTask
+        ? t('task.done')
+        : asAuthoritative
+          ? t('task.submitAuthoritative')
+          : isRemovingLabel(readiness)
+            ? t('task.removeLabel')
+            : hasExistingLabel
+              ? t('task.update')
+              : t('task.submit');
 
   return (
     <div className="shrink-0 flex flex-col gap-1.5 px-3 py-2 border-t border-neutral-200 bg-neutral-50/60">

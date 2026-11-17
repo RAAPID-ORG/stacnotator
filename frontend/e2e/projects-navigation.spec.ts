@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { test, expect, ROUTE } from './fixtures/annotator-fixture';
 import {
   MOCK_ORG,
@@ -18,6 +19,75 @@ const openProjects = async (page: import('@playwright/test').Page) => {
 const SECOND_ORG = { ...MOCK_ORG, id: MOCK_ORG.id + 1, name: 'Second Org' };
 
 test.describe('Projects list', () => {
+  test('campaign rows show completion and download without opening the campaign', async ({
+    appPage,
+  }) => {
+    await appPage.route('**/api/campaigns/*/export-annotations', (route) =>
+      route.fulfill({
+        contentType: 'text/csv',
+        body: 'task_id,label\n1,Maize\n',
+      })
+    );
+    await appPage.goto('/projects/7');
+    const row = appPage.getByTestId('campaign-row').first();
+    await expect(
+      row.getByRole('progressbar', { name: 'Tasks completed', exact: true })
+    ).toHaveAttribute('aria-valuenow', '4');
+    await expect(row.getByText('4 / 10', { exact: true })).toBeVisible();
+    await expect(
+      row.getByRole('progressbar', { name: 'Your assigned tasks completed', exact: true })
+    ).toHaveAttribute('aria-valuemax', '3');
+    await expect(row.getByText('Yours 2 / 3', { exact: true })).toBeVisible();
+    await row.getByText('4 / 10', { exact: true }).hover();
+    await expect(appPage.getByRole('tooltip')).toHaveText(
+      'All tasks done: 4 / 10\nYour assigned tasks answered: 2 / 3'
+    );
+    await expect(row.getByText('40%')).toHaveCount(0);
+    await expect(row.getByTestId('export-menu-trigger')).toHaveText('');
+    await row.getByTestId('export-menu-trigger').focus();
+    await appPage.keyboard.press('Enter');
+    await expect(appPage).toHaveURL(/\/projects\/7$/);
+    await expect(row.getByRole('checkbox')).toBeDisabled();
+    const downloading = appPage.waitForEvent('download');
+    await row.getByRole('button', { name: /CSV/ }).click();
+    const download = await downloading;
+    expect(download.suggestedFilename()).toBe('Test_Campaign_annotations.csv');
+    expect(await readFile((await download.path())!, 'utf8')).toBe('task_id,label\n1,Maize\n');
+    await expect(appPage).toHaveURL(/\/projects\/7$/);
+    await row.getByTestId('export-menu-trigger').click();
+    await expect(row.getByRole('button', { name: /GeoJSON/ })).toBeVisible();
+  });
+
+  test('campaign progress distinguishes empty campaigns and failed reads', async ({ appPage }) => {
+    await appPage.route(ROUTE.projectCampaignsProgress, (route) =>
+      route.fulfill({
+        json: {
+          items: MOCK_PROJECT_CAMPAIGNS.items.map((c) => ({
+            campaign_id: c.id,
+            num_tasks: 0,
+            num_done: 0,
+            num_conflicting: 0,
+            num_assigned: 0,
+            num_assigned_done: 0,
+          })),
+        },
+      })
+    );
+    await appPage.goto('/projects/7');
+    const row = appPage.getByTestId('campaign-row').first();
+    await expect(row.getByText('No tasks', { exact: true })).toBeVisible();
+    await expect(row.getByRole('progressbar')).toHaveCount(0);
+    await expect(row.getByTestId('export-menu-trigger')).toBeEnabled();
+
+    await appPage.route(ROUTE.projectCampaignsProgress, (route) =>
+      route.fulfill({ status: 500, json: { detail: 'Unavailable' } })
+    );
+    await appPage.reload();
+    await expect(row.getByRole('alert')).toHaveText('Failed to load task progress');
+    await expect(row.getByText('No tasks', { exact: true })).toHaveCount(0);
+    await expect(row.getByTestId('export-menu-trigger')).toBeEnabled();
+  });
+
   test('task sets stay compact and sticky, with content-sized statistics', async ({ appPage }) => {
     await appPage.route(ROUTE.campaignSummary, (route) =>
       route.fulfill({ json: { ...MOCK_CAMPAIGN, viewer_is_admin: true } })
@@ -179,6 +249,44 @@ test.describe('Projects list', () => {
     await expect(
       appPage.getByRole('heading', { name: MOCK_TASK_SETS[0].name, exact: true })
     ).toBeVisible();
+  });
+
+  test('task set cards show completed tasks and the viewer’s assigned tasks', async ({
+    appPage,
+  }) => {
+    const progress = (done: number, assigned: number, assignedDone: number) => ({
+      num_tasks: 10,
+      num_done: done,
+      num_conflicting: 0,
+      num_assigned: assigned,
+      num_assigned_done: assignedDone,
+    });
+    await appPage.route('**/api/campaigns/*/task-sets', (route) =>
+      route.fulfill({
+        json: [
+          { ...MOCK_TASK_SETS[0], id: 1, name: 'North', ...progress(3, 4, 1) },
+          { ...MOCK_TASK_SETS[0], id: 2, name: 'South', ...progress(5, 0, 0) },
+        ],
+      })
+    );
+    await appPage.route('**/api/campaigns/*/agents', (route) =>
+      route.fulfill({ json: { agents: [] } })
+    );
+    await appPage.route('**/api/campaigns/*/annotations/facets', (route) =>
+      route.fulfill({ json: { total: 0, labels: [], users: [] } })
+    );
+    await appPage.goto('/projects/7/campaigns/42');
+
+    const card = (name: string) =>
+      appPage
+        .locator('.surface')
+        .filter({ has: appPage.getByRole('heading', { name, exact: true }) });
+    await expect(card('All tasks').getByText('8 / 20', { exact: true })).toBeVisible();
+    await expect(card('All tasks').getByText('Yours 1 / 4', { exact: true })).toBeVisible();
+    await expect(card('North').getByText('3 / 10', { exact: true })).toBeVisible();
+    await expect(card('North').getByText('Yours 1 / 4', { exact: true })).toBeVisible();
+    await expect(card('South').getByText('5 / 10', { exact: true })).toBeVisible();
+    await expect(card('South').getByText('Yours')).toHaveCount(0);
   });
 
   test('switching organization leaves the current project for the new organization', async ({

@@ -21,14 +21,14 @@ SETS = [
         "name": "Default",
         "created_at": "2026-07-10T00:00:00",
         "num_tasks": 5,
-        "num_labeled": 2,
+        "num_done": 2,
     },
     {
         "id": 2,
         "name": "round-2",
         "created_at": "2026-07-10T00:00:00",
         "num_tasks": 0,
-        "num_labeled": 0,
+        "num_done": 0,
     },
 ]
 
@@ -50,7 +50,7 @@ def test_task_sets_returns_frame():
     campaign = make_campaign()
     responses.get(f"{BASE}/api/campaigns/42/task-sets", json=SETS)
     frame = campaign.task_sets()
-    assert list(frame.columns) == ["id", "name", "num_tasks", "num_labeled"]
+    assert list(frame.columns) == ["id", "name", "num_tasks", "num_done"]
     assert frame["name"].tolist() == ["Default", "round-2"]
 
 
@@ -97,7 +97,7 @@ def test_upload_tasks_creates_missing_set_when_opted_in():
             "name": "round-3",
             "created_at": "2026-07-10T00:00:00",
             "num_tasks": 0,
-            "num_labeled": 0,
+            "num_done": 0,
         },
         status=201,
     )

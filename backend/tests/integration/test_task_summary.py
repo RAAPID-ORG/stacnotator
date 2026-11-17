@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import pytest
 import shapely
+from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from src.annotation.models import Annotation
@@ -16,8 +17,8 @@ from src.organizations.models import Organization
 from src.projects.models import Project, ProjectUser
 from src.tasks import service
 from src.tasks.models import Task, TaskAssignment, TaskSet
-from src.tasks.schemas import TaskSummaryOut
-from src.tasks.summary import task_summary_json
+from src.tasks.schemas import TaskProgressOut, TaskSummaryOut
+from src.tasks.summary import campaign_progress, task_set_progress, task_summary_json
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("AGENT_DATABASE_TESTS") != "1",
@@ -251,6 +252,31 @@ def test_only_the_asked_tasks_and_no_emails_unless_admin(varied_campaign):
     assert set(member_view.users.email) == {None}
     assert all(admin_view.users.email)
     assert all(member_view.users.display_name)
+
+
+def test_progress_counts_done_tasks_and_the_viewers_answered_assignments(varied_campaign):
+    db, campaign = varied_campaign
+    tasks = service.read_tasks(db, campaign, with_email=False)
+    viewer = next(a.user_id for t in tasks for a in t.assignments if a.is_review)
+    mine = [a for t in tasks for a in t.assignments if a.user_id == viewer]
+
+    progress = campaign_progress(db, campaign, viewer)
+
+    assert progress == TaskProgressOut(
+        num_tasks=len(tasks),
+        num_done=sum(task.task_status == "done" for task in tasks),
+        num_conflicting=sum(task.task_status == "conflicting" for task in tasks),
+        num_assigned=len(mine),
+        num_assigned_done=sum(a.status == "done" for a in mine),
+    )
+    assert 0 < progress.num_done < progress.num_tasks
+    assert progress.num_conflicting > 0
+    assert 0 < progress.num_assigned_done < progress.num_assigned
+
+    db.execute(delete(Task).where(Task.campaign_id == campaign.id))
+    db.flush()
+
+    assert [p.num_tasks for p in task_set_progress(db, campaign, viewer).values()] == [0]
 
 
 def test_details_can_be_the_first_few_tasks(varied_campaign):

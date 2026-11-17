@@ -164,10 +164,10 @@
       "listCoverMosaics": "Could not list the mosaics in the cover series"
     },
     "periods": {
-      "month": "One window per month",
-      "quarter": "One window per quarter",
-      "year": "One window per year",
-      "all": "A single window for the whole series"
+      "month": "monthly windows",
+      "quarter": "quarterly windows",
+      "year": "yearly windows",
+      "all": "a single window"
     },
     "windows_one": "{{count}} window",
     "windows_other": "{{count}} windows",
@@ -179,28 +179,40 @@
     "seriesHint": "A <strong>series</strong> is a cadence of basemaps - each of its mosaics becomes one slice, so the whole time range arrives at once.",
     "globalWarning": "Only the global series cover the whole world. All other Planet imagery may be blank over your campaign's region!",
     "noSeries": "This key can see no basemap series.",
-    "backToSeries": "← Back to series",
-    "seriesInfo_one": "<strong>{{name}}</strong> - {{count}} mosaic",
-    "seriesInfo_other": "<strong>{{name}}</strong> - {{count}} mosaics",
-    "seriesInfoZoom_one": "<strong>{{name}}</strong> - {{count}} mosaic, sharp to zoom {{zoom}}",
-    "seriesInfoZoom_other": "<strong>{{name}}</strong> - {{count}} mosaics, sharp to zoom {{zoom}}",
     "from": "From",
     "to": "To",
-    "coverHint": "Planet does not composite on request, so a coarser series stands in: each of its mosaics becomes one window, shown first, with this series' mosaics inside its span as the detail underneath.",
     "coverSeries": "Cover series",
-    "noCoverSeries": "No cover series - windows by calendar period",
+    "chooseCoverSeries": "Choose a series",
+    "windowsIntro": "Each mosaic becomes a <strong>slice</strong>, one step annotators take through the imagery. Slices are grouped into <strong>windows</strong>, and each window gets its own panel on the annotation canvas.",
     "groupIntoWindows": "Group into windows",
-    "coverNthFirst": "Show the first slice of each window first",
-    "coverNth": "Show the {{n}}. slice of each window first",
+    "coverNth": "Mosaic no.",
+    "coverNthHelp": "Counted from the earliest mosaic in each window. A window with fewer mosaics opens on its last one.",
     "visualizations": "Visualizations",
     "analyticSeries": "This is an analytic series, so Planet can render its bands more than one way.",
     "visualSeries": "This series is served as finished colour imagery, so it has one rendering.",
     "unsharedRendering": "{{name}} does not offer this rendering, so it has no cover slice",
-    "orphans_one": "{{count}} mosaic fall outside every {{name}} window and are left out:",
-    "orphans_other": "{{count}} mosaics fall outside every {{name}} window and are left out:",
-    "dateRange": "{{start}} to {{end}}",
     "unavailable_one": "{{count}} mosaic in this series cannot be used:",
-    "unavailable_other": "{{count}} mosaics in this series cannot be used:"
+    "unavailable_other": "{{count}} mosaics in this series cannot be used:",
+    "groupSentence": "Group all <strong>{{name}}</strong> mosaics into",
+    "coverHelp": "Each window has one image that annotators see first, before they step through the rest. This is its cover slice. It can be an image of the whole period, taken from another series whose mosaics each cover a longer time, or one of the mosaics in the window.",
+    "example": {
+      "title": "Example: three years of Global Monthly mosaics",
+      "yearlyCoverSeries": "Cover from Global Yearly: one window per yearly mosaic, so 3 windows. Each opens on that year's yearly mosaic, then steps through its 12 monthly mosaics.",
+      "yearlyCoverNth": "Yearly windows with mosaic no. 6 as the cover: 3 windows. Each opens on June, then steps through its 12 monthly mosaics.",
+      "monthly": "Monthly windows: 36 windows, each holding a single mosaic that is also its cover."
+    },
+    "coverFromOwn": "One of the window's mosaics",
+    "coverFromSeries": "From another series",
+    "coverSeriesHelp": "Each mosaic of the chosen series becomes one window and is shown first. This series' mosaics that start within its dates become the window's other slices, so the cover series replaces the grouping above. Pick a series whose mosaics span a longer time, such as a yearly series.",
+    "orphans_one": "{{count}} mosaic falls outside every {{name}} mosaic and is left out:",
+    "orphans_other": "{{count}} mosaics fall outside every {{name}} mosaic and are left out:",
+    "dateRange": "{{start}} to {{end}}",
+    "windowPerCoverMosaic": "one window per <strong>{{name}}</strong> mosaic, set by the cover series below",
+    "windowPerCoverPending": "one window per mosaic of the cover series you choose below",
+    "steps": {
+      "series": "Series"
+    },
+    "coverMosaic": "{{name}} {{start}} → {{end}}"
   },
   "scenes": {
     "title": "Add Planet daily imagery",
@@ -224,19 +236,15 @@
     "datesReversed": "The end date is before the start date.",
     "sliceTooCoarse": "A slice cannot be longer than its window, or every window holds a single slice covering all of it. Shorten the slice period or lengthen the window.",
     "opensOn": "What the window opens on",
-    "opensOnHelp": "Annotators see this before stepping through the dates inside it. A composite stacks every acquisition in the window, so it has fewer gaps than any single date.",
-    "opensOnComposite": "A composite of the whole window",
+    "opensOnHelp": "Annotators see this before stepping through the dates inside it. The whole-window option lays up to 200 of the window's clearest scenes over each other. Planet doesn't blend them or mask clouds, so each spot shows a single scene, clouds included, but there are fewer gaps than on any single date.",
+    "opensOnComposite": "All of the window's scenes, stacked",
     "opensOnFirst": "Its first date",
     "maxCloudCover": "Maximum cloud cover",
     "maxCloudCoverHelp": "Cloudier acquisitions are left out, so a date with nothing clear enough gets no slice at all.",
     "manySlices_one": "{{count}} slices is a lot to step through, and every search an annotator runs asks Planet about each of them.",
     "manySlices_other": "{{count}} slices is a lot to step through, and every search an annotator runs asks Planet about each of them.",
-    "preview": "What will be created",
-    "windowItem_one": "<strong>{{label}}</strong> - {{count}} slice",
-    "windowItem_other": "<strong>{{label}}</strong> - {{count}} slices",
-    "windowItemCover_one": "<strong>{{label}}</strong> - {{count}} slice, plus a cover over the whole window",
-    "windowItemCover_other": "<strong>{{label}}</strong> - {{count}} slices, plus a cover over the whole window",
-    "nothingBuilt": "Nothing is searched or built now. Annotators fill these dates in from where they are working."
+    "coverStacked": "all scenes in the window, stacked",
+    "coverFirst": "the first date"
   },
   "controller": {
     "offCanvas": {
@@ -671,5 +679,9 @@
       "advancedHint": "Configure the separate cover-slice search and rendering. By default it inherits from the main visualization params.",
       "visualizations": "Cover visualizations"
     }
+  },
+  "preview": {
+    "title": "What will be created",
+    "cover": "cover: {{cover}}"
   }
 }

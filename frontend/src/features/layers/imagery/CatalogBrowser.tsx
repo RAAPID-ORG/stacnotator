@@ -33,6 +33,7 @@ import { followingCoverParams, setVisualization } from './visualizations';
 import { StacQueryEditor } from './StacQueryEditor';
 import { SasTokenField } from './SasTokenField';
 import { readSasToken } from './sasToken';
+import { WizardSteps } from './WizardSteps';
 import {
   generateStacCollections,
   oneSlicePerWindow,
@@ -935,32 +936,15 @@ export const CatalogBrowser = ({
           <>
             {/* Step indicator */}
             {!initialGeneration && (
-              <div className="flex items-center gap-1 text-[11px] text-neutral-400">
-                <button
-                  type="button"
-                  onClick={() => setStep('catalog')}
-                  className={`cursor-pointer hover:text-neutral-600 ${step === 'catalog' ? 'text-brand-600 font-medium' : ''}`}
-                >
-                  {t('catalog.steps.catalog')}
-                </button>
-                <span>/</span>
-                <span className={step === 'collection' ? 'text-brand-600 font-medium' : ''}>
-                  {t('catalog.steps.collection')}
-                </span>
-                <span>/</span>
-                <span className={step === 'configure' ? 'text-brand-600 font-medium' : ''}>
-                  {t('catalog.steps.configure')}
-                </span>
-                {step !== 'catalog' && (
-                  <button
-                    type="button"
-                    onClick={goBack}
-                    className="ml-auto text-neutral-500 hover:text-neutral-700 cursor-pointer text-xs"
-                  >
-                    {t('wizard.back')}
-                  </button>
-                )}
-              </div>
+              <WizardSteps
+                steps={[
+                  { label: t('catalog.steps.catalog'), onClick: () => setStep('catalog') },
+                  { label: t('catalog.steps.collection') },
+                  { label: t('catalog.steps.configure') },
+                ]}
+                current={['catalog', 'collection', 'configure'].indexOf(step)}
+                onBack={step !== 'catalog' ? goBack : onClose}
+              />
             )}
 
             {/* Collection search (the catalog step has its own search in the StacIndex section) */}

@@ -325,7 +325,7 @@ export async function advance(): Promise<void> {
 
 /** Next, from the button and the key. Held to one at a time like a submit, so
  *  quick presses cannot race each other's claims and skip tasks unseen. */
-export const goToNextTask = () => guarded(advance);
+export const goToNextTask = () => guarded(advance, true);
 
 const mismatchConfirm = () => ({
   title: t('taskActions.mismatch.title'),
@@ -337,10 +337,10 @@ const mismatchConfirm = () => ({
 
 /** Runs `body` only while no submit or step is in flight - the same guard the
  *  buttons enforce through `isSubmitting`. */
-async function guarded(body: () => Promise<void>): Promise<void> {
+async function guarded(body: () => Promise<void>, isStepping = false): Promise<void> {
   const tasks = useTasksStore.getState();
   if (tasks.isSubmitting) return;
-  tasks.setSubmitting(true);
+  tasks.setSubmitting(true, isStepping);
   try {
     await body();
   } finally {

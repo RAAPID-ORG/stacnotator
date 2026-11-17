@@ -1072,7 +1072,7 @@ async def add_tasks(
 
 async def _task_sets(campaign_id: int) -> list[dict[str, Any]]:
     sets = await _api(_http().get, f"/campaigns/{campaign_id}/task-sets")
-    return [{k: s[k] for k in ("id", "name", "num_tasks", "num_labeled")} for s in sets]
+    return [{k: s[k] for k in ("id", "name", "num_tasks", "num_done")} for s in sets]
 
 
 def _imagery_summary(source: dict[str, Any]) -> dict[str, Any]:
