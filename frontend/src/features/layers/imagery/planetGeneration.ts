@@ -2,7 +2,9 @@ import type { PlanetMosaicOut } from '~/api/client';
 import type { CollectionItem, ImagerySlice, VisualizationUrl } from './types';
 import { createId } from './types';
 
-/** How many of a series' mosaics share one collection - i.e. one canvas window. */
+/** How many of a series' mosaics share one collection - i.e. one canvas window.
+ *  Only consulted without a cover series; with one, the cover mosaics are the
+ *  windows. */
 export const COLLECTION_PERIODS = ['month', 'quarter', 'year', 'all'] as const;
 export type CollectionPeriod = (typeof COLLECTION_PERIODS)[number];
 
@@ -12,20 +14,23 @@ export interface PlanetGenerationOptions {
   startDate: string;
   endDate: string;
   collectionPeriod: CollectionPeriod;
-  /** 1-based slice shown first in each collection, when there is no cover series. */
+  /** 1-based slice shown first in each collection. */
   coverNth: number;
   /** Visualization names to build tile URLs for, from the series' renderings. */
   renderings: string[];
-  /** Another series' mosaics, one of which becomes each window's dedicated cover. */
+  /** A coarser series' mosaics. Each becomes one window's dedicated cover and
+   *  the finer mosaics inside its span become that window's slices. Planet has
+   *  no compositing, so the coarse product *is* the composite - the equivalent
+   *  of a STAC cover slice searched over the whole window. Without it, windows
+   *  come from `collectionPeriod` and the cover is the `coverNth` slice. */
   coverMosaics?: PlanetMosaicOut[];
 }
 
 export interface PlanetCollections {
   collections: CollectionItem[];
-  /** Windows no cover-series mosaic overlaps; they open on their first mosaic. */
-  uncovered: string[];
-  /** Windows whose cover-series mosaic spans only part of them. */
-  partlyCovered: string[];
+  /** Usable mosaics in range that no cover window contains. Reported rather
+   *  than dropped: imagery silently missing from a series is a trap. */
+  orphans: PlanetMosaicOut[];
 }
 
 /** Mosaics that can become slices. Planet reports the rest with a reason, which
@@ -126,96 +131,60 @@ const manualCollection = (
   data: { type: 'manual', vizUrls },
 });
 
-interface Window {
-  key: string;
-  start: string;
-  end: string;
-  mosaics: PlanetMosaicOut[];
-}
-
-const isoDay = (year: number, month: number, day: number) =>
-  new Date(Date.UTC(year, month - 1, day)).toISOString().slice(0, 10);
-
-/** The calendar span a window covers, which a cover mosaic is matched against. */
-function windowSpan(key: string, mosaics: PlanetMosaicOut[]): { start: string; end: string } {
-  if (key === 'all')
-    return {
-      start: mosaics.map((m) => m.first_acquired).reduce((a, b) => (a < b ? a : b)),
-      end: mosaics.map((m) => m.last_acquired).reduce((a, b) => (a > b ? a : b)),
-    };
-  const year = Number(key.slice(0, 4));
-  if (key.length === 4) return { start: `${year}-01-01`, end: `${year}-12-31` };
-  if (key.includes('Q')) {
-    const first = (Number(key.slice(-1)) - 1) * 3 + 1;
-    return { start: isoDay(year, first, 1), end: isoDay(year, first + 3, 0) };
-  }
-  const month = Number(key.slice(5, 7));
-  return { start: isoDay(year, month, 1), end: isoDay(year, month + 1, 0) };
-}
-
-function calendarWindows(mosaics: PlanetMosaicOut[], period: CollectionPeriod): Window[] {
-  const groups = new Map<string, PlanetMosaicOut[]>();
-  for (const mosaic of mosaics) {
-    const key = collectionKey(mosaic.first_acquired, period);
-    groups.set(key, [...(groups.get(key) ?? []), mosaic]);
-  }
-  return [...groups].map(([key, group]) => ({ key, mosaics: group, ...windowSpan(key, group) }));
-}
-
-const DAY_MS = 86_400_000;
-const overlapDays = (a: { start: string; end: string }, b: PlanetMosaicOut) =>
-  (Math.min(Date.parse(a.end), Date.parse(b.last_acquired)) -
-    Math.max(Date.parse(a.start), Date.parse(b.first_acquired))) /
-    DAY_MS +
-  1;
-
-/** The cover mosaic sharing the most days with the window; the earlier one on a tie. */
-function bestCover(window: Window, covers: PlanetMosaicOut[]): PlanetMosaicOut | null {
-  let best: PlanetMosaicOut | null = null;
-  let bestDays = 0;
-  for (const cover of covers) {
-    const days = overlapDays(window, cover);
-    if (days > bestDays) [best, bestDays] = [cover, days];
-  }
-  return best;
-}
-
-/** Windows always come from the calendar. The cover is either one of the
- *  window's own mosaics or, with a cover series, its mosaic that overlaps the
- *  window most - Planet has no compositing, so a longer-period product is the
- *  closest thing to a STAC cover searched over the whole window. */
-function windowCollections(
+/** Windows from the calendar, cover from the slices themselves. */
+function groupedCollections(
   mosaics: PlanetMosaicOut[],
   options: PlanetGenerationOptions
-): PlanetCollections {
-  const covers = options.coverMosaics ? usableMosaics(options.coverMosaics) : null;
-  const uncovered: string[] = [];
-  const partlyCovered: string[] = [];
+): CollectionItem[] {
+  const groups = new Map<string, PlanetMosaicOut[]>();
+  for (const mosaic of mosaics) {
+    const key = collectionKey(mosaic.first_acquired, options.collectionPeriod);
+    groups.set(key, [...(groups.get(key) ?? []), mosaic]);
+  }
 
-  const collections = calendarWindows(mosaics, options.collectionPeriod).map((window) => {
-    const name = window.key === 'all' ? options.seriesName : window.key;
-    const slices = window.mosaics.map((m) => toSlice(m, options.renderings));
-    const vizUrls = slices[0]?.vizUrls ?? [];
-    const cover = covers && bestCover(window, covers);
-
-    if (!cover) {
-      if (covers) uncovered.push(name);
-      const nth = covers ? 1 : options.coverNth;
-      const index = Math.min(Math.max(nth, 1) - 1, slices.length - 1);
-      return manualCollection(name, slices, { index, dedicated: false }, vizUrls);
-    }
-
-    if (cover.first_acquired > window.start || cover.last_acquired < window.end)
-      partlyCovered.push(name);
-    const coverSlice = toSlice(
-      cover,
-      options.renderings,
-      windowName(cover.first_acquired, cover.last_acquired)
+  return [...groups].map(([key, groupMosaics]) => {
+    const slices = groupMosaics.map((m) => toSlice(m, options.renderings));
+    return manualCollection(
+      key === 'all' ? options.seriesName : key,
+      slices,
+      {
+        index: Math.min(Math.max(options.coverNth, 1) - 1, slices.length - 1),
+        dedicated: false,
+      },
+      slices[0]?.vizUrls ?? []
     );
-    return manualCollection(name, [coverSlice, ...slices], { index: 0, dedicated: true }, vizUrls);
+  });
+}
+
+/** Windows from a coarser series: each of its mosaics covers one window, and
+ *  the finer mosaics starting inside that span are its slices. A window whose
+ *  span holds no finer mosaic is still real imagery, so it is kept with its
+ *  cover alone. */
+function coveredCollections(
+  mosaics: PlanetMosaicOut[],
+  coverMosaics: PlanetMosaicOut[],
+  options: PlanetGenerationOptions
+): PlanetCollections {
+  const covers = usableMosaics(coverMosaics).filter(
+    (m) => m.last_acquired >= options.startDate && m.first_acquired <= options.endDate
+  );
+  const covered = new Set<string>();
+
+  const collections = covers.map((cover) => {
+    const inside = mosaics.filter(
+      (m) => m.first_acquired >= cover.first_acquired && m.first_acquired <= cover.last_acquired
+    );
+    inside.forEach((m) => covered.add(m.id));
+
+    const name = windowName(cover.first_acquired, cover.last_acquired);
+    const slices = [
+      toSlice(cover, options.renderings, name),
+      ...inside.map((m) => toSlice(m, options.renderings)),
+    ];
+    return manualCollection(name, slices, { index: 0, dedicated: true }, slices[1]?.vizUrls ?? []);
   });
 
-  return { collections, uncovered, partlyCovered };
+  return { collections, orphans: mosaics.filter((m) => !covered.has(m.id)) };
 }
 
 /** Expand a Planet series into the collections a source is made of.
@@ -233,5 +202,7 @@ export function generatePlanetCollections(
     (m) => m.first_acquired >= options.startDate && m.first_acquired <= options.endDate
   );
 
-  return windowCollections(inRange, options);
+  return options.coverMosaics
+    ? coveredCollections(inRange, options.coverMosaics, options)
+    : { collections: groupedCollections(inRange, options), orphans: [] };
 }

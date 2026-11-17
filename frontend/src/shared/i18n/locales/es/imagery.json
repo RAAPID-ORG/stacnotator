@@ -183,13 +183,6 @@
     "seriesHint": "Una <strong>serie</strong> es una cadencia de mapas base: cada uno de sus mosaicos se convierte en un corte, así que todo el rango temporal llega a la vez.",
     "globalWarning": "Solo las series globales cubren todo el mundo. ¡El resto de imágenes de Planet puede aparecer vacío sobre la región de tu campaña!",
     "noSeries": "Esta clave no tiene acceso a ninguna serie de mapas base.",
-    "backToSeries": "← Volver a las series",
-    "seriesInfo_one": "<strong>{{name}}</strong> - {{count}} mosaico",
-    "seriesInfo_many": "<strong>{{name}}</strong> - {{count}} mosaicos",
-    "seriesInfo_other": "<strong>{{name}}</strong> - {{count}} mosaicos",
-    "seriesInfoZoom_one": "<strong>{{name}}</strong> - {{count}} mosaico, nítido hasta el zoom {{zoom}}",
-    "seriesInfoZoom_many": "<strong>{{name}}</strong> - {{count}} mosaicos, nítidos hasta el zoom {{zoom}}",
-    "seriesInfoZoom_other": "<strong>{{name}}</strong> - {{count}} mosaicos, nítidos hasta el zoom {{zoom}}",
     "from": "Desde",
     "to": "Hasta",
     "coverSeries": "Serie de portada",
@@ -209,19 +202,23 @@
     "coverHelp": "Cada ventana tiene una imagen que los anotadores ven primero, antes de recorrer el resto. Es su corte de portada. Puede ser una imagen de todo el periodo, tomada de otra serie cuyos mosaicos cubren cada uno un tiempo más largo, o uno de los mosaicos de la ventana.",
     "example": {
       "title": "Ejemplo: tres años de mosaicos de Global Monthly",
-      "yearlyCoverSeries": "Ventanas anuales con la portada de Global Yearly: 3 ventanas. Cada una se abre en el mosaico anual de ese año y luego recorre sus 12 mosaicos mensuales.",
+      "yearlyCoverSeries": "Portada de Global Yearly: una ventana por cada mosaico anual, es decir, 3 ventanas. Cada una se abre en el mosaico anual de ese año y luego recorre sus 12 mosaicos mensuales.",
       "yearlyCoverNth": "Ventanas anuales con el mosaico n.º 6 como portada: 3 ventanas. Cada una se abre en junio y luego recorre sus 12 mosaicos mensuales.",
       "monthly": "Ventanas mensuales: 36 ventanas, cada una con un solo mosaico que también es su portada."
     },
     "coverFromOwn": "Uno de los mosaicos de la ventana",
     "coverFromSeries": "De otra serie",
-    "coverSeriesHelp": "Elige una serie cuyos mosaicos abarquen cada uno una ventana entera, por ejemplo una serie anual para ventanas anuales. Cada ventana se abre en el mosaico de esta serie que más se solapa con ella.",
-    "uncovered_one": "{{count}} ventana no tiene ningún mosaico de {{name}} y se abre en su primer mosaico propio: {{windows}}",
-    "uncovered_many": "{{count}} ventanas no tienen ningún mosaico de {{name}} y se abren en su primer mosaico propio: {{windows}}",
-    "uncovered_other": "{{count}} ventanas no tienen ningún mosaico de {{name}} y se abren en su primer mosaico propio: {{windows}}",
-    "partlyCovered_one": "En {{count}} ventana, el mosaico de {{name}} cubre solo una parte de la ventana: {{windows}}",
-    "partlyCovered_many": "En {{count}} ventanas, el mosaico de {{name}} cubre solo una parte de la ventana: {{windows}}",
-    "partlyCovered_other": "En {{count}} ventanas, el mosaico de {{name}} cubre solo una parte de la ventana: {{windows}}"
+    "coverSeriesHelp": "Cada mosaico de la serie elegida se convierte en una ventana y se muestra primero. Los mosaicos de esta serie que empiezan dentro de sus fechas son los demás cortes de la ventana, así que la serie de portada sustituye a la agrupación de arriba. Elige una serie cuyos mosaicos abarquen más tiempo, por ejemplo una serie anual.",
+    "orphans_one": "{{count}} mosaico queda fuera de todos los mosaicos de {{name}} y se omite:",
+    "orphans_many": "{{count}} mosaicos quedan fuera de todos los mosaicos de {{name}} y se omiten:",
+    "orphans_other": "{{count}} mosaicos quedan fuera de todos los mosaicos de {{name}} y se omiten:",
+    "dateRange": "{{start}} a {{end}}",
+    "windowPerCoverMosaic": "una ventana por cada mosaico de <strong>{{name}}</strong>, según la serie de portada de abajo",
+    "windowPerCoverPending": "una ventana por cada mosaico de la serie de portada que elijas abajo",
+    "steps": {
+      "series": "Serie"
+    },
+    "coverMosaic": "{{name}} {{start}} → {{end}}"
   },
   "scenes": {
     "title": "Añadir imágenes diarias de Planet",
@@ -245,22 +242,16 @@
     "datesReversed": "La fecha de fin es anterior a la de inicio.",
     "sliceTooCoarse": "Un corte no puede ser más largo que su ventana, o cada ventana tendría un solo corte que la cubre entera. Acorta el periodo del corte o alarga la ventana.",
     "opensOn": "Con qué se abre la ventana",
-    "opensOnHelp": "Los anotadores ven esto antes de recorrer las fechas que contiene. Una composición apila todas las adquisiciones de la ventana, así que tiene menos huecos que cualquier fecha individual.",
-    "opensOnComposite": "Una composición de toda la ventana",
+    "opensOnHelp": "Los anotadores ven esto antes de recorrer las fechas que contiene. La opción de toda la ventana superpone hasta 200 de las escenas más despejadas de la ventana. Planet no las mezcla ni enmascara las nubes, así que cada punto muestra una sola escena, nubes incluidas, pero hay menos huecos que en cualquier fecha individual.",
+    "opensOnComposite": "Todas las escenas de la ventana, superpuestas",
     "opensOnFirst": "Su primera fecha",
     "maxCloudCover": "Nubosidad máxima",
     "maxCloudCoverHelp": "Se omiten las adquisiciones más nubladas, así que una fecha sin nada lo bastante despejado no tiene corte.",
     "manySlices_one": "{{count}} corte es mucho para recorrer, y cada búsqueda que hace un anotador consulta a Planet por cada uno.",
     "manySlices_many": "{{count}} cortes son muchos para recorrer, y cada búsqueda que hace un anotador consulta a Planet por cada uno de ellos.",
     "manySlices_other": "{{count}} cortes son muchos para recorrer, y cada búsqueda que hace un anotador consulta a Planet por cada uno de ellos.",
-    "preview": "Qué se creará",
-    "windowItem_one": "<strong>{{label}}</strong> - {{count}} corte",
-    "windowItem_many": "<strong>{{label}}</strong> - {{count}} cortes",
-    "windowItem_other": "<strong>{{label}}</strong> - {{count}} cortes",
-    "windowItemCover_one": "<strong>{{label}}</strong> - {{count}} corte, más una portada de toda la ventana",
-    "windowItemCover_many": "<strong>{{label}}</strong> - {{count}} cortes, más una portada de toda la ventana",
-    "windowItemCover_other": "<strong>{{label}}</strong> - {{count}} cortes, más una portada de toda la ventana",
-    "nothingBuilt": "Ahora no se busca ni se genera nada. Los anotadores completan estas fechas desde donde estén trabajando."
+    "coverStacked": "todas las escenas de la ventana, superpuestas",
+    "coverFirst": "la primera fecha"
   },
   "controller": {
     "offCanvas": {
@@ -709,5 +700,9 @@
       "advancedHint": "Configura la búsqueda y la representación propias del corte de portada. Por defecto hereda los parámetros de visualización principales.",
       "visualizations": "Visualizaciones de la portada"
     }
+  },
+  "preview": {
+    "title": "Qué se creará",
+    "cover": "portada: {{cover}}"
   }
 }

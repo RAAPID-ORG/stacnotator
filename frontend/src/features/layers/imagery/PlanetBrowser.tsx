@@ -18,11 +18,12 @@ import {
   defaultMosaicRange,
   generatePlanetCollections,
   sharedRenderings,
-  usableMosaics,
 } from './planetGeneration';
 import type { CollectionPeriod } from './planetGeneration';
 import { emptySource } from './types';
 import type { ImagerySource } from './types';
+import { PlanPreview } from './PlanPreview';
+import { WizardSteps } from './WizardSteps';
 
 interface PlanetBrowserProps {
   projectId: number;
@@ -57,8 +58,8 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
   const [series, setSeries] = useState<PlanetSeriesOut[] | null>(null);
   const [chosen, setChosen] = useState<PlanetSeriesOut | null>(null);
   const [details, setDetails] = useState<PlanetSeriesMosaicsOut | null>(null);
-  /** The coarser series standing in as each window's cover, if any. */
   const [coverFrom, setCoverFrom] = useState<CoverFrom>('own');
+  /** The series whose mosaics are the windows and their covers, if any. */
   const [coverSeries, setCoverSeries] = useState<PlanetSeriesOut | null>(null);
   const [coverDetails, setCoverDetails] = useState<PlanetSeriesMosaicsOut | null>(null);
   const [loading, setLoading] = useState(false);
@@ -125,20 +126,24 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
       });
   }, [coverSeries, credentials]);
 
-  /** Any change to the key drops what the previous one found. */
-  const reset = () => {
-    setSeries(null);
+  const backToSeries = () => {
     setChosen(null);
     setDetails(null);
     setCoverFrom('own');
     setCoverSeries(null);
   };
 
-  const { collections, uncovered, partlyCovered } = useMemo(() => {
+  /** Any change to the key drops what the previous one found. */
+  const reset = () => {
+    setSeries(null);
+    backToSeries();
+  };
+
+  const { collections, orphans } = useMemo(() => {
     // Until a cover series is chosen and its mosaics have arrived, this would
     // otherwise preview windows without the cover that was asked for.
     if (!details || !chosen || !startDate || !endDate || (coverFrom === 'series' && !coverDetails))
-      return { collections: [], uncovered: [], partlyCovered: [] };
+      return { collections: [], orphans: [] };
     return generatePlanetCollections(details.mosaics, {
       seriesName: chosen.name,
       startDate,
@@ -191,27 +196,48 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
       onClose={onClose}
       maxWidth="max-w-2xl"
       footer={
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] text-neutral-500">
-            {collections.length > 0
-              ? t(coverSeries ? 'planet.summaryWithCover' : 'planet.summary', {
-                  windows: t('planet.windows', { count: collections.length }),
-                  slices: t('planet.slices', { count: sliceTotal }),
+        <PlanPreview
+          rows={collections.map((collection) => ({
+            key: collection.id,
+            label: collection.name,
+            slices: collection.slices
+              .slice(collection.hasDedicatedCover ? 1 : 0)
+              .map((slice) => slice.name),
+            cover: collection.hasDedicatedCover
+              ? t('planet.coverMosaic', {
+                  name: coverSeries?.name,
+                  start: collection.slices[0].startDate,
+                  end: collection.slices[0].endDate,
                 })
-              : ''}
-          </span>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => void add()}
-            disabled={submitting || collections.length === 0 || renderings.length === 0}
-          >
-            {submitting ? t('wizard.adding') : t('wizard.addSource')}
-          </Button>
-        </div>
+              : (collection.slices[collection.coverSliceIndex]?.name ?? ''),
+          }))}
+          summary={t(coverSeries ? 'planet.summaryWithCover' : 'planet.summary', {
+            windows: t('planet.windows', { count: collections.length }),
+            slices: t('planet.slices', { count: sliceTotal }),
+          })}
+          action={
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => void add()}
+              disabled={submitting || collections.length === 0 || renderings.length === 0}
+            >
+              {submitting ? t('wizard.adding') : t('wizard.addSource')}
+            </Button>
+          }
+        />
       }
     >
       <div className="p-4 space-y-4">
+        <WizardSteps
+          steps={[
+            { label: t('planet.steps.series'), onClick: chosen ? backToSeries : undefined },
+            { label: t('catalog.steps.configure') },
+          ]}
+          current={chosen ? 1 : 0}
+          onBack={chosen ? backToSeries : onClose}
+        />
+
         <PlanetKeyConnect
           projectId={projectId}
           onChange={(next) => {
@@ -253,33 +279,7 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
 
         {chosen && details && (
           <div className="space-y-3">
-            <button
-              type="button"
-              onClick={() => {
-                setChosen(null);
-                setDetails(null);
-                setCoverFrom('own');
-                setCoverSeries(null);
-              }}
-              className="text-xs text-neutral-500 hover:text-neutral-700 cursor-pointer"
-            >
-              {t('planet.backToSeries')}
-            </button>
-
-            <p className="text-xs text-neutral-700">
-              <Trans
-                t={t}
-                i18nKey={
-                  details.max_native_zoom != null ? 'planet.seriesInfoZoom' : 'planet.seriesInfo'
-                }
-                values={{
-                  name: chosen.name,
-                  count: usableMosaics(details.mosaics).length,
-                  zoom: details.max_native_zoom,
-                }}
-                components={{ strong: <strong /> }}
-              />
-            </p>
+            <p className="text-xs text-neutral-700 font-semibold">{chosen.name}</p>
 
             <p className="text-[11px] text-neutral-500 leading-snug">
               <Trans t={t} i18nKey="planet.windowsIntro" components={{ strong: <strong /> }} />
@@ -313,19 +313,32 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
                     components={{ strong: <strong /> }}
                   />
                 </span>
-                <Select
-                  size="sm"
-                  value={period}
-                  onChange={(e) => setPeriod(e.target.value as CollectionPeriod)}
-                  aria-label={t('planet.groupIntoWindows')}
-                  className="!w-auto"
-                >
-                  {COLLECTION_PERIODS.map((p) => (
-                    <option key={p} value={p}>
-                      {t(PERIOD_LABELS[p])}
-                    </option>
-                  ))}
-                </Select>
+                {coverFrom === 'own' ? (
+                  <Select
+                    size="sm"
+                    value={period}
+                    onChange={(e) => setPeriod(e.target.value as CollectionPeriod)}
+                    aria-label={t('planet.groupIntoWindows')}
+                    className="!w-auto"
+                  >
+                    {COLLECTION_PERIODS.map((p) => (
+                      <option key={p} value={p}>
+                        {t(PERIOD_LABELS[p])}
+                      </option>
+                    ))}
+                  </Select>
+                ) : (
+                  <span>
+                    <Trans
+                      t={t}
+                      i18nKey={
+                        coverSeries ? 'planet.windowPerCoverMosaic' : 'planet.windowPerCoverPending'
+                      }
+                      values={{ name: coverSeries?.name }}
+                      components={{ strong: <strong /> }}
+                    />
+                  </span>
+                )}
               </div>
             </div>
 
@@ -402,31 +415,26 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
                 </p>
               )}
               {coverFrom === 'series' && (
-                <>
-                  <p className="text-[11px] text-neutral-500 leading-snug">
-                    {t('planet.coverSeriesHelp')}
-                  </p>
-                  {uncovered.length > 0 && (
-                    <p className="text-[11px] text-amber-700 rounded-md bg-amber-50 border border-amber-200 p-2">
-                      {t('planet.uncovered', {
-                        count: uncovered.length,
-                        name: coverSeries?.name,
-                        windows: uncovered.slice(0, 5).join(', '),
-                      })}
-                    </p>
-                  )}
-                  {partlyCovered.length > 0 && (
-                    <p className="text-[11px] text-amber-700 rounded-md bg-amber-50 border border-amber-200 p-2">
-                      {t('planet.partlyCovered', {
-                        count: partlyCovered.length,
-                        name: coverSeries?.name,
-                        windows: partlyCovered.slice(0, 5).join(', '),
-                      })}
-                    </p>
-                  )}
-                </>
+                <p className="text-[11px] text-neutral-500 leading-snug">
+                  {t('planet.coverSeriesHelp')}
+                </p>
               )}
             </div>
+
+            {orphans.length > 0 && (
+              <div className="space-y-1 rounded-md bg-amber-50 border border-amber-200 p-2">
+                <p className="text-[11px] text-amber-800 font-medium">
+                  {t('planet.orphans', { count: orphans.length, name: coverSeries?.name })}
+                </p>
+                <ul className="text-[11px] text-amber-700 space-y-0.5">
+                  {orphans.slice(0, 5).map((m) => (
+                    <li key={m.id}>
+                      {t('planet.dateRange', { start: m.first_acquired, end: m.last_acquired })}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <div className="space-y-1">
               <label className="text-xs text-neutral-700 font-medium">

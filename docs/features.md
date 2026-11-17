@@ -38,7 +38,7 @@ Every campaign supports both; who may do what is governed by the labelling polic
 - Add a source straight from a Planet basemap **series** (global monthly, quarterly, NICFI medres): the wizard lists the series the organization's Planet key can see, and expands the chosen one into collections and slices in one step
 - Planet publishes its temporal structure through the Basemaps API rather than STAC, and serves finished XYZ tiles - so these sources need no search, no mosaic registration and no tiler
 - Analytic series offer their renderings as visualizations (Visual, False Color, NDVI) via Planet's `proc` parameter; visual series have the one rendering
-- Group into windows by month, quarter, year, or the whole series. Each window's cover is either its nth mosaic or a mosaic from another series (such as a yearly series over yearly windows): the one that overlaps the window most, with a warning for windows it covers only partly or not at all
+- Group into windows by month, quarter, year, or the whole series, with the nth mosaic of each window as its cover. Or take the windows from another series (such as a yearly one): each of its mosaics becomes one window and its cover, with this series' mosaics inside its dates as the slices, and mosaics outside every cover are listed
 - Mosaics Planet cannot serve tiles for are listed with the reason rather than silently skipped
 - The key is either one of the organization's shared keys or one the person setting up the campaign provides for it alone; both are used only by the backend tile proxy. Browse requests carry the credential in the request body, never a query string
 

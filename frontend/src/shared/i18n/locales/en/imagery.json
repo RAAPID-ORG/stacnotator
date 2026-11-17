@@ -179,11 +179,6 @@
     "seriesHint": "A <strong>series</strong> is a cadence of basemaps - each of its mosaics becomes one slice, so the whole time range arrives at once.",
     "globalWarning": "Only the global series cover the whole world. All other Planet imagery may be blank over your campaign's region!",
     "noSeries": "This key can see no basemap series.",
-    "backToSeries": "← Back to series",
-    "seriesInfo_one": "<strong>{{name}}</strong> - {{count}} mosaic",
-    "seriesInfo_other": "<strong>{{name}}</strong> - {{count}} mosaics",
-    "seriesInfoZoom_one": "<strong>{{name}}</strong> - {{count}} mosaic, sharp to zoom {{zoom}}",
-    "seriesInfoZoom_other": "<strong>{{name}}</strong> - {{count}} mosaics, sharp to zoom {{zoom}}",
     "from": "From",
     "to": "To",
     "coverSeries": "Cover series",
@@ -202,17 +197,22 @@
     "coverHelp": "Each window has one image that annotators see first, before they step through the rest. This is its cover slice. It can be an image of the whole period, taken from another series whose mosaics each cover a longer time, or one of the mosaics in the window.",
     "example": {
       "title": "Example: three years of Global Monthly mosaics",
-      "yearlyCoverSeries": "Yearly windows with the cover from Global Yearly: 3 windows. Each opens on that year's yearly mosaic, then steps through its 12 monthly mosaics.",
+      "yearlyCoverSeries": "Cover from Global Yearly: one window per yearly mosaic, so 3 windows. Each opens on that year's yearly mosaic, then steps through its 12 monthly mosaics.",
       "yearlyCoverNth": "Yearly windows with mosaic no. 6 as the cover: 3 windows. Each opens on June, then steps through its 12 monthly mosaics.",
       "monthly": "Monthly windows: 36 windows, each holding a single mosaic that is also its cover."
     },
     "coverFromOwn": "One of the window's mosaics",
     "coverFromSeries": "From another series",
-    "coverSeriesHelp": "Pick a series whose mosaics each span a whole window, such as a yearly series for yearly windows. Each window opens on the mosaic from this series that overlaps it most.",
-    "uncovered_one": "{{count}} window has no {{name}} mosaic and opens on its first own mosaic instead: {{windows}}",
-    "uncovered_other": "{{count}} windows have no {{name}} mosaic and open on their first own mosaic instead: {{windows}}",
-    "partlyCovered_one": "In {{count}} window, the {{name}} mosaic covers only part of the window: {{windows}}",
-    "partlyCovered_other": "In {{count}} windows, the {{name}} mosaic covers only part of the window: {{windows}}"
+    "coverSeriesHelp": "Each mosaic of the chosen series becomes one window and is shown first. This series' mosaics that start within its dates become the window's other slices, so the cover series replaces the grouping above. Pick a series whose mosaics span a longer time, such as a yearly series.",
+    "orphans_one": "{{count}} mosaic falls outside every {{name}} mosaic and is left out:",
+    "orphans_other": "{{count}} mosaics fall outside every {{name}} mosaic and are left out:",
+    "dateRange": "{{start}} to {{end}}",
+    "windowPerCoverMosaic": "one window per <strong>{{name}}</strong> mosaic, set by the cover series below",
+    "windowPerCoverPending": "one window per mosaic of the cover series you choose below",
+    "steps": {
+      "series": "Series"
+    },
+    "coverMosaic": "{{name}} {{start}} → {{end}}"
   },
   "scenes": {
     "title": "Add Planet daily imagery",
@@ -236,19 +236,15 @@
     "datesReversed": "The end date is before the start date.",
     "sliceTooCoarse": "A slice cannot be longer than its window, or every window holds a single slice covering all of it. Shorten the slice period or lengthen the window.",
     "opensOn": "What the window opens on",
-    "opensOnHelp": "Annotators see this before stepping through the dates inside it. A composite stacks every acquisition in the window, so it has fewer gaps than any single date.",
-    "opensOnComposite": "A composite of the whole window",
+    "opensOnHelp": "Annotators see this before stepping through the dates inside it. The whole-window option lays up to 200 of the window's clearest scenes over each other. Planet doesn't blend them or mask clouds, so each spot shows a single scene, clouds included, but there are fewer gaps than on any single date.",
+    "opensOnComposite": "All of the window's scenes, stacked",
     "opensOnFirst": "Its first date",
     "maxCloudCover": "Maximum cloud cover",
     "maxCloudCoverHelp": "Cloudier acquisitions are left out, so a date with nothing clear enough gets no slice at all.",
     "manySlices_one": "{{count}} slices is a lot to step through, and every search an annotator runs asks Planet about each of them.",
     "manySlices_other": "{{count}} slices is a lot to step through, and every search an annotator runs asks Planet about each of them.",
-    "preview": "What will be created",
-    "windowItem_one": "<strong>{{label}}</strong> - {{count}} slice",
-    "windowItem_other": "<strong>{{label}}</strong> - {{count}} slices",
-    "windowItemCover_one": "<strong>{{label}}</strong> - {{count}} slice, plus a cover over the whole window",
-    "windowItemCover_other": "<strong>{{label}}</strong> - {{count}} slices, plus a cover over the whole window",
-    "nothingBuilt": "Nothing is searched or built now. Annotators fill these dates in from where they are working."
+    "coverStacked": "all scenes in the window, stacked",
+    "coverFirst": "the first date"
   },
   "controller": {
     "offCanvas": {
@@ -683,5 +679,9 @@
       "advancedHint": "Configure the separate cover-slice search and rendering. By default it inherits from the main visualization params.",
       "visualizations": "Cover visualizations"
     }
+  },
+  "preview": {
+    "title": "What will be created",
+    "cover": "cover: {{cover}}"
   }
 }

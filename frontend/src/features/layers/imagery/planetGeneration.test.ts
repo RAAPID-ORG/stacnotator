@@ -178,15 +178,15 @@ describe('defaultMosaicRange', () => {
   });
 });
 
-// Another series standing in as the cover: windows still come from the
-// calendar, and each opens on the cover-series mosaic that overlaps it most.
+// A coarser series standing in as the cover: each of its mosaics is one window,
+// and the finer series' mosaics inside its span are that window's slices.
 describe('generatePlanetCollections with a cover series', () => {
-  const cover = (start: string, end: string): PlanetMosaicOut => ({
-    id: `c-${start}`,
-    name: `global_cover_${start}_mosaic`,
+  const quarter = (start: string, end: string): PlanetMosaicOut => ({
+    id: `q-${start}`,
+    name: `global_quarterly_${start}_mosaic`,
     first_acquired: start,
     last_acquired: end,
-    tile_urls: { Visual: `https://tiles.planet.com/c/${start}/{z}/{x}/{y}.png?proc=rgb` },
+    tile_urls: { Visual: `https://tiles.planet.com/q/${start}/{z}/{x}/{y}.png?proc=rgb` },
   });
 
   const withCover = (
@@ -194,54 +194,91 @@ describe('generatePlanetCollections with a cover series', () => {
     over: Partial<PlanetGenerationOptions> = {}
   ) => options({ renderings: ['Visual'], coverMosaics, ...over });
 
-  it('keeps calendar windows and opens each on its matching cover mosaic', () => {
-    const result = generatePlanetCollections(
-      months('2023-06', '2024-01', '2024-02'),
-      withCover([cover('2023-01-01', '2024-01-01'), cover('2024-01-01', '2025-01-01')])
-    );
-
-    expect(result.collections.map((c) => c.name)).toEqual(['2023', '2024']);
-    expect(result.collections[1].hasDedicatedCover).toBe(true);
-    expect(result.collections[1].coverSliceIndex).toBe(0);
-    expect(result.collections[1].slices.map((s) => s.startDate)).toEqual([
-      '2024-01-01',
-      '2024-01-01',
-      '2024-02-01',
-    ]);
-    expect(result.uncovered).toEqual([]);
-    expect(result.partlyCovered).toEqual([]);
-  });
-
-  it('flags a window its cover mosaic spans only part of', () => {
-    const { collections, partlyCovered } = generatePlanetCollections(
-      months('2024-01', '2024-05'),
-      withCover([cover('2024-01-01', '2024-03-31'), cover('2024-04-01', '2024-06-30')])
+  it('makes one window per cover mosaic, with the coarse product as its cover slice', () => {
+    const { collections } = generatePlanetCollections(
+      months('2024-01', '2024-02', '2024-03'),
+      withCover([quarter('2024-01-01', '2024-03-31')])
     );
 
     expect(collections).toHaveLength(1);
+    expect(collections[0].name).toBe('2024-01 → 2024-03');
     expect(collections[0].hasDedicatedCover).toBe(true);
-    expect(partlyCovered).toEqual(['2024']);
+    expect(collections[0].coverSliceIndex).toBe(0);
+    expect(collections[0].slices.map((s) => s.name)).toEqual([
+      '2024-01 → 2024-03',
+      '2024-01',
+      '2024-02',
+      '2024-03',
+    ]);
   });
 
-  it('opens a window no cover mosaic overlaps on its first mosaic', () => {
-    const { collections, uncovered } = generatePlanetCollections(
-      months('2024-01', '2024-05'),
-      withCover([cover('2024-01-01', '2024-03-31')], { collectionPeriod: 'quarter', coverNth: 3 })
+  it('puts each fine mosaic in the window whose span contains its start', () => {
+    const { collections } = generatePlanetCollections(
+      months('2024-02', '2024-05'),
+      withCover([quarter('2024-01-01', '2024-03-31'), quarter('2024-04-01', '2024-06-30')])
     );
 
-    expect(collections[1]).toMatchObject({ coverSliceIndex: 0, hasDedicatedCover: false });
-    expect(uncovered).toEqual(['2024 Q2']);
+    expect(collections.map((c) => c.slices.slice(1).map((s) => s.name))).toEqual([
+      ['2024-02'],
+      ['2024-05'],
+    ]);
+  });
+
+  it('names a window after the calendar unit it spans exactly', () => {
+    const spans = [
+      quarter('2024-01-01', '2024-01-31'),
+      quarter('2024-01-01', '2024-12-31'),
+      quarter('2024-01-15', '2024-01-28'),
+    ];
+    const { collections } = generatePlanetCollections([], withCover(spans));
+
+    expect(collections.map((c) => c.name)).toEqual(['2024-01', '2024', '2024-01-15 → 2024-01-28']);
+  });
+
+  it('keeps a cover window that has no finer mosaic inside it', () => {
+    const { collections } = generatePlanetCollections(
+      months('2024-01'),
+      withCover([quarter('2024-01-01', '2024-03-31'), quarter('2024-04-01', '2024-06-30')])
+    );
+
+    expect(collections).toHaveLength(2);
+    expect(collections[1].slices.map((s) => s.name)).toEqual(['2024-04 → 2024-06']);
+  });
+
+  it('reports fine mosaics no cover window contains rather than dropping them', () => {
+    const { collections, orphans } = generatePlanetCollections(
+      months('2024-02', '2024-05'),
+      withCover([quarter('2024-01-01', '2024-03-31')])
+    );
+
+    expect(collections[0].slices.map((s) => s.name)).toEqual(['2024-01 → 2024-03', '2024-02']);
+    expect(orphans.map((m) => m.first_acquired)).toEqual(['2024-05-01']);
+  });
+
+  it('keeps a cover mosaic that only overlaps the requested range', () => {
+    // The range starts mid-quarter: dropping the quarter would orphan the very
+    // mosaics it covers.
+    const { collections, orphans } = generatePlanetCollections(
+      months('2024-02', '2024-03'),
+      withCover([quarter('2024-01-01', '2024-03-31')], {
+        startDate: '2024-02-01',
+        endDate: '2024-03-31',
+      })
+    );
+
+    expect(collections).toHaveLength(1);
+    expect(orphans).toEqual([]);
   });
 
   it('skips cover mosaics Planet cannot serve tiles for', () => {
-    const broken = { ...cover('2024-01-01', '2024-12-31'), unavailable_reason: 'no tile link' };
-    const { collections, uncovered } = generatePlanetCollections(
+    const broken = { ...quarter('2024-01-01', '2024-03-31'), unavailable_reason: 'no tile link' };
+    const { collections, orphans } = generatePlanetCollections(
       months('2024-02'),
       withCover([broken])
     );
 
-    expect(collections[0].hasDedicatedCover).toBe(false);
-    expect(uncovered).toEqual(['2024']);
+    expect(collections).toEqual([]);
+    expect(orphans).toHaveLength(1);
   });
 
   it('never leaves the cover without tiles: only shared renderings are offered', () => {
