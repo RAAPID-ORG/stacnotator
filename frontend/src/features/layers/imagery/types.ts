@@ -206,7 +206,7 @@ export interface ImageryStepState {
   basemaps: Basemap[];
 }
 
-export const createId = (): string => crypto.randomUUID().slice(0, 8);
+export const createId = (): string => crypto.randomUUID();
 
 export const emptyVizParams = (): VizParams => ({
   assets: [],
