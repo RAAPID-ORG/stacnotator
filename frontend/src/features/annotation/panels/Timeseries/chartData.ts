@@ -29,7 +29,7 @@ export function collectSeriesLabels(
       for (const row of source?.[id] ?? []) times.add(row.time);
     }
   }
-  return Array.from(times).sort();
+  return Array.from(times).sort((a, b) => parseSeriesDate(a) - parseSeriesDate(b));
 }
 
 function shortMonth(monthIndex: number): string {
@@ -50,7 +50,7 @@ export function formatDateLabel(dateStr: string): string {
 
   const date = new Date(dateStr);
   if (!isNaN(date.getTime())) {
-    return `${shortMonth(date.getMonth())} '${String(date.getFullYear()).slice(2)}`;
+    return `${shortMonth(date.getUTCMonth())} '${String(date.getUTCFullYear()).slice(2)}`;
   }
 
   return dateStr;
@@ -67,7 +67,7 @@ export function formatDateForTooltip(dateStr: string): string {
 
   const date = new Date(dateStr);
   if (!isNaN(date.getTime())) {
-    return `${date.getDate()} ${shortMonth(date.getMonth())} ${date.getFullYear()}`;
+    return `${date.getUTCDate()} ${shortMonth(date.getUTCMonth())} ${date.getUTCFullYear()}`;
   }
 
   return dateStr;
@@ -162,45 +162,20 @@ export function getOptimalMonthLabels(dates: string[]): MonthLabel[] {
 // ---------------------------------------------------------------------------
 
 export interface SliceMarker {
-  startIdx: number;
-  endIdx: number;
+  startTime: number;
+  endTime: number;
 }
 
-/** The label index range covered by a slice's date range. When no label falls
- *  inside it, the single label nearest the range's centre, so the marker still
- *  points at where the slice sits. */
 export function sliceMarkerFor(
   labels: string[],
   startDate: string | null | undefined,
   endDate: string | null | undefined
 ): SliceMarker | null {
   if (!startDate || !endDate || labels.length === 0) return null;
-  const start = new Date(startDate).getTime();
-  const end = new Date(endDate).getTime();
-  if (Number.isNaN(start) || Number.isNaN(end)) return null;
-
-  let startIdx = -1;
-  let endIdx = -1;
-  for (let i = 0; i < labels.length; i++) {
-    const time = parseSeriesDate(labels[i]);
-    if (time >= start && time <= end) {
-      if (startIdx === -1) startIdx = i;
-      endIdx = i;
-    }
-  }
-  if (startIdx !== -1) return { startIdx, endIdx };
-
-  const centre = (start + end) / 2;
-  let nearest = 0;
-  let bestDist = Infinity;
-  for (let i = 0; i < labels.length; i++) {
-    const dist = Math.abs(parseSeriesDate(labels[i]) - centre);
-    if (dist < bestDist) {
-      bestDist = dist;
-      nearest = i;
-    }
-  }
-  return { startIdx: nearest, endIdx: nearest };
+  const startTime = parseSeriesDate(startDate);
+  const endTime = parseSeriesDate(endDate);
+  if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime < startTime) return null;
+  return { startTime, endTime };
 }
 
 const markerByChart = new WeakMap<object, SliceMarker>();
@@ -215,7 +190,7 @@ interface Repaintable {
  *  update pass over every dataset. */
 export function setSliceMarker(chart: Repaintable, marker: SliceMarker | null): void {
   const current = markerByChart.get(chart) ?? null;
-  if (current?.startIdx === marker?.startIdx && current?.endIdx === marker?.endIdx) return;
+  if (current?.startTime === marker?.startTime && current?.endTime === marker?.endTime) return;
   if (marker) markerByChart.set(chart, marker);
   else markerByChart.delete(chart);
   chart.render();
@@ -233,13 +208,9 @@ export const sliceMarkerPlugin: Plugin<'line'> = {
     const { ctx, chartArea } = chart;
     if (!chartArea) return;
 
-    // Half-step padding so a single-point slice gets a visible band.
-    const halfStep =
-      marker.endIdx === marker.startIdx
-        ? Math.abs(xScale.getPixelForValue(1) - xScale.getPixelForValue(0)) / 2 || 4
-        : 0;
-    const xLeft = xScale.getPixelForValue(marker.startIdx) - halfStep;
-    const xRight = xScale.getPixelForValue(marker.endIdx) + halfStep;
+    const halfStep = marker.endTime === marker.startTime ? 4 : 0;
+    const xLeft = xScale.getPixelForValue(marker.startTime) - halfStep;
+    const xRight = xScale.getPixelForValue(marker.endTime) + halfStep;
     const left = Math.max(chartArea.left, Math.min(xLeft, xRight));
     const right = Math.min(chartArea.right, Math.max(xLeft, xRight));
     if (right <= chartArea.left || left >= chartArea.right) return;

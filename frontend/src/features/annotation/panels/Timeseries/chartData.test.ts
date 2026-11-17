@@ -66,23 +66,27 @@ describe('parseSeriesDate', () => {
 describe('sliceMarkerFor', () => {
   const labels = ['20240101', '20240201', '20240301', '20240401'];
 
-  it('spans every label inside the slice', () => {
+  it('uses the actual slice dates on the elapsed-time axis', () => {
     expect(sliceMarkerFor(labels, '2024-02-01', '2024-03-31')).toEqual({
-      startIdx: 1,
-      endIdx: 2,
+      startTime: Date.UTC(2024, 1, 1),
+      endTime: Date.UTC(2024, 2, 31),
     });
   });
 
-  it('snaps to the nearest label when the slice covers none', () => {
+  it('keeps the marker inside a data gap rather than snapping to an observation', () => {
     expect(sliceMarkerFor(labels, '2024-03-10', '2024-03-20')).toEqual({
-      startIdx: 2,
-      endIdx: 2,
+      startTime: Date.UTC(2024, 2, 10),
+      endTime: Date.UTC(2024, 2, 20),
     });
   });
 
   it('tracks the slice as it moves along the axis', () => {
-    expect(sliceMarkerFor(labels, '2024-01-01', '2024-01-31')?.startIdx).toBe(0);
-    expect(sliceMarkerFor(labels, '2024-04-01', '2024-04-30')?.startIdx).toBe(3);
+    expect(sliceMarkerFor(labels, '2024-01-01', '2024-01-31')?.startTime).toBe(
+      Date.UTC(2024, 0, 1)
+    );
+    expect(sliceMarkerFor(labels, '2024-04-01', '2024-04-30')?.startTime).toBe(
+      Date.UTC(2024, 3, 1)
+    );
   });
 
   it('returns nothing without a date range or labels', () => {
@@ -100,13 +104,13 @@ describe('setSliceMarker', () => {
       },
     };
 
-    setSliceMarker(chart, { startIdx: 1, endIdx: 2 });
+    setSliceMarker(chart, { startTime: 1, endTime: 2 });
     expect(renders).toBe(1);
 
-    setSliceMarker(chart, { startIdx: 1, endIdx: 2 });
+    setSliceMarker(chart, { startTime: 1, endTime: 2 });
     expect(renders).toBe(1);
 
-    setSliceMarker(chart, { startIdx: 3, endIdx: 3 });
+    setSliceMarker(chart, { startTime: 3, endTime: 3 });
     expect(renders).toBe(2);
 
     setSliceMarker(chart, null);
