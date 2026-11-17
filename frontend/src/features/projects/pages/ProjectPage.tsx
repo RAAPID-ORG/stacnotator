@@ -319,10 +319,16 @@ const CampaignRow = ({
       </div>
       <div className="flex shrink-0 items-center gap-4">
         {canOpen && (
-          <div className="flex min-w-36 items-center justify-end gap-3 text-[11px] text-neutral-500 tabular-nums">
+          <div className="flex w-20 flex-col items-end gap-1 text-[11px] leading-none text-neutral-500 tabular-nums">
             {progress ? (
               progress.total > 0 ? (
                 <>
+                  <span className="whitespace-nowrap">
+                    {t('page.tasksCompleted', {
+                      done: progress.done.toLocaleString(),
+                      total: progress.total.toLocaleString(),
+                    })}
+                  </span>
                   <div
                     className="h-1.5 w-20 shrink-0 overflow-hidden rounded-full bg-neutral-100"
                     role="progressbar"
@@ -336,12 +342,6 @@ const CampaignRow = ({
                       style={{ width: `${(progress.done / progress.total) * 100}%` }}
                     />
                   </div>
-                  <span className="min-w-12 text-right">
-                    {t('page.tasksCompleted', {
-                      done: progress.done.toLocaleString(),
-                      total: progress.total.toLocaleString(),
-                    })}
-                  </span>
                 </>
               ) : (
                 <span>{t('page.noTasks')}</span>
@@ -351,7 +351,7 @@ const CampaignRow = ({
                 {t('page.loadProgressFailed')}
               </span>
             ) : (
-              <Skeleton className="h-3 w-36" />
+              <Skeleton className="h-3 w-20" />
             )}
           </div>
         )}
