@@ -64,6 +64,9 @@ export interface TasksState {
   filter: TaskFilter;
   loaded: boolean;
   isSubmitting: boolean;
+  /** The in-flight action only moves to another task, so nothing is being
+   *  submitted even though `isSubmitting` holds everything else back. */
+  isStepping: boolean;
   /** Local "Validate" toggle for the KNN mismatch check, held here so the
    *  button and the hotkey read the same live value. */
   knnValidationEnabled: boolean;
@@ -113,7 +116,7 @@ export interface TasksState {
   /** Pick up tasks others have worked, reassigned or deleted since the last poll. */
   syncRemoteTasks: () => Promise<void>;
   adoptTask: (claimed: TaskOut, catalog: ImageryCatalog) => void;
-  setSubmitting: (isSubmitting: boolean) => void;
+  setSubmitting: (isSubmitting: boolean, isStepping?: boolean) => void;
   setKnnValidationEnabled: (enabled: boolean) => void;
   reset: () => void;
 }
@@ -128,6 +131,7 @@ const initialState = {
   filter: EMPTY_FILTER,
   loaded: false,
   isSubmitting: false,
+  isStepping: false,
   knnValidationEnabled: false,
   focus: null as MapFocus | null,
   syncCursor: null as string | null,
@@ -544,7 +548,8 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     publishSelection(catalog);
   },
 
-  setSubmitting: (isSubmitting) => set({ isSubmitting }),
+  setSubmitting: (isSubmitting, isStepping = false) =>
+    set({ isSubmitting, isStepping: isSubmitting && isStepping }),
   setKnnValidationEnabled: (knnValidationEnabled) => set({ knnValidationEnabled }),
   reset: () => {
     latestRequest.clear();
