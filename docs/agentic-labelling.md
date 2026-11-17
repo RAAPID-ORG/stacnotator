@@ -230,19 +230,8 @@ sequenceDiagram
   pixels inside the sample extent as numbers (mean colour, a green index, the share of
   bright and of missing pixels). Areas without tiles are hatched and flagged, and the red box
   is drawn outside the extent so nothing inside it is covered.
-- **Time-series evidence.** Agent and interactive charts use elapsed UTC time with regular
-  minute, hour or day tick intervals and separate axes for differently scaled indices.
-  Value axes retain the configured index limits; out-of-range values are clipped from
-  the plot, not moved to the boundary or marked with special symbols. Their original
-  values remain in the agent metadata.
-  Interactive tooltips show raw and smoothed values.
-  Agent metadata includes the displayed axis ranges and all source observations:
-  `date` preserves the supplied timestamp, `value` preserves numeric precision,
-  `source_row` is the one-based position in that series' API response, and `filtered=1`
-  identifies cloud-flagged observations hidden from the plot and smoothing. Exact
-  duplicate timestamps remain separate rows; `source_row` is not a satellite scene ID.
-  Optional Savitzky-Golay smoothing uses retained observation order, not elapsed days.
-  No resampling or compositing occurs.
+  Time-series charts in agent views use elapsed-date spacing with monthly tick marks,
+  including months without observations, and a subset of month/year labels to limit crowding.
 - **Image limits.** Models downscale large images before they see them, which silently
   loses detail. The model states the largest image it takes in unchanged when it registers
   an agent, and every view is fitted to that by shrinking its cells.

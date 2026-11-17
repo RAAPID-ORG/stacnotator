@@ -1,5 +1,6 @@
 import type { ChartType, Plugin } from 'chart.js';
 import type { SpectralIndexOut } from '~/api/client';
+import i18n from '~/shared/i18n';
 import type { TimeSeriesData } from './cache';
 
 declare module 'chart.js' {
@@ -28,9 +29,53 @@ export function collectSeriesLabels(
       for (const row of source?.[id] ?? []) times.add(row.time);
     }
   }
-  return Array.from(times).sort((a, b) => parseSeriesDate(a) - parseSeriesDate(b));
+  return Array.from(times).sort();
 }
 
+function shortMonth(monthIndex: number): string {
+  return new Intl.DateTimeFormat(i18n.resolvedLanguage ?? 'en', {
+    month: 'short',
+    timeZone: 'UTC',
+  }).format(Date.UTC(2000, monthIndex, 1));
+}
+
+/** Format date string to "MMM 'YY" format. Handles both YYYYMMDD and ISO
+ *  date formats. */
+export function formatDateLabel(dateStr: string): string {
+  if (/^\d{8}$/.test(dateStr)) {
+    const year = dateStr.slice(0, 4);
+    const month = parseInt(dateStr.slice(4, 6), 10);
+    return `${shortMonth(month - 1)} '${year.slice(2)}`;
+  }
+
+  const date = new Date(dateStr);
+  if (!isNaN(date.getTime())) {
+    return `${shortMonth(date.getMonth())} '${String(date.getFullYear()).slice(2)}`;
+  }
+
+  return dateStr;
+}
+
+/** Format date string for tooltip display (e.g., "15 Jan 2025"). */
+export function formatDateForTooltip(dateStr: string): string {
+  if (/^\d{8}$/.test(dateStr)) {
+    const year = dateStr.slice(0, 4);
+    const month = parseInt(dateStr.slice(4, 6), 10);
+    const day = parseInt(dateStr.slice(6, 8), 10);
+    return `${day} ${shortMonth(month - 1)} ${year}`;
+  }
+
+  const date = new Date(dateStr);
+  if (!isNaN(date.getTime())) {
+    return `${date.getDate()} ${shortMonth(date.getMonth())} ${date.getFullYear()}`;
+  }
+
+  return dateStr;
+}
+
+/** Parse a series date label to epoch ms. `new Date()` rejects the YYYYMMDD
+ *  format the timeseries API returns, so handle it explicitly; both branches
+ *  resolve to UTC midnight so labels and ISO slice dates share one clock. */
 export function parseSeriesDate(dateStr: string): number {
   if (/^\d{8}$/.test(dateStr)) {
     return Date.UTC(
@@ -42,25 +87,120 @@ export function parseSeriesDate(dateStr: string): number {
   return new Date(dateStr).getTime();
 }
 
+/** Extract month key (YYYYMM) from a date string, for grouping. */
+function getMonthKey(dateStr: string): string | null {
+  if (/^\d{8}$/.test(dateStr)) return dateStr.slice(0, 6);
+
+  const date = new Date(dateStr);
+  if (!isNaN(date.getTime())) {
+    return `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  return null;
+}
+
+interface MonthLabel {
+  index: number;
+  label: string;
+}
+
+/** Unique month labels from sorted date strings: indices and formatted
+ *  labels for the first occurrence of each month. */
+function getMonthLabels(dates: string[]): MonthLabel[] {
+  const seen = new Set<string>();
+  const result: MonthLabel[] = [];
+
+  dates.forEach((date, index) => {
+    const monthKey = getMonthKey(date);
+    if (monthKey && !seen.has(monthKey)) {
+      seen.add(monthKey);
+      result.push({ index, label: formatDateLabel(date) });
+    }
+  });
+
+  return result;
+}
+
+/** Label interval (in months) based on total months covered: fewer months
+ *  shown per label as the range grows, so the x-axis doesn't overcrowd. */
+function calculateLabelInterval(totalMonths: number): number {
+  if (totalMonths <= 6) return 1;
+  if (totalMonths <= 12) return 2;
+  if (totalMonths <= 18) return 3;
+  if (totalMonths <= 24) return 4;
+  if (totalMonths <= 36) return 6;
+  return 12;
+}
+
+/** Optimally spaced month labels for the x-axis: always includes the first
+ *  month, then every nth month per `calculateLabelInterval`, plus the last
+ *  month when it isn't already included and the gap to it is large enough
+ *  to be worth a label. */
+export function getOptimalMonthLabels(dates: string[]): MonthLabel[] {
+  const allMonthLabels = getMonthLabels(dates);
+  if (allMonthLabels.length === 0) return [];
+
+  const interval = calculateLabelInterval(allMonthLabels.length);
+  const result: MonthLabel[] = [];
+  for (let i = 0; i < allMonthLabels.length; i += interval) {
+    result.push(allMonthLabels[i]);
+  }
+
+  const lastMonth = allMonthLabels[allMonthLabels.length - 1];
+  const lastIncluded = result[result.length - 1];
+  if (lastIncluded && lastMonth.index !== lastIncluded.index) {
+    const lastIncludedIdx = allMonthLabels.findIndex((m) => m.index === lastIncluded.index);
+    const monthsGap = allMonthLabels.length - 1 - lastIncludedIdx;
+    if (monthsGap >= interval / 2) result.push(lastMonth);
+  }
+
+  return result;
+}
+
 // ---------------------------------------------------------------------------
 // Chart.js plugins
 // ---------------------------------------------------------------------------
 
 export interface SliceMarker {
-  startTime: number;
-  endTime: number;
+  startIdx: number;
+  endIdx: number;
 }
 
+/** The label index range covered by a slice's date range. When no label falls
+ *  inside it, the single label nearest the range's centre, so the marker still
+ *  points at where the slice sits. */
 export function sliceMarkerFor(
   labels: string[],
   startDate: string | null | undefined,
   endDate: string | null | undefined
 ): SliceMarker | null {
   if (!startDate || !endDate || labels.length === 0) return null;
-  const startTime = parseSeriesDate(startDate);
-  const endTime = parseSeriesDate(endDate);
-  if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime < startTime) return null;
-  return { startTime, endTime };
+  const start = new Date(startDate).getTime();
+  const end = new Date(endDate).getTime();
+  if (Number.isNaN(start) || Number.isNaN(end)) return null;
+
+  let startIdx = -1;
+  let endIdx = -1;
+  for (let i = 0; i < labels.length; i++) {
+    const time = parseSeriesDate(labels[i]);
+    if (time >= start && time <= end) {
+      if (startIdx === -1) startIdx = i;
+      endIdx = i;
+    }
+  }
+  if (startIdx !== -1) return { startIdx, endIdx };
+
+  const centre = (start + end) / 2;
+  let nearest = 0;
+  let bestDist = Infinity;
+  for (let i = 0; i < labels.length; i++) {
+    const dist = Math.abs(parseSeriesDate(labels[i]) - centre);
+    if (dist < bestDist) {
+      bestDist = dist;
+      nearest = i;
+    }
+  }
+  return { startIdx: nearest, endIdx: nearest };
 }
 
 const markerByChart = new WeakMap<object, SliceMarker>();
@@ -75,7 +215,7 @@ interface Repaintable {
  *  update pass over every dataset. */
 export function setSliceMarker(chart: Repaintable, marker: SliceMarker | null): void {
   const current = markerByChart.get(chart) ?? null;
-  if (current?.startTime === marker?.startTime && current?.endTime === marker?.endTime) return;
+  if (current?.startIdx === marker?.startIdx && current?.endIdx === marker?.endIdx) return;
   if (marker) markerByChart.set(chart, marker);
   else markerByChart.delete(chart);
   chart.render();
@@ -93,9 +233,13 @@ export const sliceMarkerPlugin: Plugin<'line'> = {
     const { ctx, chartArea } = chart;
     if (!chartArea) return;
 
-    const halfStep = marker.endTime === marker.startTime ? 4 : 0;
-    const xLeft = xScale.getPixelForValue(marker.startTime) - halfStep;
-    const xRight = xScale.getPixelForValue(marker.endTime) + halfStep;
+    // Half-step padding so a single-point slice gets a visible band.
+    const halfStep =
+      marker.endIdx === marker.startIdx
+        ? Math.abs(xScale.getPixelForValue(1) - xScale.getPixelForValue(0)) / 2 || 4
+        : 0;
+    const xLeft = xScale.getPixelForValue(marker.startIdx) - halfStep;
+    const xRight = xScale.getPixelForValue(marker.endIdx) + halfStep;
     const left = Math.max(chartArea.left, Math.min(xLeft, xRight));
     const right = Math.min(chartArea.right, Math.max(xLeft, xRight));
     if (right <= chartArea.left || left >= chartArea.right) return;

@@ -231,10 +231,9 @@
     "showSeries": "Mostrar {{name}}",
     "hideSeries": "Ocultar {{name}}",
     "resetZoom": "Restablecer zoom",
-    "smoothedValue": "Suavizado: {{value}}",
     "options": {
       "removeCloudy": "Quitar nubosos",
-      "removeCloudyTitle": "Oculta las observaciones marcadas como nubosas (puntos grises) en el gráfico",
+      "removeCloudyTitle": "Quita de la serie los días marcados como nubosos (puntos grises)",
       "smooth": "Suavizar",
       "smoothTitle": "Suavizado Savitzky-Golay.",
       "windowTitle": "Tamaño de ventana del suavizado Savitzky-Golay (número impar >= 5, más grande = más suave)",
@@ -242,13 +241,13 @@
       "orderTitle": "Orden del polinomio (>= 1, debe ser menor que el tamaño de ventana)",
       "orderShort": "P",
       "dots": "Puntos",
-      "dotsTitle": "Muestra u oculta los puntos de las observaciones; los triángulos fuera de escala siguen visibles"
+      "dotsTitle": "Muestra u oculta los puntos de cada observación (la línea siempre se muestra)"
     },
     "info": {
       "dots": "Cada punto es una observación. Los <strong>puntos de color</strong> son observaciones de días despejados (un color por serie). Los <strong>puntos grises</strong> son observaciones marcadas como nubosas.",
-      "removeCloudy": "<strong>Quitar nubosos</strong> excluye las observaciones grises del gráfico y del suavizado, sin cambiar los datos originales.",
-      "smooth": "<strong>Suavizar</strong> aplica un filtro Savitzky-Golay en el orden de las observaciones, no de los días transcurridos. Los puntos nubosos influyen en el ajuste salvo que actives Quitar nubosos. Pasa el cursor para comparar valores originales y suavizados.",
-      "showDots": "<strong>Puntos</strong> activa o desactiva los marcadores. Los triángulos del borde siguen indicando valores fuera del eje; pasa el cursor para leer sus valores reales. Estos puntos no se conectan a la línea."
+      "removeCloudy": "<strong>Quitar nubosos</strong> elimina las observaciones grises tanto de la serie original como de la línea suavizada.",
+      "smooth": "<strong>Suavizar</strong> aplica un filtro Savitzky-Golay. Si dejas los puntos nubosos, el filtro atrae la línea suavizada hacia ellos; normalmente lo que quieres es Quitar nubosos + Suavizar a la vez.",
+      "showDots": "<strong>Puntos</strong> activa o desactiva los marcadores de cada observación."
     }
   },
   "task": {
