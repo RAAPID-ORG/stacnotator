@@ -43,6 +43,11 @@ dev = [
     "ruff>=0.14.9",
 ]
 
+[tool.uv]
+constraint-dependencies = [
+    "dnspython>=2.9.2", # CVE-2026-128089; pulled in by email-validator
+]
+
 [tool.ruff]
 target-version = "py312"
 line-length = 100
