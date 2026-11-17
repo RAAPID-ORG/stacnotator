@@ -18,10 +18,10 @@ import { emptyVizParams, isPlanetSceneConfig } from './types';
 import { buildStacAutoQuery } from './stacQuery';
 
 /** Local IDs are strings: real DB rows are decimal-integer strings (from
- *  server), freshly-added entities are random UUID slices. Only emit `id`
+ *  server), freshly-added entities are full UUIDs. Only emit `id`
  *  when it's a real DB ID - backend treats missing IDs as "create this
  *  entity". Strict regex avoids `Number()` quirks (scientific notation, hex,
- *  whitespace) silently coercing a UUID slice into a giant fake ID. */
+ *  whitespace) silently coercing an invalid ID into a database ID. */
 const toIdField = (id: string): number | undefined => {
   if (!/^[1-9][0-9]*$/.test(id)) return undefined;
   const n = Number(id);
