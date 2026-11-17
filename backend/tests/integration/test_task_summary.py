@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import pytest
 import shapely
+from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from src.annotation.models import Annotation
@@ -16,8 +17,8 @@ from src.organizations.models import Organization
 from src.projects.models import Project, ProjectUser
 from src.tasks import service
 from src.tasks.models import Task, TaskAssignment, TaskSet
-from src.tasks.schemas import TaskSummaryOut
-from src.tasks.summary import task_summary_json
+from src.tasks.schemas import TaskProgressOut, TaskSummaryOut
+from src.tasks.summary import task_progress_json, task_summary_json
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("AGENT_DATABASE_TESTS") != "1",
@@ -251,6 +252,26 @@ def test_only_the_asked_tasks_and_no_emails_unless_admin(varied_campaign):
     assert set(member_view.users.email) == {None}
     assert all(admin_view.users.email)
     assert all(member_view.users.display_name)
+
+
+def test_progress_counts_only_completed_tasks(varied_campaign):
+    db, campaign = varied_campaign
+    tasks = service.read_tasks(db, campaign, with_email=False)
+
+    progress = TaskProgressOut.model_validate_json(task_progress_json(db, campaign))
+
+    assert progress.total == len(tasks)
+    assert progress.done == sum(task.task_status == "done" for task in tasks)
+    assert progress.conflicting == sum(task.task_status == "conflicting" for task in tasks)
+    assert 0 < progress.done < progress.total
+    assert progress.conflicting > 0
+
+    db.execute(delete(Task).where(Task.campaign_id == campaign.id))
+    db.flush()
+
+    assert TaskProgressOut.model_validate_json(task_progress_json(db, campaign)) == TaskProgressOut(
+        total=0, done=0, conflicting=0
+    )
 
 
 def test_details_can_be_the_first_few_tasks(varied_campaign):

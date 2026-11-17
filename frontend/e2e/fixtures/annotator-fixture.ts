@@ -268,6 +268,10 @@ async function installOrgProjectMocks(page: Page, api: ApiCapture): Promise<void
     await route.fulfill({ json: MOCK_PROJECT_CAMPAIGNS });
   });
 
+  await page.route('**/api/campaigns/*/tasks/progress', (route) =>
+    route.fulfill({ json: { total: 10, done: 4, conflicting: 1 } })
+  );
+
   // The imagery editors read the project's tiler allowlist; the hook degrades
   // to "no tilers" on failure, so mock it to keep that path deterministic.
   await page.route(ROUTE.projectTilers, async (route) => {

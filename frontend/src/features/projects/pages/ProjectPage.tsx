@@ -5,7 +5,9 @@ import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { campaignPath, newCampaignPath, projectsPath } from '~/app/routes';
 import { useProject } from '~/app/projectRoute';
-import { listProjectCampaignsOptions } from '~/api/queries';
+import { getTaskProgressOptions, listProjectCampaignsOptions } from '~/api/queries';
+import { SHARED_WORK } from '~/api/queryClient';
+import { ExportMenu } from '~/features/campaigns/components/review/ExportMenu';
 import { isRegistering } from '~/features/campaigns/hooks/campaignQueries';
 import { type CampaignListItemOut, type CampaignOut, type ProjectOut } from '~/api/client';
 import { DuplicateCampaignModal } from '~/features/campaigns/components/DuplicateCampaignModal';
@@ -13,7 +15,7 @@ import { ProjectSettingsSection } from '~/features/projects/components/ProjectSe
 import { ProjectUsersSection } from '~/features/projects/components/ProjectUsersSection';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
 import { useLayoutStore } from '~/shared/stores/layout.store';
-import { Button } from '~/shared/ui/forms';
+import { Button, IconButton } from '~/shared/ui/forms';
 import { IconCopy, IconDocument, IconGlobe, IconPlus, IconSettings } from '~/shared/ui/Icons';
 import { FadeIn } from '~/shared/ui/motion';
 import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
@@ -52,6 +54,7 @@ export const ProjectPage = () => {
     isError: campaignsError,
   } = useQuery({
     ...listProjectCampaignsOptions({ path: { project_id: projectId } }),
+    ...SHARED_WORK,
     meta: { errorMessage: t('page.loadCampaignsFailed'), showUser: false },
     // Background setup finishes without a user action, so the badge has to
     // clear itself. Stops as soon as nothing is registering.
@@ -274,11 +277,16 @@ const CampaignRow = ({
   // that and let an admin keep editing settings meanwhile. Only annotating is
   // actually blocked, and the annotation page gates itself.
   const canOpen = isMember || isPublic;
-
+  const { data: progress, isError: progressError } = useQuery({
+    ...getTaskProgressOptions({ path: { campaign_id: campaign.id } }),
+    ...SHARED_WORK,
+    enabled: canOpen,
+    meta: { errorMessage: t('page.loadProgressFailed'), showUser: false },
+  });
   return (
     <li
       data-testid="campaign-row"
-      className={`group flex items-center gap-4 px-5 py-4 transition-colors ${
+      className={`group flex flex-wrap items-center gap-4 px-5 py-4 transition-colors ${
         canOpen ? 'cursor-pointer hover:bg-neutral-50/60' : 'cursor-default'
       }`}
       onClick={() => {
@@ -287,13 +295,13 @@ const CampaignRow = ({
       role={canOpen ? 'button' : undefined}
       tabIndex={canOpen ? 0 : undefined}
       onKeyDown={(e) => {
-        if (canOpen && (e.key === 'Enter' || e.key === ' ')) {
+        if (e.target === e.currentTarget && canOpen && (e.key === 'Enter' || e.key === ' ')) {
           e.preventDefault();
           onOpen();
         }
       }}
     >
-      <div className="flex min-w-0 flex-1 items-center gap-2">
+      <div className="flex min-w-0 flex-1 basis-full items-center gap-2 sm:basis-0">
         <h3 className="text-sm font-semibold text-neutral-900 truncate">
           {capitalizeFirst(campaign.name)}
         </h3>
@@ -309,36 +317,78 @@ const CampaignRow = ({
           </span>
         )}
       </div>
-      {isAdmin && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpenSettings();
-          }}
-          className="shrink-0 grid h-8 w-8 place-items-center rounded-md text-neutral-400 opacity-0 transition-all group-hover:opacity-100 focus-visible:opacity-100 hover:bg-neutral-200/60 hover:text-neutral-700 cursor-pointer"
-          title={t('page.campaignSettings')}
-          aria-label={t('page.settingsFor', { name: campaign.name })}
-          data-testid="campaign-settings"
-        >
-          <IconSettings className="h-4 w-4" />
-        </button>
-      )}
-      {isAdmin && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDuplicate();
-          }}
-          className="shrink-0 grid h-8 w-8 place-items-center rounded-md text-neutral-400 opacity-0 transition-all group-hover:opacity-100 focus-visible:opacity-100 hover:bg-neutral-200/60 hover:text-neutral-700 cursor-pointer"
-          title={t('page.duplicateCampaign')}
-          aria-label={t('page.duplicate', { name: campaign.name })}
-          data-testid="duplicate-campaign"
-        >
-          <IconCopy className="h-4 w-4" />
-        </button>
-      )}
+      <div className="flex shrink-0 items-center gap-4">
+        {canOpen && (
+          <div className="flex min-w-36 items-center justify-end gap-3 text-[11px] text-neutral-500 tabular-nums">
+            {progress ? (
+              progress.total > 0 ? (
+                <>
+                  <div
+                    className="h-1.5 w-20 shrink-0 overflow-hidden rounded-full bg-neutral-100"
+                    role="progressbar"
+                    aria-valuenow={progress.done}
+                    aria-valuemin={0}
+                    aria-valuemax={progress.total}
+                    aria-label={t('page.completionFor', { name: campaign.name })}
+                  >
+                    <div
+                      className="h-full rounded-full bg-brand-600 transition-[width]"
+                      style={{ width: `${(progress.done / progress.total) * 100}%` }}
+                    />
+                  </div>
+                  <span className="min-w-12 text-right">
+                    {t('page.tasksCompleted', {
+                      done: progress.done.toLocaleString(),
+                      total: progress.total.toLocaleString(),
+                    })}
+                  </span>
+                </>
+              ) : (
+                <span>{t('page.noTasks')}</span>
+              )
+            ) : progressError ? (
+              <span role="alert" className="text-red-600">
+                {t('page.loadProgressFailed')}
+              </span>
+            ) : (
+              <Skeleton className="h-3 w-36" />
+            )}
+          </div>
+        )}
+        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+          {canOpen && (
+            <ExportMenu
+              campaignId={campaign.id}
+              campaignName={campaign.name}
+              showMergeToggle={progress != null && progress.total > 0}
+              hasConflicts={(progress?.conflicting ?? 0) > 0}
+              iconOnly
+            />
+          )}
+          {isAdmin && (
+            <>
+              <IconButton
+                onClick={onOpenSettings}
+                className="h-7 w-7 hover:bg-neutral-100"
+                title={t('page.campaignSettings')}
+                aria-label={t('page.settingsFor', { name: campaign.name })}
+                data-testid="campaign-settings"
+              >
+                <IconSettings className="h-4 w-4" />
+              </IconButton>
+              <IconButton
+                onClick={onDuplicate}
+                className="h-7 w-7 hover:bg-neutral-100"
+                title={t('page.duplicateCampaign')}
+                aria-label={t('page.duplicate', { name: campaign.name })}
+                data-testid="duplicate-campaign"
+              >
+                <IconCopy className="h-4 w-4" />
+              </IconButton>
+            </>
+          )}
+        </div>
+      </div>
     </li>
   );
 };

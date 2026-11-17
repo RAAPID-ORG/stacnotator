@@ -18,17 +18,8 @@ from src.campaigns.models import Campaign
 from src.tasks.completion import completion_by_author
 from src.tasks.status import STATUS_SQL
 
-_SUMMARY_SQL = (
+_STATUS_INPUTS_SQL = (
     """
-WITH scope AS (
-    SELECT id, annotation_number, task_set_id, claimed_by_user_id, claimed_at,
-           round(CAST(ST_X(ST_Centroid(geometry)) AS numeric), 6) AS lon,
-           round(CAST(ST_Y(ST_Centroid(geometry)) AS numeric), 6) AS lat,
-           row_number() OVER (ORDER BY annotation_number) - 1 AS i
-    FROM data.tasks
-    WHERE campaign_id = :campaign_id
-      AND (CAST(:task_ids AS int[]) IS NULL OR id = ANY(CAST(:task_ids AS int[])))
-),
 status_assignments AS (
     SELECT ta.task_id, ta.user_id, ta.is_review
     FROM data.task_assignments ta JOIN scope ON scope.id = ta.task_id
@@ -60,6 +51,44 @@ status_answers AS (
 ),
 """  # noqa: S608 - joins constants; every value is a bound parameter
     + STATUS_SQL
+)
+
+_UNKNOWN_AUTHORS_SQL = """
+(SELECT array_agg(DISTINCT CAST(r.created_by_user_id AS text)) FROM raw_answers r
+ WHERE NOT EXISTS (SELECT 1 FROM completion c WHERE c.user_id = r.created_by_user_id))
+"""
+
+_PROGRESS_SQL = (
+    """
+WITH scope AS (SELECT id FROM data.tasks WHERE campaign_id = :campaign_id),
+"""  # noqa: S608 - only SQL constants are joined; values are bound
+    + _STATUS_INPUTS_SQL
+    + """
+SELECT CAST(json_build_object(
+    'total', count(*),
+    'done', count(*) FILTER (WHERE st.status = 'done'),
+    'conflicting', count(*) FILTER (WHERE st.status = 'conflicting')
+) AS text),
+"""
+    + _UNKNOWN_AUTHORS_SQL
+    + """
+FROM scope t LEFT JOIN task_statuses st ON st.task_id = t.id
+"""
+)
+
+_SUMMARY_SQL = (
+    """
+WITH scope AS (
+    SELECT id, annotation_number, task_set_id, claimed_by_user_id, claimed_at,
+           round(CAST(ST_X(ST_Centroid(geometry)) AS numeric), 6) AS lon,
+           round(CAST(ST_Y(ST_Centroid(geometry)) AS numeric), 6) AS lat,
+           row_number() OVER (ORDER BY annotation_number) - 1 AS i
+    FROM data.tasks
+    WHERE campaign_id = :campaign_id
+      AND (CAST(:task_ids AS int[]) IS NULL OR id = ANY(CAST(:task_ids AS int[])))
+),
+"""  # noqa: S608 - only SQL constants are joined; values are bound
+    + _STATUS_INPUTS_SQL
     + """,
 drawn AS (
     SELECT DISTINCT a.output_of_task_id AS task_id, a.created_by_user_id AS user_id
@@ -156,9 +185,8 @@ SELECT CAST(json_build_object(
     'assignments', (SELECT j FROM assignment_cols),
     'answers', (SELECT j FROM answer_cols)
 ) AS text),
-(SELECT array_agg(DISTINCT CAST(r.created_by_user_id AS text)) FROM raw_answers r
- WHERE NOT EXISTS (SELECT 1 FROM completion c WHERE c.user_id = r.created_by_user_id))
 """
+    + _UNKNOWN_AUTHORS_SQL
 )
 
 
@@ -169,7 +197,21 @@ def task_summary_json(
     *,
     with_email: bool,
 ) -> bytes:
-    """The TaskSummaryOut of a campaign's tasks, or of ``task_ids`` only, as JSON."""
+    return _task_json(db, campaign, task_ids, with_email=with_email, statement=_SUMMARY_SQL)
+
+
+def task_progress_json(db: Session, campaign: Campaign) -> bytes:
+    return _task_json(db, campaign, None, with_email=False, statement=_PROGRESS_SQL)
+
+
+def _task_json(
+    db: Session,
+    campaign: Campaign,
+    task_ids: Collection[int] | None,
+    *,
+    with_email: bool,
+    statement: str,
+) -> bytes:
     authored = select(Annotation.created_by_user_id).where(
         Annotation.campaign_id == campaign.id, Annotation.task_id.is_not(None)
     )
@@ -186,7 +228,7 @@ def task_summary_json(
         completion = completion_by_author(db, campaign, authors)
         ordered = sorted(authors)
         body, unknown = db.execute(
-            text(_SUMMARY_SQL),
+            text(statement),
             {
                 "campaign_id": campaign.id,
                 "task_ids": list(task_ids) if task_ids is not None else None,

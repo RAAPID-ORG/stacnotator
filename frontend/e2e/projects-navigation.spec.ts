@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { test, expect, ROUTE } from './fixtures/annotator-fixture';
 import {
   MOCK_ORG,
@@ -18,6 +19,53 @@ const openProjects = async (page: import('@playwright/test').Page) => {
 const SECOND_ORG = { ...MOCK_ORG, id: MOCK_ORG.id + 1, name: 'Second Org' };
 
 test.describe('Projects list', () => {
+  test('campaign rows show completion and download without opening the campaign', async ({
+    appPage,
+  }) => {
+    await appPage.route('**/api/campaigns/*/export-annotations', (route) =>
+      route.fulfill({
+        contentType: 'text/csv',
+        body: 'task_id,label\n1,Maize\n',
+      })
+    );
+    await appPage.goto('/projects/7');
+    const row = appPage.getByTestId('campaign-row').first();
+    await expect(row.getByText('4 / 10', { exact: true })).toBeVisible();
+    await expect(row.getByText('40%')).toHaveCount(0);
+    await expect(row.getByTestId('export-menu-trigger')).toHaveText('');
+    await row.getByTestId('export-menu-trigger').focus();
+    await appPage.keyboard.press('Enter');
+    await expect(appPage).toHaveURL(/\/projects\/7$/);
+    await expect(row.getByRole('checkbox')).toBeDisabled();
+    const downloading = appPage.waitForEvent('download');
+    await row.getByRole('button', { name: /CSV/ }).click();
+    const download = await downloading;
+    expect(download.suggestedFilename()).toBe('Test_Campaign_annotations.csv');
+    expect(await readFile((await download.path())!, 'utf8')).toBe('task_id,label\n1,Maize\n');
+    await expect(appPage).toHaveURL(/\/projects\/7$/);
+    await row.getByTestId('export-menu-trigger').click();
+    await expect(row.getByRole('button', { name: /GeoJSON/ })).toBeVisible();
+  });
+
+  test('campaign progress distinguishes empty campaigns and failed reads', async ({ appPage }) => {
+    await appPage.route('**/api/campaigns/*/tasks/progress', (route) =>
+      route.fulfill({ json: { total: 0, done: 0, conflicting: 0 } })
+    );
+    await appPage.goto('/projects/7');
+    const row = appPage.getByTestId('campaign-row').first();
+    await expect(row.getByText('No tasks', { exact: true })).toBeVisible();
+    await expect(row.getByRole('progressbar')).toHaveCount(0);
+    await expect(row.getByTestId('export-menu-trigger')).toBeEnabled();
+
+    await appPage.route('**/api/campaigns/*/tasks/progress', (route) =>
+      route.fulfill({ status: 500, json: { detail: 'Unavailable' } })
+    );
+    await appPage.reload();
+    await expect(row.getByRole('alert')).toHaveText('Failed to load task progress');
+    await expect(row.getByText('No tasks', { exact: true })).toHaveCount(0);
+    await expect(row.getByTestId('export-menu-trigger')).toBeEnabled();
+  });
+
   test('task sets stay compact and sticky, with content-sized statistics', async ({ appPage }) => {
     await appPage.route(ROUTE.campaignSummary, (route) =>
       route.fulfill({ json: { ...MOCK_CAMPAIGN, viewer_is_admin: true } })

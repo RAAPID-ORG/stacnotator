@@ -52,6 +52,12 @@ class TaskListOut(BaseModel):
     tasks: list[TaskOut]
 
 
+class TaskProgressOut(BaseModel):
+    total: int
+    done: int
+    conflicting: int
+
+
 # The task summary is columnar: one array per field, row i of every array in a group
 # describing the same item, and people referred to by their position in `users`. A
 # campaign can hold tens of thousands of tasks, and per-row objects repeated every key
