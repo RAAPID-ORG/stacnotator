@@ -9,6 +9,7 @@ import {
 } from '~/api/client';
 import { Modal } from '~/shared/ui/Modal';
 import { Button, DateField, Input, Select } from '~/shared/ui/forms';
+import { SegmentedControl } from '~/shared/ui/SegmentedControl';
 import i18n from '~/shared/i18n';
 import { handleError } from '~/shared/utils/errorHandler';
 import { PlanetKeyConnect } from './PlanetKeyConnect';
@@ -29,7 +30,8 @@ interface PlanetBrowserProps {
   onClose: () => void;
 }
 
-const NO_COVER = 'none';
+/** Whether a window's cover is one of its own mosaics or another series' mosaic. */
+type CoverFrom = 'own' | 'series';
 
 const shallowerZoom = (a: number | null | undefined, b: number | null | undefined) =>
   a != null && b != null ? Math.min(a, b) : (a ?? b ?? null);
@@ -56,6 +58,7 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
   const [chosen, setChosen] = useState<PlanetSeriesOut | null>(null);
   const [details, setDetails] = useState<PlanetSeriesMosaicsOut | null>(null);
   /** The coarser series standing in as each window's cover, if any. */
+  const [coverFrom, setCoverFrom] = useState<CoverFrom>('own');
   const [coverSeries, setCoverSeries] = useState<PlanetSeriesOut | null>(null);
   const [coverDetails, setCoverDetails] = useState<PlanetSeriesMosaicsOut | null>(null);
   const [loading, setLoading] = useState(false);
@@ -127,14 +130,15 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
     setSeries(null);
     setChosen(null);
     setDetails(null);
+    setCoverFrom('own');
     setCoverSeries(null);
   };
 
-  const { collections, orphans } = useMemo(() => {
-    // A chosen cover series whose mosaics are still in flight would otherwise
-    // preview as calendar grouping for a moment, which is not what was asked for.
-    if (!details || !chosen || !startDate || !endDate || (coverSeries && !coverDetails))
-      return { collections: [], orphans: [] };
+  const { collections, uncovered, partlyCovered } = useMemo(() => {
+    // Until a cover series is chosen and its mosaics have arrived, this would
+    // otherwise preview windows without the cover that was asked for.
+    if (!details || !chosen || !startDate || !endDate || (coverFrom === 'series' && !coverDetails))
+      return { collections: [], uncovered: [], partlyCovered: [] };
     return generatePlanetCollections(details.mosaics, {
       seriesName: chosen.name,
       startDate,
@@ -144,17 +148,7 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
       renderings,
       coverMosaics: coverDetails?.mosaics,
     });
-  }, [
-    details,
-    chosen,
-    startDate,
-    endDate,
-    period,
-    coverNth,
-    renderings,
-    coverSeries,
-    coverDetails,
-  ]);
+  }, [details, chosen, startDate, endDate, period, coverNth, renderings, coverFrom, coverDetails]);
 
   const sliceTotal = collections.reduce((n, c) => n + c.slices.length, 0);
   const unavailable = details?.mosaics.filter((m) => m.unavailable_reason) ?? [];
@@ -264,6 +258,7 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
               onClick={() => {
                 setChosen(null);
                 setDetails(null);
+                setCoverFrom('own');
                 setCoverSeries(null);
               }}
               className="text-xs text-neutral-500 hover:text-neutral-700 cursor-pointer"
@@ -286,6 +281,10 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
               />
             </p>
 
+            <p className="text-[11px] text-neutral-500 leading-snug">
+              <Trans t={t} i18nKey="planet.windowsIntro" components={{ strong: <strong /> }} />
+            </p>
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="text-xs text-neutral-700 font-medium">{t('planet.from')}</label>
@@ -302,69 +301,132 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs text-neutral-700 font-medium">{t('bulk.coverSlice')}</label>
-              <p className="text-[11px] text-neutral-500 leading-snug">{t('planet.coverHint')}</p>
-              <Select
-                size="sm"
-                value={coverSeries?.id ?? NO_COVER}
-                onChange={(e) => {
-                  const next =
-                    (series ?? []).find((candidate) => candidate.id === e.target.value) ?? null;
-                  setCoverSeries(next);
-                  // Dropping the cover puts the renderings it could not serve
-                  // back on offer, so they are checked again too.
-                  if (!next) setRenderings(details.renderings);
-                }}
-                aria-label={t('planet.coverSeries')}
-              >
-                <option value={NO_COVER}>{t('planet.noCoverSeries')}</option>
-                {(series ?? [])
-                  .filter((candidate) => candidate.id !== chosen.id)
-                  .map((candidate) => (
-                    <option key={candidate.id} value={candidate.id}>
-                      {candidate.name}
+              <label className="text-xs text-neutral-700 font-medium">
+                {t('planet.groupIntoWindows')}
+              </label>
+              <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-700">
+                <span>
+                  <Trans
+                    t={t}
+                    i18nKey="planet.groupSentence"
+                    values={{ name: chosen.name }}
+                    components={{ strong: <strong /> }}
+                  />
+                </span>
+                <Select
+                  size="sm"
+                  value={period}
+                  onChange={(e) => setPeriod(e.target.value as CollectionPeriod)}
+                  aria-label={t('planet.groupIntoWindows')}
+                  className="!w-auto"
+                >
+                  {COLLECTION_PERIODS.map((p) => (
+                    <option key={p} value={p}>
+                      {t(PERIOD_LABELS[p])}
                     </option>
                   ))}
-              </Select>
+                </Select>
+              </div>
             </div>
 
-            {!coverSeries && (
-              <>
-                <div className="space-y-1">
-                  <label className="text-xs text-neutral-700 font-medium">
-                    {t('planet.groupIntoWindows')}
+            <div className="space-y-1.5">
+              <label className="text-xs text-neutral-700 font-medium">{t('bulk.coverSlice')}</label>
+              <p className="text-[11px] text-neutral-500 leading-snug">{t('planet.coverHelp')}</p>
+              <div className="rounded-md border border-neutral-200 bg-neutral-50 p-2 text-[11px] text-neutral-600 leading-snug">
+                <p className="font-medium text-neutral-700">{t('planet.example.title')}</p>
+                <ul className="mt-1 space-y-0.5 list-disc pl-4">
+                  <li>{t('planet.example.yearlyCoverSeries')}</li>
+                  <li>{t('planet.example.yearlyCoverNth')}</li>
+                  <li>{t('planet.example.monthly')}</li>
+                </ul>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <SegmentedControl<CoverFrom>
+                  segments={[
+                    { value: 'own', label: t('planet.coverFromOwn') },
+                    { value: 'series', label: t('planet.coverFromSeries') },
+                  ]}
+                  value={coverFrom}
+                  onChange={(next) => {
+                    setCoverFrom(next);
+                    if (next === 'own' && coverSeries) {
+                      setCoverSeries(null);
+                      // Dropping the cover puts the renderings it could not serve
+                      // back on offer, so they are checked again too.
+                      setRenderings(details.renderings);
+                    }
+                  }}
+                  aria-label={t('bulk.coverSlice')}
+                />
+                {coverFrom === 'own' && (
+                  <label className="flex items-center gap-2 text-xs text-neutral-700 font-medium">
+                    {t('planet.coverNth')}
+                    <Input
+                      size="sm"
+                      type="number"
+                      min={1}
+                      value={coverNth}
+                      onChange={(e) => setCoverNth(Math.max(1, Number(e.target.value) || 1))}
+                      className="!w-20"
+                    />
                   </label>
+                )}
+                {coverFrom === 'series' && (
                   <Select
                     size="sm"
-                    value={period}
-                    onChange={(e) => setPeriod(e.target.value as CollectionPeriod)}
-                    aria-label={t('planet.groupIntoWindows')}
+                    value={coverSeries?.id ?? ''}
+                    onChange={(e) =>
+                      setCoverSeries(
+                        (series ?? []).find((candidate) => candidate.id === e.target.value) ?? null
+                      )
+                    }
+                    aria-label={t('planet.coverSeries')}
+                    className="!w-auto"
                   >
-                    {COLLECTION_PERIODS.map((p) => (
-                      <option key={p} value={p}>
-                        {t(PERIOD_LABELS[p])}
-                      </option>
-                    ))}
+                    <option value="" disabled>
+                      {t('planet.chooseCoverSeries')}
+                    </option>
+                    {(series ?? [])
+                      .filter((candidate) => candidate.id !== chosen.id)
+                      .map((candidate) => (
+                        <option key={candidate.id} value={candidate.id}>
+                          {candidate.name}
+                        </option>
+                      ))}
                   </Select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs text-neutral-700 font-medium">
-                    {coverNth === 1
-                      ? t('planet.coverNthFirst')
-                      : t('planet.coverNth', { n: coverNth })}
-                  </label>
-                  <Input
-                    size="sm"
-                    type="number"
-                    min={1}
-                    value={coverNth}
-                    onChange={(e) => setCoverNth(Math.max(1, Number(e.target.value) || 1))}
-                    className="!w-24"
-                  />
-                </div>
-              </>
-            )}
+                )}
+              </div>
+              {coverFrom === 'own' && (
+                <p className="text-[11px] text-neutral-500 leading-snug">
+                  {t('planet.coverNthHelp')}
+                </p>
+              )}
+              {coverFrom === 'series' && (
+                <>
+                  <p className="text-[11px] text-neutral-500 leading-snug">
+                    {t('planet.coverSeriesHelp')}
+                  </p>
+                  {uncovered.length > 0 && (
+                    <p className="text-[11px] text-amber-700 rounded-md bg-amber-50 border border-amber-200 p-2">
+                      {t('planet.uncovered', {
+                        count: uncovered.length,
+                        name: coverSeries?.name,
+                        windows: uncovered.slice(0, 5).join(', '),
+                      })}
+                    </p>
+                  )}
+                  {partlyCovered.length > 0 && (
+                    <p className="text-[11px] text-amber-700 rounded-md bg-amber-50 border border-amber-200 p-2">
+                      {t('planet.partlyCovered', {
+                        count: partlyCovered.length,
+                        name: coverSeries?.name,
+                        windows: partlyCovered.slice(0, 5).join(', '),
+                      })}
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
 
             <div className="space-y-1">
               <label className="text-xs text-neutral-700 font-medium">
@@ -398,21 +460,6 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
                 ))}
               </div>
             </div>
-
-            {orphans.length > 0 && (
-              <div className="space-y-1 rounded-md bg-amber-50 border border-amber-200 p-2">
-                <p className="text-[11px] text-amber-800 font-medium">
-                  {t('planet.orphans', { count: orphans.length, name: coverSeries?.name })}
-                </p>
-                <ul className="text-[11px] text-amber-700 space-y-0.5">
-                  {orphans.slice(0, 5).map((m) => (
-                    <li key={m.id}>
-                      {t('planet.dateRange', { start: m.first_acquired, end: m.last_acquired })}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
 
             {unavailable.length > 0 && (
               <div className="space-y-1 rounded-md bg-amber-50 border border-amber-200 p-2">
