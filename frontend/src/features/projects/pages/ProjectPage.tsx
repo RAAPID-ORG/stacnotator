@@ -178,7 +178,7 @@ const ProjectSectionView = ({
     : 'campaigns';
 
   return (
-    <div className="surface">
+    <div className={`surface${activeTab === 'campaigns' ? ' surface-unclipped' : ''}`}>
       <div className="p-6">
         {activeTab === 'campaigns' && (
           <CampaignsList
