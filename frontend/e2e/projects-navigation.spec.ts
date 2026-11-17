@@ -29,7 +29,7 @@ test.describe('Projects list', () => {
       })
     );
     await appPage.goto('/projects/7');
-    const row = appPage.getByTestId('campaign-row').first();
+    const row = appPage.getByTestId('campaign-row').last();
     await expect(
       row.getByRole('progressbar', { name: 'Tasks completed', exact: true })
     ).toHaveAttribute('aria-valuenow', '4');
@@ -47,6 +47,7 @@ test.describe('Projects list', () => {
     await row.getByTestId('export-menu-trigger').focus();
     await appPage.keyboard.press('Enter');
     await expect(appPage).toHaveURL(/\/projects\/7$/);
+    await expect(row.getByTestId('export-menu')).toBeInViewport({ ratio: 1 });
     await expect(row.getByRole('checkbox')).toBeDisabled();
     const downloading = appPage.waitForEvent('download');
     await row.getByRole('button', { name: /CSV/ }).click();
