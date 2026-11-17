@@ -14,6 +14,8 @@ MPC hosts its own TiTiler instance with free egress from their STAC catalog. Whe
 3. The `searchId` is stored as the slice's MPC mosaic (`slice_mosaics`). The tile URL is built from it and the visualization's parameters (bands, rescale, colormap) whenever the slice is read, so editing those parameters needs no new registration.
 4. The frontend fetches tiles directly from MPC - no proxy, no extra latency.
 
+MPC stamps each search ID with an expiry one day out (`pc1.<expiry>.<hash>`), but it can drop a search well before then, and its tiles then fail with **410 Gone**. Each map open (campaign, visualizer, agent render page) calls `registration.renew_expiring_mpc_mosaics`, which registers the owner's MPC searches again when the oldest is within 4 hours of its stamp, or when MPC's `/info` endpoint says it no longer holds that search. Otherwise it returns `imagery_renew_at`, at most 15 minutes away, and an open map reads its imagery again then, which repeats the check.
+
 **Limitations:** MPC only supports `pixel_selection=first` (first-valid compositing). Advanced features (masking, median/mean compositing) are not available and will automatically route through the self-hosted tiler instead.
 
 ### 2. Self-Hosted TiTiler
