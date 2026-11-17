@@ -6,7 +6,7 @@ missing, against MPC or a hosted tiler, in parallel and off the request path. A 
 refresh re-ingests what a hosted tiler already holds. MPC stamps a search with an
 expiry a day out but can drop it well before then, so opening a map asks MPC whether it
 still holds the owner's oldest search, and registers all of them again when it does not
-or the stamp runs out before the next check (``renew_expiring_mpc_mosaics``).
+or the stamp is about to run out (``renew_expiring_mpc_mosaics``).
 
 Planet scene sources register nothing: a search is bounded by an area, and theirs
 is wherever an annotator is standing - see ``service.search_planet_scenes_in_view``.
@@ -379,9 +379,9 @@ def commit_and_register(db: Session, owner: Campaign | Visualizer, bbox) -> None
 
 def renew_expiring_mpc_mosaics(db: Session, owner: Campaign | Visualizer) -> datetime | None:
     """Start the run that registers the owner's MPC mosaics again when MPC dropped the
-    oldest or it expires before the next check, and otherwise return when to check
-    again, for an open map to read its tiles again then. This runs on every open, so it
-    reads only the ids and asks MPC about one search: the oldest, which MPC drops first."""
+    oldest or it is about to expire, and otherwise return when it will be, for an open
+    map to read its tiles again then. This runs on every open, so it reads only the ids
+    and asks MPC about one search: the oldest, which MPC drops first."""
     if owner.registration_status == "registering":
         return None
     mosaic_ids = db.scalars(
@@ -394,9 +394,9 @@ def renew_expiring_mpc_mosaics(db: Session, owner: Campaign | Visualizer) -> dat
     if not mosaic_ids:
         return None
     oldest = min(mosaic_ids, key=tiles.mpc_expiry)
-    next_check = time.time() + tiles.MPC_CHECK_SECONDS
-    if tiles.mpc_expiry(oldest) > next_check and not _mpc_dropped(oldest):
-        return datetime.fromtimestamp(next_check, UTC)
+    due = tiles.mpc_expiry(oldest) - tiles.MPC_RENEW_BEFORE_SECONDS
+    if due > time.time() and not _mpc_dropped(oldest):
+        return datetime.fromtimestamp(due, UTC)
     logger.info("Registering MPC search %s and the rest of its owner's again", oldest)
     drop_mosaics(_owner_sources(db, owner.layer_owner), provider=registry.MPC)
     commit_and_register(db, owner, owner.bbox)
@@ -405,7 +405,7 @@ def renew_expiring_mpc_mosaics(db: Session, owner: Campaign | Visualizer) -> dat
 
 def _mpc_dropped(mosaic_id: str) -> bool:
     """Whether MPC says it no longer holds this search. Only that answer counts: when
-    MPC cannot be asked, the search is kept and the next check asks again."""
+    MPC cannot be asked, the search is kept and the next open asks again."""
     try:
         response = httpx.get(f"{MPC_MOSAIC_URL}/{mosaic_id}/info", timeout=5)
     except httpx.HTTPError:

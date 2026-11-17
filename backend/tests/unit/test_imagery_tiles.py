@@ -89,13 +89,16 @@ def test_a_rendering_without_its_mosaic_or_tiler_is_left_out_until_registered():
     assert tiles.missing_providers(collection, week) == {"mpc", "gone"}
 
 
-def test_an_mpc_mosaic_past_its_expiry_is_registered_again_and_not_drawn(monkeypatch):
+def test_an_mpc_mosaic_is_registered_again_before_it_expires_and_not_drawn_after(
+    monkeypatch,
+):
     monkeypatch.setattr(tiles.time, "time", lambda: 1_000_000)
     collection = _collection()
     week = collection.slices[1]
 
     for mosaic_id, missing, drawn in [
         ("pc1.1100000.ab", set(), [5, 6]),
+        ("pc1.1003600.ab", {"mpc"}, [5, 6]),
         ("pc1.999999.ab", {"mpc"}, [6]),
         ("0123abcd", {"mpc"}, [6]),
     ]:

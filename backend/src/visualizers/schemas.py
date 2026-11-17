@@ -163,8 +163,7 @@ class VisualizerViewOut(BaseModel):
     # lists has no dates yet rather than looking broken. Linked campaign imagery
     # being registered again counts too.
     registration_status: str
-    # When the map should read its imagery again: to renew its MPC tiles, or to
-    # check that MPC still holds them.
+    # When the map should read its imagery again: its MPC tiles are about to expire.
     imagery_renew_at: datetime | None = None
 
 
