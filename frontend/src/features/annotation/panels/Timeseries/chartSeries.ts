@@ -17,7 +17,6 @@ export interface SeriesPoint {
   x: number;
   y: number;
   observation: SeriesObservation;
-  overflow: number;
 }
 
 export function prepareObservations(
@@ -54,21 +53,14 @@ export function prepareObservations(
   return observations;
 }
 
-export function seriesPoints(observations: SeriesObservation[], axis: ChartAxis): SeriesPoint[] {
+export function seriesPoints(observations: SeriesObservation[]): SeriesPoint[] {
   return observations
     .filter((row) => !row.filtered)
-    .map((observation) => {
-      const shown = observation.smoothed ?? observation.values;
-      const rawOutside = observation.values < axis.min || observation.values > axis.max;
-      const value = rawOutside ? observation.values : shown;
-      const overflow = value < axis.min ? -1 : value > axis.max ? 1 : 0;
-      return {
-        x: observation.x,
-        y: Math.max(axis.min, Math.min(axis.max, value)),
-        observation,
-        overflow,
-      };
-    });
+    .map((observation) => ({
+      x: observation.x,
+      y: observation.smoothed ?? observation.values,
+      observation,
+    }));
 }
 
 export function seriesDataset(
@@ -77,7 +69,7 @@ export function seriesDataset(
   color: string,
   dotRadius: number
 ): ChartDataset<'line', SeriesPoint[]> {
-  const data = seriesPoints(observations, axis);
+  const data = seriesPoints(observations);
   const colors = data.map(({ observation }) =>
     observation.cloud === 1 ? 'rgb(162, 159, 155)' : color
   );
@@ -88,20 +80,27 @@ export function seriesDataset(
     backgroundColor: color,
     pointBackgroundColor: colors,
     pointBorderColor: colors,
-    pointRadius: data.map((point) => (point.overflow ? 4 : dotRadius)),
-    pointStyle: data.map((point) => (point.overflow ? 'triangle' : 'circle')),
-    pointRotation: data.map((point) => (point.overflow < 0 ? 180 : 0)),
+    pointRadius: dotRadius,
+    pointStyle: 'circle',
     spanGaps: true,
-    clip: 8,
+    clip: { top: 0, bottom: 0, left: 8, right: 8 },
     tension: 0,
-    segment: {
-      borderColor: ({ p0DataIndex, p1DataIndex }) => {
-        const from = data[p0DataIndex];
-        const to = data[p1DataIndex];
-        return from.overflow || to.overflow ? 'transparent' : color;
-      },
-    },
   };
+}
+
+export function elapsedTimeTicks(min: number, max: number): number[] {
+  const steps = [
+    ...[1, 5, 15, 30].map((minutes) => minutes * 60_000),
+    ...[1, 3, 6, 12].map((hours) => hours * 3_600_000),
+    ...[1, 2, 7, 14, 30, 60, 90, 180, 365].map((days) => days * DAY_MS),
+  ];
+  const target = (max - min) / 5;
+  const step = steps.find((step) => step >= target) ?? Math.ceil(target / DAY_MS) * DAY_MS;
+  const alignment = Math.min(step, DAY_MS);
+  const first = Math.ceil(min / alignment) * alignment;
+  const ticks = [];
+  for (let value = first; value <= max; value += step) ticks.push(value);
+  return ticks;
 }
 
 export function elapsedTimeScale(times: number[]): ScaleOptions<'linear'> {
@@ -112,8 +111,11 @@ export function elapsedTimeScale(times: number[]): ScaleOptions<'linear'> {
     min: min === max && min !== undefined ? min - DAY_MS / 2 : min,
     max: min === max && max !== undefined ? max + DAY_MS / 2 : max,
     grid: { display: false },
+    afterBuildTicks(scale) {
+      scale.ticks = elapsedTimeTicks(scale.min, scale.max).map((value) => ({ value }));
+    },
     ticks: {
-      maxTicksLimit: 6,
+      autoSkip: false,
       maxRotation: 45,
       minRotation: 45,
       font: { size: 8 },

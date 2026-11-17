@@ -229,11 +229,7 @@
     "showSeries": "Show {{name}}",
     "hideSeries": "Hide {{name}}",
     "resetZoom": "Reset zoom",
-    "lineNote": "Lines are visual guides, not observations between dates.",
-    "smoothingNote": "Smoothing uses observation order, not elapsed days.",
     "smoothedValue": "Smoothed: {{value}}",
-    "offScaleNote_one": "{{count}} off-scale observation: boundary triangles mark overflow; hover for values.",
-    "offScaleNote_other": "{{count}} off-scale observations: boundary triangles mark overflow; hover for values.",
     "options": {
       "removeCloudy": "Remove cloudy",
       "removeCloudyTitle": "Hides cloud-flagged observations (gray dots) from the plot",

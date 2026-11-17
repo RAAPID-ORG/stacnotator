@@ -54,7 +54,7 @@ test.beforeEach(async ({ annotationPage: page }) => {
 });
 
 for (const surface of ['agent', 'interactive'] as const) {
-  test(`${surface} plots connecting guides across gaps and discloses REP overflow`, async ({
+  test(`${surface} keeps fixed index limits without overflow markers or notices`, async ({
     appPage: page,
   }) => {
     let image: string;
@@ -73,34 +73,42 @@ for (const surface of ['agent', 'interactive'] as const) {
       expect(result.meta).toMatchObject({
         cells: [
           {
-            line_interpretation:
-              'Connecting lines are visual guides, not observations between dates.',
             axes: [
-              { min: -0.2, max: 1 },
-              { min: 680, max: 760 },
+              { id: 'y', min: -0.2, max: 1, indexKeys: ['NDVI'] },
+              { id: 'y2', min: 680, max: 760, indexKeys: ['REP'] },
             ],
-            warning: '2 off-scale observations marked with boundary triangles; see raw rows.',
             series: [
               {
                 axis: 'y',
-                off_scale: 0,
                 columns: ['date', 'value', 'cloudy', 'source_row', 'filtered'],
                 rows: ndvi.map((row, i) => [row.time, row.values, row.cloud, i + 1, row.cloud]),
               },
-              { axis: 'y2', off_scale: 2 },
+              {
+                axis: 'y2',
+                rows: ndvi.map((row, i) => [
+                  row.time,
+                  [500, 720, 730, 725, 740, 1100][i],
+                  row.cloud,
+                  i + 1,
+                  row.cloud,
+                ]),
+              },
             ],
           },
         ],
       });
+      expect(JSON.stringify(result.meta)).not.toMatch(
+        /triangles|off.scale|visual guides|observation.order/
+      );
       image = `data:image/jpeg;base64,${result.image_base64}`;
     } else {
       await page.goto('/projects/7/campaigns/42/annotate');
-      await expect(page.getByText('2 off-scale observations:', { exact: false })).toBeVisible();
       const canvas = page.locator('[data-panel-role="timeseries"] canvas');
       await expect(canvas).toBeVisible();
       await expect(
         page.getByText('Lines are visual guides, not observations between dates.', { exact: false })
-      ).toBeVisible();
+      ).toHaveCount(0);
+      await expect(page.getByText('boundary triangles', { exact: false })).toHaveCount(0);
       // Wait for the chart animation to finish by observing stable pixels.
       let previous = '';
       await expect
@@ -153,3 +161,24 @@ for (const surface of ['agent', 'interactive'] as const) {
     expect(pixels.gap).toBeGreaterThan(50);
   });
 }
+
+test('plot height follows panel resizing in both directions', async ({ annotationPage: page }) => {
+  await page.goto('/projects/7/campaigns/42/annotate');
+  const panel = page.locator('[data-panel-role="timeseries"]');
+  const canvas = panel.locator('canvas');
+  await expect(canvas).toBeVisible();
+  const initial = await canvas.evaluate((element) => element.getBoundingClientRect().height);
+  const panelHeight = await panel.evaluate((element) => element.getBoundingClientRect().height);
+  await panel.evaluate((element, height) => {
+    element.style.height = `${height}px`;
+  }, panelHeight + 200);
+  await expect
+    .poll(() => canvas.evaluate((element) => element.getBoundingClientRect().height))
+    .toBeGreaterThan(initial + 190);
+  await panel.evaluate((element, height) => {
+    element.style.height = `${height}px`;
+  }, panelHeight);
+  await expect
+    .poll(() => canvas.evaluate((element) => element.getBoundingClientRect().height))
+    .toBeLessThan(initial + 2);
+});
