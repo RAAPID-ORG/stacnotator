@@ -123,7 +123,7 @@ export function TimeseriesPanel({ window: tsWindow }: TimeseriesPanelProps) {
 
   if (error && loaded.length === 0) {
     return (
-      <div className="h-full flex flex-col bg-white p-2 min-h-0 overflow-hidden">
+      <div className="flex-1 flex flex-col bg-white p-2 min-h-0 overflow-hidden">
         <div className="flex-1 flex items-center justify-center">
           <p role="alert" className="text-[10px] text-red-600">
             {t('timeseries.loadFailed')} {error.message}
@@ -135,7 +135,7 @@ export function TimeseriesPanel({ window: tsWindow }: TimeseriesPanelProps) {
 
   if (points.length === 0) {
     return (
-      <div className="h-full flex flex-col bg-white p-2 min-h-0 overflow-hidden">
+      <div className="flex-1 flex flex-col bg-white p-2 min-h-0 overflow-hidden">
         <div className="flex-1 flex items-center justify-center">
           <p className="text-[10px] text-neutral-500">{t('timeseries.noLocation')}</p>
         </div>
@@ -148,7 +148,7 @@ export function TimeseriesPanel({ window: tsWindow }: TimeseriesPanelProps) {
   // doesn't flash to a spinner on every probe.
   if (loaded.length === 0) {
     return (
-      <div className="h-full flex flex-col bg-white p-2 min-h-0 overflow-hidden">
+      <div className="flex-1 flex flex-col bg-white p-2 min-h-0 overflow-hidden">
         <div className="flex-1 flex items-center justify-center">
           <div className="flex flex-col items-center gap-2">
             <Spinner size="md" />
@@ -160,7 +160,7 @@ export function TimeseriesPanel({ window: tsWindow }: TimeseriesPanelProps) {
   }
 
   return (
-    <div className="h-full flex flex-col bg-white p-2 min-h-0 overflow-hidden relative">
+    <div className="flex-1 flex flex-col bg-white p-2 min-h-0 overflow-hidden relative">
       {error && (
         <p role="alert" className="text-[10px] text-red-600">
           {t('timeseries.loadFailed')} {error.message}

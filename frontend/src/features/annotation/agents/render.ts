@@ -27,13 +27,13 @@ import { geometryLocation } from '../campaign/probes';
 import { sceneSourceOf } from '../campaign/scenes';
 import { sliceRaster } from '../campaign/tileUrls';
 import { probeColor } from '../map/compose';
-import { axisIdFor, seriesAxes } from '../panels/Timeseries/chartData';
 import {
-  elapsedTimeScale,
-  prepareObservations,
-  seriesDataset,
-} from '../panels/Timeseries/chartSeries';
+  collectSeriesLabels,
+  getOptimalMonthLabels,
+  parseSeriesDate,
+} from '../panels/Timeseries/chartData';
 import { timeSeriesCache } from '../panels/Timeseries/cache';
+import { savitzkyGolay } from '../panels/Timeseries/smoothing';
 import { DEFAULT_TIMESERIES_CHART } from '../stores/prefs';
 import { metersPerPixel, packView, type CellRect } from './pack';
 import { lonLatToPixel } from './probe';
@@ -66,6 +66,7 @@ const CROSSHAIR_ARM_PX = 10;
 /** Anything this bright in every channel is cloud, haze, snow or glare. */
 const BRIGHT_CHANNEL_MIN = 200;
 const JPEG_QUALITY = 0.9;
+const CLOUDY_DOT_COLOR = 'rgb(162, 159, 155)';
 const SERIES_COLORS = ['#2563eb', '#16a34a', '#dc2626', '#7c3aed', '#ea580c', '#0891b2'];
 /** A probe's lines take its marker colour, so several series at one probe differ by dash,
  *  as on the annotation page. */
@@ -500,30 +501,51 @@ async function drawChart(
   const data = await Promise.all(
     points.map(async (point) => (await timeSeriesCache.get(campaign.id, ids, point)) ?? {})
   );
+  const times = collectSeriesLabels(ids, ...data);
+  const timestamps = times.map(parseSeriesDate);
+  if (timestamps.some((time) => !Number.isFinite(time))) {
+    throw new Error('Invalid time-series observation date');
+  }
+  const minTime = timestamps.length ? Math.min(...timestamps) : undefined;
+  const maxTime = timestamps.length ? Math.max(...timestamps) : undefined;
+  const tickTimes = minTime === undefined ? [] : [minTime];
+  if (minTime !== undefined && maxTime !== undefined) {
+    const month = new Date(minTime);
+    month.setUTCDate(1);
+    month.setUTCHours(0, 0, 0, 0);
+    month.setUTCMonth(month.getUTCMonth() + 1);
+    for (; month.getTime() <= maxTime; month.setUTCMonth(month.getUTCMonth() + 1)) {
+      tickTimes.push(month.getTime());
+    }
+  }
+  const tickDates = tickTimes.map((time) =>
+    new Date(time).toISOString().slice(0, 10).replaceAll('-', '')
+  );
+  const tickLabels = new Map(
+    getOptimalMonthLabels(tickDates).map(({ index, label }) => [tickTimes[index], label])
+  );
   const { smoothing } = DEFAULT_TIMESERIES_CHART;
-  const axes = seriesAxes(ids.map((id) => campaign.time_series.find((t) => t.id === id)?.index));
   // One line per series at the task, then the same per probe, each in its marker's colour.
   const lines = points.flatMap((_, p) =>
     ids.map((id, i) => {
       const series = campaign.time_series.find((t) => t.id === id);
       const name = series?.name ?? `Series ${id}`;
       const point = p === 0 ? (nearby ? 'nearby' : 'task') : `P${p}`;
-      const observations = prepareObservations(
-        data[p][id] ?? [],
-        Boolean(cell.remove_cloudy),
-        cell.smoothed ? smoothing : undefined
-      );
-      const color = p === 0 ? SERIES_COLORS[i % SERIES_COLORS.length] : probeColor(p - 1);
-      const axis = axes.find((axis) => axis.id === axisIdFor(axes, series?.index))!;
-      const dataset = seriesDataset(observations, axis, color, 2);
+      const byTime = new Map((data[p][id] ?? []).map((row) => [row.time, row]));
+      const raw = times.map((time) => {
+        const row = byTime.get(time);
+        return !row || (cell.remove_cloudy && row.cloud === 1) ? null : row.values;
+      });
       return {
         id,
         series,
         point,
         label: lineLabel(name, point, ids.length, probes.length),
+        color: p === 0 ? SERIES_COLORS[i % SERIES_COLORS.length] : probeColor(p - 1),
         dash: p === 0 ? [] : SERIES_DASHES[i % SERIES_DASHES.length],
-        observations,
-        dataset,
+        raw,
+        cloudy: times.map((time) => byTime.get(time)?.cloud === 1),
+        shown: cell.smoothed ? savitzkyGolay(raw, smoothing.window, smoothing.order) : raw,
       };
     })
   );
@@ -537,11 +559,20 @@ async function drawChart(
   const chart = new Chart(canvas, {
     type: 'line',
     data: {
-      datasets: lines.map((line) => ({
-        ...line.dataset,
-        label: line.label,
-        borderDash: line.dash,
-      })),
+      datasets: lines.map((line) => {
+        const pointColors = line.cloudy.map((cloudy) => (cloudy ? CLOUDY_DOT_COLOR : line.color));
+        return {
+          label: line.label,
+          data: line.shown.map((y, i) => ({ x: timestamps[i], y })),
+          borderDash: line.dash,
+          borderColor: line.color,
+          backgroundColor: line.color,
+          pointBackgroundColor: pointColors,
+          pointBorderColor: pointColors,
+          pointRadius: line.raw.map((value) => (value == null ? 0 : 2)),
+          spanGaps: true,
+        };
+      }),
     },
     options: {
       animation: false,
@@ -550,21 +581,18 @@ async function drawChart(
       layout: { padding: { top: labelHeight(rect) + 4, right: 8, left: 4, bottom: 4 } },
       plugins: { legend: { position: 'top', align: 'end' } },
       scales: {
-        x: elapsedTimeScale(lines.flatMap((line) => line.observations.map((row) => row.x))),
-        ...Object.fromEntries(
-          axes.map((axis) => [
-            axis.id,
-            {
-              type: 'linear',
-              position: axis.position,
-              min: axis.min,
-              max: axis.max,
-              ticks: { maxTicksLimit: 5, includeBounds: false },
-              title: { display: true, text: axis.indexKeys.join(', ') },
-              grid: { drawOnChartArea: axis.id === 'y' },
-            },
-          ])
-        ),
+        x: {
+          type: 'linear',
+          min: minTime === maxTime && minTime !== undefined ? minTime - 43_200_000 : minTime,
+          max: minTime === maxTime && maxTime !== undefined ? maxTime + 43_200_000 : maxTime,
+          afterBuildTicks(scale) {
+            scale.ticks = tickTimes.map((value) => ({ value }));
+          },
+          ticks: {
+            autoSkip: false,
+            callback: (value) => tickLabels.get(Number(value)) ?? '',
+          },
+        },
       },
     },
   });
@@ -579,22 +607,13 @@ async function drawChart(
   chart.destroy();
   canvas.remove();
 
-  const columns = [
-    'date',
-    'value',
-    'cloudy',
-    'source_row',
-    'filtered',
-    ...(cell.smoothed ? ['smoothed'] : []),
-  ];
+  const columns = ['date', 'value', 'cloudy', ...(cell.smoothed ? ['smoothed'] : [])];
   return {
     image,
     rect,
     meta: {
       ...place,
       kind: 'timeseries',
-      axes,
-      smoothing: cell.smoothed ? smoothing : null,
       center,
       label: [
         'type' in points[0] ? 'time series (task polygon mean)' : 'time series',
@@ -606,17 +625,15 @@ async function drawChart(
         timeseries_id: line.id,
         name: line.series?.name,
         index: line.series?.ts_type,
-        axis: line.dataset.yAxisID,
         ...(probes.length ? { point: line.point } : {}),
         columns,
-        rows: line.observations.map((observation) => [
-          observation.time,
-          observation.values,
-          observation.cloud,
-          observation.sourceRow,
-          observation.filtered ? 1 : 0,
-          ...(cell.smoothed ? [observation.smoothed] : []),
-        ]),
+        rows: times.flatMap((time, t) => {
+          const value = line.raw[t];
+          if (value == null) return [];
+          const row = [time.slice(0, 10), round(value), line.cloudy[t] ? 1 : 0];
+          const smooth = line.shown[t];
+          return [cell.smoothed && smooth != null ? [...row, round(smooth)] : row];
+        }),
       })),
     },
   };
@@ -787,6 +804,8 @@ function drawLabel(ctx: CanvasRenderingContext2D, rect: CellRect, meta: CellMeta
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.width - 1, rect.height - 1);
   ctx.restore();
 }
+
+const round = (value: number): number => Math.round(value * 1000) / 1000;
 
 function toBase64(canvas: HTMLCanvasElement): Promise<string> {
   return new Promise((resolve, reject) => {
