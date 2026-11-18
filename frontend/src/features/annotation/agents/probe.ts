@@ -134,6 +134,7 @@ export function locateProbe(task: AgentTask, probe: ProbeInput): LocatedProbe {
 export interface ProbeOptions {
   timeseries_ids?: number[];
   remove_cloudy?: boolean;
+  remove_snow?: boolean;
   smoothed?: boolean;
 }
 
@@ -153,6 +154,7 @@ export function probeView(
   const charts = timeseriesIds.map((id) => ({
     timeseries_ids: [id],
     remove_cloudy: options.remove_cloudy,
+    remove_snow: options.remove_snow,
     smoothed: options.smoothed,
   }));
   const view: ViewSpec = {

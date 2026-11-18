@@ -23,7 +23,7 @@ progress, switch take-over and free tasks.
 | `register_agent(campaign_id, name, max_image_edge_px, max_image_megapixels, description?, task_count=10, task_set_id?, takes_over_work?, default_views?)` | one agent per worker; returns `agent_id`, `agents_page`, context, default views |
 | `campaign_context(agent_id)` | guide, labels, form fields, imagery, basemaps, time series |
 | `next_task(agent_id)`, `get_views(agent_id, task_id, views)` | the current task with its first look; more views of it |
-| `probe_timeseries(agent_id, task_id, points, timeseries_ids?, remove_cloudy=true, smoothed?)` | click 1-6 places on a map you were shown and chart their time series beside the task's |
+| `probe_timeseries(agent_id, task_id, points, timeseries_ids?, remove_cloudy=true, smoothed?, remove_snow=true)` | click 1-6 places on a map you were shown and chart their time series beside the task's |
 | `set_default_views(agent_id, views)`, `set_image_limits(...)` | change the first look; restore limits after a restart |
 | `submit_label(agent_id, task_id, label_id, confidence, comment, form_values?, flagged_for_review?, flag_comment?)`, `skip_task(agent_id, task_id, comment)` | finish the task |
 | `release_tasks(campaign_id, agent_id?)`, `watch_agents()` | free unfinished tasks; reopen the watch window the user closed |
@@ -45,6 +45,8 @@ Read the guide, `labels` and `form_fields` first. Then:
    something new. Prefer the SAME task: the months around a change in the time series
    (covers or finer slices); higher zoom or a basemap close up for a small point; neighbouring dates
    for clouds; another `visualization`; the chart with `remove_cloudy` and `smoothed`.
+   Snow/ice masking is on by default for chart cells and probes. Set `remove_snow=false`
+   to retain snow-flagged pixels; this is separate from cloud filtering.
 3. Only when comparing another place would resolve that uncertainty, use nearby imagery
    or `probe_timeseries`. Neither is a routine step or a requirement to use the tools.
 4. `submit_label`, or `skip_task` with the reason when the imagery cannot tell.

@@ -133,6 +133,7 @@ def get_timeseries_data(
     timeseries_id: int,
     latitude: float,
     longitude: float,
+    remove_snow: bool = True,
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_access),
 ):
@@ -148,6 +149,7 @@ def get_timeseries_data(
             longitude=longitude,
             start_date=start,
             end_date=end,
+            remove_snow=remove_snow,
         ),
     )
 
@@ -177,6 +179,7 @@ def get_zonal_timeseries_data(
             geometry=geometry,
             start_date=start,
             end_date=end,
+            remove_snow=request.remove_snow,
         ),
     )
 

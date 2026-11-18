@@ -6056,6 +6056,10 @@ export type ZonalTimeseriesRequest = {
     } & PolygonGeometry) | ({
         type: 'MultiPolygon';
     } & MultiPolygonGeometry);
+    /**
+     * Remove Snow
+     */
+    remove_snow?: boolean;
 };
 
 /**
@@ -9335,6 +9339,10 @@ export type GetTimeseriesDataData = {
          * Longitude
          */
         longitude: number;
+        /**
+         * Remove Snow
+         */
+        remove_snow?: boolean;
     };
     url: '/api/campaigns/{campaign_id}/timeseries/{timeseries_id}/data';
 };

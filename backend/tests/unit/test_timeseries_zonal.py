@@ -78,6 +78,27 @@ SOURCE_INDEX_PAIRS = [
 ]
 
 
+@pytest.mark.parametrize("source_key", ["SENTINEL2", "LANDSAT", "MODIS"])
+@pytest.mark.parametrize("remove_snow", [True, False])
+def test_snow_is_masked_in_the_source_collection_before_any_reduction(source_key, remove_snow):
+    source = source_for(source_key)
+    collection = fetch._collection(
+        source, "2024-01-01", "2024-03-31", ee.Geometry(POLYGON_WITH_HOLE), remove_snow
+    )
+    masks = _calls(_graph(collection), "Image.updateMask")
+    snow_masks = [
+        mask
+        for mask in masks
+        if '"snow"' in json.dumps(mask["mask"])
+        and mask["mask"]["functionInvocationValue"]["functionName"] == "Image.eq"
+    ]
+    assert len(snow_masks) == int(remove_snow)
+    if remove_snow:
+        predicate = snow_masks[0]["mask"]["functionInvocationValue"]["arguments"]
+        selected = predicate["image1"]["functionInvocationValue"]["arguments"]
+        assert _constant(selected["bandSelectors"]) == ["snow"]
+
+
 @pytest.mark.parametrize(("source_key", "index_key"), SOURCE_INDEX_PAIRS)
 def test_every_source_and_index_builds_a_valid_zonal_expression(source_key, index_key):
     source = source_for(source_key)

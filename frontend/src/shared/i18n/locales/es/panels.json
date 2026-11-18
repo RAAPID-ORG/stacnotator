@@ -233,6 +233,8 @@
     "resetZoom": "Restablecer zoom",
     "options": {
       "removeCloudy": "Quitar nubosos",
+      "removeSnow": "Quitar nieve",
+      "removeSnowTitle": "Excluye los píxeles marcados como nieve o hielo antes de calcular la serie temporal; vuelve a cargar los datos",
       "removeCloudyTitle": "Quita de la serie los días marcados como nubosos (puntos grises)",
       "smooth": "Suavizar",
       "smoothTitle": "Suavizado Savitzky-Golay.",
@@ -246,6 +248,7 @@
     "info": {
       "dots": "Cada punto es una observación. Los <strong>puntos de color</strong> son observaciones de días despejados (un color por serie). Los <strong>puntos grises</strong> son observaciones marcadas como nubosas.",
       "removeCloudy": "<strong>Quitar nubosos</strong> elimina las observaciones grises tanto de la serie original como de la línea suavizada.",
+      "removeSnow": "<strong>Quitar nieve</strong> excluye los píxeles marcados como nieve o hielo antes de extraer los datos y calcular las medias de los polígonos. Se activa de forma predeterminada; cambiar esta opción vuelve a cargar los datos. El filtro de nubes se aplica por separado.",
       "smooth": "<strong>Suavizar</strong> aplica un filtro Savitzky-Golay. Si dejas los puntos nubosos, el filtro atrae la línea suavizada hacia ellos; normalmente lo que quieres es Quitar nubosos + Suavizar a la vez.",
       "showDots": "<strong>Puntos</strong> activa o desactiva los marcadores de cada observación."
     }

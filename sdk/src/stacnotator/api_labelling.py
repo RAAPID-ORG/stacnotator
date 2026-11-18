@@ -95,9 +95,10 @@ only get bigger.
 
 {{"cells": [...], "columns": 4, "cell_px": 320, "zoom": 15}}. Each cell is one of \
 {{"slice_id", "visualization"?}}, {{"basemap_id"}} or {{"timeseries_ids": [...], \
-"remove_cloudy"?, "smoothed"?}}, with an optional own "zoom" and "center". A view can also \
-have "center", which applies to all its cells unless overridden. At most 36 cells per view; a \
-chart takes a full row; cell_px shrinks to fit the image limits.
+"remove_cloudy"?, "remove_snow"?, "smoothed"?}}, with an optional own "zoom" and "center". \
+Snow/ice masking is on by default; set "remove_snow": false to retain those pixels. \
+A view can also have "center", which applies to all its cells unless overridden. At most \
+36 cells per view; a chart takes a full row; cell_px shrinks to fit the image limits.
 
 # Campaign
 

@@ -121,6 +121,15 @@ def _region_data_to_dataframe(region_data: list) -> pd.DataFrame:
     return df[["time", "values", "cloud"]].reset_index(drop=True)
 
 
+def _collection(
+    source: TimeseriesSource, start_date: str, end_date: str, geometry: Any, remove_snow: bool
+) -> Any:
+    collection = source.build(start_date, end_date, geometry)
+    if remove_snow:
+        collection = collection.map(lambda image: image.updateMask(image.select("snow").eq(0)))
+    return collection
+
+
 def fetch_index_series(
     source: TimeseriesSource,
     index: SpectralIndex,
@@ -128,13 +137,14 @@ def fetch_index_series(
     longitude: float,
     start_date: str,
     end_date: str,
+    remove_snow: bool = True,
 ) -> pd.DataFrame:
     """Index values and cloud flags at one point over a date range."""
     if not offers(source, index):
         raise ValueError(f"{source.key} cannot supply the bands {index.key} needs")
 
     point = ee.Geometry.Point([longitude, latitude])
-    collection = source.build(start_date, end_date, point).map(
+    collection = _collection(source, start_date, end_date, point, remove_snow).map(
         lambda image: image.addBands(index_image(image, index))
     )
 
@@ -196,6 +206,7 @@ def zone_series(
     geometry: dict[str, Any],
     start_date: str,
     end_date: str,
+    remove_snow: bool = True,
 ) -> Any:
     if not offers(source, index):
         raise ValueError(f"{source.key} cannot supply the bands {index.key} needs")
@@ -203,7 +214,7 @@ def zone_series(
     # GeoJSON edges are straight in longitude/latitude, which is how the map drew them.
     region = ee.Geometry(geometry, geodesic=False)
     observations = ee.FeatureCollection(
-        source.build(start_date, end_date, region).map(
+        _collection(source, start_date, end_date, region, remove_snow).map(
             lambda image: zone_observation(image, index, region, source.scale_m)
         )
     ).filter(ee.Filter.notNull(["value"]))
@@ -225,7 +236,8 @@ def fetch_zonal_index_series(
     geometry: dict[str, Any],
     start_date: str,
     end_date: str,
+    remove_snow: bool = True,
 ) -> pd.DataFrame:
     return _zone_rows_to_dataframe(
-        _get_info(zone_series(source, index, geometry, start_date, end_date))
+        _get_info(zone_series(source, index, geometry, start_date, end_date, remove_snow))
     )

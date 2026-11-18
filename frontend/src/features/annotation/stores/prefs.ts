@@ -17,6 +17,7 @@ export interface SmoothingOptions {
  *  task change. */
 export interface TimeseriesChartOptions {
   removeCloudy: boolean;
+  removeSnow: boolean;
   showDots: boolean;
   smoothEnabled: boolean;
   smoothing: SmoothingOptions;
@@ -24,6 +25,7 @@ export interface TimeseriesChartOptions {
 
 export const DEFAULT_TIMESERIES_CHART: TimeseriesChartOptions = {
   removeCloudy: true,
+  removeSnow: true,
   showDots: true,
   smoothEnabled: false,
   smoothing: { window: 7, order: 3 },
@@ -112,11 +114,17 @@ export const usePrefsStore = create<PrefsState>()(
     {
       name: 'annotation:prefs',
       storage: createJSONStorage(() => localStorage),
-      version: 1,
+      version: 2,
       // Version 0 keyed starred collections by view id; read as source ids
       // they would star the wrong source.
-      migrate: (persisted, version) =>
-        (version < 1 ? { ...(persisted as object), pinnedStart: {} } : persisted) as PrefsState,
+      migrate: (persisted, version) => {
+        const saved = persisted as Partial<PrefsState>;
+        return {
+          ...saved,
+          ...(version < 1 ? { pinnedStart: {} } : {}),
+          timeseriesChart: { ...DEFAULT_TIMESERIES_CHART, ...saved.timeseriesChart },
+        };
+      },
     }
   )
 );
