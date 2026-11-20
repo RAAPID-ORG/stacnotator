@@ -372,7 +372,7 @@ def test_is_assigned_passes_through():
 
 def test_load_standing_without_users_skips_queries():
     db = MagicMock()
-    assert load_standing(db, _campaign(), []).roles == {}
+    assert load_standing(db, _campaign().project, []).roles == {}
     db.execute.assert_not_called()
     db.scalars.assert_not_called()
 
@@ -383,7 +383,7 @@ def test_load_standing_reads_org_members_only_for_org_public_projects():
     db.execute.return_value.all.return_value = [(user_id, False, True)]
     db.scalars.return_value.all.return_value = []
 
-    standing = load_standing(db, _campaign("private"), [user_id])
+    standing = load_standing(db, _campaign("private").project, [user_id])
 
     assert standing.roles == {user_id: (False, True)}
     assert db.scalars.call_count == 1  # platform admins only

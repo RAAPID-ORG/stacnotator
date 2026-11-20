@@ -27,7 +27,7 @@ from src.organizations.models import (
     OrganizationUser,
 )
 from src.projects.access import VISIBILITY_ORGANIZATION, resolve_project_flags
-from src.projects.models import ProjectUser
+from src.projects.models import Project, ProjectUser
 
 
 @dataclass(frozen=True)
@@ -101,11 +101,10 @@ class CampaignStanding:
         )
 
 
-def load_standing(db: Session, campaign: Campaign, user_ids: Iterable[UUID]) -> CampaignStanding:
-    """The standing of ``user_ids`` in the campaign, in at most three queries however
+def load_standing(db: Session, project: Project, user_ids: Iterable[UUID]) -> CampaignStanding:
+    """The standing of ``user_ids`` in the project, in at most three queries however
     many users are asked about."""
     ids = {uid for uid in user_ids if uid is not None}
-    project = campaign.project
     if not ids:
         return CampaignStanding(visibility=project.visibility, roles={})
     rows = db.execute(
@@ -204,4 +203,4 @@ def build_policy_context(
     assignments must be loaded; holding any of them (primary or review) makes the
     user an assignee, per the labelling-policy spec."""
     is_assigned = task is not None and any(a.user_id == user_id for a in task.assignments)
-    return load_standing(db, campaign, [user_id]).context(user_id, is_assigned=is_assigned)
+    return load_standing(db, campaign.project, [user_id]).context(user_id, is_assigned=is_assigned)
