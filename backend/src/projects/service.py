@@ -2,7 +2,7 @@ from uuid import UUID
 
 from fastapi import HTTPException
 from sqlalchemy import delete, func, select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, load_only
 
 from src.auth.constants import AGENT_ISSUER
 from src.auth.models import User
@@ -24,7 +24,7 @@ from src.projects.models import Project, ProjectUser
 from src.projects.schemas import ProjectOut, ProjectTilersOut, TilerOption
 from src.projects.viewer import ViewerStanding, project_flags
 from src.tasks.schemas import CampaignProgressOut
-from src.tasks.summary import campaign_progress
+from src.tasks.summary import project_progress
 from src.tilers import registry
 
 
@@ -111,11 +111,12 @@ def list_project_campaigns(db: Session, project: Project, user: User) -> list[Ca
 def list_project_campaigns_progress(
     db: Session, project: Project, user: User
 ) -> list[CampaignProgressOut]:
-    campaigns = db.scalars(select(Campaign).where(Campaign.project_id == project.id)).all()
-    return [
-        CampaignProgressOut(campaign_id=c.id, **campaign_progress(db, c, user.id).model_dump())
-        for c in campaigns
-    ]
+    campaigns = db.scalars(
+        select(Campaign)
+        .where(Campaign.project_id == project.id)
+        .options(load_only(Campaign.id, Campaign.labelling_policy))
+    ).all()
+    return project_progress(db, project, campaigns, user.id)
 
 
 def get_project_out(db: Session, project: Project, user: User) -> ProjectOut:

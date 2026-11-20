@@ -5,20 +5,22 @@ from uuid import uuid4
 
 import pytest
 import shapely
-from sqlalchemy import delete
+from sqlalchemy import Select, delete
 from sqlalchemy.orm import Session
 
 from src.annotation.models import Annotation
 from src.auth.models import User
 from src.campaigns.models import Campaign
+from src.campaigns.schemas import default_labelling_policy
 from src.database import engine
 from src.geometry import ewkt
 from src.organizations.models import Organization
 from src.projects.models import Project, ProjectUser
+from src.projects.service import list_project_campaigns_progress
 from src.tasks import service
 from src.tasks.models import Task, TaskAssignment, TaskSet
 from src.tasks.schemas import TaskProgressOut, TaskSummaryOut
-from src.tasks.summary import campaign_progress, task_set_progress, task_summary_json
+from src.tasks.summary import task_set_progress, task_summary_json
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("AGENT_DATABASE_TESTS") != "1",
@@ -260,7 +262,70 @@ def test_progress_counts_done_tasks_and_the_viewers_answered_assignments(varied_
     viewer = next(a.user_id for t in tasks for a in t.assignments if a.is_review)
     mine = [a for t in tasks for a in t.assignments if a.user_id == viewer]
 
-    progress = campaign_progress(db, campaign, viewer)
+    policy = default_labelling_policy()
+    policy.complete_assigned.kinds = []
+    second = Campaign(
+        project_id=campaign.project_id,
+        name="Different policy",
+        labelling_policy=policy.model_dump(),
+        bbox_west=0,
+        bbox_south=0,
+        bbox_east=10,
+        bbox_north=10,
+    )
+    empty = Campaign(
+        project_id=campaign.project_id,
+        name="Empty",
+        bbox_west=0,
+        bbox_south=0,
+        bbox_east=10,
+        bbox_north=10,
+    )
+    db.add_all([second, empty])
+    db.flush()
+    task_set = TaskSet(campaign_id=second.id, name="Test")
+    db.add(task_set)
+    db.flush()
+    task = Task(
+        campaign_id=second.id,
+        task_set_id=task_set.id,
+        annotation_number=1,
+        geometry=ewkt("POINT(1 1)"),
+    )
+    db.add(task)
+    db.flush()
+    db.add(TaskAssignment(task_id=task.id, user_id=viewer))
+    db.add(
+        Annotation(
+            campaign_id=second.id,
+            task_id=task.id,
+            created_by_user_id=viewer,
+            geometry=ewkt("POINT(1 1)"),
+            outcome="labelled",
+            label_id=1,
+        )
+    )
+    db.flush()
+
+    def progress_for(user_id):
+        return {
+            row.campaign_id: TaskProgressOut.model_validate(row.model_dump())
+            for row in list_project_campaigns_progress(db, campaign.project, db.get(User, user_id))
+        }
+
+    by_campaign = progress_for(viewer)
+    assert set(by_campaign) == {campaign.id, second.id, empty.id}
+    assert by_campaign[empty.id] == TaskProgressOut(
+        num_tasks=0, num_done=0, num_conflicting=0, num_assigned=0, num_assigned_done=0
+    )
+    assert by_campaign[second.id] == TaskProgressOut(
+        num_tasks=1, num_done=0, num_conflicting=0, num_assigned=1, num_assigned_done=1
+    )
+    other = next(a.user_id for t in tasks for a in t.assignments if a.user_id != viewer)
+    assert progress_for(other)[second.id] == TaskProgressOut(
+        num_tasks=1, num_done=0, num_conflicting=0, num_assigned=0, num_assigned_done=0
+    )
+    progress = by_campaign[campaign.id]
 
     assert progress == TaskProgressOut(
         num_tasks=len(tasks),
@@ -294,16 +359,16 @@ def test_authors_the_lookup_missed_still_get_their_rule(varied_campaign, monkeyp
     expected_summary = TaskSummaryOut.model_validate_json(
         task_summary_json(db, campaign, with_email=False)
     )
-    real_scalars = db.scalars
+    real_execute = db.execute
     calls: list[int] = []
 
-    def lookup_misses_everyone(*args, **kwargs):
-        if not calls:
+    def lookup_misses_everyone(statement, *args, **kwargs):
+        if not calls and isinstance(statement, Select):
             calls.append(1)
-            return iter(())
-        return real_scalars(*args, **kwargs)
+            statement = statement.where(False)
+        return real_execute(statement, *args, **kwargs)
 
-    monkeypatch.setattr(db, "scalars", lookup_misses_everyone)
+    monkeypatch.setattr(db, "execute", lookup_misses_everyone)
     summary = TaskSummaryOut.model_validate_json(task_summary_json(db, campaign, with_email=False))
 
     assert rows(summary) == rows(expected_summary)

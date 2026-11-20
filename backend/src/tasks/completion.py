@@ -15,10 +15,12 @@ from sqlalchemy.orm import Session
 from src.annotation.models import Annotation
 from src.campaigns.models import Campaign
 from src.campaigns.policy import (
+    CampaignStanding,
     counts_toward_completion,
     get_labelling_policy,
     load_standing,
 )
+from src.campaigns.schemas import LabellingPolicy
 
 
 def attach_counts_toward_completion(
@@ -49,22 +51,16 @@ class AuthorCompletion(NamedTuple):
     when_not_assigned: bool
 
 
-def completion_by_author(
-    db: Session, campaign: Campaign, author_ids: Collection[UUID]
-) -> dict[UUID, AuthorCompletion]:
-    """The rule for each author, for reads that apply it to many rows elsewhere (SQL)."""
-    policy = get_labelling_policy(campaign)
-    standing = load_standing(db, campaign, author_ids)
-    cases = {}
-    for author in author_ids:
-        assigned = standing.context(author, is_assigned=True)
-        not_assigned = standing.context(author, is_assigned=False)
-        cases[author] = AuthorCompletion(
-            on_unassigned_task=counts_toward_completion(policy, False, not_assigned),
-            when_assigned=counts_toward_completion(policy, True, assigned),
-            when_not_assigned=counts_toward_completion(policy, True, not_assigned),
-        )
-    return cases
+def author_completion(
+    policy: LabellingPolicy, standing: CampaignStanding, author: UUID
+) -> AuthorCompletion:
+    assigned = standing.context(author, is_assigned=True)
+    not_assigned = standing.context(author, is_assigned=False)
+    return AuthorCompletion(
+        on_unassigned_task=counts_toward_completion(policy, False, not_assigned),
+        when_assigned=counts_toward_completion(policy, True, assigned),
+        when_not_assigned=counts_toward_completion(policy, True, not_assigned),
+    )
 
 
 def completion_rule(
@@ -72,7 +68,9 @@ def completion_rule(
 ) -> Callable[[UUID, set[UUID]], bool]:
     """Whether an author's task row counts toward completion, given who is assigned to
     that task. Loads the authors' standing once, so a caller can ask for many rows."""
-    cases = completion_by_author(db, campaign, author_ids)
+    policy = get_labelling_policy(campaign)
+    standing = load_standing(db, campaign.project, author_ids)
+    cases = {author: author_completion(policy, standing, author) for author in author_ids}
 
     def counts(author_id: UUID, assigned_ids: set[UUID]) -> bool:
         case = cases[author_id]
