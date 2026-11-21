@@ -86,6 +86,24 @@ def assignments_of(db, user_id):
     return db.scalars(select(TaskAssignment).where(TaskAssignment.user_id == user_id)).all()
 
 
+def test_deferred_task_stays_open_and_a_saved_answer_is_never_reopened(agent_db):
+    db, campaign, owner = agent_db
+    aid = register(db, campaign, owner, task_count=4).user_id
+    first = service.next_tasks(db, aid, owner).tasks[0]
+    service.defer_task(db, aid, owner, first.task_id)
+    queue = service.next_tasks(db, aid, owner)
+    assert queue.remaining == 4
+    others = queue.tasks
+    assert len(others) == 3 and first not in others
+    for task in others:
+        assert service.next_tasks(db, aid, owner).tasks[0] == task
+        service.submit_annotation(db, aid, owner, task.task_id, TaskAnswerCreate(label_id=1))
+    service.defer_task(db, aid, owner, others[0].task_id)
+    queue = service.next_tasks(db, aid, owner)
+    assert queue.remaining == 1
+    assert queue.tasks == [first]
+
+
 def test_removing_an_agent_that_labelled_frees_its_tasks_and_keeps_its_work(agent_db):
     db, campaign, owner = agent_db
     agent = register(db, campaign, owner, task_count=3)

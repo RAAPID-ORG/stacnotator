@@ -157,10 +157,11 @@ uvx --from "stacnotator-sdk[api] @ git+https://github.com/RAAPID-ORG/stacnotator
   `submit_label` or `skip_task`; on its last reply it can only call those two. When the
   backend rejects a label (an unknown label, a missing required form field), the error goes
   back to the model to correct.
-- **Temporary failures.** The API runner waits before asking for the next open
-  task again. This retries unfinished work without skipping it or reordering
-  assignments; other agents can keep working. If a submit response is lost,
-  the runner checks the queue instead of blindly repeating the write.
+- **Temporary failures.** A failed task stays assigned, not skipped. `defer_task`
+  puts it behind the agent's other pending work. The API runner retries with
+  backoff; other agents can keep working. If a submit response is lost, the
+  runner consults the open queue rather than submitting the answer again.
+  A saved answer is never reopened by deferral.
 - **First look.** `--first-look views.json` sets the 1-4 views every task opens with (the
   view syntax of `get_views`); without it, the built-in overview.
 - **Missing tiles.** The render page waits up to 30 seconds for a view's tiles. When the
