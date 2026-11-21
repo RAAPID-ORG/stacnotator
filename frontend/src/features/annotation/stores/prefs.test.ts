@@ -12,6 +12,7 @@ beforeEach(() => {
     customMapOverrides: {},
     timeseriesChart: {
       removeCloudy: true,
+      removeSnow: true,
       showDots: true,
       smoothEnabled: false,
       smoothing: { window: 7, order: 3 },
@@ -20,6 +21,25 @@ beforeEach(() => {
 });
 
 describe('timeseries chart options', () => {
+  it('enables snow masking for old preferences without resetting other options', async () => {
+    localStorage.setItem(
+      'annotation:prefs',
+      JSON.stringify({
+        version: 1,
+        state: { timeseriesChart: { removeCloudy: false, showDots: false } },
+      })
+    );
+    await usePrefsStore.persist.rehydrate();
+    expect(usePrefsStore.getState().timeseriesChart).toMatchObject({
+      removeSnow: true,
+      removeCloudy: false,
+      showDots: false,
+    });
+    usePrefsStore.getState().setTimeseriesChart({ removeSnow: false });
+    await usePrefsStore.persist.rehydrate();
+    expect(usePrefsStore.getState().timeseriesChart.removeSnow).toBe(false);
+  });
+
   it('patches one option without disturbing the others', () => {
     // The panel drops back to a spinner between tasks, unmounting the chart, so
     // these live here rather than in its own state - a toggle has to outlive it.
@@ -28,6 +48,7 @@ describe('timeseries chart options', () => {
 
     expect(usePrefsStore.getState().timeseriesChart).toEqual({
       removeCloudy: true,
+      removeSnow: true,
       showDots: false,
       smoothEnabled: false,
       smoothing: { window: 11, order: 2 },

@@ -43,7 +43,8 @@ log = logging.getLogger(__name__)
 class ViewCell(TypedDict, total=False):
     """Exactly one of slice_id (optionally with visualization), basemap_id or
     timeseries_ids; zoom overrides the view's zoom for this cell only. Time series cells
-    take remove_cloudy (drop cloud-flagged observations) and smoothed (Savitzky-Golay line).
+    take remove_cloudy (drop cloud-flagged observations), remove_snow (mask snow/ice
+    before extraction, true by default) and smoothed (Savitzky-Golay line).
     center overrides the view's centre: pick a pixel of an earlier image or give lat/lon.
     """
 
@@ -52,6 +53,7 @@ class ViewCell(TypedDict, total=False):
     basemap_id: int
     timeseries_ids: list[int]
     remove_cloudy: bool
+    remove_snow: bool
     smoothed: bool
     zoom: float
     center: "ProbePoint"
@@ -696,6 +698,7 @@ async def probe_timeseries(
     timeseries_ids: list[int] | None = None,
     remove_cloudy: bool = True,
     smoothed: bool = False,
+    remove_snow: bool = True,
 ) -> list[str | Image]:
     """Load the time series at 1-6 points you pick on a map, charted beside the task's own,
     to compare places that look alike (or unlike) with the task.
@@ -720,7 +723,12 @@ async def probe_timeseries(
     if not 1 <= len(points) <= 6:
         raise ToolError("Pass 1-6 points.")
     options = _without_none(
-        {"timeseries_ids": timeseries_ids, "remove_cloudy": remove_cloudy, "smoothed": smoothed}
+        {
+            "timeseries_ids": timeseries_ids,
+            "remove_cloudy": remove_cloudy,
+            "smoothed": smoothed,
+            "remove_snow": remove_snow,
+        }
     )
     request = {"points": points, **options}
     try:

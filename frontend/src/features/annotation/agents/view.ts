@@ -26,6 +26,7 @@ export interface ViewCell {
   basemap_id?: number;
   timeseries_ids?: number[];
   remove_cloudy?: boolean;
+  remove_snow?: boolean;
   smoothed?: boolean;
   zoom?: number;
   center?: ViewCenter;
@@ -84,8 +85,8 @@ export function checkView(view: ViewSpec, { fitted = false } = {}): void {
     const kinds = [cell.slice_id, cell.basemap_id, cell.timeseries_ids].filter((v) => v != null);
     if (kinds.length !== 1)
       throw new Error('a cell names exactly one of slice_id, basemap_id, timeseries_ids');
-    if (cell.timeseries_ids == null && (cell.remove_cloudy || cell.smoothed))
-      throw new Error('remove_cloudy and smoothed apply to time series cells only');
+    if (cell.timeseries_ids == null && (cell.remove_cloudy || cell.remove_snow || cell.smoothed))
+      throw new Error('remove_cloudy, remove_snow and smoothed apply to time series cells only');
   }
 }
 

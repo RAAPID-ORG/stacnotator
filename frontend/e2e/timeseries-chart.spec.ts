@@ -112,6 +112,28 @@ test.describe('Chart options menu', () => {
     await expect(dotsToggle(annotationPage)).toBeVisible();
   });
 
+  test('snow masking defaults on and switching it refetches without changing cloud filtering', async ({
+    annotationPage,
+  }) => {
+    await openOptions(annotationPage);
+    const snow = tsOption(annotationPage, 'remove-snow');
+    await expect(snow).toHaveAttribute('aria-checked', 'true');
+    const unmasked = annotationPage.waitForResponse(
+      (response) =>
+        response.url().includes('/timeseries/') &&
+        new URL(response.url()).searchParams.get('remove_snow') === 'false'
+    );
+    await snow.click();
+    await unmasked;
+    await expect(snow).toHaveAttribute('aria-checked', 'false');
+    await expect(removeCloudy(annotationPage)).toHaveAttribute('aria-checked', 'true');
+    await expect(chart(annotationPage).locator('canvas')).toBeVisible();
+    await annotationPage.reload();
+    await expect(chart(annotationPage).locator('canvas')).toBeVisible();
+    await openOptions(annotationPage);
+    await expect(tsOption(annotationPage, 'remove-snow')).toHaveAttribute('aria-checked', 'false');
+  });
+
   test('clicking the gear again closes the menu', async ({ annotationPage }) => {
     await openOptions(annotationPage);
     await optionsBtn(annotationPage).click();

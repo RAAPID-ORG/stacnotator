@@ -10,6 +10,7 @@ import {
   type TimeseriesLocation,
 } from '../../campaign/probes';
 import { useWorkStore } from '../../stores/work';
+import { usePrefsStore } from '../../stores/prefs';
 import { useMapFocus } from '../../stores/tasks';
 import { Chart, type ChartPoint } from './TimeseriesChart';
 import { timeSeriesCache, type TimeSeriesData } from './cache';
@@ -46,6 +47,7 @@ function chartPoints(taskLocation: TimeseriesLocation | null, probes: Probe[]): 
 export function TimeseriesPanel({ window: tsWindow }: TimeseriesPanelProps) {
   const { t } = useTranslation('panels');
   const mode = useCampaignStore((s) => s.workMode);
+  const removeSnow = usePrefsStore((s) => s.timeseriesChart.removeSnow);
   // Panel composition rebuilds the window (and with it this array) whenever
   // the page recomposes, e.g. on every collection change. Keying on the
   // series' contents instead keeps the fetch and the chart's datasets put.
@@ -73,6 +75,10 @@ export function TimeseriesPanel({ window: tsWindow }: TimeseriesPanelProps) {
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
+    setData({});
+  }, [removeSnow]);
+
+  useEffect(() => {
     if (points.length === 0 || ids.length === 0) {
       setData({});
       setLoadingCount(0);
@@ -86,7 +92,7 @@ export function TimeseriesPanel({ window: tsWindow }: TimeseriesPanelProps) {
 
     for (const point of points) {
       timeSeriesCache
-        .get(campaignId, ids, point.location)
+        .get(campaignId, ids, point.location, removeSnow)
         .then((result) => {
           if (cancelled || !result) return;
           setData((prev) => ({ ...prev, [point.key]: result }));
@@ -103,14 +109,14 @@ export function TimeseriesPanel({ window: tsWindow }: TimeseriesPanelProps) {
     return () => {
       cancelled = true;
     };
-    // Only re-fetch when the points (or the series list) actually change.
+    // Re-fetch when locations, series, or server-side snow masking change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [campaignId, ids, pointsKey]);
+  }, [campaignId, ids, pointsKey, removeSnow]);
 
   useEffect(() => {
     if (ids.length === 0 || !upcoming?.length) return;
-    timeSeriesCache.prefetch(campaignId, ids, upcoming);
-  }, [campaignId, ids, upcoming]);
+    timeSeriesCache.prefetch(campaignId, ids, upcoming, removeSnow);
+  }, [campaignId, ids, upcoming, removeSnow]);
 
   // Only what the chart is currently asked to draw, so a removed probe's rows
   // leave with it rather than lingering in the cache-shaped state.

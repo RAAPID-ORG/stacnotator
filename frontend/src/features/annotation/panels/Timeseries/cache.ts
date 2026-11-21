@@ -34,10 +34,11 @@ function position2d(position: GeoJSON.Position): [number, number] {
 function cacheKeyFor(
   campaignId: number,
   timeseriesIds: number[],
-  coordinate: TimeseriesLocation
+  coordinate: TimeseriesLocation,
+  removeSnow: boolean
 ): string {
   const ids = [...timeseriesIds].sort((a, b) => a - b).join(',');
-  return `${campaignId}|${locationKey(coordinate)}|${ids}`;
+  return `${campaignId}|${locationKey(coordinate)}|${ids}|snow:${removeSnow}`;
 }
 
 export class TimeSeriesCache {
@@ -61,7 +62,8 @@ export class TimeSeriesCache {
   private async fetchFromAPI(
     campaignId: number,
     timeseriesIds: number[],
-    coordinate: TimeseriesLocation
+    coordinate: TimeseriesLocation,
+    removeSnow: boolean
   ): Promise<TimeSeriesData> {
     const results = await Promise.all(
       timeseriesIds.map(async (tsId) => {
@@ -71,6 +73,7 @@ export class TimeSeriesCache {
             ? await getZonalTimeseriesData({
                 path,
                 body: {
+                  remove_snow: removeSnow,
                   geometry:
                     coordinate.type === 'Polygon'
                       ? {
@@ -88,7 +91,11 @@ export class TimeSeriesCache {
               })
             : await getTimeseriesData({
                 path,
-                query: { latitude: coordinate.lat, longitude: coordinate.lon },
+                query: {
+                  latitude: coordinate.lat,
+                  longitude: coordinate.lon,
+                  remove_snow: removeSnow,
+                },
                 throwOnError: true,
               });
         const rows: TimeSeriesRow[] = Array.isArray(data?.data)
@@ -111,11 +118,12 @@ export class TimeSeriesCache {
   async get(
     campaignId: number,
     timeseriesIds: number[],
-    coordinate: TimeseriesLocation | null
+    coordinate: TimeseriesLocation | null,
+    removeSnow = true
   ): Promise<TimeSeriesData | null> {
     if (!coordinate || timeseriesIds.length === 0) return null;
 
-    const cacheKey = cacheKeyFor(campaignId, timeseriesIds, coordinate);
+    const cacheKey = cacheKeyFor(campaignId, timeseriesIds, coordinate, removeSnow);
 
     const cached = this.cache.get(cacheKey);
     if (cached && this.isValid(cached)) return cached.data;
@@ -125,7 +133,7 @@ export class TimeSeriesCache {
 
     const fetchPromise = (async () => {
       try {
-        const data = await this.fetchFromAPI(campaignId, timeseriesIds, coordinate);
+        const data = await this.fetchFromAPI(campaignId, timeseriesIds, coordinate, removeSnow);
         this.cache.set(cacheKey, { data, timestamp: this.now() });
         this.evictOldest();
         return data;
@@ -141,15 +149,20 @@ export class TimeSeriesCache {
   /** Prefetch data for upcoming locations (fire-and-forget). A failed
    *  prefetch just means that point re-fetches on demand when the user
    *  actually reaches it, so failures are logged, not surfaced. */
-  prefetch(campaignId: number, timeseriesIds: number[], coordinates: TimeseriesLocation[]): void {
+  prefetch(
+    campaignId: number,
+    timeseriesIds: number[],
+    coordinates: TimeseriesLocation[],
+    removeSnow = true
+  ): void {
     for (const coordinate of coordinates) {
       if (!coordinate || timeseriesIds.length === 0) continue;
 
-      const cacheKey = cacheKeyFor(campaignId, timeseriesIds, coordinate);
+      const cacheKey = cacheKeyFor(campaignId, timeseriesIds, coordinate, removeSnow);
       const cached = this.cache.get(cacheKey);
       if ((cached && this.isValid(cached)) || this.pendingRequests.has(cacheKey)) continue;
 
-      this.get(campaignId, timeseriesIds, coordinate).catch((err) => {
+      this.get(campaignId, timeseriesIds, coordinate, removeSnow).catch((err) => {
         handleError(err, `Prefetch failed for ${cacheKey}`, { showUser: false });
       });
     }

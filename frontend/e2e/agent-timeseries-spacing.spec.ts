@@ -9,6 +9,41 @@ test.beforeEach(async ({ appPage: page }) => {
   );
 });
 
+test('agent charts forward default snow masking and explicit opt-out with separate cached data', async ({
+  appPage: page,
+}) => {
+  const settings: string[] = [];
+  await page.route('**/api/campaigns/*/timeseries/*/data*', (route) => {
+    const setting = new URL(route.request().url()).searchParams.get('remove_snow')!;
+    settings.push(setting);
+    return route.fulfill({
+      json: { data: [{ time: '2024-06-01', values: setting === 'true' ? 0.6 : 0.2, cloud: 0 }] },
+    });
+  });
+  await page.goto('/agent-render?campaign=42');
+  await expect(page.getByText('Agent render page - ready')).toBeVisible();
+  const results = await page.evaluate(async () => {
+    const output = [];
+    for (const cell of [{ timeseries_ids: [1] }, { timeseries_ids: [1], remove_snow: false }]) {
+      const [result] = await window.stacnotatorAgent!.render(
+        { task_id: 1, lat: 0, lon: 0, geometry_wkt: 'POINT(0 0)' },
+        [{ cells: [cell], columns: 1, cell_px: 400 }],
+        { max_edge_px: 1600, max_megapixels: 4 }
+      );
+      if ('error' in result) throw new Error(result.error);
+      output.push(result.meta);
+    }
+    return output;
+  });
+  expect(settings).toEqual(['true', 'false']);
+  expect(results[0]).toMatchObject({
+    cells: [{ remove_snow: true, series: [{ rows: [['2024-06-01', 0.6, 0]] }] }],
+  });
+  expect(results[1]).toMatchObject({
+    cells: [{ remove_snow: false, series: [{ rows: [['2024-06-01', 0.2, 0]] }] }],
+  });
+});
+
 test('agent chart positions observations by elapsed days and keeps concise metadata', async ({
   appPage: page,
 }) => {

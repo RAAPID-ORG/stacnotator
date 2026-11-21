@@ -1,7 +1,7 @@
 """Where a time series' pixels come from: one entry per satellite source.
 
 A source builds an ``ee.ImageCollection`` whose bands are already named by band
-role and already scaled to surface reflectance, plus a 0/1 ``cloud`` band.
+role and already scaled to surface reflectance, plus 0/1 ``cloud`` and ``snow`` bands.
 Everything sensor-specific - collection ids, band names, scaling factors, how
 clouds are flagged, the fact that Landsat is four missions merged - is absorbed
 here. That is what lets one index formula run unchanged across all of them, and
@@ -67,8 +67,9 @@ def _modis_collection(start_date: str, end_date: str, point: Any) -> Any:
         # State bits 0-1: 0 clear, 1 cloudy, 2 mixed, 3 not set (assumed clear).
         cloud_state = image.select("State").toUint16().bitwiseAnd(3)
         cloud = cloud_state.eq(1).Or(cloud_state.eq(2)).rename("cloud")
+        snow = image.select("State").toUint16().bitwiseAnd((1 << 12) | (1 << 15)).neq(0)
         reflectance = _to_reflectance(image, _MODIS_BANDS, _MODIS_SCALE)
-        return _stamp(reflectance.addBands(cloud), image)
+        return _stamp(reflectance.addBands(cloud).addBands(snow.rename("snow")), image)
 
     return _filtered("MODIS/061/MOD09Q1", start_date, end_date, point).map(prepare)
 
@@ -119,8 +120,9 @@ def _sentinel2_collection(start_date: str, end_date: str, point: Any) -> Any:
         scored = image.select("cs_cdf").lt(_CS_CLEAR_THRESHOLD)
         classified = image.select("SCL").remap(_SCL_CLOUD_CLASSES, [1] * len(_SCL_CLOUD_CLASSES), 0)
         cloud = scored.Or(classified).rename("cloud")
+        snow = image.select("SCL").eq(11).rename("snow")
         reflectance = _to_reflectance(image, _S2_BANDS, _S2_SCALE)
-        return _stamp(reflectance.addBands(cloud), image)
+        return _stamp(reflectance.addBands(cloud).addBands(snow), image)
 
     return collection.map(prepare)
 
@@ -165,11 +167,12 @@ def _landsat_prepare(bands: dict[BandRole, str]) -> Callable[[Any], Any]:
     def prepare(image: Any) -> Any:
         qa = image.select("QA_PIXEL")
         cloud = qa.bitwiseAnd(_LANDSAT_CLOUD_BITS).neq(0).rename("cloud")
+        snow = qa.bitwiseAnd(1 << 5).neq(0).rename("snow")
         reflectance = _to_reflectance(image, bands, _LANDSAT_SCALE, _LANDSAT_OFFSET)
         # Fill pixels carry no measurement at all, so they are masked away rather
         # than reported as cloudy - this is also where Landsat 7's scan-line gaps go.
         valid = qa.bitwiseAnd(_LANDSAT_FILL_BIT).eq(0)
-        return _stamp(reflectance.addBands(cloud).updateMask(valid), image)
+        return _stamp(reflectance.addBands(cloud).addBands(snow).updateMask(valid), image)
 
     return prepare
 

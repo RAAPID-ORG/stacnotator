@@ -88,7 +88,10 @@ def _zonal(events, monkeypatch, fetched=None, **request):
     client = TestClient(app, headers={"Authorization": "Bearer t"})
     resp = client.post(
         f"/api/campaigns/{request.get('campaign_id', CAMPAIGN_ID)}/timeseries/{TS_ID}/data",
-        json={"geometry": request.get("geometry", ZONE)},
+        json={
+            "geometry": request.get("geometry", ZONE),
+            **({"remove_snow": request["remove_snow"]} if "remove_snow" in request else {}),
+        },
     )
     return resp, calls
 
@@ -105,12 +108,34 @@ def test_zonal_series_releases_the_connection_and_passes_the_polygon(events, mon
             "geometry": ZONE,
             "start_date": "2024-01-01",
             "end_date": "2024-04-01",
+            "remove_snow": True,
         }
     ]
     assert resp.json() == {
         "timeseries_id": TS_ID,
         "data": [{"time": "2024-01-05T00:00:00", "values": 0.4, "cloud": 0}],
     }
+
+
+@pytest.mark.parametrize("remove_snow", [True, False])
+def test_snow_mask_option_reaches_point_and_polygon_extraction(events, monkeypatch, remove_snow):
+    calls = []
+
+    def point(**kwargs):
+        calls.append(kwargs)
+        return pd.DataFrame()
+
+    monkeypatch.setattr(service, "get_timeseries_data", point)
+    client = TestClient(app, headers={"Authorization": "Bearer t"})
+    response = client.get(
+        f"/api/campaigns/{CAMPAIGN_ID}/timeseries/{TS_ID}/data",
+        params={"latitude": 1, "longitude": 2, "remove_snow": remove_snow},
+    )
+    assert response.status_code == 200
+    assert calls[0]["remove_snow"] is remove_snow
+    response, calls = _zonal(events, monkeypatch, remove_snow=remove_snow)
+    assert response.status_code == 200
+    assert calls[0]["remove_snow"] is remove_snow
 
 
 def test_zonal_series_rejects_an_invalid_polygon_before_any_work(events, monkeypatch):

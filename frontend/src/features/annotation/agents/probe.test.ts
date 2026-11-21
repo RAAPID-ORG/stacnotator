@@ -144,9 +144,13 @@ describe('probeView', () => {
       locateProbe(TASK, { view, reply: 1, image: 1, x: 790, y: 10 }),
       locateProbe(TASK, { view, reply: 1, image: 1, x: 400, y: 600 }),
     ];
-    const probed = probeView(picks, [5], { remove_cloudy: true }, limits);
+    const probed = probeView(picks, [5], { remove_cloudy: true, remove_snow: false }, limits);
     expect(probed.cells).toHaveLength(2);
-    expect(probed.cells[1]).toEqual({ timeseries_ids: [5], remove_cloudy: true });
+    expect(probed.cells[1]).toEqual({
+      timeseries_ids: [5],
+      remove_cloudy: true,
+      remove_snow: false,
+    });
     const px = probed.cell_px!;
     const zoom = probed.cells[0].zoom!;
     expect(px).toBeLessThan(800);

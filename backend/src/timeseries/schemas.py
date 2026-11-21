@@ -311,6 +311,7 @@ ZoneGeometry = Annotated[PolygonGeometry | MultiPolygonGeometry, Field(discrimin
 
 class ZonalTimeseriesRequest(BaseModel):
     geometry: ZoneGeometry
+    remove_snow: bool = True
 
     @model_validator(mode="after")
     def validate_zone(self) -> "ZonalTimeseriesRequest":

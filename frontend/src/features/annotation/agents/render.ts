@@ -497,9 +497,12 @@ async function drawChart(
 ): Promise<DrawnCell> {
   const center = viewCenter(task, view, cell);
   const nearby = Boolean(cell.center || view.center);
+  const removeSnow = cell.remove_snow ?? true;
   const points = [nearby ? center : geometryLocation(wktToGeometry(task.geometry_wkt)), ...probes];
   const data = await Promise.all(
-    points.map(async (point) => (await timeSeriesCache.get(campaign.id, ids, point)) ?? {})
+    points.map(
+      async (point) => (await timeSeriesCache.get(campaign.id, ids, point, removeSnow)) ?? {}
+    )
   );
   const times = collectSeriesLabels(ids, ...data);
   const timestamps = times.map(parseSeriesDate);
@@ -614,10 +617,12 @@ async function drawChart(
     meta: {
       ...place,
       kind: 'timeseries',
+      remove_snow: removeSnow,
       center,
       label: [
         'type' in points[0] ? 'time series (task polygon mean)' : 'time series',
         cell.remove_cloudy ? 'cloudy removed' : 'grey dots cloudy',
+        ...(removeSnow ? ['snow/ice masked'] : []),
       ]
         .concat(cell.smoothed ? ['smoothed'] : [])
         .join(', '),

@@ -30,6 +30,7 @@ def get_timeseries_data(
     longitude: float,
     start_date: str,
     end_date: str,
+    remove_snow: bool = True,
 ) -> pd.DataFrame:
     """Resolve a stored series' source and index, then fetch its values. Raises
     ValueError if the stored combination is no longer one we can compute."""
@@ -41,6 +42,7 @@ def get_timeseries_data(
         longitude=longitude,
         start_date=start_date,
         end_date=end_date,
+        remove_snow=remove_snow,
     )
 
 
@@ -50,10 +52,16 @@ def get_zonal_timeseries_data(
     geometry: dict[str, Any],
     start_date: str,
     end_date: str,
+    remove_snow: bool = True,
 ) -> pd.DataFrame:
     source, index = _resolve(index, data_source)
     return fetch_zonal_index_series(
-        source, index, geometry=geometry, start_date=start_date, end_date=end_date
+        source,
+        index,
+        geometry=geometry,
+        start_date=start_date,
+        end_date=end_date,
+        remove_snow=remove_snow,
     )
 
 

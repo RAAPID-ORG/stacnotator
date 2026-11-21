@@ -16,7 +16,7 @@ import { OptionsPopover } from './TimeseriesOptions';
  */
 export function TimeseriesHeader() {
   const { t } = useTranslation('panels');
-  const { removeCloudy, showDots, smoothEnabled, smoothing } = usePrefsStore(
+  const { removeCloudy, removeSnow, showDots, smoothEnabled, smoothing } = usePrefsStore(
     (s) => s.timeseriesChart
   );
   const setChartOptions = usePrefsStore((s) => s.setTimeseriesChart);
@@ -74,6 +74,8 @@ export function TimeseriesHeader() {
           ref={optionsPanelRef}
           removeCloudy={removeCloudy}
           onRemoveCloudyChange={(removeCloudy) => setChartOptions({ removeCloudy })}
+          removeSnow={removeSnow}
+          onRemoveSnowChange={(removeSnow) => setChartOptions({ removeSnow })}
           smoothEnabled={smoothEnabled}
           onSmoothEnabledChange={(smoothEnabled) => setChartOptions({ smoothEnabled })}
           smoothing={smoothing}
@@ -96,7 +98,7 @@ export function TimeseriesHeader() {
               ),
             }}
           >
-            {(['dots', 'removeCloudy', 'smooth', 'showDots'] as const).map((key) => (
+            {(['dots', 'removeCloudy', 'removeSnow', 'smooth', 'showDots'] as const).map((key) => (
               <p key={key}>
                 <Trans
                   t={t}

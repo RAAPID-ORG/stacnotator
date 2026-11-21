@@ -72,10 +72,32 @@ describe('TimeSeriesCache', () => {
     expect(getZonalTimeseriesDataMock).toHaveBeenCalledTimes(3);
     expect(getZonalTimeseriesDataMock).toHaveBeenCalledWith({
       path: { campaign_id: 7, timeseries_id: 1 },
-      body: { geometry: withHole },
+      body: { geometry: withHole, remove_snow: true },
       throwOnError: true,
     });
     expect(getTimeseriesDataMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('separates snow-masked requests and cached results for points and polygons', async () => {
+    const cache = newCache();
+    await Promise.all([
+      cache.get(7, [1], POINT),
+      cache.get(7, [1], POINT, false),
+      cache.get(7, [1], polygon),
+      cache.get(7, [1], polygon, false),
+    ]);
+    await cache.get(7, [1], POINT, false);
+    await cache.get(7, [1], polygon);
+    expect(getTimeseriesDataMock).toHaveBeenCalledTimes(2);
+    expect(getZonalTimeseriesDataMock).toHaveBeenCalledTimes(2);
+    expect(getTimeseriesDataMock.mock.calls.map(([r]) => r.query.remove_snow)).toEqual([
+      true,
+      false,
+    ]);
+    expect(getZonalTimeseriesDataMock.mock.calls.map(([r]) => r.body.remove_snow)).toEqual([
+      true,
+      false,
+    ]);
   });
 
   it('prefetches a multipolygon without substituting its centroid and retries failed requests', async () => {

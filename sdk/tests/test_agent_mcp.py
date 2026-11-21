@@ -247,7 +247,12 @@ def test_probes_pick_pixels_on_the_images_of_the_reply_they_name(browsers):
     # The drawn size, not the asked one, is what turns the pixel back into a place.
     shown = {**DEFAULT_VIEW, "columns": 4, "cell_px": 300}
     assert probes == [{"view": shown, **points[0]}, points[1]]
-    assert options == {"timeseries_ids": [3], "remove_cloudy": True, "smoothed": False}
+    assert options == {
+        "timeseries_ids": [3],
+        "remove_cloudy": True,
+        "smoothed": False,
+        "remove_snow": True,
+    }
     summary = json.loads(text)
     assert summary["views"][0]["meta"]["probes"] == [{"probe": "P1"}]
     assert isinstance(image, Image)
@@ -262,8 +267,10 @@ def test_probes_pick_pixels_on_the_images_of_the_reply_they_name(browsers):
                 {"reply": second, "image": 1, "x": 10, "y": 10},
                 {"reply": first, "image": 1, "x": 10, "y": 10},
             ],
+            remove_snow=False,
         )
     )
+    assert browsers.calls[-1][3]["remove_snow"] is False
     probe_view = {
         "cells": [{"slice_id": 7, "zoom": 15}, {"timeseries_ids": [3]}],
         "columns": 2,

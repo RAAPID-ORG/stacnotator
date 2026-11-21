@@ -34,6 +34,8 @@ function ToggleRow({ option, label, title, checked, onChange }: ToggleRowProps) 
 }
 
 export interface OptionsPopoverProps {
+  removeSnow: boolean;
+  onRemoveSnowChange: (v: boolean) => void;
   removeCloudy: boolean;
   onRemoveCloudyChange: (v: boolean) => void;
   smoothEnabled: boolean;
@@ -49,6 +51,8 @@ export const OptionsPopover = forwardRef<HTMLDivElement, OptionsPopoverProps>(
     {
       removeCloudy,
       onRemoveCloudyChange,
+      removeSnow,
+      onRemoveSnowChange,
       smoothEnabled,
       onSmoothEnabledChange,
       smoothing,
@@ -72,6 +76,13 @@ export const OptionsPopover = forwardRef<HTMLDivElement, OptionsPopoverProps>(
           onChange={onRemoveCloudyChange}
         />
 
+        <ToggleRow
+          option="remove-snow"
+          label={t('timeseries.options.removeSnow')}
+          title={t('timeseries.options.removeSnowTitle')}
+          checked={removeSnow}
+          onChange={onRemoveSnowChange}
+        />
         <ToggleRow
           option="smooth"
           label={t('timeseries.options.smooth')}
