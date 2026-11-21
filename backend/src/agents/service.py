@@ -276,11 +276,25 @@ def next_tasks(db: Session, agent_id: UUID, owner: User) -> NextTasksOut:
 
 
 def _upcoming_tasks(db: Session, agent: LabellingAgent) -> list[Task]:
-    return list(
-        db.scalars(
-            _open_tasks_query(agent).order_by(Task.annotation_number).limit(UPCOMING_TASKS)
-        ).all()
+    return list(db.scalars(_ordered_tasks(agent).limit(UPCOMING_TASKS)).all())
+
+
+def _ordered_tasks(agent: LabellingAgent):
+    return _open_tasks_query(agent).order_by(
+        TaskAssignment.deferred_at.asc().nulls_first(), Task.annotation_number, Task.id
     )
+
+
+def defer_task(db: Session, agent_id: UUID, owner: User, task_id: int) -> None:
+    agent, _, _ = get_agent(db, agent_id, owner)
+    open_ids = _open_tasks_query(agent).with_only_columns(Task.id).where(Task.id == task_id)
+    db.execute(
+        update(TaskAssignment)
+        .where(TaskAssignment.user_id == agent.user_id, TaskAssignment.task_id.in_(open_ids))
+        .values(deferred_at=func.now())
+        .execution_options(synchronize_session=False)
+    )
+    db.commit()
 
 
 def _take_over_task(db: Session, agent: LabellingAgent) -> bool:
@@ -298,9 +312,7 @@ def _take_over_task(db: Session, agent: LabellingAgent) -> bool:
         )
     ).all()
     for sibling in sorted(siblings, key=lambda s: _open_task_count(db, s), reverse=True):
-        open_ids = db.scalars(
-            _open_tasks_query(sibling).with_only_columns(Task.id).order_by(Task.annotation_number)
-        ).all()
+        open_ids = db.scalars(_ordered_tasks(sibling).with_only_columns(Task.id)).all()
         for task_id in reversed(open_ids[1:]):
             assignment = db.scalars(
                 select(TaskAssignment)
