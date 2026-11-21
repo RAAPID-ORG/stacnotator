@@ -209,7 +209,6 @@ class Labeller:
                     RateLimitError,
                     LabellingError,
                 ) as exc:
-                    await agent_mcp.defer_task(agent_id, task["task_id"], str(exc))
                     raise agent_mcp.RetryTaskError(f"Task {task['task_id']}: {exc}") from exc
             except agent_mcp.RetryTaskError as exc:
                 log.warning("%s: %s; checking the open queue again in %ss", name, exc, delay)

@@ -133,14 +133,11 @@ def test_lost_submit_reply_checks_queue_instead_of_replaying(monkeypatch, server
     work = labeller(ScriptedModel([call("submit_label", label_id=1, confidence=3, comment="x")]))
     submit = AsyncMock(side_effect=agent_mcp.RetryTaskError("lost reply"))
     monkeypatch.setitem(api_labelling.TOOLS, "submit_label", submit)
-    defer = AsyncMock()
-    monkeypatch.setattr(agent_mcp, "defer_task", defer)
     monkeypatch.setattr(
         agent_mcp, "next_task", AsyncMock(side_effect=[bundle(), ['{"task":null}']])
     )
     monkeypatch.setattr(asyncio, "sleep", AsyncMock())
     assert asyncio.run(work.work(AGENT, "worker")) == 0
-    defer.assert_awaited_once_with(AGENT, 5, "lost reply")
     submit.assert_awaited_once()
 
 

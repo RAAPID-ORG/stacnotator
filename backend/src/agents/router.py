@@ -117,13 +117,3 @@ def annotate_agent_task(
     user: User = Depends(require_authenticated_user),
 ) -> TaskSubmitResponse:
     return service.submit_annotation(db, agent_id, user, task_id, body)
-
-
-@router.post("/agents/{agent_id}/tasks/{task_id}/defer", status_code=204)
-def defer_agent_task(
-    agent_id: UUID,
-    task_id: int,
-    db: Session = Depends(get_db),
-    user: User = Depends(require_authenticated_user),
-) -> None:
-    service.defer_task(db, agent_id, user, task_id)

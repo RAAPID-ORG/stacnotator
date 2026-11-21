@@ -186,8 +186,6 @@ class TaskAssignment(Base):
         server_default=text("false"),
     )
 
-    deferred_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
     # Relationships
     task: Mapped["Task"] = relationship(
         back_populates="assignments",

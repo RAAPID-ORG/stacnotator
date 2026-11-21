@@ -26,7 +26,6 @@ progress, switch take-over and free tasks.
 | `probe_timeseries(agent_id, task_id, points, timeseries_ids?, remove_cloudy=true, smoothed?)` | click 1-6 places on a map you were shown and chart their time series beside the task's |
 | `set_default_views(agent_id, views)`, `set_image_limits(...)` | change the first look; restore limits after a restart |
 | `submit_label(agent_id, task_id, label_id, confidence, comment, form_values?, flagged_for_review?, flag_comment?)`, `skip_task(agent_id, task_id, comment)` | finish the task |
-| `defer_task(agent_id, task_id, comment)` | leave a technically blocked task open and work on the other assignments first |
 | `release_tasks(campaign_id, agent_id?)`, `watch_agents()` | free unfinished tasks; reopen the watch window the user closed |
 | `remove_agent(agent_id)` | remove a test or crashed agent so it stops counting toward the per-campaign limit; its labels stay |
 
@@ -55,12 +54,10 @@ ahead for your next tasks. Stop requesting views when there is enough evidence; 
 repeatedly retry an unavailable source or explore when no available view can resolve the
 uncertainty. `task: null` means done.
 
-A timeout or failed render is not evidence about the location. If a read still
-fails after retrying, use `defer_task(agent_id, task_id, comment)` and continue
-with `next_task`. This keeps the assignment open behind the agent's other
-tasks, without a label or skip. If a submission times out, do not submit it
-again: defer if still pending and read the queue. Saved answers do not return.
-Keep other workers running, and back off between repeated failures.
+A timeout or failed render is not evidence about the location. Leave that
+assignment open, wait before retrying, and keep other workers running. If a
+submission times out, call `next_task` instead of repeating the submission.
+An unfinished task returns for another attempt; a saved answer does not.
 
 ## Views
 
