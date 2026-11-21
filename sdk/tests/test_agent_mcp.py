@@ -138,6 +138,25 @@ def test_get_views_only_draws_the_current_task(browsers):
 
 
 @responses.activate
+def test_failed_first_look_defers_only_that_task(browsers, monkeypatch):
+    _start_task([TASK, NEXT_TASK])
+    deferred = responses.post(f"{BASE}/api/agents/{AGENT}/tasks/6/defer", status=204)
+    original = browsers.call
+
+    async def render_error(agent, campaign, method, *args):
+        if method == "render":
+            return [{"error": "tile server unavailable"}]
+        return await original(agent, campaign, method, *args)
+
+    monkeypatch.setattr(browsers, "call", render_error)
+    with pytest.raises(agent_mcp.RetryTaskError, match="Task 6 deferred"):
+        asyncio.run(agent_mcp.next_task(AGENT))
+    assert deferred.call_count == 1
+    assert browsers.recorded[-1]["action"] == "defer_task"
+    assert AGENT not in agent_mcp._current_tasks
+
+
+@responses.activate
 def test_exploration_resolves_pixels_and_keeps_the_task_and_requested_views(browsers):
     reply = _start_task([TASK])
     pick = {"reply": reply, "image": 1, "x": 230, "y": 120}

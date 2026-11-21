@@ -35,9 +35,13 @@ from stacnotator._render_browsers import ChromiumMissingError, RenderBrowsers, i
 from stacnotator.campaign import Campaign
 from stacnotator.client import Client
 from stacnotator.client import login as sdk_login
-from stacnotator.errors import NotLoggedInError, StacnotatorError
+from stacnotator.errors import ApiError, NotLoggedInError, StacnotatorError
 
 log = logging.getLogger(__name__)
+
+
+class RetryTaskError(ToolError):
+    pass
 
 
 class ViewCell(TypedDict, total=False):
@@ -187,7 +191,9 @@ server = MCPServer(
         "get_campaign until imagery is ready -> "
         "preview_campaign. To label: register one agent per worker, read the campaign "
         "guide in its context, then loop next_task -> (get_views, probe_timeseries) -> "
-        "submit_label or skip_task, always passing your own agent_id."
+        "submit_label or skip_task, always passing your own agent_id. For a temporary "
+        "failure, defer_task instead of skipping or guessing. Continue with next_task; "
+        "it returns deferred work after other assignments. Back off on recurring failures."
     ),
 )
 
@@ -281,6 +287,12 @@ def _sign_in(url: str) -> dict[str, Any]:
 async def _api(call: Callable[..., Any], *args: Any) -> Any:
     try:
         return await asyncio.to_thread(call, *args)
+    except RequestException as exc:
+        raise RetryTaskError(f"Request failed: {exc}") from exc
+    except ApiError as exc:
+        if exc.status in (408, 429) or exc.status >= 500:
+            raise RetryTaskError(str(exc)) from exc
+        raise ToolError(str(exc)) from exc
     except StacnotatorError as exc:
         raise ToolError(str(exc)) from exc
 
@@ -293,12 +305,18 @@ async def _agent(agent_id: str) -> dict[str, Any]:
 
 async def _on_page(agent_id: str, method: str, *args: Any) -> Any:
     agent = await _agent(agent_id)
-    try:
-        return await _browsers().call(agent_id, agent["campaign_id"], method, *args)
-    except ChromiumMissingError as exc:
-        raise ToolError(str(exc)) from exc
-    except Exception as exc:
-        raise ToolError(f"The render browser failed: {exc}") from exc
+    for attempt in itertools.count():
+        try:
+            return await _browsers().call(agent_id, agent["campaign_id"], method, *args)
+        except ChromiumMissingError as exc:
+            raise ToolError(str(exc)) from exc
+        except Exception as exc:
+            if method not in ("render", "probe", "preload", "defaultViews", "context", "locate"):
+                raise ToolError(f"The render browser failed: {exc}") from exc
+            if attempt == 2:
+                raise RetryTaskError(f"The render browser failed after three reads: {exc}") from exc
+            log.warning("Agent %s: retrying %s after browser failure: %s", agent_id, method, exc)
+            await asyncio.sleep(2**attempt)
 
 
 async def _views_of(agent_id: str) -> list[ViewSpec]:
@@ -636,7 +654,7 @@ async def next_task(agent_id: str) -> list[str | Image]:
     probe_timeseries pick pixels by reply and image number. Each view entry has its spec and
     either image (1-based position among the returned images) with meta (per-cell captions,
     zoom, meters_per_pixel, time series values) or an error. task null means every assigned
-    task is done. The same task is returned until it is labelled or skipped.
+    task is done. The same task is returned until it is labelled, skipped or deferred.
     """
     result = await _api(_http().post, f"/agents/{agent_id}/next", {})
     if not result["tasks"]:
@@ -644,10 +662,21 @@ async def next_task(agent_id: str) -> list[str | Image]:
         return [_json({"task": None, "remaining": 0, "note": "All assigned tasks are done."})]
     task, *upcoming = result["tasks"]
     _current_tasks[agent_id] = task
-    views = await _views_of(agent_id)
     limits = _limits_of(agent_id)
-    rendered = await _on_page(agent_id, "render", task, views, limits)
-    await _on_page(agent_id, "preload", upcoming, views, limits)
+    try:
+        views = await _views_of(agent_id)
+        rendered = await _on_page(agent_id, "render", task, views, limits)
+        if not any("image_base64" in view for view in rendered):
+            raise RetryTaskError("All first-look views failed to render")
+    except RetryTaskError as exc:
+        await defer_task(agent_id, task["task_id"], str(exc))
+        raise RetryTaskError(
+            f"Task {task['task_id']} deferred; continue with next_task: {exc}"
+        ) from exc
+    try:
+        await _on_page(agent_id, "preload", upcoming, views, limits)
+    except RetryTaskError as exc:
+        log.warning("Agent %s: upcoming views were not preloaded: %s", agent_id, exc)
     return await _bundle(
         agent_id,
         {"task": task, "remaining": result["remaining"]},
@@ -774,6 +803,21 @@ async def submit_label(
 
 
 @server.tool(structured_output=False)
+async def defer_task(agent_id: str, task_id: int, comment: str) -> str:
+    """Move pending work behind the agent's other tasks after a technical failure.
+    Does not label, skip, or reopen completed work. Continue with next_task."""
+    await _api(_http().post, f"/agents/{agent_id}/tasks/{task_id}/defer", {})
+    task = _current_tasks.get(agent_id, {})
+    if task.get("task_id") == task_id:
+        _current_tasks.pop(agent_id)
+    else:
+        task = {"task_id": task_id}
+    result = {"task_id": task_id, "note": "Deferred if still pending; continue with next_task."}
+    await _record_step(agent_id, task, "defer_task", {"comment": comment}, result)
+    return _json(result)
+
+
+@server.tool(structured_output=False)
 async def skip_task(agent_id: str, task_id: int, comment: str) -> str:
     """Skip a task that cannot be labelled with confidence (no usable imagery, clouds,
     outside the guide's classes). comment says why."""
@@ -789,6 +833,11 @@ async def _annotate(agent_id: str, task_id: int, body: dict[str, Any]) -> str:
         result = await _api(_http().post, f"/agents/{agent_id}/tasks/{task_id}/annotate", body)
     except ToolError as exc:
         await _record_step(agent_id, task, action, body, {}, error=str(exc))
+        if isinstance(exc, RetryTaskError):
+            raise RetryTaskError(
+                f"No confirmed response for task {task_id}. Do not resubmit; "
+                f"defer_task if still pending, then call next_task. {exc}"
+            ) from exc
         raise
     _current_tasks.pop(agent_id, None)
     error = await _record_step(agent_id, task, action, body, result)

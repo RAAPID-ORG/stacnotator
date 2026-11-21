@@ -21,6 +21,7 @@ from typing import Any, cast
 
 from mcp.server.mcpserver import Image
 from mcp.server.mcpserver.exceptions import ToolError
+from openai import APIConnectionError, InternalServerError, RateLimitError
 
 from stacnotator import agent_mcp
 from stacnotator._model_api import (
@@ -190,14 +191,32 @@ class Labeller:
     async def work(self, agent_id: str, name: str) -> int:
         """Label the agent's tasks until it has none left; returns how many it finished."""
         done = 0
+        delay = 1
         while True:
-            output = await agent_mcp.next_task(agent_id)
-            task = _split(output)[0]["task"]
-            if task is None:
-                log.info("%s: no tasks left after %d", name, done)
-                return done
-            started = time.monotonic()
-            answer = await self.label(agent_id, task, output)
+            try:
+                output = await agent_mcp.next_task(agent_id)
+                task = _split(output)[0]["task"]
+                if task is None:
+                    log.info("%s: no tasks left after %d", name, done)
+                    return done
+                started = time.monotonic()
+                try:
+                    answer = await self.label(agent_id, task, output)
+                except (
+                    agent_mcp.RetryTaskError,
+                    APIConnectionError,
+                    InternalServerError,
+                    RateLimitError,
+                    LabellingError,
+                ) as exc:
+                    await agent_mcp.defer_task(agent_id, task["task_id"], str(exc))
+                    raise agent_mcp.RetryTaskError(f"Task {task['task_id']}: {exc}") from exc
+            except agent_mcp.RetryTaskError as exc:
+                log.warning("%s: %s; checking the open queue again in %ss", name, exc, delay)
+                await asyncio.sleep(delay)
+                delay = min(60, 2 * delay)
+                continue
+            delay = 1
             done += 1
             self._report(name, task, answer, time.monotonic() - started)
 
@@ -267,6 +286,8 @@ class Labeller:
             arguments["flag_comment"] = "; ".join(filter(None, [*comments, *flags]))
         try:
             output = await TOOLS[call.name](agent_id, task_id, **arguments)
+        except agent_mcp.RetryTaskError:
+            raise
         except (ToolError, TypeError) as exc:
             return ToolResult(call.call_id, f"Error: {exc}"), None
         if call.name in FINISH_TOOLS:
