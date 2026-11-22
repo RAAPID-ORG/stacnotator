@@ -1,4 +1,9 @@
-import type { BasemapOut, ImageryEditorStateCreate, ImagerySourceOut } from '~/api/client';
+import type {
+  BasemapOut,
+  ImageryEditorStateCreate,
+  ImagerySourceOut,
+  PlanetSeriesMosaicsOut,
+} from '~/api/client';
 import { formatSliceLabel } from '~/shared/utils/utility';
 import { COLLECTION_PRESETS } from './collectionPresets';
 import { mapSourceOutToFe } from './controller';
@@ -10,7 +15,14 @@ import {
   type StacSearchSettings,
 } from './generation';
 import { collectionDefaults, MPC_API_URL, MPC_PRESETS, presetVisualizations } from './mpcPresets';
-import { createId, DEFAULT_BASEMAPS, type ImagerySlice, type ImagerySource } from './types';
+import { manualCollection, toSlice, usableMosaics } from './planetGeneration';
+import {
+  createId,
+  DEFAULT_BASEMAPS,
+  emptySource,
+  type ImagerySlice,
+  type ImagerySource,
+} from './types';
 
 /** Dates are YYYY-MM-DD, both ends included. */
 export interface RecipeSlice {
@@ -27,9 +39,18 @@ export interface RecipeWindow {
   cover: number | RecipeSlice;
 }
 
-/** One imagery source over a preset collection, its windows spelled out. */
+/** A Planet basemap series, read with one of the organization's keys by id: the key
+ *  itself stays on the server. */
+export interface PlanetRecipe {
+  key_id: number;
+  series: string;
+}
+
+/** One imagery source over a preset collection or a Planet series, its windows spelled
+ *  out. */
 export interface ImageryRecipe {
-  collection: string;
+  collection?: string;
+  planet?: PlanetRecipe;
   windows: RecipeWindow[];
   visualizations?: string[];
   max_cloud_cover?: number;
@@ -110,6 +131,66 @@ function recipeSource(recipe: ImageryRecipe, collection: StacCollectionInfo): Im
   return sourceFromGenerated(collections, undefined, recipe.name ?? preset.label);
 }
 
+function coverIndex(cover: RecipeWindow['cover'], slices: number, where: string): number {
+  if (typeof cover !== 'number' || !Number.isInteger(cover) || cover < 0 || cover >= slices) {
+    throw new Error(
+      `${where}: cover must be the index of one of its slices, got ${JSON.stringify(cover)}`
+    );
+  }
+  return cover;
+}
+
+/** Planet mosaics are finished tiles: each recipe slice is the one mosaic starting inside
+ *  it, and a cover can only be one of the slices. */
+function planetRecipeSource(recipe: ImageryRecipe, series: PlanetSeriesMosaicsOut): ImagerySource {
+  const label = recipe.name ?? recipe.planet!.series;
+  if (!recipe.windows?.length) throw new Error(`${label}: give at least one window`);
+  const visualizations = recipe.visualizations ?? series.renderings;
+  const unknown = visualizations.filter((v) => !series.renderings.includes(v));
+  if (unknown.length > 0) {
+    throw new Error(
+      `${label}: unknown visualizations ${unknown.join(', ')}; use ${series.renderings.join(', ')}`
+    );
+  }
+  const mosaics = usableMosaics(series.mosaics);
+  const starts = mosaics.map((m) => m.first_acquired).sort();
+  const available = starts.length
+    ? `its ${starts.length} mosaics start from ${starts[0]} to ${starts[starts.length - 1]}`
+    : 'it has no usable mosaics';
+  const collections = recipe.windows.map((window) => {
+    const where = `window "${window.name}"`;
+    if (!window.slices?.length) throw new Error(`${where}: give at least one slice`);
+    const slices = window.slices.map((given, i) => {
+      const at = `${where} slice ${i}`;
+      slice(given, at);
+      const inside = mosaics.filter(
+        (m) => m.first_acquired >= given.start && m.first_acquired <= given.end
+      );
+      if (inside.length !== 1) {
+        throw new Error(
+          `${at}: ${inside.length} mosaics of ${recipe.planet!.series} start in ${given.start}..${given.end}, give one slice per mosaic; ${available}`
+        );
+      }
+      return toSlice(inside[0], visualizations, given.name);
+    });
+    const cover = coverIndex(window.cover, slices.length, where);
+    return manualCollection(
+      window.name,
+      slices,
+      { index: cover, dedicated: false },
+      slices[0].vizUrls ?? []
+    );
+  });
+  return {
+    ...emptySource(),
+    name: label,
+    visualizations: visualizations.map((name) => ({ name })),
+    collections,
+    maxNativeZoom: series.max_native_zoom ?? null,
+    organizationApiKeyId: recipe.planet!.key_id,
+  };
+}
+
 function defaultBasemaps(names: string[], current: BasemapOut[]) {
   const unknown = names.filter((n) => !DEFAULT_BASEMAPS.some((b) => b.name === n));
   if (unknown.length > 0) {
@@ -133,7 +214,11 @@ export function mergedImagery(
   current: { sources: ImagerySourceOut[]; basemaps: BasemapOut[] },
   recipes: ImageryRecipe[],
   collections: StacCollectionInfo[],
-  options: { basemaps?: string[]; remove?: string[] } = {}
+  options: {
+    basemaps?: string[];
+    remove?: string[];
+    planetSeries?: Map<ImageryRecipe, PlanetSeriesMosaicsOut>;
+  } = {}
 ): ImageryEditorStateCreate {
   const remove = options.remove ?? [];
   const unknown = remove.filter((n) => !current.sources.some((s) => s.name === n));
@@ -142,15 +227,18 @@ export function mergedImagery(
       `No source named ${unknown.join(', ')}; the campaign has ${current.sources.map((s) => s.name).join(', ')}`
     );
   }
-  const built = recipes.map((recipe) =>
-    recipeSource(
-      recipe,
-      collections.find((c) => c.id === recipe.collection) ?? {
-        id: recipe.collection,
-        title: recipe.collection,
-      }
-    )
-  );
+  const built = recipes.map((recipe) => {
+    if (!recipe.collection === !recipe.planet) {
+      throw new Error('Give each recipe exactly one of collection or planet');
+    }
+    if (recipe.planet) {
+      const series = options.planetSeries?.get(recipe);
+      if (!series) throw new Error(`Planet series ${recipe.planet.series} was not loaded`);
+      return planetRecipeSource(recipe, series);
+    }
+    const id = recipe.collection!;
+    return recipeSource(recipe, collections.find((c) => c.id === id) ?? { id, title: id });
+  });
   const names = built.map((s) => s.name);
   const repeated = names.filter((n, i) => names.indexOf(n) !== i);
   if (repeated.length > 0) {
@@ -167,6 +255,10 @@ export function mergedImagery(
               ...previous,
               visualizations: replacement.visualizations,
               generationSeries: replacement.generationSeries,
+              ...(replacement.organizationApiKeyId != null && {
+                organizationApiKeyId: replacement.organizationApiKeyId,
+                maxNativeZoom: replacement.maxNativeZoom,
+              }),
               collections: retainMatchingIds(replacement.collections, previous.collections),
             }
           : previous

@@ -107,6 +107,15 @@ display settings, and windows and slices with unchanged dates keep theirs, so vi
 and registrations hold. A source made with the wizard's generator becomes plain windows when
 replaced. Sources a recipe does not name stay as they are.
 
+A recipe can also take a Planet basemap series instead of a collection: `{"planet":
+{"key_id", "series"}}` names one of the organization's Planet keys by id and a series such
+as Global Monthly. `setup_options` lists the organization's keys whose tile host is a
+`planet.com` host by id and name, with the series each can see; the key itself never
+reaches the agent, since the backend decrypts it and fills it into tile requests. The agent
+offers the keys and uses the one the user picks. Each slice is the one mosaic that starts
+inside it, and the cover is one of the slices, built like the wizard's Planet browser
+(`layers/imagery/planetGeneration.ts`).
+
 ## Running a labelling run
 
 Ask in plain words, e.g. "label 20 points of the Ukraine winter crop campaign with 4 agents".

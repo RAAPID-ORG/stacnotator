@@ -90,12 +90,24 @@ class RecipeWindow(TypedDict):
     cover: int | RecipeSlice
 
 
-class ImageryRecipe(TypedDict, total=False):
-    """One imagery source over a collection from setup_options, its windows spelled out.
-    visualizations: names from the collection's list (True Color and False Color when
-    omitted). max_cloud_cover: 0-100, default 90. name: defaults to the collection's."""
+class PlanetSeriesRef(TypedDict):
+    """A Planet basemap series from setup_options' planet list: the organization key the
+    user picked, by its key_id, and a series name that key sees."""
 
-    collection: Required[str]
+    key_id: int
+    series: str
+
+
+class ImageryRecipe(TypedDict, total=False):
+    """One imagery source, its windows spelled out: over a collection from setup_options,
+    or over a Planet series (planet instead of collection). visualizations: names from the
+    collection's list (True Color and False Color when omitted) or the series' renderings
+    (all when omitted). max_cloud_cover: 0-100, default 90, not for Planet. name: defaults
+    to the collection's or the series'. Planet: each slice is the one mosaic that starts
+    inside it (one calendar month for a monthly series) and cover is a slice index."""
+
+    collection: str
+    planet: PlanetSeriesRef
     windows: Required[list[RecipeWindow]]
     visualizations: list[str]
     max_cloud_cover: float
@@ -879,7 +891,10 @@ async def list_projects() -> str:
 @server.tool(structured_output=False)
 async def setup_options(project_id: int) -> str:
     """What imagery recipes and time series accept: imagery collections (id,
-    visualizations), basemaps by name, and time series data sources and types."""
+    visualizations), the organization's Planet keys (key_id, name, the series each sees;
+    never the key itself), basemaps by name, and time series data sources and types.
+    Never pick a Planet key yourself: offer the user these by name and use the one they
+    choose."""
     options = await _on_setup_page(project_id, "options")
     options["timeseries"] = await _api(_http().get, "/timeseries/create-options")
     return _json(options)
@@ -1099,6 +1114,7 @@ def _imagery_summary(source: dict[str, Any]) -> dict[str, Any]:
     return {
         "name": source["name"],
         "visualizations": [v["name"] for v in source["visualizations"]],
+        "organization_api_key_id": source.get("organization_api_key_id"),
         "windows": [
             {
                 "name": col["name"],

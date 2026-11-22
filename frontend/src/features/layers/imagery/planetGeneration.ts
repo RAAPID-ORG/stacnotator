@@ -103,7 +103,11 @@ function sliceName(mosaic: PlanetMosaicOut): string {
   return wholeMonth ? mosaic.first_acquired.slice(0, 7) : mosaic.first_acquired;
 }
 
-function toSlice(mosaic: PlanetMosaicOut, renderings: string[], label?: string): ImagerySlice {
+export function toSlice(
+  mosaic: PlanetMosaicOut,
+  renderings: string[],
+  label?: string
+): ImagerySlice {
   const urls = mosaic.tile_urls ?? {};
   return {
     id: createId(),
@@ -116,7 +120,7 @@ function toSlice(mosaic: PlanetMosaicOut, renderings: string[], label?: string):
   };
 }
 
-const manualCollection = (
+export const manualCollection = (
   name: string,
   slices: ImagerySlice[],
   cover: { index: number; dedicated: boolean },

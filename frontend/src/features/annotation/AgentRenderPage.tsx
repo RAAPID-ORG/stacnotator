@@ -9,6 +9,7 @@ import { RUN_POLL_MS } from '~/api/queryClient';
 import { authManager } from '~/features/auth';
 import type { AuthAdapter } from '~/features/auth/core/authAdapter';
 import { MPC_API_URL } from '~/features/layers/imagery/mpcPresets';
+import { planetKeys, planetSeriesOf } from '~/features/layers/imagery/planetSetup';
 import {
   mergedImagery,
   setupOptions,
@@ -61,7 +62,9 @@ interface AgentPageApi {
 /** Expands imagery recipes into what the campaign wizard would have saved, for a new
  *  campaign (campaignId null) or merged into an existing campaign's imagery. */
 interface AgentSetupApi {
-  options(): ReturnType<typeof setupOptions>;
+  options(): Promise<
+    ReturnType<typeof setupOptions> & { planet: Awaited<ReturnType<typeof planetKeys>> }
+  >;
   imagery(
     campaignId: number | null,
     recipes: ImageryRecipe[],
@@ -227,13 +230,15 @@ function renewingApi(first: CampaignOutFull, stage: HTMLElement): AgentPageApi {
   };
 }
 
-function createSetupApi(collections: StacCollectionInfo[]): AgentSetupApi {
+function createSetupApi(projectId: number, collections: StacCollectionInfo[]): AgentSetupApi {
   return {
-    options: setupOptions,
+    options: async () => ({ ...setupOptions(), planet: await planetKeys(projectId) }),
     imagery: async (campaignId, recipes, basemaps, remove) => {
+      const planetSeries = await planetSeriesOf(projectId, recipes);
       if (campaignId === null) {
         return mergedImagery({ sources: [], basemaps: [] }, recipes, collections, {
           basemaps: basemaps ?? DEFAULT_BASEMAPS.map((b) => b.name),
+          planetSeries,
         });
       }
       const { data } = await getCampaignWithImageryWindows({
@@ -244,7 +249,7 @@ function createSetupApi(collections: StacCollectionInfo[]): AgentSetupApi {
         { sources: data.imagery_sources, basemaps: data.basemaps },
         recipes,
         collections,
-        { basemaps, remove }
+        { basemaps, remove, planetSeries }
       );
     },
   };
@@ -284,7 +289,7 @@ export default function AgentRenderPage() {
         throwOnError: true,
       })
         .then(({ data }) => {
-          window.stacnotatorSetup = createSetupApi(data);
+          window.stacnotatorSetup = createSetupApi(projectId, data);
           setStatus('ready');
         })
         .catch((err) => fail(extractErrorMessage(err, 'Could not load the imagery catalog')));

@@ -30,13 +30,13 @@ the chat.
    the crop calendar or the years of the change and say why. Ask for the labels and what
    each means, how many tasks and how they are placed (random or grid in the box, or their
    own points), and whether they want time series.
-3. `setup_options(project_id)`: imagery collections with their visualizations, basemaps,
-   and time series sources and types. On a `render_browser` note, ask the user before
-   `install_render_browsers`.
+3. `setup_options(project_id)`: imagery collections with their visualizations, the
+   organization's Planet keys and their series, basemaps, and time series sources and
+   types. On a `render_browser` note, ask the user before `install_render_browsers`.
 4. **Put the full proposal to the user** in one message: name and project, box, labels and
-   task output, every imagery source (collection, visualizations, max cloud cover, each
-   window with its slices and cover as dates), basemaps, time series, the guide in full,
-   and the tasks. Revise until they explicitly accept; silence or "looks interesting" is
+   task output, every imagery source (collection or Planet key and series, visualizations,
+   max cloud cover, each window with its slices and cover as dates), basemaps, time
+   series, the guide in full, and the tasks. Revise until they explicitly accept; silence or "looks interesting" is
    not acceptance.
 5. `create_campaign(project_id, settings, imagery, basemaps?, timeseries?)` with exactly the
    accepted values, then `add_tasks(campaign_id, task_set, ...)` with `geojson` (the user's
@@ -88,6 +88,7 @@ Include the formula, chart range, source, dates and panel in the accepted propos
 | seeing through clouds, flooding | `sentinel-1-grd` (radar) |
 | sub-metre detail, US only | `naip` |
 | terrain | `cop-dem-glo-30` |
+| field shape and cloud-free monthly views, about 5 m, anywhere | Planet basemaps (below) |
 
 A recipe spells out every date the labellers get, so pick them from what tells the labels
 apart (the crop calendar, the years of a change), not a regular grid:
@@ -112,6 +113,40 @@ separate windows: one window per year for change over years, one per month or gr
 within a season, and name the telling months in the guide. Dates are
 `YYYY-MM-DD`, both ends included. A slice of a month or more gives a cloud-free mosaic; a
 week shows one date but is often cloudy.
+
+### Planet basemaps
+
+Only when `setup_options` lists a Planet key: the organization's own license, so never
+assume one is wanted. Offer the user the keys by name and the series each sees, say which
+series you would use and why, and use only the key they pick; never pick one yourself, even
+when there is only one. If none is listed or one shows an error, say so: an organization
+admin adds the key with tile host `tiles.planet.com` in the organization's settings.
+
+Prefer Global Monthly: one cloud-free mosaic per calendar month at about 5 m (native zoom
+15), sharper than Sentinel-2 for field edges and small fields. It is true colour only
+(`Visual`): its 8-bit mosaics carry no near-infrared, so pair it with Sentinel-2 for NDVI,
+false colour and time series. Omit `visualizations` to get every rendering the series
+offers; an analytic series also offers `False Color` and `NDVI`. Global Quarterly gives
+one mosaic per quarter. Other series, such as the "subscription" ones, may cover only part
+of the world, so check their names with the user before using them. The recipe
+takes `planet` instead of `collection` and the same windows. Each slice is one month (the
+mosaic starting in it), and the cover is one of the slices, since Planet mosaics cannot be
+composited:
+
+```json
+{"planet": {"key_id": 4, "series": "Global Monthly"}, "name": "Planet monthly",
+ "windows": [
+   {"name": "2024 sowing", "cover": 1,
+    "slices": [{"start": "2024-03-01", "end": "2024-03-31"},
+               {"start": "2024-04-01", "end": "2024-04-30"}]},
+   {"name": "2024 peak", "cover": 0,
+    "slices": [{"start": "2024-07-01", "end": "2024-07-31"}]}
+ ]}
+```
+
+Split the months into windows the way you would for Sentinel-2: a window per growth stage
+or year, whose cover is its most telling month. A wrong month says which months the series
+has.
 
 Write the guide for both people and agents: what each label means, what it looks like in
 the imagery and time series, and what to do when unsure.
