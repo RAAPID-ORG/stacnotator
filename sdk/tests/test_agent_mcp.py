@@ -1,11 +1,15 @@
 import asyncio
 import base64
 import json
+import sys
 
 import pytest
 import responses
+from mcp import types
+from mcp.client.stdio import StdioServerParameters, stdio_client
 from mcp.server.mcpserver import Image
 from mcp.server.mcpserver.exceptions import ToolError
+from mcp.shared.message import SessionMessage
 from requests import Timeout
 
 from stacnotator import agent_mcp
@@ -693,6 +697,57 @@ def test_get_campaign_identifies_dedicated_covers(browsers, dedicated):
         "cover_slice_index": 0,
         "has_dedicated_cover": dedicated,
     }
+
+
+@pytest.mark.parametrize("copilot", [False, True])
+def test_stdio_discovery_and_copilot_cold_start(copilot):
+    async def exchange():
+        params = StdioServerParameters(
+            command=sys.executable,
+            args=["-m", "stacnotator.agent_mcp"],
+            env={"COPILOT_PLUGIN_ROOT": "plugin"} if copilot else {},
+        )
+        async with stdio_client(params) as (reader, writer):
+
+            async def send(method, params, request_id=None):
+                body = {"jsonrpc": "2.0", "method": method, "params": params}
+                if request_id is not None:
+                    body["id"] = request_id
+                await writer.send(
+                    SessionMessage(types.jsonrpc_message_adapter.validate_python(body))
+                )
+
+            async def receive():
+                reply = await reader.receive()
+                assert not isinstance(reply, Exception)
+                return reply.message.model_dump(by_alias=True)
+
+            meta = {
+                "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                "io.modelcontextprotocol/clientCapabilities": {},
+            }
+            await send("server/discover", {"_meta": meta}, 0)
+            if copilot:
+                # Both frames are in flight before a cold server answers discovery.
+                await send(
+                    "initialize",
+                    {
+                        "protocolVersion": "2025-11-25",
+                        "capabilities": {},
+                        "clientInfo": {"name": "copilot", "version": "1"},
+                    },
+                    1,
+                )
+                replies = {reply["id"]: reply for reply in (await receive(), await receive())}
+                assert replies[0]["error"]["code"] == -32601
+                assert replies[1]["result"]["protocolVersion"] == "2025-11-25"
+                await send("notifications/initialized", {})
+            else:
+                assert "2026-07-28" in (await receive())["result"]["supportedVersions"]
+            await send("tools/list", {} if copilot else {"_meta": meta}, 2)
+            assert "next_task" in {t["name"] for t in (await receive())["result"]["tools"]}
+
+    asyncio.run(asyncio.wait_for(exchange(), timeout=60))
 
 
 async def _tool_names():

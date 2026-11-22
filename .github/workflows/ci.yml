@@ -57,6 +57,36 @@ jobs:
       - name: Ruff format check
         run: uv run ruff format --check src/
 
+  sdk:
+    name: "SDK: Tests, Lint & Type Check"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdk
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: uv sync --frozen --extra agent --python 3.12
+
+      - name: SDK tests
+        run: uv run pytest -q
+
+      - name: Ruff lint
+        run: uv run ruff check src/ tests/
+
+      - name: Ruff format check
+        run: uv run ruff format --check src/ tests/
+
+      - name: Type check
+        run: uv run mypy
+
   # Frontend: lint + type-check  (all branches)
   frontend-lint:
     name: "Frontend: Lint & Type Check"
