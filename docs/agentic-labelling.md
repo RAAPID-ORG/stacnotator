@@ -8,7 +8,9 @@ submits labels like any other annotator.
 ## Setup
 
 Install the plugin, which brings the labelling and campaign setup skills and the MCP server. You need
-[uv](https://docs.astral.sh/uv/); there is nothing to clone or run yourself.
+[uv](https://docs.astral.sh/uv/); there is nothing to clone or run yourself. The client starts the
+server with `uvx`, so after installing uv, open a new terminal (or restart your editor) and check that
+`uvx --version` works there before you start the client.
 
 Claude Code:
 
@@ -40,11 +42,32 @@ https://your-stacnotator.example.org with 4 agents". The agent signs you in thro
 browser tab the first time and asks once before downloading Chromium (about 150 MB), which
 draws the images. The first start takes a minute while uv installs the SDK.
 
-Other MCP clients: run
-`uvx --from "stacnotator-sdk[agent] @ git+https://github.com/RAAPID-ORG/stacnotator@develop#subdirectory=sdk" stacnotator-mcp`
-over stdio and give the model
+Other MCP clients have no plugin, so you register the server in the client's MCP settings
+yourself. Do not run the `uvx` command in a terminal: the server talks over stdio to the
+client that started it, so a server you start by hand waits for input and no client can reach
+it. Add it as a local (stdio) server; most clients take JSON like this:
+
+```json
+{
+  "mcpServers": {
+    "stacnotator": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "stacnotator-sdk[agent] @ git+https://github.com/RAAPID-ORG/stacnotator@develop#subdirectory=sdk",
+        "stacnotator-mcp"
+      ]
+    }
+  }
+}
+```
+
+Restart the client, check that its MCP list shows `stacnotator` with tools such as `login`,
+then give the model
 [`sdk/skills/stacnotator-labelling/SKILL.md`](../sdk/skills/stacnotator-labelling/SKILL.md)
-and [`sdk/skills/stacnotator-campaign-setup/SKILL.md`](../sdk/skills/stacnotator-campaign-setup/SKILL.md).
+and [`sdk/skills/stacnotator-campaign-setup/SKILL.md`](../sdk/skills/stacnotator-campaign-setup/SKILL.md),
+as skills if the client supports them. Grants for the campaign-writing tools (below) go in
+`STACNOTATOR_MCP_ALLOW` under `env`.
 
 On a bare Linux machine Chromium may also need system libraries:
 `uvx playwright install-deps chromium` (needs sudo).
