@@ -19,8 +19,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, cast
 
-from mcp.server.mcpserver import Image
-from mcp.server.mcpserver.exceptions import ToolError
+from mcp.server.fastmcp import Image
+from mcp.server.fastmcp.exceptions import ToolError
 
 from stacnotator import agent_mcp
 from stacnotator._model_api import (
@@ -151,7 +151,7 @@ def tool_specs(server_tools: list[Any]) -> list[ToolSpec]:
     for tool in server_tools:
         if tool.name not in TOOLS:
             continue
-        schema = json.loads(json.dumps(tool.input_schema))
+        schema = json.loads(json.dumps(tool.inputSchema))
         for name in BOUND_ARGUMENTS:
             schema["properties"].pop(name, None)
         schema["required"] = [r for r in schema.get("required", []) if r not in BOUND_ARGUMENTS]

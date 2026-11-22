@@ -21,8 +21,8 @@ from typing import Any, Literal, cast
 from urllib.parse import urlparse
 from uuid import uuid4
 
-from mcp.server.mcpserver import Image, MCPServer
-from mcp.server.mcpserver.exceptions import ToolError
+from mcp.server.fastmcp import FastMCP, Image
+from mcp.server.fastmcp.exceptions import ToolError
 from pydantic import ConfigDict
 from requests import RequestException
 from shapely.wkt import loads
@@ -174,7 +174,7 @@ class ProbePoint(TypedDict, total=False):
     lon: float
 
 
-server = MCPServer(
+server = FastMCP(
     "stacnotator",
     instructions=(
         "Set up STACNotator campaigns and label their tasks from rendered imagery. Tools "

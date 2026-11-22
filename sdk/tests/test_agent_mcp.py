@@ -1,11 +1,13 @@
 import asyncio
 import base64
 import json
+import sys
 
 import pytest
 import responses
-from mcp.server.mcpserver import Image
-from mcp.server.mcpserver.exceptions import ToolError
+from mcp.server.fastmcp import Image
+from mcp.server.fastmcp.exceptions import ToolError
+from mcp.shared.memory import create_connected_server_and_client_session
 from requests import Timeout
 
 from stacnotator import agent_mcp
@@ -465,13 +467,13 @@ def test_custom_index_preview_returns_compatible_sources_and_reports_invalid_for
 
     result = asyncio.run(_call("preview_custom_index", arguments))
 
-    assert not result.is_error
+    assert not result.isError
     assert json.loads(result.content[0].text)["source_keys"] == ["sentinel2"]
     assert json.loads(preview.calls[0].request.body) == arguments
     preview.status = 422
     preview.body = json.dumps({"detail": "Unknown band 'invalid'"})
     result = asyncio.run(_call("preview_custom_index", arguments))
-    assert result.is_error and "Unknown band" in result.content[0].text
+    assert result.isError and "Unknown band" in result.content[0].text
 
 
 @responses.activate
@@ -505,7 +507,7 @@ def test_edit_timeseries_preserves_custom_fields_through_mcp_and_adds_before_rem
     finally:
         agent_mcp.server.remove_tool("edit_timeseries")
 
-    assert not result.is_error
+    assert not result.isError
     assert json.loads(created.calls[0].request.body) == {"timeseries": [CUSTOM_SERIES]}
     assert json.loads(renamed.calls[0].request.body) == {"name": "Renamed"}
     assert [call.request.method for call in responses.calls] == ["GET", "POST", "PATCH", "DELETE"]
@@ -696,17 +698,77 @@ def test_get_campaign_identifies_dedicated_covers(browsers, dedicated):
 
 
 async def _tool_names():
-    from mcp import Client
-
-    async with Client(agent_mcp.server) as client:
+    async with create_connected_server_and_client_session(agent_mcp.server) as client:
         return {tool.name for tool in (await client.list_tools()).tools}
 
 
 async def _call(name, arguments):
-    from mcp import Client
-
-    async with Client(agent_mcp.server) as client:
+    async with create_connected_server_and_client_session(agent_mcp.server) as client:
         return await client.call_tool(name, arguments)
+
+
+def test_discovery_probe_allows_legacy_handshake_and_tool_discovery():
+    async def probe():
+        process = await asyncio.create_subprocess_exec(
+            sys.executable,
+            "-m",
+            "stacnotator.agent_mcp",
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stderr = asyncio.create_task(process.stderr.read())
+
+        async def request(message):
+            process.stdin.write((json.dumps(message) + "\n").encode())
+            await process.stdin.drain()
+            return json.loads(await asyncio.wait_for(process.stdout.readline(), timeout=30))
+
+        try:
+            discovery = await request(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "server/discover",
+                    "params": {
+                        "_meta": {
+                            "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                            "io.modelcontextprotocol/clientInfo": {
+                                "name": "copilot-probe",
+                                "version": "1",
+                            },
+                            "io.modelcontextprotocol/clientCapabilities": {},
+                        }
+                    },
+                }
+            )
+            assert "error" in discovery
+            initialized = await request(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "initialize",
+                    "params": {
+                        "protocolVersion": "2025-11-25",
+                        "capabilities": {},
+                        "clientInfo": {"name": "copilot-probe", "version": "1"},
+                    },
+                }
+            )
+            assert initialized["result"]["protocolVersion"] == "2025-11-25"
+            process.stdin.write(b'{"jsonrpc":"2.0","method":"notifications/initialized"}\n')
+            tools = await request({"jsonrpc": "2.0", "id": 3, "method": "tools/list"})
+            assert "next_task" in {tool["name"] for tool in tools["result"]["tools"]}
+        finally:
+            process.stdin.close()
+            try:
+                await asyncio.wait_for(process.wait(), timeout=5)
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+            await stderr
+
+    asyncio.run(probe())
 
 
 @responses.activate
@@ -724,5 +786,5 @@ def test_only_granted_tools_are_offered_and_they_refuse_unknown_settings(monkeyp
     finally:
         agent_mcp.server.remove_tool("edit_campaign")
 
-    assert result.is_error and "nmae" in result.content[0].text
+    assert result.isError and "nmae" in result.content[0].text
     assert not patched.calls

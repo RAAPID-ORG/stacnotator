@@ -3,8 +3,8 @@ import json
 from types import SimpleNamespace
 
 import pytest
-from mcp.server.mcpserver import Image
-from mcp.server.mcpserver.exceptions import ToolError
+from mcp.server.fastmcp import Image
+from mcp.server.fastmcp.exceptions import ToolError
 
 from stacnotator import agent_mcp, api_labelling
 from stacnotator._model_api import (
