@@ -112,9 +112,20 @@ replaced. Sources a recipe does not name stay as they are.
 Ask in plain words, e.g. "label 20 points of the Ukraine winter crop campaign with 4 agents".
 The skill asks for whatever is missing (campaign, number of points, number of agents), then:
 
-1. registers one agent per worker, with the points split evenly and take-over switched on,
-2. launches one subagent per agent, each looping next task, extra views when needed, label or skip,
-3. reports a table of task, label, confidence and evidence.
+1. shows you the campaign's guide, or says there is none, and asks whether to label with it
+   or with a guide you paste or name a file for; a guide you give is saved to the campaign
+   with `set_campaign_guide` (campaign admins only), so people and later agents use it too,
+2. plans the first look every task opens with from the guide: the dates and visualizations
+   that tell the labels apart (for crop types, the months of sowing, green-up or harvest),
+   only the time series that help, and a basemap only as a small close-up of the sample,
+   since basemaps carry no date,
+3. registers one agent per worker with that first look, the points split evenly and
+   take-over switched on,
+4. launches one subagent per agent, each looping next task, extra views when needed, label or skip,
+5. reports a table of task, label, confidence and evidence.
+
+`set_campaign_guide` is always offered, unlike the campaign-writing tools above: the skill
+calls it only with a guide you gave or approved.
 
 Registering also opens a window on your screen with each agent's latest views, which
 explains what you are looking at and where to follow progress; closing it does not stop the
@@ -247,8 +258,10 @@ sequenceDiagram
 - **Image limits.** Models downscale large images before they see them, which silently
   loses detail. The model states the largest image it takes in unchanged when it registers
   an agent, and every view is fitted to that by shrinking its cells.
-- **Step by step per point.** `next_task` returns a light first look (a few dates spread over
-  the season at the dataset's configured zoom, the time series and a basemap pair).
+- **Step by step per point.** `next_task` returns the first look the agent planned from the
+  guide, or the built-in one: one view of up to four dates spread over the first source's
+  windows at the dataset's configured zoom, one basemap cell beside them at the basemap's
+  native zoom, and the first time-series window's charts.
   The agent submits immediately if that is enough. Otherwise it requests only evidence
   that could change the label, preferably relevant dates or a closer view of the same
   task, packed into one `get_views` call. Nearby comparisons are optional, not routine.

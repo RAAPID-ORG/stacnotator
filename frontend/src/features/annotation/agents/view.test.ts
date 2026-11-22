@@ -4,48 +4,75 @@ import { checkView, defaultViews, fitCellPx, shortDateRange } from './view';
 const LIMITS = { max_edge_px: 1568, max_megapixels: 1.15 };
 const covers = (n: number) => Array.from({ length: n }, (_, i) => ({ slice_id: i }));
 
+const august = (id: number) => ({
+  collection_id: id,
+  name: `Month ${id}`,
+  cover_slice_id: id,
+  slices: [{ slice_id: id, name: 'August', start_date: '2024-08-01', end_date: '2024-08-31' }],
+});
+const context = (
+  overrides: Partial<Parameters<typeof defaultViews>[0]> = {}
+): Parameters<typeof defaultViews>[0] => ({
+  campaign_id: 9,
+  name: 'Iowa',
+  bbox: [-93.7, 41.9, -93.35, 42.15],
+  sample_extent_meters: 60,
+  guide_markdown: null,
+  labels: [],
+  form_fields: [],
+  imagery: [
+    {
+      source_id: 1,
+      name: 'Sentinel-2',
+      on_demand: false,
+      default_zoom: 15,
+      max_native_zoom: null,
+      visualizations: ['True Color'],
+      collections: [august(1)],
+    },
+  ],
+  basemaps: [],
+  timeseries: [],
+  ...overrides,
+});
+const series = (timeseries_id: number, group: string) => ({
+  timeseries_id,
+  name: `NDVI ${timeseries_id}`,
+  group,
+  data_source: 'sentinel2',
+  index: 'NDVI',
+  start_ym: '202401',
+  end_ym: '202412',
+});
+
 it.each([5, 60, 1000])(
   'starts at the dataset zoom rather than fitting a %sm sample extent',
   (extent) => {
-    const views = defaultViews({
-      campaign_id: 9,
-      name: 'Iowa',
-      bbox: [-93.7, 41.9, -93.35, 42.15],
-      sample_extent_meters: extent,
-      guide_markdown: null,
-      labels: [],
-      form_fields: [],
-      imagery: [
-        {
-          source_id: 1,
-          name: 'Sentinel-2',
-          on_demand: false,
-          default_zoom: 15,
-          max_native_zoom: null,
-          visualizations: ['True Color'],
-          collections: [
-            {
-              collection_id: 1,
-              name: 'August',
-              cover_slice_id: 1,
-              slices: [
-                {
-                  slice_id: 1,
-                  name: 'August',
-                  start_date: '2024-08-01',
-                  end_date: '2024-08-31',
-                },
-              ],
-            },
-          ],
-        },
-      ],
-      basemaps: [],
-      timeseries: [],
-    });
-    expect(views[0].zoom).toBe(15);
+    expect(defaultViews(context({ sample_extent_meters: extent }))[0].zoom).toBe(15);
   }
 );
+
+it('shows the dates with one close-up basemap cell and one window of time series', () => {
+  const [source] = context().imagery;
+  const views = defaultViews(
+    context({
+      imagery: [{ ...source, collections: [1, 2, 3, 4, 5, 6].map(august) }],
+      basemaps: [{ basemap_id: 3, name: 'Esri', max_native_zoom: 19 }],
+      timeseries: [series(10, 'Season'), series(11, 'Season'), series(12, 'Previous')],
+    })
+  );
+
+  expect(views).toHaveLength(1);
+  expect(views[0].columns).toBe(5);
+  expect(views[0].cells).toEqual([
+    { slice_id: 1 },
+    { slice_id: 3 },
+    { slice_id: 4 },
+    { slice_id: 6 },
+    { basemap_id: 3, zoom: 19 },
+    { timeseries_ids: [10, 11], remove_cloudy: true },
+  ]);
+});
 
 it('rejects exploration centres outside the map instead of rendering another location', () => {
   for (const center of [

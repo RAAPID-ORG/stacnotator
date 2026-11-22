@@ -105,10 +105,11 @@ apart (the crop calendar, the years of a change), not a regular grid:
 
 Each window becomes a collection whose slices labellers step through. Its `cover` stands
 for the window: the index of the most telling slice, or `{"start", "end"}` for a dedicated
-composite of the window's least cloudy images. A labelling agent's first look shows the
-covers of the first source's windows side by side (up to four, spread over them), so make
-the dates the labels are told apart by the covers of separate windows: one window per year
-for change over years, one per month or growth stage within a season. Dates are
+composite of the window's least cloudy images. A labelling agent plans its first look from
+the guide; without a plan it shows the covers of the first source's windows side by side (up
+to four, spread over them). So make the dates the labels are told apart by the covers of
+separate windows: one window per year for change over years, one per month or growth stage
+within a season, and name the telling months in the guide. Dates are
 `YYYY-MM-DD`, both ends included. A slice of a month or more gives a cloud-free mosaic; a
 week shows one date but is often cloudy.
 

@@ -187,9 +187,11 @@ server = MCPServer(
         "stacnotator-campaign-setup skill: never invent the area, the period or the labels; "
         "ask the user and make the change only once they accept your proposal. Then "
         "get_campaign until imagery is ready -> "
-        "preview_campaign. To label: register one agent per worker, read the campaign "
-        "guide in its context, then loop next_task -> (get_views, probe_timeseries) -> "
-        "submit_label or skip_task, always passing your own agent_id."
+        "preview_campaign. To label: follow the stacnotator-labelling skill. Show the user "
+        "the campaign's guide (get_campaign) and save one they give you with "
+        "set_campaign_guide; plan the first look from the guide; register one agent per "
+        "worker with those default_views, then loop next_task -> (get_views, "
+        "probe_timeseries) -> submit_label or skip_task, always passing your own agent_id."
     ),
 )
 
@@ -531,7 +533,10 @@ async def register_agent(
     takes_over_work: when this agent runs out of tasks, next_task moves a task over from
     your other agents on the campaign that still have work queued.
     default_views: up to 4 views next_task returns for every task, drawn ahead for the
-    tasks after it. Omit for a built-in overview; change later with set_default_views.
+    tasks after it. Plan them from the guide and labels: the dates and visualizations that
+    tell the labels apart, only the time series that help, and a basemap only as a small
+    close-up when it helps. Omit for a built-in overview; change later with
+    set_default_views.
     watch_window: open the window showing the agents' latest views.
     On by default; pass false only when the user does not want it. Recording is independent
     of this window.
@@ -607,6 +612,19 @@ async def campaign_context(agent_id: str) -> str:
     context = await _on_page(agent_id, "context")
     _label_names[agent_id] = {label["id"]: label["name"] for label in context["labels"]}
     return _json(context)
+
+
+@server.tool(structured_output=False)
+async def set_campaign_guide(campaign_id: int, guide_markdown: str) -> str:
+    """Replace a campaign's labelling guide, which people and agents read before labelling.
+    Only with a guide the user gave you (pasted, or a file they named) or approved after
+    you showed it to them: show the current guide from get_campaign first, and never write
+    or rewrite one unasked. Campaign admins only. Agents registered before keep the guide
+    they read, so brief running workers about the change."""
+    if not guide_markdown.strip():
+        raise ToolError("The guide is empty: pass the text the user gave you.")
+    await _api(_http().patch, f"/campaigns/{campaign_id}", {"guide_markdown": guide_markdown})
+    return _json({"campaign_id": campaign_id, "guide_saved": True})
 
 
 @server.tool(structured_output=False)
