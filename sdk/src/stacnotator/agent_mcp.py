@@ -21,8 +21,10 @@ from typing import Any, Literal, cast
 from urllib.parse import urlparse
 from uuid import uuid4
 
-from mcp.server.fastmcp import FastMCP, Image
-from mcp.server.fastmcp.exceptions import ToolError
+from mcp.server.mcpserver import Image, MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
+from mcp.server.runner import serve_loop
+from mcp.server.stdio import stdio_server
 from pydantic import ConfigDict
 from requests import RequestException
 from shapely.wkt import loads
@@ -174,7 +176,7 @@ class ProbePoint(TypedDict, total=False):
     lon: float
 
 
-server = FastMCP(
+server = MCPServer(
     "stacnotator",
     instructions=(
         "Set up STACNotator campaigns and label their tasks from rendered imagery. Tools "
@@ -1212,8 +1214,25 @@ async def install_render_browsers() -> str:
         raise ToolError(str(exc)) from exc
 
 
+async def _run_copilot_stdio() -> None:
+    # Copilot can send initialize before a slow uvx launch answers server/discover.
+    # Serve the handshake protocol from the start rather than switching mid-stream.
+    lowlevel = server._lowlevel_server
+    async with stdio_server() as (reader, writer), lowlevel.lifespan(lowlevel) as state:
+        await serve_loop(
+            lowlevel,
+            reader,
+            writer,
+            lifespan_state=state,
+            init_options=lowlevel.create_initialization_options(),
+        )
+
+
 def main() -> None:
-    server.run()
+    if os.environ.get("COPILOT_PLUGIN_ROOT"):
+        asyncio.run(_run_copilot_stdio())
+    else:
+        server.run()
 
 
 if __name__ == "__main__":
