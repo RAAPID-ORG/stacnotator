@@ -236,7 +236,7 @@ copilot plugin install stacnotator@stacnotator
 
 It bundles the labelling and campaign setup skills and the MCP server (`stacnotator-mcp`, run through `uvx`).
 The client starts the server itself, so `uvx` must be on the `PATH` the client sees: after
-installing uv, open a new terminal or restart your editor.
+installing uv, open a new terminal before starting the client.
 Tools that create or change campaigns are off until you grant them with `STACNOTATOR_MCP_ALLOW`.
 To label through a model API instead of a coding agent (OpenAI, Azure OpenAI or Azure AI
 Foundry), install the `api` extra and run `stacnotator-label run` with a file of labelling

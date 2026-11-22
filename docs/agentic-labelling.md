@@ -9,7 +9,7 @@ submits labels like any other annotator.
 
 Install the plugin, which brings the labelling and campaign setup skills and the MCP server. You need
 [uv](https://docs.astral.sh/uv/); there is nothing to clone or run yourself. The client starts the
-server with `uvx`, so after installing uv, open a new terminal (or restart your editor) and check that
+server with `uvx`, so after installing uv, open a new terminal and check that
 `uvx --version` works there before you start the client.
 
 Claude Code:
