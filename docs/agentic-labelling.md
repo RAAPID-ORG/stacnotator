@@ -13,16 +13,27 @@ Install the plugin, which brings the labelling and campaign setup skills and the
 Claude Code:
 
 ```
-/plugin marketplace add RAAPID-ORG/stacnotator
+/plugin marketplace add RAAPID-ORG/stacnotator#develop
 /plugin install stacnotator@stacnotator
 ```
 
 Codex:
 
 ```bash
-codex plugin marketplace add RAAPID-ORG/stacnotator
+codex plugin marketplace add RAAPID-ORG/stacnotator@develop
 codex plugin add stacnotator@stacnotator
 ```
+
+GitHub Copilot CLI, which reads the same plugin:
+
+```bash
+copilot plugin marketplace add RAAPID-ORG/stacnotator#develop
+copilot plugin install stacnotator@stacnotator
+```
+
+The client starts one MCP server per session. Subagents in that session share it and are told
+apart by the `agent_id` each one passes, so a run with many agents uses one server and one
+Chromium. Another session starts its own server.
 
 The agent always asks which STACNotator to use and needs its full URL. Then ask, e.g. "label 20 points of the Ukraine winter crop campaign on
 https://your-stacnotator.example.org with 4 agents". The agent signs you in through a
@@ -30,7 +41,7 @@ browser tab the first time and asks once before downloading Chromium (about 150 
 draws the images. The first start takes a minute while uv installs the SDK.
 
 Other MCP clients: run
-`uvx --from "stacnotator-sdk[agent] @ git+https://github.com/RAAPID-ORG/stacnotator#subdirectory=sdk" stacnotator-mcp`
+`uvx --from "stacnotator-sdk[agent] @ git+https://github.com/RAAPID-ORG/stacnotator@develop#subdirectory=sdk" stacnotator-mcp`
 over stdio and give the model
 [`sdk/skills/stacnotator-labelling/SKILL.md`](../sdk/skills/stacnotator-labelling/SKILL.md)
 and [`sdk/skills/stacnotator-campaign-setup/SKILL.md`](../sdk/skills/stacnotator-campaign-setup/SKILL.md).
@@ -56,7 +67,8 @@ only the ones named in `STACNOTATOR_MCP_ALLOW`, comma-separated, out of:
 
 Set the variable before you start the client, for example
 `STACNOTATOR_MCP_ALLOW=create_campaign,add_tasks claude`, or in Windows PowerShell
-`$env:STACNOTATOR_MCP_ALLOW="create_campaign,add_tasks"; claude`. A model never sees a tool you did
+`$env:STACNOTATOR_MCP_ALLOW="create_campaign,add_tasks"; claude` (`codex` or `copilot` work the
+same way). A model never sees a tool you did
 not grant, and the server instructions tell it to report that instead of making the change
 another way. This is a limit of the tool set, not a permission: the SDK login is your own
 session, so a model with shell access could still call the API with it.
@@ -138,7 +150,7 @@ session. It uses the MCP server's tools in its own process, so views are drawn b
 headless pages, and labels go through the same `submit_label` and `skip_task`.
 
 ```bash
-uvx --from "stacnotator-sdk[api] @ git+https://github.com/RAAPID-ORG/stacnotator#subdirectory=sdk" \
+uvx --from "stacnotator-sdk[api] @ git+https://github.com/RAAPID-ORG/stacnotator@develop#subdirectory=sdk" \
   stacnotator-label run --url https://your-stacnotator.example.org --campaign 172 \
   --instructions rules.md \
   --base-url https://<resource>.openai.azure.com/openai/v1/ --model gpt-6-astra --entra \

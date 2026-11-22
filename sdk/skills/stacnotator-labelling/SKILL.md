@@ -157,7 +157,9 @@ Ask before sharing recordings.
 2. Register the agents one at a time with the workers' image limits, names like `scout-a`,
    tasks split evenly, `takes_over_work: true`.
 3. Start one subagent per agent in parallel (without subagents: work them yourself in turn,
-   or ask the user to open one session per agent) with this brief:
+   or ask the user to open one session per agent). Subagents share this session's stacnotator
+   server and tell their agents apart by `agent_id`, so use a subagent type that has the
+   stacnotator tools and never start a server for one. Give each this brief:
 
    > Label STACNotator campaign {id} on {full URL} as agent {agent_id} with the stacnotator
    > tools: call login with that URL first, and always pass this agent_id. Labels: {id: name}. Guide: {two lines}.
