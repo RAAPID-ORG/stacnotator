@@ -117,24 +117,22 @@ week shows one date but is often cloudy.
 ### Planet basemaps
 
 Only when `setup_options` lists a Planet key: the organization's own license, so never
-assume one is wanted. Offer the user the keys by name and the series each sees, say which
-series you would use and why, and use only the key they pick; never pick one yourself, even
-when there is only one. If none is listed or one shows an error, say so: an organization
-admin adds the key with tile host `tiles.planet.com` in the organization's settings.
+assume one is wanted. Offer the user the keys by name and use only the key they pick; never
+pick one yourself, even when there is only one. If none is listed or one shows an error,
+say so: an organization admin adds the key with tile host `tiles.planet.com` in the
+organization's settings.
 
-Prefer Global Monthly: one cloud-free mosaic per calendar month at about 5 m (native zoom
-15), sharper than Sentinel-2 for field edges and small fields. It is true colour only
-(`Visual`): its 8-bit mosaics carry no near-infrared, so pair it with Sentinel-2 for NDVI,
-false colour and time series. Omit `visualizations` to get every rendering the series
-offers; an analytic series also offers `False Color` and `NDVI`. Global Quarterly gives
-one mosaic per quarter. Other series, such as the "subscription" ones, may cover only part
-of the world, so check their names with the user before using them. The recipe
+Use the Global Monthly series with `"visualizations": ["Visual"]`, and no other series
+unless the user names one: one cloud-free mosaic per calendar month at about 5 m (native
+zoom 15), sharper than Sentinel-2 for field edges and small fields. It is true colour only,
+so pair it with Sentinel-2 for NDVI, false colour and time series. The recipe
 takes `planet` instead of `collection` and the same windows. Each slice is one month (the
 mosaic starting in it), and the cover is one of the slices, since Planet mosaics cannot be
 composited:
 
 ```json
 {"planet": {"key_id": 4, "series": "Global Monthly"}, "name": "Planet monthly",
+ "visualizations": ["Visual"],
  "windows": [
    {"name": "2024 sowing", "cover": 1,
     "slices": [{"start": "2024-03-01", "end": "2024-03-31"},
