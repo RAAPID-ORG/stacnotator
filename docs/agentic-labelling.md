@@ -24,6 +24,17 @@ codex plugin marketplace add RAAPID-ORG/stacnotator
 codex plugin add stacnotator@stacnotator
 ```
 
+GitHub Copilot CLI, which reads the same plugin:
+
+```bash
+copilot plugin marketplace add RAAPID-ORG/stacnotator
+copilot plugin install stacnotator@stacnotator
+```
+
+The client starts one MCP server per session. Subagents in that session share it and are told
+apart by the `agent_id` each one passes, so a run with many agents uses one server and one
+Chromium. Another session starts its own server.
+
 The agent always asks which STACNotator to use and needs its full URL. Then ask, e.g. "label 20 points of the Ukraine winter crop campaign on
 https://your-stacnotator.example.org with 4 agents". The agent signs you in through a
 browser tab the first time and asks once before downloading Chromium (about 150 MB), which
@@ -56,7 +67,8 @@ only the ones named in `STACNOTATOR_MCP_ALLOW`, comma-separated, out of:
 
 Set the variable before you start the client, for example
 `STACNOTATOR_MCP_ALLOW=create_campaign,add_tasks claude`, or in Windows PowerShell
-`$env:STACNOTATOR_MCP_ALLOW="create_campaign,add_tasks"; claude`. A model never sees a tool you did
+`$env:STACNOTATOR_MCP_ALLOW="create_campaign,add_tasks"; claude` (`codex` or `copilot` work the
+same way). A model never sees a tool you did
 not grant, and the server instructions tell it to report that instead of making the change
 another way. This is a limit of the tool set, not a permission: the SDK login is your own
 session, so a model with shell access could still call the API with it.

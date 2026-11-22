@@ -220,7 +220,7 @@ loader = DataLoader(CampaignSamples(campaign.get_samples()), batch_size=64, shuf
 
 ## Agentic labelling
 
-A plugin for Claude Code and Codex lets a model set up a new campaign, and lets a model (or a
+A plugin for Claude Code, Codex and GitHub Copilot CLI lets a model set up a new campaign, and lets a model (or a
 team of subagents) label a campaign's tasks from rendered imagery, as annotator agents you own:
 
 ```
@@ -229,6 +229,9 @@ team of subagents) label a campaign's tasks from rendered imagery, as annotator 
 
 codex plugin marketplace add RAAPID-ORG/stacnotator     # Codex
 codex plugin add stacnotator@stacnotator
+
+copilot plugin marketplace add RAAPID-ORG/stacnotator   # GitHub Copilot CLI
+copilot plugin install stacnotator@stacnotator
 ```
 
 It bundles the labelling and campaign setup skills and the MCP server (`stacnotator-mcp`, run through `uvx`).

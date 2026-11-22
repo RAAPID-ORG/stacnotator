@@ -3,7 +3,7 @@
   "owner": {
     "name": "RAAPID"
   },
-  "description": "STACNotator plugins for Claude Code.",
+  "description": "STACNotator plugins for Claude Code, Codex and GitHub Copilot CLI.",
   "plugins": [
     {
       "name": "stacnotator",

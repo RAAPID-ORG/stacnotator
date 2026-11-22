@@ -308,6 +308,13 @@ const HowAgentsWork = ({ campaignName }: { campaignName?: string }) => {
             'codex plugin add stacnotator@stacnotator',
           ]}
         />
+        <Snippet
+          tool="GitHub Copilot CLI"
+          lines={[
+            'copilot plugin marketplace add RAAPID-ORG/stacnotator',
+            'copilot plugin install stacnotator@stacnotator',
+          ]}
+        />
       </div>
       <p>{t('agents.howTo.ask')}</p>
       <pre className="overflow-x-auto rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 font-mono text-[11px] leading-relaxed text-neutral-700">
