@@ -7,9 +7,9 @@ description: Label STACNotator campaign tasks from satellite imagery through the
 
 First ask the user for the full URL of the STACNotator to label on (`https://...`), every
 session, even if you used one before; never assume or complete one. A subagent takes it from
-its brief instead. Then `login(url)`. A
-`render_browser` note from `register_agent`: ask the user before `install_render_browsers`,
-then call `campaign_context`. Never register the same worker twice.
+its brief instead. Then `login(url)`, settle the guide and plan the first look (below)
+before labelling. A `render_browser` note from `register_agent`: ask the user before
+`install_render_browsers`, then call `campaign_context`. Never register the same worker twice.
 
 Once the agents are registered, say in that same reply that a window on their screen is
 showing what the agents look at, and give them `agents_page` from `register_agent` to follow
@@ -20,6 +20,7 @@ progress, switch take-over and free tasks.
 | tool | use |
 | --- | --- |
 | `login(url)`, `list_campaigns()`, `list_agents(campaign_id)` | sign in; find the campaign; open tasks and your agents |
+| `get_campaign(campaign_id)`, `set_campaign_guide(campaign_id, guide_markdown)` | read the guide and settings; save the guide the user gave you |
 | `register_agent(campaign_id, name, max_image_edge_px, max_image_megapixels, description?, task_count=10, task_set_id?, takes_over_work?, default_views?)` | one agent per worker; returns `agent_id`, `agents_page`, context, default views |
 | `campaign_context(agent_id)` | guide, labels, form fields, imagery, basemaps, time series |
 | `next_task(agent_id)`, `get_views(agent_id, task_id, views)` | the current task with its first look; more views of it |
@@ -31,13 +32,50 @@ progress, switch take-over and free tasks.
 
 Image limits: the largest image your model takes in without downscaling. You know them.
 
+## The guide first
+
+Before any labelling, `get_campaign` and show the user the campaign's guide: in full when
+short, otherwise a summary of what each label means and how to tell them apart. Say so
+plainly when there is none or it does not cover a label. Ask whether to label with it as is
+or to give you a guide: pasted text, or a file they name (read it and pass its text). Save
+what they give with `set_campaign_guide`, after showing the result if you merged it with the
+current guide, so people and later agents label by it too. Never write or reword a guide
+unasked; a guide is campaign admins' to change, so on a refusal label with the user's text
+for this run and tell them it was not saved. Settle the guide before registering agents:
+they read it when registered.
+
+## Plan the first look
+
+The first look (`default_views`) is what every task opens with and what is drawn ahead,
+so design it from the guide before labelling instead of keeping the built-in overview.
+Think first about which views and which dates tell the labels apart, then:
+
+- **Dates.** For seasonal tasks such as crop types, pick the covers or finer slices (months,
+  weeks) of the periods that separate the classes, such as sowing, peak green-up and
+  harvest from the crop calendar the guide or the region implies, not dates spread evenly.
+  Use the visualization that shows the difference best (a false colour or index over
+  true colour for vegetation). Keep them side by side in one view at one zoom.
+- **Time series.** Only the series and indices that help, usually one window's, in one
+  chart; a chart takes a full row whose height follows `cell_px`, so more charts or a
+  large `cell_px` take space from the dates.
+- **Basemap.** Undated, so it is supporting evidence at most, usually one cell zoomed in
+  on the sample near its `max_native_zoom` for a sharp view of the field, its edges and
+  shape. It should take far less of the image than the dated imagery and the time series.
+- Other dated sources or visualizations only when the guide says they help.
+
+Register the first agent, read `campaign_context` for the ids, then `set_default_views` on
+it and pass the same `default_views` to every other agent's `register_agent`. Tell the
+user the plan in a line. After the first few tasks, change it when you keep asking for the
+same extra view or never use one.
+
 ## Per point
 
 Read the guide, `labels` and `form_fields` first. Then:
 
-1. `next_task`: a first look - a few dates across the season at the dataset's configured
-   zoom, the time series, and a basemap pair (surroundings, close up). Understand the task
-   from this overview. If the evidence is sufficient, submit now without more views.
+1. `next_task`: the first look you planned (without one, the built-in overview: a few
+   dates across the season at the dataset's configured zoom, a close-up basemap cell and
+   the time series). Understand the task from it. If the evidence is sufficient, submit
+   now without more views.
 2. Otherwise identify the specific uncertainty that could change the label, and request
    only the missing evidence in **one** `get_views` call, packed:
    dates to compare side by side in one view at one zoom, context and close up in one view
@@ -64,7 +102,7 @@ optional own `"zoom"`. At most 36 cells per view, 8 views per call; a chart take
 ```json
 [{"columns": 4, "cell_px": 384, "zoom": 17,
   "cells": [{"slice_id": 132}, {"slice_id": 133}, {"slice_id": 134},
-            {"basemap_id": 2, "zoom": 13}]}]
+            {"basemap_id": 2, "zoom": 19}]}]
 ```
 
 Meters per pixel = 156543 * cos(lat) / 2^zoom. Past `max_native_zoom` pixels only get bigger.
@@ -151,11 +189,12 @@ Ask before sharing recordings.
 ## Several agents
 
 1. Ask in one message for what is missing: the full URL, campaign, number of points,
-   number of agents (suggest one per 5 points, at most 8). `list_agents` says how many
+   number of agents (suggest one per 5 points, at most 8). Then settle the guide and plan
+   the first look as above. `list_agents` says how many
    tasks you can hand out: campaign admins from the open pool, other project members only
    their own assigned tasks.
 2. Register the agents one at a time with the workers' image limits, names like `scout-a`,
-   tasks split evenly, `takes_over_work: true`.
+   tasks split evenly, `takes_over_work: true`, and the planned `default_views`.
 3. Start one subagent per agent in parallel (without subagents: work them yourself in turn,
    or ask the user to open one session per agent). Subagents share this session's stacnotator
    server and tell their agents apart by `agent_id`, so use a subagent type that has the
@@ -163,6 +202,7 @@ Ask before sharing recordings.
 
    > Label STACNotator campaign {id} on {full URL} as agent {agent_id} with the stacnotator
    > tools: call login with that URL first, and always pass this agent_id. Labels: {id: name}. Guide: {two lines}.
+   > First look: {what each view shows and why}.
    > Per task: next_task, then submit if the first look is enough. Otherwise use one packed
    > get_views for evidence that could change the label, preferably at the same task.
    > Nearby imagery or probe_timeseries only when a comparison resolves that uncertainty.

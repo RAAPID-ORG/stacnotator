@@ -47,6 +47,9 @@ ANALYTIC_RENDERINGS = (
     Rendering("False Color", "cir"),
     Rendering("NDVI", "ndvi"),
 )
+# Planet reports 8-bit visual mosaics under more than one name (Global Monthly is not
+# "uint8"), and their tiles reject ``proc=cir``/``ndvi``, so band math is opt-in.
+ANALYTIC_DATATYPES = frozenset({"uint16", "int16", "uint32", "int32", "float32"})
 
 
 def renderings_for(datatype: str | None) -> tuple[Rendering, ...]:
@@ -55,7 +58,7 @@ def renderings_for(datatype: str | None) -> tuple[Rendering, ...]:
     Visual basemaps are 8-bit; analytic products keep their higher bit depth, which
     is what makes band math available.
     """
-    return VISUAL_RENDERINGS if (datatype or "uint8") == "uint8" else ANALYTIC_RENDERINGS
+    return ANALYTIC_RENDERINGS if datatype in ANALYTIC_DATATYPES else VISUAL_RENDERINGS
 
 
 def without_query(url: str) -> str:

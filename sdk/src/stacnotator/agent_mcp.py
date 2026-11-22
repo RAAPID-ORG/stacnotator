@@ -90,12 +90,24 @@ class RecipeWindow(TypedDict):
     cover: int | RecipeSlice
 
 
-class ImageryRecipe(TypedDict, total=False):
-    """One imagery source over a collection from setup_options, its windows spelled out.
-    visualizations: names from the collection's list (True Color and False Color when
-    omitted). max_cloud_cover: 0-100, default 90. name: defaults to the collection's."""
+class PlanetSeriesRef(TypedDict):
+    """A Planet basemap series from setup_options' planet list: the organization key the
+    user picked, by its key_id, and a series name that key sees."""
 
-    collection: Required[str]
+    key_id: int
+    series: str
+
+
+class ImageryRecipe(TypedDict, total=False):
+    """One imagery source, its windows spelled out: over a collection from setup_options,
+    or over a Planet series (planet instead of collection). visualizations: names from the
+    collection's list (True Color and False Color when omitted) or the series' renderings
+    (all when omitted). max_cloud_cover: 0-100, default 90, not for Planet. name: defaults
+    to the collection's or the series'. Planet: each slice is the one mosaic that starts
+    inside it (one calendar month for a monthly series) and cover is a slice index."""
+
+    collection: str
+    planet: PlanetSeriesRef
     windows: Required[list[RecipeWindow]]
     visualizations: list[str]
     max_cloud_cover: float
@@ -187,9 +199,11 @@ server = MCPServer(
         "stacnotator-campaign-setup skill: never invent the area, the period or the labels; "
         "ask the user and make the change only once they accept your proposal. Then "
         "get_campaign until imagery is ready -> "
-        "preview_campaign. To label: register one agent per worker, read the campaign "
-        "guide in its context, then loop next_task -> (get_views, probe_timeseries) -> "
-        "submit_label or skip_task, always passing your own agent_id."
+        "preview_campaign. To label: follow the stacnotator-labelling skill. Show the user "
+        "the campaign's guide (get_campaign) and save one they give you with "
+        "set_campaign_guide; plan the first look from the guide; register one agent per "
+        "worker with those default_views, then loop next_task -> (get_views, "
+        "probe_timeseries) -> submit_label or skip_task, always passing your own agent_id."
     ),
 )
 
@@ -531,7 +545,10 @@ async def register_agent(
     takes_over_work: when this agent runs out of tasks, next_task moves a task over from
     your other agents on the campaign that still have work queued.
     default_views: up to 4 views next_task returns for every task, drawn ahead for the
-    tasks after it. Omit for a built-in overview; change later with set_default_views.
+    tasks after it. Plan them from the guide and labels: the dates and visualizations that
+    tell the labels apart, only the time series that help, and a basemap only as a small
+    close-up when it helps. Omit for a built-in overview; change later with
+    set_default_views.
     watch_window: open the window showing the agents' latest views.
     On by default; pass false only when the user does not want it. Recording is independent
     of this window.
@@ -607,6 +624,19 @@ async def campaign_context(agent_id: str) -> str:
     context = await _on_page(agent_id, "context")
     _label_names[agent_id] = {label["id"]: label["name"] for label in context["labels"]}
     return _json(context)
+
+
+@server.tool(structured_output=False)
+async def set_campaign_guide(campaign_id: int, guide_markdown: str) -> str:
+    """Replace a campaign's labelling guide, which people and agents read before labelling.
+    Only with a guide the user gave you (pasted, or a file they named) or approved after
+    you showed it to them: show the current guide from get_campaign first, and never write
+    or rewrite one unasked. Campaign admins only. Agents registered before keep the guide
+    they read, so brief running workers about the change."""
+    if not guide_markdown.strip():
+        raise ToolError("The guide is empty: pass the text the user gave you.")
+    await _api(_http().patch, f"/campaigns/{campaign_id}", {"guide_markdown": guide_markdown})
+    return _json({"campaign_id": campaign_id, "guide_saved": True})
 
 
 @server.tool(structured_output=False)
@@ -861,7 +891,10 @@ async def list_projects() -> str:
 @server.tool(structured_output=False)
 async def setup_options(project_id: int) -> str:
     """What imagery recipes and time series accept: imagery collections (id,
-    visualizations), basemaps by name, and time series data sources and types."""
+    visualizations), the organization's Planet keys (key_id, name, the series each sees;
+    never the key itself), basemaps by name, and time series data sources and types.
+    Never pick a Planet key yourself: offer the user these by name and use the one they
+    choose."""
     options = await _on_setup_page(project_id, "options")
     options["timeseries"] = await _api(_http().get, "/timeseries/create-options")
     return _json(options)
@@ -1081,6 +1114,7 @@ def _imagery_summary(source: dict[str, Any]) -> dict[str, Any]:
     return {
         "name": source["name"],
         "visualizations": [v["name"] for v in source["visualizations"]],
+        "organization_api_key_id": source.get("organization_api_key_id"),
         "windows": [
             {
                 "name": col["name"],

@@ -129,3 +129,94 @@ describe('mergedImagery', () => {
     ]);
   });
 });
+
+describe('Planet recipes', () => {
+  const month = (m: number) => {
+    const start = `2024-${String(m).padStart(2, '0')}-01`;
+    return {
+      id: `m${m}`,
+      name: `global_monthly_2024_${m}`,
+      first_acquired: start,
+      last_acquired: m === 12 ? '2025-01-01' : `2024-${String(m + 1).padStart(2, '0')}-01`,
+      tile_urls: {
+        'True Color': `https://tiles.planet.com/${m}/{z}/{x}/{y}.png?api_key={api_key}`,
+        NDVI: `https://tiles.planet.com/${m}/{z}/{x}/{y}.png?proc=ndvi&api_key={api_key}`,
+      },
+    };
+  };
+  const series = {
+    series_id: 'abc',
+    renderings: ['True Color', 'NDVI'],
+    max_native_zoom: 15,
+    mosaics: [3, 4, 5, 6, 7, 8].map(month),
+  };
+  const recipe: ImageryRecipe = {
+    planet: { key_id: 4, series: 'Global Monthly' },
+    visualizations: ['True Color'],
+    windows: [
+      {
+        name: 'Spring',
+        slices: [
+          { start: '2024-03-01', end: '2024-03-31' },
+          { start: '2024-04-01', end: '2024-04-30' },
+        ],
+        cover: 1,
+      },
+      { name: 'Summer', slices: [{ start: '2024-07-01', end: '2024-07-31' }], cover: 0 },
+    ],
+  };
+  const build = (r: ImageryRecipe) =>
+    mergedImagery({ sources: [], basemaps: [] }, [r], [], {
+      basemaps: [],
+      planetSeries: new Map([[r, series]]),
+    });
+
+  it('makes one slice per mosaic, with the chosen cover and the key by id only', () => {
+    const [source] = build(recipe).sources;
+
+    expect(source.name).toBe('Global Monthly');
+    expect(source.organization_api_key_id).toBe(4);
+    expect(source.api_key).toBeNull();
+    expect(source.max_native_zoom).toBe(15);
+    expect(source.visualizations.map((v) => v.name)).toEqual(['True Color']);
+    expect(
+      source.collections.map((c) => [
+        c.name,
+        c.cover_slice_index,
+        c.slices.map((s) => [s.start_date, s.templates?.map((t) => t.visualization)]),
+      ])
+    ).toEqual([
+      [
+        'Spring',
+        1,
+        [
+          ['2024-03-01', ['True Color']],
+          ['2024-04-01', ['True Color']],
+        ],
+      ],
+      ['Summer', 0, [['2024-07-01', ['True Color']]]],
+    ]);
+  });
+
+  it('refuses slices that are not exactly one mosaic, and composited covers', () => {
+    const windowed = (slices: { start: string; end: string }[], cover: RecipeWindow['cover']) => ({
+      ...recipe,
+      windows: [{ name: 'W', slices, cover }],
+    });
+
+    expect(() => build(windowed([{ start: '2024-03-01', end: '2024-04-30' }], 0))).toThrow(
+      /2 mosaics .* start in 2024-03-01..2024-04-30.*from 2024-03-01 to 2024-08-01/
+    );
+    expect(() => build(windowed([{ start: '2023-01-01', end: '2023-01-31' }], 0))).toThrow(
+      /0 mosaics/
+    );
+    expect(() =>
+      build(
+        windowed([{ start: '2024-03-01', end: '2024-03-31' }], {
+          start: '2024-03-01',
+          end: '2024-05-31',
+        })
+      )
+    ).toThrow(/cover must be the index/);
+  });
+});

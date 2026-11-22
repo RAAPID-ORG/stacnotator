@@ -781,3 +781,17 @@ def test_only_granted_tools_are_offered_and_they_refuse_unknown_settings(monkeyp
 
     assert result.is_error and "nmae" in result.content[0].text
     assert not patched.calls
+
+
+@responses.activate
+def test_set_campaign_guide_saves_the_given_guide_and_refuses_an_empty_one(browsers):
+    patched = responses.patch(f"{BASE}/api/campaigns/40", json={"settings": {}})
+
+    with pytest.raises(ToolError, match="empty"):
+        asyncio.run(agent_mcp.set_campaign_guide(40, "  \n"))
+    result = json.loads(asyncio.run(agent_mcp.set_campaign_guide(40, "# Crops\nMaize: ...")))
+
+    assert result == {"campaign_id": 40, "guide_saved": True}
+    assert len(patched.calls) == 1
+    assert json.loads(patched.calls[0].request.body) == {"guide_markdown": "# Crops\nMaize: ..."}
+    assert "set_campaign_guide" in asyncio.run(_tool_names())

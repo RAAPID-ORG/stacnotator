@@ -56,6 +56,8 @@ const MIN_CELL_PX = 96;
 const MAX_CELLS = 36;
 /** A first look, spread over the whole season: the agent asks for the dates in between. */
 const FIRST_LOOK_DATES = 4;
+const FIRST_LOOK_SERIES = 4;
+const MAX_ZOOM = 20;
 const CHIP_PX = 384;
 
 /** Throws a message the agent can act on. */
@@ -190,7 +192,9 @@ export function campaignContext(campaign: CampaignOutFull) {
 
 export type CampaignContext = ReturnType<typeof campaignContext>;
 
-/** Start at the dataset's configured zoom; closer views are requested when needed. */
+/** One view: dates spread over the first source at its configured zoom, a single close-up
+ *  basemap cell beside them as supporting evidence, and the first window's time series.
+ *  Agents plan their own from the guide; this is the fallback. */
 export function defaultViews(context: CampaignContext): ViewSpec[] {
   const first = context.imagery[0];
   const sourceZoom = first?.default_zoom ?? DEFAULT_ZOOM;
@@ -200,39 +204,34 @@ export function defaultViews(context: CampaignContext): ViewSpec[] {
   const covers: ViewCell[] = spreadOver(allCovers, FIRST_LOOK_DATES).map((slice_id) => ({
     slice_id,
   }));
-  const series: ViewCell[] = context.timeseries.length
+  const basemap = context.basemaps[0];
+  const closeUp: ViewCell[] = basemap
     ? [
         {
-          timeseries_ids: context.timeseries.slice(0, 8).map((t) => t.timeseries_id),
-          remove_cloudy: true,
+          basemap_id: basemap.basemap_id,
+          zoom: Math.min(MAX_ZOOM, basemap.max_native_zoom ?? sourceZoom + 2),
         },
       ]
     : [];
+  const group = context.timeseries[0]?.group;
+  const seriesIds = context.timeseries
+    .filter((t) => t.group === group)
+    .slice(0, FIRST_LOOK_SERIES)
+    .map((t) => t.timeseries_id);
+  const series: ViewCell[] = seriesIds.length
+    ? [{ timeseries_ids: seriesIds, remove_cloudy: true }]
+    : [];
 
-  const views: ViewSpec[] = [];
-  if (covers.length) {
-    views.push({
-      cells: [...covers, ...series],
-      columns: Math.min(DEFAULT_COLUMNS, covers.length),
+  const images = [...covers, ...closeUp];
+  if (!images.length && !series.length) return [];
+  return [
+    {
+      cells: [...images, ...series],
+      columns: Math.max(1, images.length),
       cell_px: CHIP_PX,
       zoom: sourceZoom,
-    });
-  } else if (series.length) {
-    views.push({ cells: series, columns: 2, cell_px: 512, zoom: sourceZoom });
-  }
-  const basemap = context.basemaps[0];
-  if (basemap) {
-    views.push({
-      cells: [
-        { basemap_id: basemap.basemap_id, zoom: Math.max(1, sourceZoom - 2) },
-        { basemap_id: basemap.basemap_id, zoom: Math.min(20, sourceZoom + 1) },
-      ],
-      columns: 2,
-      cell_px: 512,
-      zoom: sourceZoom,
-    });
-  }
-  return views;
+    },
+  ];
 }
 
 /** `count` items evenly spaced from first to last. */

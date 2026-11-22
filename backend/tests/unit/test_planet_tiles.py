@@ -55,6 +55,7 @@ def test_a_refused_link_is_quoted_back_without_its_key(link):
 def test_analytic_series_offer_derived_renderings():
     assert [r.name for r in tiles.renderings_for("uint16")] == ["Visual", "False Color", "NDVI"]
     assert [r.name for r in tiles.renderings_for("uint8")] == ["Visual"]
+    assert [r.name for r in tiles.renderings_for("byte")] == ["Visual"]
     assert [r.name for r in tiles.renderings_for(None)] == ["Visual"]
 
 
