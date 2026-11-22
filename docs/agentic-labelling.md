@@ -13,21 +13,21 @@ Install the plugin, which brings the labelling and campaign setup skills and the
 Claude Code:
 
 ```
-/plugin marketplace add RAAPID-ORG/stacnotator
+/plugin marketplace add RAAPID-ORG/stacnotator#develop
 /plugin install stacnotator@stacnotator
 ```
 
 Codex:
 
 ```bash
-codex plugin marketplace add RAAPID-ORG/stacnotator
+codex plugin marketplace add RAAPID-ORG/stacnotator@develop
 codex plugin add stacnotator@stacnotator
 ```
 
 GitHub Copilot CLI, which reads the same plugin:
 
 ```bash
-copilot plugin marketplace add RAAPID-ORG/stacnotator
+copilot plugin marketplace add RAAPID-ORG/stacnotator#develop
 copilot plugin install stacnotator@stacnotator
 ```
 
@@ -41,7 +41,7 @@ browser tab the first time and asks once before downloading Chromium (about 150 
 draws the images. The first start takes a minute while uv installs the SDK.
 
 Other MCP clients: run
-`uvx --from "stacnotator-sdk[agent] @ git+https://github.com/RAAPID-ORG/stacnotator#subdirectory=sdk" stacnotator-mcp`
+`uvx --from "stacnotator-sdk[agent] @ git+https://github.com/RAAPID-ORG/stacnotator@develop#subdirectory=sdk" stacnotator-mcp`
 over stdio and give the model
 [`sdk/skills/stacnotator-labelling/SKILL.md`](../sdk/skills/stacnotator-labelling/SKILL.md)
 and [`sdk/skills/stacnotator-campaign-setup/SKILL.md`](../sdk/skills/stacnotator-campaign-setup/SKILL.md).
@@ -150,7 +150,7 @@ session. It uses the MCP server's tools in its own process, so views are drawn b
 headless pages, and labels go through the same `submit_label` and `skip_task`.
 
 ```bash
-uvx --from "stacnotator-sdk[api] @ git+https://github.com/RAAPID-ORG/stacnotator#subdirectory=sdk" \
+uvx --from "stacnotator-sdk[api] @ git+https://github.com/RAAPID-ORG/stacnotator@develop#subdirectory=sdk" \
   stacnotator-label run --url https://your-stacnotator.example.org --campaign 172 \
   --instructions rules.md \
   --base-url https://<resource>.openai.azure.com/openai/v1/ --model gpt-6-astra --entra \

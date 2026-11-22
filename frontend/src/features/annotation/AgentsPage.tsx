@@ -297,21 +297,21 @@ const HowAgentsWork = ({ campaignName }: { campaignName?: string }) => {
         <Snippet
           tool="Claude Code"
           lines={[
-            '/plugin marketplace add RAAPID-ORG/stacnotator',
+            '/plugin marketplace add RAAPID-ORG/stacnotator#develop',
             '/plugin install stacnotator@stacnotator',
           ]}
         />
         <Snippet
           tool="Codex"
           lines={[
-            'codex plugin marketplace add RAAPID-ORG/stacnotator',
+            'codex plugin marketplace add RAAPID-ORG/stacnotator@develop',
             'codex plugin add stacnotator@stacnotator',
           ]}
         />
         <Snippet
           tool="GitHub Copilot CLI"
           lines={[
-            'copilot plugin marketplace add RAAPID-ORG/stacnotator',
+            'copilot plugin marketplace add RAAPID-ORG/stacnotator#develop',
             'copilot plugin install stacnotator@stacnotator',
           ]}
         />

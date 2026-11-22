@@ -224,13 +224,13 @@ A plugin for Claude Code, Codex and GitHub Copilot CLI lets a model set up a new
 team of subagents) label a campaign's tasks from rendered imagery, as annotator agents you own:
 
 ```
-/plugin marketplace add RAAPID-ORG/stacnotator          # Claude Code
+/plugin marketplace add RAAPID-ORG/stacnotator#develop         # Claude Code
 /plugin install stacnotator@stacnotator
 
-codex plugin marketplace add RAAPID-ORG/stacnotator     # Codex
+codex plugin marketplace add RAAPID-ORG/stacnotator@develop    # Codex
 codex plugin add stacnotator@stacnotator
 
-copilot plugin marketplace add RAAPID-ORG/stacnotator   # GitHub Copilot CLI
+copilot plugin marketplace add RAAPID-ORG/stacnotator#develop  # GitHub Copilot CLI
 copilot plugin install stacnotator@stacnotator
 ```
 
