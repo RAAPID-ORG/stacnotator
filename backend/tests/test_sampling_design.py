@@ -1,6 +1,5 @@
 """Tests for sampling design regions (sampling_design/service.py)."""
 
-import asyncio
 import io
 import json
 from types import SimpleNamespace
@@ -42,10 +41,8 @@ class TestReadRegionFile:
             {"type": "Feature", "geometry": mapping(b), "properties": {}}
             for b in (box(0, 0, 1, 1), box(2, 2, 3, 3))
         ]
-        region = asyncio.run(
-            read_region_file(
-                _upload("r.geojson", {"type": "FeatureCollection", "features": features})
-            )
+        region = read_region_file(
+            _upload("r.geojson", {"type": "FeatureCollection", "features": features})
         )
         assert isinstance(region, MultiPolygon)
         assert region.area == pytest.approx(2)
@@ -53,10 +50,10 @@ class TestReadRegionFile:
     def test_a_region_of_points_has_no_area_to_sample(self):
         point = {"type": "Point", "coordinates": [1, 1]}
         with pytest.raises(HTTPException) as exc_info:
-            asyncio.run(read_region_file(_upload("r.geojson", point)))
+            read_region_file(_upload("r.geojson", point))
         assert exc_info.value.status_code == 400
 
     def test_other_file_types_are_rejected(self):
         with pytest.raises(HTTPException) as exc_info:
-            asyncio.run(read_region_file(_upload("r.kml", {})))
+            read_region_file(_upload("r.kml", {}))
         assert exc_info.value.status_code == 400

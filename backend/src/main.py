@@ -378,8 +378,10 @@ app.add_middleware(
 )
 
 
+# Async and DB-free on purpose: a sync route would queue behind real work for a
+# threadpool slot, so a busy worker would read as a dead one to whatever polls it.
 @app.get("/healthz", include_in_schema=False)
-def healthz():
+async def healthz():
     return {"status": "ok"}
 
 

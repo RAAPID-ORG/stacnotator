@@ -184,7 +184,7 @@ def validate_task_label(
 
 
 @router.post("/ingest-annotation-task-csv")
-async def import_tasks_from_csv(
+def import_tasks_from_csv(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
     file: UploadFile = File(...),
@@ -194,13 +194,13 @@ async def import_tasks_from_csv(
         raise HTTPException(status_code=400, detail="File must be a CSV")
 
     require_task_set(db, campaign.id, task_set_id, status_code=400)
-    contents = await file.read()
+    contents = file.file.read()
     num_created = ingest.create_tasks_from_csv(db, campaign, contents, task_set_id)
     return {"num_tasks_created": num_created}
 
 
 @router.post("/ingest-annotation-task-geojson")
-async def import_tasks_from_geojson(
+def import_tasks_from_geojson(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
     file: UploadFile = File(...),
@@ -218,7 +218,7 @@ async def import_tasks_from_geojson(
         raise HTTPException(status_code=400, detail="File must be a .geojson or .json file")
 
     require_task_set(db, campaign.id, task_set_id, status_code=400)
-    contents = await file.read()
+    contents = file.file.read()
     num_created = ingest.create_tasks_from_geojson(db, campaign, contents, task_set_id)
     return {"num_tasks_created": num_created}
 
@@ -431,7 +431,7 @@ def export_task_assignments(
     "/tasks/assignments/import",
     response_model=ImportTaskAssignmentsResult,
 )
-async def import_task_assignments(
+def import_task_assignments(
     campaign_id: int,
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
@@ -448,6 +448,6 @@ async def import_task_assignments(
     if not (file.filename or "").lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="File must be a CSV")
 
-    contents = await file.read()
+    contents = file.file.read()
     result = assignments.import_task_assignments(db, campaign.id, contents)
     return ImportTaskAssignmentsResult(**result)
