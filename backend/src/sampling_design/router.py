@@ -5,7 +5,6 @@ from fastapi.security import HTTPBearer
 from pydantic import Json
 from shapely.geometry import MultiPolygon, Polygon, box
 from sqlalchemy.orm import Session
-from starlette.concurrency import run_in_threadpool
 
 from src.auth.dependencies import require_authenticated_user
 from src.campaigns.dependencies import require_campaign_admin
@@ -24,7 +23,7 @@ router = APIRouter(
 
 
 @router.post("/generate-tasks", response_model=GenerateTasksResponse)
-async def generate_tasks_from_sampling(
+def generate_tasks_from_sampling(
     campaign_id: int,
     strategy: Annotated[Json[SamplingStrategy], Form(description="A sampling strategy as JSON")],
     task_set_id: int = Form(...),
@@ -68,12 +67,10 @@ async def generate_tasks_from_sampling(
                 status_code=400,
                 detail="region_file is required when use_campaign_bbox is false",
             )
-        region = await service.read_region_file(region_file)
+        region = service.read_region_file(region_file)
         region_geometry = service.clip_to_campaign(region, campaign)
 
-    # Off the event loop: sampling a thin region can take seconds of CPU.
-    num_tasks_created = await run_in_threadpool(
-        service.create_tasks_from_sampling_strategy,
+    num_tasks_created = service.create_tasks_from_sampling_strategy(
         db=db,
         campaign=campaign,
         strategy=strategy.root,

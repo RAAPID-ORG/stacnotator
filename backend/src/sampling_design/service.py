@@ -28,10 +28,10 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 
-async def read_region_file(file: UploadFile) -> Polygon | MultiPolygon:
+def read_region_file(file: UploadFile) -> Polygon | MultiPolygon:
     """The region an uploaded .geojson or zipped shapefile describes, as one
     WGS84 (multi)polygon."""
-    contents = await file.read()
+    contents = file.file.read()
     filename = (file.filename or "").lower()
     if filename.endswith((".geojson", ".json")):
         try:

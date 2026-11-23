@@ -119,7 +119,7 @@ def annotate_task(
 
 
 @router.post("/campaigns/{campaign_id}/ingest-annotations-geojson")
-async def ingest_annotations_from_geojson(
+def ingest_annotations_from_geojson(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
     user: User = Depends(require_authenticated_user),
@@ -136,7 +136,7 @@ async def ingest_annotations_from_geojson(
     if not (fname.endswith(".geojson") or fname.endswith(".json")):
         raise HTTPException(status_code=400, detail="File must be a .geojson or .json file")
 
-    contents = await file.read()
+    contents = file.file.read()
     num_created = ingest.create_annotations_from_geojson(db, campaign, contents, user.id)
     return {"num_annotations_created": num_created}
 
