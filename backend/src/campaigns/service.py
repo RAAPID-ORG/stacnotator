@@ -3,7 +3,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import ARRAY, Text, and_, cast, delete, exists, func, or_, select, update
+from sqlalchemy import ARRAY, Text, cast, delete, exists, func, select, update
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from src.agents.models import LabellingAgent
@@ -30,9 +30,8 @@ from src.imagery.models import (
 )
 from src.imagery.registration import commit_and_register, drop_mosaics
 from src.imagery.service import save_imagery_editor_state
-from src.organizations.service import active_organization_ids
-from src.projects.access import VISIBILITY_ORGANIZATION, VISIBILITY_PUBLIC
-from src.projects.models import Project, ProjectUser
+from src.projects.access import VISIBILITY_PUBLIC
+from src.projects.models import Project
 from src.projects.viewer import ViewerStanding
 from src.tasks import embeddings
 from src.tasks.models import Task, TaskSet
@@ -59,34 +58,6 @@ def list_campaigns_with_user_roles(db: Session, user: User) -> list[CampaignList
         for campaign, flags in items
         if flags.has_access
     ]
-
-
-def visible_campaign_ids(db: Session, user: User) -> list[int]:
-    """Ids of the campaigns list_campaigns_with_user_roles returns, in one query,
-    for scoping a tiler token."""
-    if user.is_platform_admin:
-        return list(db.scalars(select(Campaign.id)).all())
-
-    stmt = (
-        select(Campaign.id)
-        .join(Project, Project.id == Campaign.project_id)
-        .outerjoin(
-            ProjectUser,
-            and_(ProjectUser.project_id == Project.id, ProjectUser.user_id == user.id),
-        )
-        .where(
-            or_(
-                Project.visibility == VISIBILITY_PUBLIC,
-                ProjectUser.user_id.is_not(None),
-                and_(
-                    Project.visibility == VISIBILITY_ORGANIZATION,
-                    Project.organization_id.in_(active_organization_ids(user.id)),
-                ),
-            )
-        )
-        .distinct()
-    )
-    return list(db.scalars(stmt).all())
 
 
 # Eager-load options covering every relationship that CampaignOut(+Full) serializes.

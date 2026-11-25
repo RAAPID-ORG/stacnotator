@@ -229,10 +229,6 @@ class VisualizerOptionsOut(BaseModel):
     campaigns: list[CampaignOptionsOut]
 
 
-class TilerSessionOut(BaseModel):
-    expires_in: int
-
-
 class VisualizerFeedbackCreate(BaseModel):
     """What a viewer says about one place on a published map."""
 

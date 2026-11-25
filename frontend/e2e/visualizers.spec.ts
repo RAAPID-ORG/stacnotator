@@ -55,7 +55,8 @@ const SHARED_VISUALIZER = {
       visible: true,
       opacity: 0.8,
       campaign_id: 42,
-      tile_url: 'https://tiler.test/searches/abc/tiles/WebMercatorQuad/{z}/{x}/{y}.png',
+      tile_url:
+        'https://tiler.test/scopes/visualizer:1/searches/abc/tiles/WebMercatorQuad/{z}/{x}/{y}.png',
       render_config: {
         mode: 'categorical',
         entries: [

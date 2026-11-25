@@ -12,12 +12,11 @@ from src.imagery import registration
 from src.projects.dependencies import require_project_access, require_project_admin
 from src.projects.models import Project
 from src.projects.viewer import project_flags
-from src.tilers.tokens import TILER_TOKEN_TTL, set_tiler_cookie
+from src.tilers.tokens import TileSessionOut, set_tile_session
 from src.visualizers import service
 from src.visualizers.dependencies import require_visualizer_admin
 from src.visualizers.models import Visualizer
 from src.visualizers.schemas import (
-    TilerSessionOut,
     VisualizerConfigOut,
     VisualizerCreate,
     VisualizerFeedbackCreate,
@@ -204,7 +203,7 @@ def add_visualizer_feedback(
     return service.list_feedback(db, viewer.visualizer.id)[0] if feedback else None
 
 
-@shared_router.post("/tiler-token", response_model=TilerSessionOut)
+@shared_router.post("/tiler-token", response_model=TileSessionOut)
 def get_visualizer_tiler_token(
     response: Response,
     viewer: Viewer = Depends(_require_viewer),
@@ -215,13 +214,12 @@ def get_visualizer_tiler_token(
     links, never those campaigns, which is what lets a visitor with no account
     fetch its tiles without opening anything else.
     """
-    set_tiler_cookie(
+    return set_tile_session(
         response,
         sub=f"visualizer:{viewer.visualizer.id}",
-        owners=[viewer.visualizer.layer_owner.tile_scope],
+        owner=viewer.visualizer.layer_owner,
         layers=service.linked_tile_layers(viewer.visualizer),
     )
-    return TilerSessionOut(expires_in=TILER_TOKEN_TTL)
 
 
 router = APIRouter()

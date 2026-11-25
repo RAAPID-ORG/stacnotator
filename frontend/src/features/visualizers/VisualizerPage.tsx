@@ -153,9 +153,9 @@ export function VisualizerPage({ slug }: { slug: string }) {
       });
     }
     if (needsTilerSession(view)) {
-      ensureTilerSession(slug).catch(() => setSessionFailed(true));
+      ensureTilerSession(`visualizer:${view.id}`).catch(() => setSessionFailed(true));
     }
-  }, [view, slug]);
+  }, [view]);
 
   useEffect(() => {
     if (view) document.title = `${view.name} - STACNotator`;

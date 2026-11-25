@@ -40,7 +40,7 @@ def test_run_registration_records_the_search_and_its_tiler(monkeypatch, tilers):
     service.run_registration(MagicMock(), cm)
 
     assert (cm.status, cm.mosaic_id, cm.tiler) == ("ready", "search-9", "hosted")
-    assert cm.tile_url.startswith("https://tiler.test/searches/search-9/tiles/")
+    assert cm.tile_url.startswith("https://tiler.test/scopes/5/searches/search-9/tiles/")
     assert cm.status_errors is None
 
 

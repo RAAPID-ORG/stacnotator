@@ -216,9 +216,9 @@ async function installBaseApiMocks(page: Page, api: ApiCapture): Promise<void> {
     await route.fulfill({ json: MOCK_USER });
   });
 
-  // GET /api/auth/tiler-token - mints the cookie credentialed tiles ride on.
-  await page.route('**/api/auth/tiler-token**', async (route) => {
-    await route.fulfill({ json: { ok: true } });
+  // GET /api/campaigns/{id}/tiler-token - mints the cookie a campaign's credentialed tiles ride on.
+  await page.route('**/api/campaigns/*/tiler-token', async (route) => {
+    await route.fulfill({ json: { expires_in: 3600 } });
   });
 
   // GET /api/auth/users (the add-member picker)

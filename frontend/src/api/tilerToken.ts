@@ -1,70 +1,87 @@
 /**
- * Manages the short-lived tiler session cookie.
+ * Manages the short-lived tile session cookies.
  *
- * Calling the backend's `/auth/tiler-token` sets an `HttpOnly` cookie (the campaign-scoped
- * HS256 token) that the browser then attaches to tile requests automatically. The token
- * value never touches JS or tile URLs. We just track when to refresh the cookie, with
- * module-scoped caching + inflight dedup so the cold-start tile burst is one backend hit.
+ * Each scope - a campaign, or a visualizer - has its own `HttpOnly` cookie, set by the
+ * backend on that scope's tile paths only, so a tile request carries one small cookie
+ * however many campaigns exist. The token value never touches JS or tile URLs. We just
+ * track when each scope's cookie needs minting again, with inflight dedup so the
+ * cold-start tile burst is one backend hit per scope.
  */
 
-import { getTilerToken as refreshTilerCookie } from './client';
+import { getCampaignTilerToken } from './client';
 
-/** Sets the cookie and reports how long it lasts, in seconds. */
-export type TilerSessionMinter = () => Promise<number>;
+/** Sets the cookie for a scope and reports how long it lasts, in seconds. */
+export type TilerSessionMinter = (scope: string) => Promise<number>;
 
-const signedInUserMinter: TilerSessionMinter = async () => {
-  const { data, error } = await refreshTilerCookie();
-  const body = data as { expires_in: number } | undefined;
-  if (error || !body) throw new Error('Failed to refresh tiler session');
-  return body.expires_in;
+const signedInUserMinter: TilerSessionMinter = async (scope) => {
+  if (!/^\d+$/.test(scope)) throw new Error(`No tile session for scope ${scope}`);
+  const { data, error } = await getCampaignTilerToken({ path: { campaign_id: Number(scope) } });
+  if (error || !data) throw new Error('Failed to refresh tiler session');
+  return data.expires_in;
 };
 
 let minter = signedInUserMinter;
+
+interface Session {
+  mintedAt: number;
+  expiry: number;
+  inflight: Promise<void> | null;
+}
+
+const sessions = new Map<string, Session>();
+
+// Refresh 60s before actual expiry to avoid races.
+const REFRESH_BUFFER_S = 60;
+// A failing tile only forces a new mint this long after the last one, so tiles
+// failing for another reason cannot turn into a mint per tile.
+const REMINT_AFTER_S = 30;
 
 /**
  * Point the tiler session at a different source of cookies.
  *
  * A shared visualizer mints from its own slug, so a visitor with no account
- * still gets tile access - scoped to that visualizer's campaigns and nothing
- * else. Passing null restores the signed-in user's own session.
+ * still gets tile access - scoped to that visualizer and the layers it links,
+ * and nothing else. Passing null restores the signed-in user's own sessions.
  */
 export function setTilerSessionMinter(next: TilerSessionMinter | null): void {
   minter = next ?? signedInUserMinter;
-  cookieExpiry = 0;
-  mintedForCampaign = null;
+  sessions.clear();
 }
 
-let cookieExpiry = 0;
-let inflight: Promise<void> | null = null;
-// The campaign id the current cookie was last minted for. The cookie is a snapshot of the
-// user's campaigns at mint time, so entering a campaign we haven't minted for since (just
-// created / just joined) needs a re-mint, else the tiler 403s on that campaign's tiles.
-let mintedForCampaign: string | null = null;
+/** The scope a credentialed tile URL is served under: the `/scopes/<scope>/`
+ *  segment of a tiler URL, or the campaign or visualizer of a backend proxy route. */
+export function tileScope(url: string): string | null {
+  const tiler = /\/scopes\/([^/]+)\/searches\//.exec(url);
+  if (tiler) return decodeURIComponent(tiler[1]);
+  const campaign = /\/api\/campaigns\/(\d+)\//.exec(url);
+  if (campaign) return campaign[1];
+  const visualizer = /\/api\/visualizers\/(\d+)\//.exec(url);
+  return visualizer ? `visualizer:${visualizer[1]}` : null;
+}
 
-// Refresh 60s before actual expiry to avoid races.
-const REFRESH_BUFFER_S = 60;
-
-/** Ensure a fresh tiler cookie is set. Cheap/cached while the current cookie is valid.
- *  Pass `campaignId` on campaign entry to also re-mint when switching to a campaign not
- *  covered by the current cookie. Many windows entering the same campaign dedupe to one
- *  mint (via inflight + mintedForCampaign). */
-export async function ensureTilerSession(campaignId?: string): Promise<void> {
+/** Ensure a fresh cookie for this scope. Cheap while the current one is valid. */
+export async function ensureTilerSession(scope: string): Promise<void> {
   const now = Date.now() / 1000;
-  const stale = now >= cookieExpiry - REFRESH_BUFFER_S;
-  const campaignChanged = campaignId != null && campaignId !== mintedForCampaign;
-  if (!stale && !campaignChanged) {
-    return;
-  }
-  if (inflight) return inflight;
+  const session = sessions.get(scope) ?? { mintedAt: 0, expiry: 0, inflight: null };
+  sessions.set(scope, session);
+  if (session.inflight) return session.inflight;
+  if (now < session.expiry - REFRESH_BUFFER_S) return;
 
-  inflight = (async () => {
+  session.inflight = (async () => {
     try {
-      cookieExpiry = Date.now() / 1000 + (await minter());
-      if (campaignId != null) mintedForCampaign = campaignId;
+      const expiresIn = await minter(scope);
+      session.mintedAt = Date.now() / 1000;
+      session.expiry = session.mintedAt + expiresIn;
     } finally {
-      inflight = null;
+      session.inflight = null;
     }
   })();
+  return session.inflight;
+}
 
-  return inflight;
+/** A tile in this scope failed: mint again on the next request, in case the
+ *  browser no longer holds the cookie we think it does. */
+export function expireTilerSession(scope: string): void {
+  const session = sessions.get(scope);
+  if (session && Date.now() / 1000 - session.mintedAt >= REMINT_AFTER_S) session.expiry = 0;
 }

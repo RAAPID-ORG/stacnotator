@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -15,10 +15,8 @@ from src.auth.schemas import (
     UserOut,
     UserOutDetailed,
 )
-from src.campaigns.service import visible_campaign_ids
 from src.database import get_db
 from src.tilers import registry
-from src.tilers.tokens import TILER_TOKEN_TTL, set_tiler_cookie
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
@@ -54,17 +52,6 @@ def accept_terms(
 ):
     """Record that this user accepted the terms they were shown."""
     return service.accept_terms(db, user, request.version)
-
-
-@router.get("/tiler-token")
-def get_tiler_token(
-    response: Response,
-    user: User = Depends(require_authenticated_user),
-    db: Session = Depends(get_db),
-):
-    """Set a short-lived, campaign-scoped tiler HttpOnly cookie (authenticated users only)."""
-    set_tiler_cookie(response, sub=str(user.id), owners=visible_campaign_ids(db, user))
-    return {"expires_in": TILER_TOKEN_TTL}
 
 
 @router.get("/users", response_model=list[UserOutDetailed] | list[UserOut])

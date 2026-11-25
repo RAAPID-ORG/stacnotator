@@ -1,6 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 
-vi.mock('~/api/tilerToken', () => ({ ensureTilerSession: vi.fn() }));
+vi.mock('~/api/tilerToken', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('~/api/tilerToken')>()),
+  ensureTilerSession: vi.fn(),
+}));
 
 import { ensureTilerSession } from '~/api/tilerToken';
 import { TilePreloader, tileUrlsForExtent, type PreloadImage, type PreloadJob } from './preloader';
@@ -395,13 +398,13 @@ describe('TilePreloader credentials', () => {
     preloader.enqueue({
       priority: 1,
       groupId: 'ours',
-      urlTemplate: 'https://tiler/{z}/{x}/{y}.png',
+      urlTemplate: 'https://tiler/scopes/7/searches/x/{z}/{x}/{y}.png',
       extent: WORLD,
       zoom: 0,
       auth: 'cookie',
     });
     await flush();
-    expect(refreshToken).toHaveBeenCalledTimes(1);
+    expect(refreshToken).toHaveBeenCalledExactlyOnceWith('7');
     expect(images[1].crossOrigin).toBe('use-credentials');
     preloader.dispose();
   });

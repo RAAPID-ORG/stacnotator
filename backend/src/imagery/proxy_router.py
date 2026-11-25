@@ -1,7 +1,7 @@
 """Backend tile proxy: fetch provider tiles server-side with the decrypted API key attached.
 
 Browser tile requests (OpenLayers ``<img>``) carry no ``Authorization`` header, so these
-endpoints authenticate via the campaign-scoped ``tiler_token`` HttpOnly cookie instead of the
+endpoints authenticate via the owner-scoped tile session HttpOnly cookie instead of the
 usual Firebase bearer. The provider key is decrypted here and never reaches the client.
 
 This is a separate router (not ``imagery.router``) precisely so it is *not* under that
@@ -144,15 +144,15 @@ def _with_session[T](lookup: Callable[[Session], T]) -> T:
 
 
 def _assert_scope(request: Request, owner: LayerOwner) -> None:
-    """Authorize a tile request from the ``tiler_token`` cookie for one owner.
+    """Authorize a tile request from the tile session cookie for one owner.
 
-    The cookie names the owners its holder may read; a campaign's scope is its
-    bare id and a visualizer's is prefixed, so the two can never be mistaken for
-    one another (see ``layers.LayerOwner``). A visualizer's session names only
-    the visualizer, so it reaches the visualizer's routes, which serve what it
-    publishes, and never a campaign's.
+    The cookie is set on this owner's routes only and names that owner; a
+    campaign's scope is its bare id and a visualizer's is prefixed, so the two
+    can never be mistaken for one another (see ``layers.LayerOwner``). A
+    visualizer's session names only the visualizer, so it reaches the
+    visualizer's routes, which serve what it publishes, and never a campaign's.
     """
-    token = request.cookies.get("tiler_token")
+    token = request.cookies.get(tokens.TILE_SESSION_COOKIE)
     if not token:
         raise HTTPException(status_code=401, detail="Missing tiler session")
     try:

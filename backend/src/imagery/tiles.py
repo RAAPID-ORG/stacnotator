@@ -87,9 +87,14 @@ def missing_providers(collection: "ImageryCollection", sl: "ImagerySlice") -> se
     return needed - have
 
 
-def slice_tiles(collection: "ImageryCollection", sl: "ImagerySlice") -> list["SliceTile"]:
+def slice_tiles(
+    collection: "ImageryCollection", sl: "ImagerySlice", scope: str | None = None
+) -> list["SliceTile"]:
     """Every visualization of the slice that can be drawn now. One whose mosaic is not
-    registered yet, has expired, or whose tiler is no longer configured, is left out."""
+    registered yet, has expired, or whose tiler is no longer configured, is left out.
+
+    Hosted tiles are served under ``scope``, the source's own owner unless another
+    shows it (a visualizer linking a campaign's source)."""
     from src.imagery.models import SliceTile
 
     if not collection.is_stac:
@@ -110,6 +115,12 @@ def slice_tiles(collection: "ImageryCollection", sl: "ImagerySlice") -> list["Sl
                 tiler = providers.resolve_tiler(provider)
             except ValueError:
                 continue
-            url = providers.build_tile_url(registry.HOSTED, mosaic, params, tiler=tiler)
+            url = providers.build_tile_url(
+                registry.HOSTED,
+                mosaic,
+                params,
+                tiler=tiler,
+                scope=scope or collection.source.owner.tile_scope,
+            )
         tiles.append(SliceTile(visualization_id, url, provider))
     return tiles

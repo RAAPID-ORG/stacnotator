@@ -21,10 +21,12 @@ from src.campaigns.schemas import (
 )
 from src.database import get_db, release
 from src.imagery.registration import REGISTRATION_RUN, renew_expiring_mpc_mosaics
+from src.layers import LayerOwner
 from src.projects.dependencies import require_project_admin
 from src.projects.models import Project
 from src.projects.viewer import project_flags
 from src.tasks.embeddings import EMBEDDING_RUN
+from src.tilers.tokens import TileSessionOut, set_tile_session
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
@@ -87,6 +89,16 @@ def get_campaign(
 ):
     _recover_stale_registration(db, campaign)
     return _campaign_out(service.get_campaign_full(db, campaign_id), db, user)
+
+
+@router.get("/{campaign_id}/tiler-token", response_model=TileSessionOut)
+def get_campaign_tiler_token(
+    response: Response,
+    campaign: Campaign = Depends(require_campaign_access),
+    user: User = Depends(require_authenticated_user),
+):
+    """Set the short-lived HttpOnly cookie this campaign's tiles are fetched with."""
+    return set_tile_session(response, sub=str(user.id), owner=LayerOwner(campaign_id=campaign.id))
 
 
 @router.get("/{campaign_id}/summary", response_model=CampaignSummaryOut)

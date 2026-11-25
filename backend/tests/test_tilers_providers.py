@@ -21,10 +21,11 @@ def test_select_provider_mpc_only_when_eligible():
     assert providers.select_provider("https://earth-search.aws.element84.com/v1", {}) == "hosted"
 
 
-def test_build_tile_url_hosted_uses_tiler_url():
-    url = providers.build_tile_url("hosted", "abc123", VIZ, tiler=TILER)
+def test_build_tile_url_hosted_is_served_under_the_scope_of_whoever_shows_it():
+    url = providers.build_tile_url("hosted", "abc123", VIZ, tiler=TILER, scope="visualizer:4")
     assert url.startswith(
-        "https://tiler-one.example.com/searches/abc123/tiles/WebMercatorQuad/{z}/{x}/{y}.png?"
+        "https://tiler-one.example.com/scopes/visualizer:4/searches/abc123/tiles/"
+        "WebMercatorQuad/{z}/{x}/{y}.png?"
     )
     assert "assets=red" in url and "rescale=0%2C3000" in url
 

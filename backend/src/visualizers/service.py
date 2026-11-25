@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from src.auth.models import User
 from src.campaigns.models import Campaign
+from src.custom_layers import render
 from src.custom_layers.models import CustomMap, VectorLayer
 from src.imagery import registration
 from src.imagery import service as imagery_service
@@ -32,6 +33,7 @@ from src.imagery.schemas import (
     SliceTileOut,
     VisualizationOut,
 )
+from src.imagery.tiles import slice_tiles
 from src.projects.models import Project
 from src.visualizers import timeline
 from src.visualizers.models import (
@@ -444,7 +446,7 @@ def build_view(
             for out in _imagery_out(source, visualizer)
         ],
         basemaps=[_basemap_out(b) for b in visualizer.basemaps],
-        overlays=[out for out in (_overlay_out(o) for o in visualizer.overlays) if out],
+        overlays=[out for out in (_overlay_out(o, visualizer) for o in visualizer.overlays) if out],
         can_edit=can_edit,
         can_give_feedback=can_give_feedback,
         registration_status="registering" if registering else visualizer.registration_status,
@@ -490,8 +492,9 @@ def _imagery_out(source: ImagerySource, visualizer: Visualizer) -> list[Visualiz
     A source with monthly composites over weekly acquisitions is two records,
     and the cadence is what distinguishes them by name.
     """
+    scope = visualizer.layer_owner.tile_scope
     tiles_by_slice = {
-        s.id: [SliceTileOut.model_validate(t) for t in s.tiles]
+        s.id: [SliceTileOut.model_validate(t) for t in slice_tiles(collection, s, scope)]
         for collection in source.collections
         for s in collection.slices
     }
@@ -537,7 +540,9 @@ def _slice_inputs(source: ImagerySource) -> list[timeline.SliceInput]:
     ]
 
 
-def _overlay_out(overlay: VisualizerOverlay) -> RasterOverlayOut | VectorOverlayOut | None:
+def _overlay_out(
+    overlay: VisualizerOverlay, visualizer: Visualizer
+) -> RasterOverlayOut | VectorOverlayOut | None:
     if overlay.custom_map is not None:
         cm = overlay.custom_map
         return RasterOverlayOut(
@@ -546,7 +551,7 @@ def _overlay_out(overlay: VisualizerOverlay) -> RasterOverlayOut | VectorOverlay
             visible=overlay.visible,
             opacity=overlay.opacity,
             campaign_id=cm.campaign_id,
-            tile_url=cm.tile_url,
+            tile_url=render.tile_url(cm, visualizer.layer_owner.tile_scope),
             render_config=cm.render_config,
             max_native_zoom=cm.max_native_zoom,
             status=cm.status,
