@@ -12,7 +12,7 @@ import XYZ from 'ol/source/XYZ';
 import TileState from 'ol/TileState';
 import type VectorTile from 'ol/VectorTile';
 import { unByKey } from 'ol/Observable';
-import { ensureTilerSession } from '~/api/tilerToken';
+import { ensureTilerSession, expireTilerSession, tileScope } from '~/api/tilerToken';
 import { authManager } from '~/features/auth/index';
 import { tileAuth } from '~/shared/imagery/tileUrls';
 
@@ -24,9 +24,19 @@ export function crossOriginForTile(url: string, tiler?: string | null): CrossOri
   return tileAuth(url, tiler) === 'cookie' ? 'use-credentials' : 'anonymous';
 }
 
-/** Only credentialed sources need the cookie; MPC and public tiles need nothing. */
-export function ensureSessionFor(crossOrigin: string | null): Promise<void> {
-  return crossOrigin === 'use-credentials' ? ensureTilerSession() : Promise.resolve();
+/** Only credentialed sources need the cookie, the one for the scope the tile is
+ *  served under; MPC and public tiles need nothing. */
+export function ensureSessionFor(crossOrigin: string | null, url: string): Promise<void> {
+  const scope = crossOrigin === 'use-credentials' ? tileScope(url) : null;
+  return scope ? ensureTilerSession(scope) : Promise.resolve();
+}
+
+// The tile's own setting: by the time tileloaderror fires, OpenLayers has swapped
+// the failed image for a blank canvas that carries none.
+function expireSessionOf(tile: Tile): void {
+  const crossOrigin = (tile as ImageTile).getCrossOrigin();
+  const scope = crossOrigin === 'use-credentials' ? tileScope(tile.key) : null;
+  if (scope) expireTilerSession(scope);
 }
 
 /**
@@ -42,7 +52,7 @@ export const foregroundTileLoader: LoadFunction = (tile, src) => {
   const load = () => {
     image.src = src;
   };
-  ensureSessionFor(image.crossOrigin).then(load, load);
+  ensureSessionFor(image.crossOrigin, src).then(load, load);
 };
 
 /**
@@ -102,6 +112,7 @@ export function attachTileErrorRecovery(layer: TileLayer<XYZ>): void {
   const errorKey = source.on('tileloaderror', ({ tile }) => {
     const attempt = attempts.get(tile) ?? 0;
     if (attempt >= RETRY_DELAYS_MS.length) return;
+    expireSessionOf(tile);
     window.setTimeout(() => {
       if (layer.getVisible() && layer.getSource() === source) retry(tile);
     }, RETRY_DELAYS_MS[attempt]);

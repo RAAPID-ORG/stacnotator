@@ -321,7 +321,7 @@ export class TilePreloader {
     };
 
     // Refresh the tiler cookie first for our-tiler tiles (no-op for MPC/public), then load.
-    ensureSessionFor(tile.crossOrigin)
+    ensureSessionFor(tile.crossOrigin, tile.url)
       .then(() => {
         if (this.disposed || gen !== this.generation) {
           done(true);

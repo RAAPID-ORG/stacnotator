@@ -57,15 +57,17 @@ def test_each_rendering_is_drawn_from_the_mosaic_of_the_provider_it_routes_to():
     collection = _collection()
     cover, week = collection.slices
 
-    by_rendering = {t.visualization_id: t for t in tiles.slice_tiles(collection, week)}
+    by_rendering = {t.visualization_id: t for t in tiles.slice_tiles(collection, week, "7")}
     assert by_rendering[5].tiler == "mpc"
     assert "/mosaic/pc1.4000000000.2/" in by_rendering[5].url
     assert "collection=sentinel-2-l2a" in by_rendering[5].url
     assert by_rendering[6].tiler == "hosted-a"
-    assert by_rendering[6].url.startswith("https://tiler.test/searches/pg-2/")
+    assert by_rendering[6].url.startswith("https://tiler.test/scopes/7/searches/pg-2/")
     assert "compositing=median" in by_rendering[6].url
 
-    cover_rgb = next(t for t in tiles.slice_tiles(collection, cover) if t.visualization_id == 5)
+    cover_rgb = next(
+        t for t in tiles.slice_tiles(collection, cover, "7") if t.visualization_id == 5
+    )
     assert "assets=visual" in cover_rgb.url
 
 
@@ -74,18 +76,18 @@ def test_a_parameter_edit_changes_the_url_and_needs_no_new_mosaic():
     week = collection.slices[1]
     collection.visualizations[0].params = {"assets": ["B03"]}
 
-    assert "assets=B03" in tiles.slice_tiles(collection, week)[0].url
+    assert "assets=B03" in tiles.slice_tiles(collection, week, "7")[0].url
     assert tiles.missing_providers(collection, week) == set()
 
 
 def test_a_rendering_without_its_mosaic_or_tiler_is_left_out_until_registered():
     collection = _collection(tiler="gone")
     week = collection.slices[1]
-    assert [t.visualization_id for t in tiles.slice_tiles(collection, week)] == [5]
+    assert [t.visualization_id for t in tiles.slice_tiles(collection, week, "7")] == [5]
     assert tiles.missing_providers(collection, week) == {"gone"}
 
     week.mosaics = []
-    assert tiles.slice_tiles(collection, week) == []
+    assert tiles.slice_tiles(collection, week, "7") == []
     assert tiles.missing_providers(collection, week) == {"mpc", "gone"}
 
 
@@ -104,7 +106,7 @@ def test_an_mpc_mosaic_is_registered_again_before_it_expires_and_not_drawn_after
     ]:
         week.mosaics[0].mosaic_id = mosaic_id
         assert tiles.missing_providers(collection, week) == missing
-        assert [t.visualization_id for t in tiles.slice_tiles(collection, week)] == drawn
+        assert [t.visualization_id for t in tiles.slice_tiles(collection, week, "7")] == drawn
 
 
 def test_a_manual_slice_is_drawn_from_its_templates_and_needs_no_mosaic():

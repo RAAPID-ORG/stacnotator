@@ -218,7 +218,7 @@ class Settings(BaseSettings):
             )
         return v
 
-    # tiler_token cookie attributes. For sibling-subdomain deployments set
+    # Tile session cookie attributes. For sibling-subdomain deployments set
     # TILER_COOKIE_DOMAIN=".example.com" so the cookie reaches the tiler subdomains.
     TILER_COOKIE_DOMAIN: str | None = None
     # Only the three values a Set-Cookie header accepts; pydantic rejects

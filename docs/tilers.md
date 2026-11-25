@@ -182,16 +182,27 @@ anything is written. This gates *who may set up imagery on a tiler*; it does not
 
 Every search the backend registers on a tiler is stamped with its **owner** (a campaign's bare
 id, or `visualizer:<id>`, see `layers.LayerOwner`) and its **layer** (`source:<id>` or
-`custom_map:<id>`). The backend mints a short-lived HS256 cookie naming `owners` and `layers`,
+`custom_map:<id>`). The backend mints a short-lived HS256 cookie naming one owner and the `layers`
+of others it may read,
 signed with a secret **shared by the backend and all tilers**, and a tiler serves a tile only
 when the search's owner or its layer is named. A tiler is therefore part of one trusted
 deployment, not a third-party service: it must share `TILER_TOKEN_SECRET` with the backend and
 sit on a subdomain of the app so the cookie reaches it.
 
-- A signed-in user's cookie names the campaigns they can see as owners.
+- A signed-in user gets one cookie per campaign they open (`GET /api/campaigns/{id}/tiler-token`,
+  checked against campaign access), naming that campaign.
 - A published visualizer's cookie names the visualizer as owner and, as layers, only the
   campaign sources and custom maps it links. Linking one source of a campaign opens that
   source's mosaics and nothing else the campaign registered.
+
+Each cookie (`tile_session`) is set only on its owner's tile paths: `/api/campaigns/{id}/` or
+`/api/visualizers/{id}/` for the backend proxy, and `/scopes/<owner>/` on each tiler. Browser
+tile URLs carry that prefix (`{tiler}/scopes/<owner>/searches/{id}/tiles/...`, built in
+`tilers/providers.build_tile_url`; a visualizer serves the campaign layers it links under its
+own scope), so a request carries exactly one small cookie however many campaigns exist or are
+open in other tabs. A single cookie naming every campaign a user could see is what this
+replaced: past roughly 470 campaigns it outgrew the browser's 4KB cookie limit and was silently
+dropped.
 
 The backend's own tile proxy (the path that spends a provider API key,
 `imagery/proxy_router.py`) checks the same cookie by owner: a visualizer's session is served

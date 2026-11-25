@@ -7,7 +7,7 @@ import { type ImageryCatalog } from '../../campaign/imagery';
 import { emptyKey, type Empties, type SliceAddress } from '../../campaign/imageryNav';
 import { sliceRaster } from '../../campaign/tileUrls';
 import { addressAtSlice, sliceNavIndices } from '../../campaign/imageryNav';
-import { ensureTilerSession } from '~/api/tilerToken';
+import { ensureSessionFor } from '~/shared/map/tileLoading';
 import type { LonLat } from '~/shared/map/types';
 
 const t = i18n.getFixedT(null, 'panels');
@@ -205,7 +205,7 @@ function tileTargetFor(
  *  answer 204 for an empty tile; credentialed sources authenticate via the
  *  tiler cookie, refreshed first. */
 async function probeEmpty(target: TileTarget, signal: AbortSignal): Promise<boolean> {
-  if (target.credentialed) await ensureTilerSession();
+  await ensureSessionFor(target.credentialed ? 'use-credentials' : null, target.url);
   const resp = await fetch(target.url, {
     mode: 'cors',
     credentials: target.credentialed ? 'include' : 'omit',

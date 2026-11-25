@@ -445,7 +445,7 @@ Optional knobs, in either place:
 
 The tiler service requires authentication to prevent unauthorized tile access. This uses a short-lived HS256 JWT delivered as a cookie:
 
-1. **Backend** mints a campaign-scoped token (1hr) via `GET /api/auth/tiler-token` and sets it as an `HttpOnly` `tiler_token` cookie - the token value never reaches JS, the frontend only tracks refresh timing
+1. **Backend** mints a token (1hr) for one campaign via `GET /api/campaigns/{id}/tiler-token` (or one visualizer) and sets it as an `HttpOnly` `tile_session` cookie on that scope's tile paths only - the token value never reaches JS, the frontend only tracks refresh timing
 2. **Browser** sends the cookie automatically with tile requests (this is why tiler and app must share a registrable domain, see Custom domains above); the backend's tile proxy for API-key providers is authorized off the same cookie
 3. **Tiler** verifies the JWT signature using a shared secret
 

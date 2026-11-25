@@ -204,7 +204,7 @@ class TestWhoTheProxyServes:
     VISUALIZER = 3
 
     def _request(self, **claims):
-        return SimpleNamespace(cookies={"tiler_token": tokens.mint(**claims)})
+        return SimpleNamespace(cookies={tokens.TILE_SESSION_COOKIE: tokens.mint(**claims)})
 
     def _visualizer_session(self):
         return self._request(

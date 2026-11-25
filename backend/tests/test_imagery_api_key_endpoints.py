@@ -49,7 +49,7 @@ def test_proxy_rejects_missing_cookie(client):
 
 def test_proxy_rejects_wrong_campaign_token(client):
     token = tiler_token.mint("u1", [999])  # not CAMPAIGN_ID
-    resp = client.get(_tile_url(), cookies={"tiler_token": token})
+    resp = client.get(_tile_url(), cookies={tiler_token.TILE_SESSION_COOKIE: token})
     assert resp.status_code == 403
 
 
@@ -59,7 +59,7 @@ def test_proxy_404_when_key_not_configured(client, monkeypatch):
     db.get.return_value = basemap  # encrypted_api_key is None
     monkeypatch.setattr(proxy_router, "SessionLocal", lambda: db)
     token = tiler_token.mint("u1", [CAMPAIGN_ID])
-    resp = client.get(_tile_url(), cookies={"tiler_token": token})
+    resp = client.get(_tile_url(), cookies={tiler_token.TILE_SESSION_COOKIE: token})
     assert resp.status_code == 404
 
 
@@ -98,7 +98,8 @@ def _keyed_basemap(url: str = "https://tiles.example.com/{z}/{x}/{y}.png?api_key
 
 def _get_tile(client) -> object:
     return client.get(
-        _tile_url(z=2, x=1, y=1), cookies={"tiler_token": tiler_token.mint("u1", [CAMPAIGN_ID])}
+        _tile_url(z=2, x=1, y=1),
+        cookies={tiler_token.TILE_SESSION_COOKIE: tiler_token.mint("u1", [CAMPAIGN_ID])},
     )
 
 

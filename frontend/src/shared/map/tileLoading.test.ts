@@ -1,7 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import type Tile from 'ol/Tile';
 
-vi.mock('~/api/tilerToken', () => ({ ensureTilerSession: vi.fn() }));
+vi.mock('~/api/tilerToken', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('~/api/tilerToken')>()),
+  ensureTilerSession: vi.fn(),
+}));
 
 import { ensureTilerSession } from '~/api/tilerToken';
 import { crossOriginForTile, ensureSessionFor, foregroundTileLoader } from './tileLoading';
@@ -37,14 +40,15 @@ describe('crossOriginForTile', () => {
 });
 
 describe('ensureSessionFor', () => {
-  it('refreshes the tiler cookie only for credentialed sources', async () => {
+  it('refreshes the cookie for the scope of the tile, only for credentialed sources', async () => {
     vi.mocked(ensureTilerSession).mockClear().mockResolvedValue(undefined);
+    const tile = 'https://tiler/scopes/7/searches/x/tiles/1/2/3.png';
 
-    await ensureSessionFor('use-credentials');
-    expect(ensureTilerSession).toHaveBeenCalledTimes(1);
+    await ensureSessionFor('use-credentials', tile);
+    expect(ensureTilerSession).toHaveBeenCalledExactlyOnceWith('7');
 
-    await ensureSessionFor('anonymous');
-    await ensureSessionFor(null);
+    await ensureSessionFor('anonymous', tile);
+    await ensureSessionFor(null, tile);
     expect(ensureTilerSession).toHaveBeenCalledTimes(1);
   });
 });
@@ -62,14 +66,14 @@ describe('foregroundTileLoader', () => {
       .mockImplementation(() => new Promise<void>((resolve) => (release = resolve)));
     const { image, tile } = fakeTile('use-credentials');
 
-    foregroundTileLoader(tile, 'https://tiler/1/2/3.png');
+    foregroundTileLoader(tile, 'https://tiler/scopes/7/searches/x/1/2/3.png');
     expect(image.fetchPriority).toBe('high');
     expect(image.src).toBe('');
 
     release();
     await Promise.resolve();
     await Promise.resolve();
-    expect(image.src).toBe('https://tiler/1/2/3.png');
+    expect(image.src).toBe('https://tiler/scopes/7/searches/x/1/2/3.png');
   });
 
   it('loads anonymous tiles without touching the cookie', async () => {
@@ -88,11 +92,11 @@ describe('foregroundTileLoader', () => {
     vi.mocked(ensureTilerSession).mockClear().mockRejectedValue(new Error('offline'));
     const { image, tile } = fakeTile('use-credentials');
 
-    foregroundTileLoader(tile, 'https://tiler/1/2/3.png');
+    foregroundTileLoader(tile, 'https://tiler/scopes/7/searches/x/1/2/3.png');
     await Promise.resolve();
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(image.src).toBe('https://tiler/1/2/3.png');
+    expect(image.src).toBe('https://tiler/scopes/7/searches/x/1/2/3.png');
   });
 });

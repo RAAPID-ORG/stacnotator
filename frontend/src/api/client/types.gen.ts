@@ -4979,6 +4979,16 @@ export type TextFormField = {
 };
 
 /**
+ * TileSessionOut
+ */
+export type TileSessionOut = {
+    /**
+     * Expires In
+     */
+    expires_in: number;
+};
+
+/**
  * TilerOption
  *
  * A tiler the owning organization may use, from the unified registry.
@@ -5008,16 +5018,6 @@ export type TilerOption = {
      * Allows Ingest
      */
     allows_ingest?: boolean;
-};
-
-/**
- * TilerSessionOut
- */
-export type TilerSessionOut = {
-    /**
-     * Expires In
-     */
-    expires_in: number;
 };
 
 /**
@@ -6135,20 +6135,6 @@ export type AcceptTermsResponses = {
 };
 
 export type AcceptTermsResponse = AcceptTermsResponses[keyof AcceptTermsResponses];
-
-export type GetTilerTokenData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/api/auth/tiler-token';
-};
-
-export type GetTilerTokenResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
 
 export type ListUsersData = {
     body?: never;
@@ -7693,6 +7679,36 @@ export type UpdateCampaignResponses = {
 };
 
 export type UpdateCampaignResponse = UpdateCampaignResponses[keyof UpdateCampaignResponses];
+
+export type GetCampaignTilerTokenData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/tiler-token';
+};
+
+export type GetCampaignTilerTokenErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCampaignTilerTokenError = GetCampaignTilerTokenErrors[keyof GetCampaignTilerTokenErrors];
+
+export type GetCampaignTilerTokenResponses = {
+    /**
+     * Successful Response
+     */
+    200: TileSessionOut;
+};
+
+export type GetCampaignTilerTokenResponse = GetCampaignTilerTokenResponses[keyof GetCampaignTilerTokenResponses];
 
 export type GetCampaignSummaryData = {
     body?: never;
@@ -11120,7 +11136,7 @@ export type GetVisualizerTilerTokenResponses = {
     /**
      * Successful Response
      */
-    200: TilerSessionOut;
+    200: TileSessionOut;
 };
 
 export type GetVisualizerTilerTokenResponse = GetVisualizerTilerTokenResponses[keyof GetVisualizerTilerTokenResponses];

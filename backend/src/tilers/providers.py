@@ -148,11 +148,14 @@ def build_tile_url(
     viz_params: dict,
     *,
     tiler: TilerCfg | None = None,
+    scope: str | None = None,
     collection_id: str | None = None,
 ) -> str:
     """Build an absolute XYZ tile-URL template for a registered search.
 
-    ``ref`` is the provider's registered search ``id``.
+    ``ref`` is the provider's registered search ``id``. A hosted tile is fetched under
+    the ``scope`` of whoever shows it (``LayerOwner.tile_scope``), the path its tile
+    session cookie is set on.
     """
     if provider == PROVIDER_MPC:
         url = (
@@ -162,10 +165,10 @@ def build_tile_url(
         qs = build_viz_query_string(viz_params, for_mpc=True)
         return f"{url}&{qs}" if qs else url
 
-    if tiler is None:
-        raise ValueError(f"provider {provider!r} needs a tiler to build a tile URL")
+    if tiler is None or scope is None:
+        raise ValueError(f"provider {provider!r} needs a tiler and a scope to build a tile URL")
     base = tiler.url.rstrip("/")
-    url = f"{base}/searches/{ref}/tiles/WebMercatorQuad/{{z}}/{{x}}/{{y}}.png"
+    url = f"{base}/scopes/{scope}/searches/{ref}/tiles/WebMercatorQuad/{{z}}/{{x}}/{{y}}.png"
     qs = build_viz_query_string(viz_params)
     return f"{url}?{qs}" if qs else url
 

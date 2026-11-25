@@ -34,7 +34,7 @@ query building and input validation are a DB-free functional core in
   bare geometry column so the GiST index is used; only surviving rows are
   reprojected.
 - **Auth is the regular bearer token plus campaign access**, not the
-  `tiler_token` cookie the raster tilers use. No external tiler is involved at
+  `tile_session` cookie the raster tilers use. No external tiler is involved at
   any point.
 - **`include_tasks` is spelled out in the URL**, so the filtered and unfiltered
   variants can never share a cache entry. Responses are `private, max-age=3600`.
