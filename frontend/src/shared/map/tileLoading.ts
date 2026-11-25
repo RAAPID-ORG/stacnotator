@@ -31,9 +31,11 @@ export function ensureSessionFor(crossOrigin: string | null, url: string): Promi
   return scope ? ensureTilerSession(scope) : Promise.resolve();
 }
 
+// The tile's own setting: by the time tileloaderror fires, OpenLayers has swapped
+// the failed image for a blank canvas that carries none.
 function expireSessionOf(tile: Tile): void {
-  const image = (tile as ImageTile).getImage() as HTMLImageElement;
-  const scope = image.crossOrigin === 'use-credentials' ? tileScope(tile.key) : null;
+  const crossOrigin = (tile as ImageTile).getCrossOrigin();
+  const scope = crossOrigin === 'use-credentials' ? tileScope(tile.key) : null;
   if (scope) expireTilerSession(scope);
 }
 

@@ -4,6 +4,13 @@ import TileLayer from 'ol/layer/Tile';
 import { TileSourceEvent } from 'ol/source/Tile';
 import XYZ from 'ol/source/XYZ';
 import TileState from 'ol/TileState';
+
+vi.mock('~/api/tilerToken', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('~/api/tilerToken')>()),
+  expireTilerSession: vi.fn(),
+}));
+
+import { expireTilerSession } from '~/api/tilerToken';
 import { attachTileErrorRecovery, detachTileErrorRecovery } from './tileLoading';
 
 function failedTile(load: () => void): ImageTile {
@@ -64,5 +71,24 @@ describe('attachTileErrorRecovery', () => {
     vi.runAllTimers();
 
     expect(load).not.toHaveBeenCalled();
+  });
+
+  it('mints the scope again when a credentialed tile fails', () => {
+    vi.mocked(expireTilerSession).mockClear();
+    const source = new XYZ({ url: 'https://tiler/{z}/{x}/{y}.png' });
+    attachTileErrorRecovery(new TileLayer({ source }));
+    const tile = new ImageTile(
+      [15, 1, 2],
+      TileState.ERROR,
+      'https://tiler/scopes/235/searches/s/tiles/15/1/2.png',
+      { crossOrigin: 'use-credentials' },
+      vi.fn()
+    );
+    // What OpenLayers leaves behind after a failed load: a blank canvas, no crossOrigin.
+    vi.spyOn(tile, 'getImage').mockReturnValue(document.createElement('canvas'));
+
+    source.dispatchEvent(new TileSourceEvent('tileloaderror', tile));
+
+    expect(expireTilerSession).toHaveBeenCalledExactlyOnceWith('235');
   });
 });

@@ -49,4 +49,18 @@ describe('ensureTilerSession', () => {
     await ensureTilerSession('1');
     expect(minter).toHaveBeenCalledTimes(2);
   });
+
+  it('hands back a failed mint until the cooldown passes', async () => {
+    vi.useFakeTimers();
+    const minter = vi.fn().mockRejectedValueOnce(new Error('down')).mockResolvedValue(3600);
+    setTilerSessionMinter(minter);
+
+    await expect(ensureTilerSession('1')).rejects.toThrow('down');
+    await expect(ensureTilerSession('1')).rejects.toThrow('down');
+    expect(minter).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(30_000);
+    await ensureTilerSession('1');
+    expect(minter).toHaveBeenCalledTimes(2);
+  });
 });

@@ -23,17 +23,20 @@ const signedInUserMinter: TilerSessionMinter = async (scope) => {
 let minter = signedInUserMinter;
 
 interface Session {
-  mintedAt: number;
+  attemptedAt: number;
   expiry: number;
-  inflight: Promise<void> | null;
+  // The mint in flight, or one that failed, which is handed back until the cooldown
+  // passes so a backend outage is not multiplied by every tile on screen.
+  mint: Promise<void> | null;
+  failed: boolean;
 }
 
 const sessions = new Map<string, Session>();
 
 // Refresh 60s before actual expiry to avoid races.
 const REFRESH_BUFFER_S = 60;
-// A failing tile only forces a new mint this long after the last one, so tiles
-// failing for another reason cannot turn into a mint per tile.
+// Neither a failing tile nor a failed mint starts a new mint sooner than this
+// after the last attempt, so failures cannot turn into a mint per tile.
 const REMINT_AFTER_S = 30;
 
 /**
@@ -60,28 +63,32 @@ export function tileScope(url: string): string | null {
 }
 
 /** Ensure a fresh cookie for this scope. Cheap while the current one is valid. */
-export async function ensureTilerSession(scope: string): Promise<void> {
+export function ensureTilerSession(scope: string): Promise<void> {
   const now = Date.now() / 1000;
-  const session = sessions.get(scope) ?? { mintedAt: 0, expiry: 0, inflight: null };
+  const session = sessions.get(scope) ?? { attemptedAt: 0, expiry: 0, mint: null, failed: false };
   sessions.set(scope, session);
-  if (session.inflight) return session.inflight;
-  if (now < session.expiry - REFRESH_BUFFER_S) return;
+  const coolingDown = now - session.attemptedAt < REMINT_AFTER_S;
+  if (session.mint && (!session.failed || coolingDown)) return session.mint;
+  if (now < session.expiry - REFRESH_BUFFER_S) return Promise.resolve();
 
-  session.inflight = (async () => {
-    try {
-      const expiresIn = await minter(scope);
-      session.mintedAt = Date.now() / 1000;
-      session.expiry = session.mintedAt + expiresIn;
-    } finally {
-      session.inflight = null;
+  session.attemptedAt = now;
+  session.failed = false;
+  session.mint = minter(scope).then(
+    (expiresIn) => {
+      session.expiry = Date.now() / 1000 + expiresIn;
+      session.mint = null;
+    },
+    (err: unknown) => {
+      session.failed = true;
+      throw err;
     }
-  })();
-  return session.inflight;
+  );
+  return session.mint;
 }
 
 /** A tile in this scope failed: mint again on the next request, in case the
  *  browser no longer holds the cookie we think it does. */
 export function expireTilerSession(scope: string): void {
   const session = sessions.get(scope);
-  if (session && Date.now() / 1000 - session.mintedAt >= REMINT_AFTER_S) session.expiry = 0;
+  if (session && Date.now() / 1000 - session.attemptedAt >= REMINT_AFTER_S) session.expiry = 0;
 }
