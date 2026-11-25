@@ -230,6 +230,20 @@ export function packItem(
   return [...items, { i: id, x: 0, y: bottom, w, h: size.h }];
 }
 
+/** Move `id` to the first free cell, keeping its size, when panels on the
+ *  canvas have taken its slot. `withheld` panels are elsewhere and block nothing. */
+export function freePanelSlot(
+  layout: WorkspaceLayout,
+  id: string,
+  withheld: ReadonlySet<string>
+): WorkspaceLayout {
+  const items = toGridLayout(layout);
+  const item = items.find((it) => it.i === id);
+  const others = items.filter((it) => it.i !== id && !withheld.has(it.i));
+  if (!item || !others.some((it) => overlaps(it, item))) return layout;
+  return fromGridLayout(packItem(others, id, item), layout);
+}
+
 /** Split the map's footprint so the timeline starts where its integrated
  *  counterpart lived. Reclaim its old strip only while it still fits flush. */
 export function placeTimeline(

@@ -1,7 +1,16 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { makeCampaign, makeView } from '~/features/annotation/testing/fixtures';
 import { useLayoutStore } from './layout';
-import { coversPanels, EMPTY_LAYOUT, layoutForView, overlaps, toGridLayout } from '../canvas/grid';
+import {
+  coversPanels,
+  EMPTY_LAYOUT,
+  fromGridLayout,
+  layoutForView,
+  overlaps,
+  toGridLayout,
+  type LayoutItem,
+} from '../canvas/grid';
+import { EMPTY_SCREENS } from '../canvas/screens';
 
 const layoutOut = (id: number, keys: string[]) => ({
   id,
@@ -12,9 +21,15 @@ const layoutOut = (id: number, keys: string[]) => ({
 const chrome = layoutOut(1, ['main', 'minimap', 'controls']);
 
 beforeEach(() => {
+  localStorage.clear();
   useLayoutStore.setState({
     currentLayout: EMPTY_LAYOUT,
     savedLayout: EMPTY_LAYOUT,
+    single: null,
+    viewId: null,
+    scope: null,
+    screens: EMPTY_SCREENS,
+    savedScreens: null,
     editing: false,
     newWindowSize: { perRow: 6, rows: 9 },
   });
@@ -276,5 +291,67 @@ describe('sendToScreen', () => {
     const [screen] = useLayoutStore.getState().screens.screens;
     expect(screen.layout).toEqual([expect.objectContaining({ i: 'timeline', w: 60, h: 2 })]);
     expect(screen.bounds?.height).toBeLessThan(200);
+  });
+});
+
+describe('multi-screen layout', () => {
+  const slot = (i: string) =>
+    toGridLayout(useLayoutStore.getState().currentLayout).find((it) => it.i === i);
+  const moveMain = (to: Partial<LayoutItem>) => {
+    const store = useLayoutStore.getState();
+    const items = toGridLayout(store.currentLayout).map((it) =>
+      it.i === 'main' ? { ...it, ...to } : it
+    );
+    store.setLayout(fromGridLayout(items, store.currentLayout));
+  };
+
+  beforeEach(() => {
+    const store = useLayoutStore.getState();
+    store.setScope('user:1');
+    store.seedLayout(
+      layoutForView(makeCampaign({ default_main_canvas_layout: chrome }), null),
+      null
+    );
+    store.startEditing();
+  });
+
+  it('never touches the single-screen layout, and the last panel home closes the screen', () => {
+    const store = useLayoutStore.getState();
+    store.sendToScreen('minimap', 'new', slot('minimap'), 1200);
+    moveMain({ x: 0, w: 20 });
+    expect(slot('main')?.w).toBe(20);
+
+    store.returnPanelToMain('minimap');
+    const after = useLayoutStore.getState();
+    expect(after.screens.screens).toEqual([]);
+    expect(slot('main')).toMatchObject({ x: 0, w: 10 });
+    expect(slot('minimap')).toMatchObject({ x: 10, y: 30 });
+  });
+
+  it('keeps a saved split on this device across saves of the single-screen layout', () => {
+    const store = useLayoutStore.getState();
+    store.sendToScreen('minimap', 'new', slot('minimap'), 1200);
+    moveMain({ w: 20 });
+    store.saveLayout();
+    store.returnPanelToMain('minimap');
+    store.saveLayout();
+
+    store.sendToScreen('minimap', 'new', slot('minimap'), 1200);
+    expect(slot('main')?.w).toBe(20);
+    expect(
+      JSON.parse(localStorage.getItem('annotation:screens:user:1') ?? '{}').canvas
+    ).toBeTruthy();
+  });
+
+  it('moves a panel clear of whatever took its slot when it returns to the split canvas', () => {
+    const store = useLayoutStore.getState();
+    store.sendToScreen('minimap', 'new', slot('minimap'), 1200);
+    store.sendToScreen('controls', 'new', slot('controls'), 1200);
+    moveMain({ w: 20 });
+
+    store.returnPanelToMain('minimap');
+    const main = slot('main');
+    const minimap = slot('minimap');
+    expect(main && minimap && overlaps(main, minimap)).toBe(false);
   });
 });

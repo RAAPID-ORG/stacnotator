@@ -9,6 +9,7 @@ import { useLayoutStore as useAppLayoutStore } from '~/shared/stores/layout.stor
 import { useIsMobile } from '~/shared/utils/useIsMobile';
 import { useLayoutStore } from '../../stores/layout';
 import { EMPTY_LAYOUT, fromGridLayout, toGridLayout } from '../grid';
+import { isSplit } from '../screens';
 import { SaveDialogs } from './SaveDialogs';
 
 export interface LayoutEditControlsProps {
@@ -39,6 +40,7 @@ export function LayoutEditControls({
   const saveLayout = useLayoutStore((s) => s.saveLayout);
   const cancelEditing = useLayoutStore((s) => s.cancelEditing);
   const setLayout = useLayoutStore((s) => s.setLayout);
+  const split = useLayoutStore((s) => isSplit(s.screens));
 
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
 
@@ -76,6 +78,7 @@ export function LayoutEditControls({
 
   const handleReset = () => {
     setResetConfirmOpen(false);
+    useLayoutStore.getState().leaveScreens();
     const mainItems = campaign.default_main_canvas_layout?.layout_data ?? [];
     const viewItems = view?.default_canvas_layout?.layout_data ?? [];
     setLayout(
@@ -127,14 +130,20 @@ export function LayoutEditControls({
       >
         {t('common:actions.cancel')}
       </Button>
-      <SaveDialogs
-        currentLayout={currentLayout}
-        savedLayout={savedLayout}
-        viewsCount={campaign.imagery_views.length}
-        canSaveDefault={isCampaignAdmin}
-        mustSaveDefault={mustSaveDefault}
-        onSave={persistAndSave}
-      />
+      {split ? (
+        <Button size="sm" onClick={saveLayout} title={t('layoutEdit.saveSplitTip')}>
+          {t('common:actions.save')}
+        </Button>
+      ) : (
+        <SaveDialogs
+          currentLayout={currentLayout}
+          savedLayout={savedLayout}
+          viewsCount={campaign.imagery_views.length}
+          canSaveDefault={isCampaignAdmin}
+          mustSaveDefault={mustSaveDefault}
+          onSave={persistAndSave}
+        />
+      )}
 
       <ConfirmDialog
         isOpen={resetConfirmOpen}
