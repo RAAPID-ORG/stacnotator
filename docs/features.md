@@ -84,7 +84,7 @@ Every campaign supports both; who may do what is governed by the labelling polic
 - Personal layouts saved per user, default layouts per campaign; every collection of a view's sources is a window, and a layout only places windows and lists the ones it hides
 - Per-view state (active slice, empty detection, selected viz), saved and restored when switching views
 - Imagery windows (ImageryContainer) can be hidden from the canvas; a layout remembers what it hides, and a collection added to a view's source appears as a window on its own. The timeline sidebar lists the active source's collections within the selected view
-- Multi-monitor pop-out: canvas cards can be sent to secondary browser windows, one grid per screen, persisted per user + campaign and restored with one click
+- Multi-monitor pop-out: canvas cards can be sent to secondary browser windows, one grid per screen, persisted per user + campaign and restored with one click. While any card is on another screen the main canvas uses its own multi-screen layout, kept on that device, so the single-screen layout saved to the server never moves; bringing the last card home closes the screen and switches back
 
 ### Basemaps
 

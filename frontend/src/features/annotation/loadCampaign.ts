@@ -86,7 +86,7 @@ export async function loadCampaign(
     taskStartCollectionId: startCollectionId,
     originTask: null,
   });
-  useLayoutStore.setState({ currentLayout: layout, savedLayout: layout, editing: false });
+  useLayoutStore.getState().seedLayout(layout, view?.id ?? null);
   useImageryStore.getState().reset({
     address:
       startCollectionId != null

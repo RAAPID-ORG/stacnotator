@@ -1,4 +1,10 @@
-import { packItem, withoutKeys, type LayoutItem } from './grid';
+import {
+  packItem,
+  withoutKeys,
+  type LayoutItem,
+  type MainLayout,
+  type WorkspaceLayout,
+} from './grid';
 
 /** Secondary windows start at 2: the main browser window is conceptually
  *  screen 1 but never appears in this model. */
@@ -17,11 +23,23 @@ export interface ScreenDef {
   bounds?: ScreenBounds;
 }
 
-/** Which secondary screens are open, each one's grid, and which panel sits on
- *  which. Plain values so the whole thing serializes as-is. */
+type ViewWindows = Pick<WorkspaceLayout, 'windows' | 'hidden'>;
+
+/** The main canvas while screens are open. It is its own layout, kept on this
+ *  device, so nothing done on a multi-screen setup moves the single-screen one. */
+export interface SplitCanvas {
+  main: MainLayout;
+  /** Keyed by view id, like the backend keeps windows per view. */
+  views: Record<string, ViewWindows>;
+}
+
+/** Which secondary screens are open, each one's grid, which panel sits on
+ *  which, and the main canvas beside them. Plain values so the whole thing
+ *  serializes as-is. */
 export interface ScreensState {
   screens: ScreenDef[];
   assignment: Record<string, number>;
+  canvas?: SplitCanvas;
 }
 
 export const EMPTY_SCREENS: ScreensState = { screens: [], assignment: {} };
@@ -38,6 +56,7 @@ export function openScreen(state: ScreensState, id?: number): { state: ScreensSt
 /** Closing a screen returns every panel on it to the main canvas. */
 export function closeScreen(state: ScreensState, id: number): ScreensState {
   return {
+    ...state,
     screens: state.screens.filter((s) => s.id !== id),
     assignment: Object.fromEntries(
       Object.entries(state.assignment).filter(([, sid]) => sid !== id)
@@ -58,7 +77,7 @@ export function sendToScreen(
       ? { ...s, layout: packItem(s.layout, panelId, size) }
       : { ...s, layout: withoutKeys(s.layout, only) }
   );
-  return { screens, assignment: { ...state.assignment, [panelId]: screenId } };
+  return { ...state, screens, assignment: { ...state.assignment, [panelId]: screenId } };
 }
 
 export function returnPanelFromScreen(state: ScreensState, panelId: string): ScreensState {
@@ -66,8 +85,55 @@ export function returnPanelFromScreen(state: ScreensState, panelId: string): Scr
   const assignment = { ...state.assignment };
   delete assignment[panelId];
   return {
+    ...state,
     screens: state.screens.map((s) => ({ ...s, layout: withoutKeys(s.layout, only) })),
     assignment,
+  };
+}
+
+export const isSplit = (state: ScreensState) => Object.keys(state.assignment).length > 0;
+
+/** A screen left with nothing on it closes: the last panel coming home ends
+ *  the multi-screen setup. */
+export function dropEmptyScreens(state: ScreensState): ScreensState {
+  const used = new Set(Object.values(state.assignment));
+  const screens = state.screens.filter((s) => used.has(s.id));
+  return screens.length === state.screens.length ? state : { ...state, screens };
+}
+
+const viewKey = (viewId: number | null) => String(viewId ?? 'none');
+
+export function splitWindows(
+  canvas: SplitCanvas | undefined,
+  viewId: number | null
+): ViewWindows | undefined {
+  return canvas?.views[viewKey(viewId)];
+}
+
+/** The split canvas for a view, starting from `fallback` for whatever this
+ *  device has not laid out yet. */
+export function splitLayout(
+  canvas: SplitCanvas | undefined,
+  viewId: number | null,
+  fallback: WorkspaceLayout
+): WorkspaceLayout {
+  return {
+    main: canvas?.main ?? fallback.main,
+    ...(splitWindows(canvas, viewId) ?? { windows: fallback.windows, hidden: fallback.hidden }),
+  };
+}
+
+export function saveSplitLayout(
+  canvas: SplitCanvas | undefined,
+  viewId: number | null,
+  layout: WorkspaceLayout
+): SplitCanvas {
+  return {
+    main: layout.main,
+    views: {
+      ...canvas?.views,
+      [viewKey(viewId)]: { windows: layout.windows, hidden: layout.hidden },
+    },
   };
 }
 

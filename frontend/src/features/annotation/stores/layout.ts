@@ -6,6 +6,7 @@ import {
   hideWindow,
   scaleWidthToScreen,
   showWindow,
+  freePanelSlot,
   fromGridLayout,
   packItem,
   placeTimeline,
@@ -19,12 +20,17 @@ import {
 } from '../canvas/grid';
 import {
   closeScreen,
+  dropEmptyScreens,
   EMPTY_SCREENS,
+  isSplit,
   openScreen,
   rememberScreenBounds,
   restorableScreens,
   returnPanelFromScreen,
+  saveSplitLayout,
   sendToScreen,
+  splitLayout,
+  splitWindows,
   type ScreenBounds,
   type ScreensState,
 } from '../canvas/screens';
@@ -53,9 +59,14 @@ function readSavedScreens(scope: string | null): ScreensState | null {
 }
 
 interface LayoutState {
+  /** The main canvas as shown: the single-screen layout, or the split canvas
+   *  while any panel is on a screen. */
   currentLayout: WorkspaceLayout;
   /** What "cancel" reverts to for the rest of this view's visit. */
   savedLayout: WorkspaceLayout;
+  /** The single-screen layout, set aside untouched while screens are open. */
+  single: { current: WorkspaceLayout; saved: WorkspaceLayout } | null;
+  viewId: number | null;
   editing: boolean;
   newWindowSize: { perRow: number; rows: number };
   /** `data-tour` name of a header menu held open from outside, so the guided
@@ -70,6 +81,8 @@ interface LayoutState {
   /** The toast is hidden for this visit; the split itself stays remembered. */
   restorePromptHidden: boolean;
 
+  /** A freshly loaded campaign's layout; open screens keep their split canvas. */
+  seedLayout: (layout: WorkspaceLayout, viewId: number | null) => void;
   setLayout: (layout: WorkspaceLayout) => void;
   setNavigationPanel: (id: 'timeline' | 'imagery', visible: boolean) => void;
   setPanelOptions: (
@@ -103,8 +116,29 @@ interface LayoutState {
    *  collection, settings dropped a time series). */
   pruneScreensTo: (validPanelIds: ReadonlySet<string>) => void;
   restoreSavedScreens: () => void;
+  /** Close every screen and forget the split, back to the single-screen layout. */
+  leaveScreens: () => void;
   hideRestorePrompt: () => void;
 }
+
+/** Swap which layout the canvas shows when screens open or the last one closes. */
+function switchCanvas(s: LayoutState, screens: ScreensState): Partial<LayoutState> {
+  if (isSplit(s.screens) === isSplit(screens)) return {};
+  if (!isSplit(screens)) {
+    return s.single
+      ? { currentLayout: s.single.current, savedLayout: s.single.saved, single: null }
+      : {};
+  }
+  return {
+    single: { current: s.currentLayout, saved: s.savedLayout },
+    currentLayout: splitLayout(screens.canvas, s.viewId, s.currentLayout),
+    savedLayout: splitLayout(screens.canvas, s.viewId, s.savedLayout),
+  };
+}
+
+/** An edit session's unsaved single-screen changes end with it. */
+const endSingleDraft = (single: LayoutState['single']) =>
+  single && { current: single.saved, saved: single.saved };
 
 export const useLayoutStore = create<LayoutState>((set, get) => {
   /** The split is remembered as it last stood with a screen open, so closing a
@@ -122,26 +156,48 @@ export const useLayoutStore = create<LayoutState>((set, get) => {
     }
   };
 
-  const forgetScreens = () => {
-    set({ savedScreens: null, restorePromptHidden: false });
+  /** Forget which panels sat on which screen. The split canvas is a layout of
+   *  its own and outlives that unless `keepCanvas` is false. */
+  const forgetScreens = (keepCanvas: boolean) => {
+    const canvas = keepCanvas ? get().screens.canvas : undefined;
+    const remembered = canvas ? { ...EMPTY_SCREENS, canvas } : null;
+    set((s) => ({
+      savedScreens: remembered,
+      restorePromptHidden: false,
+      screens: { ...s.screens, canvas },
+    }));
     const { scope } = get();
     if (!scope) return;
     try {
-      localStorage.removeItem(screensKey(scope));
+      if (remembered) localStorage.setItem(screensKey(scope), JSON.stringify(remembered));
+      else localStorage.removeItem(screensKey(scope));
     } catch {
       // ignore storage failures
     }
   };
 
   const updateScreens = (next: (current: ScreensState) => ScreensState) => {
-    const screens = next(get().screens);
-    set({ screens });
+    const s = get();
+    const screens = dropEmptyScreens(next(s.screens));
+    const canvas = switchCanvas(s, screens);
+    let currentLayout = canvas.currentLayout ?? s.currentLayout;
+    // A panel coming home while others stay out lands on the split canvas,
+    // where its old slot may have been taken.
+    if (isSplit(screens)) {
+      const withheld = new Set(Object.keys(screens.assignment));
+      for (const id of Object.keys(s.screens.assignment)) {
+        if (!withheld.has(id)) currentLayout = freePanelSlot(currentLayout, id, withheld);
+      }
+    }
+    set({ screens, ...canvas, currentLayout });
     persistScreens(screens);
   };
 
   return {
     currentLayout: EMPTY_LAYOUT,
     savedLayout: EMPTY_LAYOUT,
+    single: null,
+    viewId: null,
     editing: false,
     forcedOpenControl: null,
     newWindowSize: { perRow: 6, rows: 9 },
@@ -150,6 +206,18 @@ export const useLayoutStore = create<LayoutState>((set, get) => {
     savedScreens: null,
     restorePromptHidden: false,
 
+    seedLayout: (layout, viewId) =>
+      set((s) => {
+        const seeded = {
+          currentLayout: layout,
+          savedLayout: layout,
+          single: null,
+          viewId,
+          editing: false,
+        };
+        const fromSingle = { ...s, ...seeded, screens: EMPTY_SCREENS };
+        return { ...seeded, ...switchCanvas(fromSingle, s.screens) };
+      }),
     setLayout: (currentLayout) => set({ currentLayout }),
     setNavigationPanel: (id, visible) =>
       set((s) => {
@@ -196,10 +264,17 @@ export const useLayoutStore = create<LayoutState>((set, get) => {
 
     loadViewLayout: (view) =>
       set((s) => {
+        const viewId = view?.id ?? null;
         const windows = viewLayout(view);
+        const shown = s.single ? (splitWindows(s.screens.canvas, viewId) ?? windows) : windows;
         return {
-          currentLayout: { main: s.currentLayout.main, ...windows },
-          savedLayout: { main: s.savedLayout.main, ...windows },
+          viewId,
+          currentLayout: { main: s.currentLayout.main, ...shown },
+          savedLayout: { main: s.savedLayout.main, ...shown },
+          single: s.single && {
+            current: { main: s.single.current.main, ...windows },
+            saved: { main: s.single.saved.main, ...windows },
+          },
         };
       }),
 
@@ -222,20 +297,43 @@ export const useLayoutStore = create<LayoutState>((set, get) => {
     setForcedOpenControl: (forcedOpenControl) => set({ forcedOpenControl }),
     // A layout saved with nothing on a secondary screen is the user saying they
     // no longer work on one, and is the only thing that forgets the split.
+    // Saved while split, the canvas is kept on this device only.
     saveLayout: () => {
-      if (get().screens.screens.length === 0) forgetScreens();
-      set((s) => ({ savedLayout: s.currentLayout, editing: false }));
+      const s = get();
+      if (isSplit(s.screens)) {
+        updateScreens((c) => ({
+          ...c,
+          canvas: saveSplitLayout(c.canvas, s.viewId, s.currentLayout),
+        }));
+      } else {
+        forgetScreens(true);
+      }
+      set((s) => ({
+        savedLayout: s.currentLayout,
+        editing: false,
+        single: endSingleDraft(s.single),
+      }));
     },
-    cancelEditing: () => set((s) => ({ currentLayout: s.savedLayout, editing: false })),
+    cancelEditing: () =>
+      set((s) => ({
+        currentLayout: s.savedLayout,
+        editing: false,
+        single: endSingleDraft(s.single),
+      })),
 
     // A scope change is a different campaign or user: drop the live windows
     // and pick up that scope's remembered split instead.
     setScope: (scope) =>
-      set({
-        scope,
-        screens: EMPTY_SCREENS,
-        savedScreens: readSavedScreens(scope),
-        restorePromptHidden: false,
+      set((s) => {
+        const savedScreens = readSavedScreens(scope);
+        const screens = { ...EMPTY_SCREENS, canvas: savedScreens?.canvas };
+        return {
+          ...switchCanvas(s, screens),
+          scope,
+          screens,
+          savedScreens,
+          restorePromptHidden: false,
+        };
       }),
 
     sendToScreen: (panelId, target, item, canvasPx) =>
@@ -286,6 +384,11 @@ export const useLayoutStore = create<LayoutState>((set, get) => {
     restoreSavedScreens: () => {
       const { savedScreens } = get();
       if (savedScreens) updateScreens(() => savedScreens);
+    },
+
+    leaveScreens: () => {
+      updateScreens(() => EMPTY_SCREENS);
+      forgetScreens(false);
     },
 
     hideRestorePrompt: () => set({ restorePromptHidden: true }),

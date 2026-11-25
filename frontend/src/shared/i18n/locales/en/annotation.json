@@ -587,6 +587,7 @@
     "editTip": "Edit canvas layout and panels",
     "edit": "Edit Layout",
     "resetTip": "Reset to campaign defaults",
+    "saveSplitTip": "Saved on this device, for when panels are on other screens. Your single-screen layout stays as it is.",
     "reset": "Reset",
     "cancelTip": "Discard layout changes",
     "resetConfirm": {

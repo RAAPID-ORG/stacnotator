@@ -591,6 +591,7 @@
     "editTip": "Editar el diseño del lienzo y los paneles",
     "edit": "Editar diseño",
     "resetTip": "Restablecer los valores predeterminados de la campaña",
+    "saveSplitTip": "Se guarda en este dispositivo, para cuando hay paneles en otras pantallas. Tu diseño de una sola pantalla no cambia.",
     "reset": "Restablecer",
     "cancelTip": "Descartar los cambios del diseño",
     "resetConfirm": {

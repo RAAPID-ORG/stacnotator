@@ -423,7 +423,7 @@ export function Chart({ series, points }: ChartProps) {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 w-full">
+      <div className="relative flex-1 min-h-0 w-full">
         <canvas ref={canvasRef} />
       </div>
     </div>
