@@ -11,7 +11,7 @@ vi.mock('~/api/tilerToken', async (importOriginal) => ({
 }));
 
 import { expireTilerSession } from '~/api/tilerToken';
-import { attachTileErrorRecovery, detachTileErrorRecovery } from './tileLoading';
+import { attachTileErrorRecovery, detachTileErrorRecovery, tileRetryPending } from './tileLoading';
 
 function failedTile(load: () => void): ImageTile {
   return new ImageTile(
@@ -90,5 +90,27 @@ describe('attachTileErrorRecovery', () => {
     source.dispatchEvent(new TileSourceEvent('tileloaderror', tile));
 
     expect(expireTilerSession).toHaveBeenCalledExactlyOnceWith('235');
+  });
+
+  it('reports a failed tile as pending until its retries are used up', () => {
+    vi.useFakeTimers();
+    const source = new XYZ({ url: 'https://tiler/{z}/{x}/{y}.png' });
+    const layer = new TileLayer({ source });
+    const tile = failedTile(() => {});
+    attachTileErrorRecovery(layer);
+    const fail = () => {
+      tile.setState(TileState.ERROR);
+      source.dispatchEvent(new TileSourceEvent('tileloaderror', tile));
+    };
+
+    fail();
+    expect(tileRetryPending(tile)).toBe(true);
+    vi.advanceTimersByTime(250);
+    expect(tileRetryPending(tile)).toBe(true);
+    fail();
+    vi.advanceTimersByTime(1_000);
+    fail();
+
+    expect(tileRetryPending(tile)).toBe(false);
   });
 });

@@ -102,6 +102,12 @@ function retry(tile: Tile): void {
   tile.load();
 }
 
+/** True while a failed tile is waiting on, or running, one of its retries. */
+export function tileRetryPending(tile: Tile): boolean {
+  if (tile.getState() !== TileState.ERROR) return tile.getState() === TileState.LOADING;
+  return (attempts.get(tile) ?? 0) < RETRY_DELAYS_MS.length;
+}
+
 /** Recovers transient foreground failures without letting hidden dates carry
  *  on fetching. */
 export function attachTileErrorRecovery(layer: TileLayer<XYZ>): void {
