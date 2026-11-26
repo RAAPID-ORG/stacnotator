@@ -13,13 +13,18 @@ import GeoJSONFormat from 'ol/format/GeoJSON';
 import WKT from 'ol/format/WKT';
 import type BaseLayer from 'ol/layer/Base';
 import TileLayer from 'ol/layer/Tile';
+import { intersects } from 'ol/extent';
 import { fromLonLat } from 'ol/proj';
+import type Tile from 'ol/Tile';
 import type TileSource from 'ol/source/Tile';
+import type { TileSourceEvent } from 'ol/source/Tile';
+import TileState from 'ol/TileState';
 import type { CampaignOutFull } from '~/api/client';
 import { basemapLayer } from '~/shared/imagery/layerSpecs';
 import { campaignBasemapProxyBase } from '~/shared/imagery/tileUrls';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import { createLayer, destroyLayer } from '~/shared/map/layers';
+import { tileRetryPending } from '~/shared/map/tileLoading';
 import type { LayerSpec } from '~/shared/map/types';
 import type { ImageryCatalog } from '../campaign/imagery';
 import { wktToGeometry } from '../campaign/annotation';
@@ -387,12 +392,41 @@ async function renderMap(
   stage.appendChild(target);
 
   const layers = specs.map(createLayer);
-  let tileErrors = 0;
-  const countError = () => (tileErrors += 1);
+  // OpenLayers counts an errored tile as finished, so rendercomplete can fire
+  // before the layer's error recovery has retried it.
+  const failed = new Set<Tile>();
+  const settled = () => [...failed].every((tile) => !tileRetryPending(tile));
   const tileSources = layers
     .map((layer) => (layer instanceof TileLayer ? (layer.getSource() as TileSource | null) : null))
     .filter((source): source is TileSource => source != null);
-  tileSources.forEach((source) => source.on('tileloaderror', countError));
+
+  const view = new View({
+    center: fromLonLat(center),
+    zoom,
+    minZoom: Math.min(0, zoom),
+    multiWorld: true,
+  });
+  const viewExtent = view.calculateExtent([size, size]);
+  // Sources are pooled across concurrent cells, so only track tiles this map draws.
+  const inView = (source: TileSource, tile: Tile) => {
+    const grid = source.getTileGridForProjection(view.getProjection());
+    const z = grid.getZForResolution(view.getResolution()!, source.zDirection);
+    return (
+      tile.tileCoord[0] === z && intersects(grid.getTileCoordExtent(tile.tileCoord), viewExtent)
+    );
+  };
+  const listeners = tileSources.map((source) => {
+    const onError = ({ tile }: TileSourceEvent) => {
+      if (inView(source, tile)) failed.add(tile);
+    };
+    const onLoaded = ({ tile }: TileSourceEvent) => failed.delete(tile);
+    source.on('tileloaderror', onError);
+    source.on('tileloadend', onLoaded);
+    return () => {
+      source.un('tileloaderror', onError);
+      source.un('tileloadend', onLoaded);
+    };
+  });
 
   const map = new OlMap({
     target,
@@ -401,28 +435,28 @@ async function renderMap(
     interactions: [],
     pixelRatio: 1,
     // Keep fitted probe scales and centres exact, even when the frame spans a whole world.
-    view: new View({
-      center: fromLonLat(center),
-      zoom,
-      minZoom: Math.min(0, zoom),
-      multiWorld: true,
-    }),
+    view,
   });
   const pump = setInterval(() => map.renderSync(), RENDER_PUMP_MS);
 
   try {
     const complete = await new Promise<boolean>((resolve) => {
       const timer = setTimeout(() => resolve(false), MAP_TIMEOUT_MS);
-      map.once('rendercomplete', () => {
+      // Judged when the frame is drawn, so a tile that recovers after it still waits for the next.
+      let settledWhenDrawn = false;
+      map.on('postrender', () => (settledWhenDrawn = settled()));
+      map.on('rendercomplete', () => {
+        if (!settledWhenDrawn) return;
         clearTimeout(timer);
         resolve(true);
       });
       map.renderSync();
     });
+    const tileErrors = [...failed].filter((tile) => tile.getState() === TileState.ERROR).length;
     return { image: composite(target, size), tileErrors, complete };
   } finally {
     clearInterval(pump);
-    tileSources.forEach((source) => source.un('tileloaderror', countError));
+    listeners.forEach((remove) => remove());
     map.setTarget(undefined);
     layers.forEach((layer: BaseLayer) => destroyLayer(layer));
     target.remove();
