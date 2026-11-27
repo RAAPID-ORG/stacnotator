@@ -12,6 +12,7 @@ vi.mock('~/api/client', () => ({
 }));
 
 import { TimeSeriesCache } from './cache';
+import { probeLocation } from '../../timeseriesLocation';
 
 const POINT = { lat: 1.234567, lon: 2.345678 };
 
@@ -90,6 +91,30 @@ describe('TimeSeriesCache', () => {
     await cache.get(7, [1], geometry);
     expect(getZonalTimeseriesDataMock).toHaveBeenCalledTimes(2);
     expect(getTimeseriesDataMock).not.toHaveBeenCalled();
+  });
+
+  it('samples one interior point instead of posting an oversized polygon', async () => {
+    const ring = Array.from({ length: 14_999 }, (_, i) => {
+      const angle = (2 * Math.PI * i) / 14_999;
+      return [Math.cos(angle), Math.sin(angle)];
+    });
+    const field: GeoJSON.Polygon = { type: 'Polygon', coordinates: [[...ring, ring[0]]] };
+    expect(probeLocation(field)).toBe(field);
+    field.coordinates.push([
+      [-0.5, -0.5],
+      [-0.5, 0.5],
+      [0.5, 0.5],
+      [0.5, -0.5],
+      [-0.5, -0.5],
+    ]);
+    const sample = probeLocation(field);
+    expect(sample).toMatchObject({ polygonSample: true });
+    if (!('lon' in sample)) throw new Error('expected point sample');
+    expect(Math.abs(sample.lon)).toBeGreaterThan(0.5);
+    expect(Math.abs(sample.lon)).toBeLessThan(1);
+    await newCache().get(7, [1], sample);
+    expect(getTimeseriesDataMock).toHaveBeenCalledOnce();
+    expect(getZonalTimeseriesDataMock).not.toHaveBeenCalled();
   });
 
   // The key includes the requested ids, so two windows fetching different series

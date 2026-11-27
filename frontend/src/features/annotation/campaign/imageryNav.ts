@@ -272,7 +272,8 @@ export function cycleSource(
   dir: 1 | -1,
   lastBySource: Record<number, SliceAddress>,
   pinnedStart: Record<number, number> = {},
-  hidden: readonly number[] = []
+  hidden: readonly number[] = [],
+  empties: Empties = {}
 ): CycleSourceResult | null {
   const sourceIds = view.source_ids.filter((id) => cat.sources.has(id));
   const basemapIds = [...cat.basemaps.keys()].map((id) => `basemap-${id}`);
@@ -294,24 +295,14 @@ export function cycleSource(
   const target = cat.sources.get(sourceIds[nextIdx]);
   if (!target) return null;
 
-  // A source always opens on its starting collection; only the
-  // visualization it was last shown in is remembered.
-  const startId = sourceStartCollectionId(cat, target.id, pinnedStart, hidden);
-  const start = target.collections.find((c) => c.id === startId);
-  if (!start) return null;
   const rememberedViz = lastBySource[target.id]?.vizId;
-  const vizId = target.visualizations.some((v) => String(v.id) === rememberedViz)
-    ? rememberedViz!
-    : String(target.visualizations[0]?.id ?? '');
-  return {
-    kind: 'source',
-    address: {
-      sourceId: target.id,
-      collectionId: start.id,
-      sliceIndex: start.cover_slice_index ?? 0,
-      vizId,
-    },
-  };
+  const address = sourceAddress(cat, target.id, addr, undefined, pinnedStart, hidden, empties);
+  if (!address) return null;
+  const slice = cat.collections.get(address.collectionId)?.slices[address.sliceIndex];
+  const remember =
+    target.visualizations.some((v) => String(v.id) === rememberedViz) &&
+    (!slice?.tiles.length || slice.tiles.some((t) => String(t.visualization_id) === rememberedViz));
+  return { kind: 'source', address: remember ? { ...address, vizId: rememberedViz } : address };
 }
 
 /** Records where a source was last looked at so cycling back returns there
@@ -384,7 +375,18 @@ interface SliceSearchSource {
 export function findNearestSlice(
   sources: SliceSearchSource[],
   clickedTime: number,
-  activeCollectionId: number | null
+  activeCollectionId: number | null,
+  {
+    eligible = () => true,
+    endTime = clickedTime,
+    includeCovers = false,
+    preferred = new Set<number>(),
+  }: {
+    eligible?: (collectionId: number, index: number) => boolean;
+    endTime?: number;
+    includeCovers?: boolean;
+    preferred?: ReadonlySet<number>;
+  } = {}
 ): { collectionId: number; sliceIndex: number } | null {
   // Active source first, plus the strict `<` below, makes ties prefer it.
   const ordered = [...sources].sort((a, b) => {
@@ -393,18 +395,28 @@ export function findNearestSlice(
     return rank(a) - rank(b);
   });
 
-  let best: { collectionId: number; sliceIndex: number; dist: number } | null = null;
+  let best: { collectionId: number; sliceIndex: number; dist: number; center: number } | null =
+    null;
   for (const source of ordered) {
     for (const col of source.collections) {
       const dedicatedCover = col.has_dedicated_cover ? (col.cover_slice_index ?? 0) : -1;
       for (let i = 0; i < col.slices.length; i++) {
-        if (i === dedicatedCover) continue;
+        if ((!includeCovers && i === dedicatedCover) || !eligible(col.id, i)) continue;
         const { start_date, end_date } = col.slices[i];
-        if (!start_date || !end_date) continue;
-        const mid = (new Date(start_date).getTime() + new Date(end_date).getTime()) / 2;
-        const dist = Math.abs(mid - clickedTime);
-        if (Number.isNaN(dist)) continue;
-        if (!best || dist < best.dist) best = { collectionId: col.id, sliceIndex: i, dist };
+        const start = Date.parse(start_date || end_date || '');
+        const end = Date.parse(end_date || start_date || '');
+        const dist = Math.max(0, start - endTime, clickedTime - end);
+        const center = Math.abs(start + end - clickedTime - endTime);
+        if (!Number.isFinite(dist)) continue;
+        const preference = best
+          ? Number(preferred.has(col.id)) - Number(preferred.has(best.collectionId))
+          : 0;
+        if (
+          !best ||
+          dist < best.dist ||
+          (dist === best.dist && (preference > 0 || (preference === 0 && center < best.center)))
+        )
+          best = { collectionId: col.id, sliceIndex: i, dist, center };
       }
     }
   }
@@ -423,7 +435,15 @@ export function nearestSlice(
   cat: ImageryCatalog,
   epochMs: number,
   addr: SliceAddress | null,
-  view: Pick<ImageryViewOut, 'source_ids'> | null
+  view: Pick<ImageryViewOut, 'source_ids'> | null,
+  options: {
+    hidden?: readonly number[];
+    empties?: Empties;
+    sensor?: string;
+    endTime?: number;
+    includeCovers?: boolean;
+    vizId?: string;
+  } = {}
 ): SliceAddress | null {
   const sources = view
     ? view.source_ids.flatMap((id) => {
@@ -431,19 +451,77 @@ export function nearestSlice(
         return source ? [source] : [];
       })
     : [...cat.sources.values()];
-  const best = findNearestSlice(sources, epochMs, addr?.collectionId ?? null);
+  const hidden = sources.some((s) => s.collections.some((c) => !options.hidden?.includes(c.id)))
+    ? options.hidden
+    : [];
+  const preferred = new Set<number>();
+  const sensor = options.sensor?.toLowerCase();
+  if (sensor) {
+    for (const source of sources) {
+      for (const col of source.collections) {
+        const identity = (col.search?.stac_collection_id ?? source.name)
+          .toLowerCase()
+          .replace(/[-_ ]/g, '');
+        if (identity.startsWith(sensor) || (sensor === 'sentinel2' && identity === 's2'))
+          preferred.add(col.id);
+      }
+    }
+  }
+  const best = findNearestSlice(sources, epochMs, addr?.collectionId ?? null, {
+    ...options,
+    preferred,
+    eligible: (id, i) => {
+      const col = cat.collections.get(id)!;
+      const slice = col.slices[i];
+      return (
+        !hidden?.includes(id) &&
+        !options.empties?.[emptyKey(id, i)] &&
+        sliceHasImagery(cat, slice) &&
+        (!options.vizId ||
+          !slice.tiles.length ||
+          slice.tiles.some((t) => String(t.visualization_id) === options.vizId))
+      );
+    },
+  });
   if (!best) return null;
 
-  const sourceId = cat.sourceOf.get(best.collectionId);
-  const source = sourceId === undefined ? undefined : cat.sources.get(sourceId);
-  if (sourceId === undefined || !source) return null;
+  return collectionAddress(cat, best.collectionId, addr, best.sliceIndex);
+}
 
-  return {
-    sourceId,
-    collectionId: best.collectionId,
-    sliceIndex: best.sliceIndex,
-    vizId: addr?.vizId ?? String(source.visualizations[0]?.id ?? ''),
-  };
+export function sourceAddress(
+  cat: ImageryCatalog,
+  sourceId: number,
+  current: SliceAddress | null,
+  vizId: string | undefined,
+  pinnedStart: Record<number, number>,
+  hidden: readonly number[],
+  empties: Empties
+): SliceAddress | null {
+  const source = cat.sources.get(sourceId);
+  if (!source) return null;
+  const preferred = source.visualizations.find((v) => String(v.id) === vizId);
+  if (current?.sourceId === sourceId)
+    return { ...current, vizId: preferred ? String(preferred.id) : current.vizId };
+  const slice = current && cat.collections.get(current.collectionId)?.slices[current.sliceIndex];
+  const start = Date.parse(slice?.start_date || slice?.end_date || '');
+  if (Number.isFinite(start)) {
+    const options = {
+      hidden,
+      empties,
+      endTime: Date.parse(slice?.end_date || slice?.start_date || ''),
+      vizId: preferred && String(preferred.id),
+    };
+    const view = { source_ids: [sourceId] };
+    const nearest =
+      nearestSlice(cat, start, current, view, options) ??
+      nearestSlice(cat, start, current, view, { ...options, includeCovers: true });
+    if (nearest) return { ...nearest, vizId: options.vizId ?? nearest.vizId };
+  }
+  const id = sourceStartCollectionId(cat, sourceId, pinnedStart, hidden);
+  const fallback = id != null && collectionAddress(cat, id, current);
+  return fallback
+    ? { ...fallback, vizId: preferred ? String(preferred.id) : fallback.vizId }
+    : null;
 }
 
 /** Saved snapshot when there is one, else a default at the fallback

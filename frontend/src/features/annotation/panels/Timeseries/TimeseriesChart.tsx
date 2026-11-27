@@ -38,6 +38,7 @@ import {
 } from './chartData';
 import { savitzkyGolay } from './smoothing';
 import { usePrefsStore } from '../../stores/prefs';
+import { useLayoutStore } from '../../stores/layout';
 
 ChartJS.register(
   LineElement,
@@ -228,7 +229,7 @@ export function Chart({ series, points }: ChartProps) {
   // Reads the address off the store rather than closing over it, so a slice
   // change leaves the chart's options - and with them its datasets - alone.
   const handleChartClick = useCallback(
-    (event: ChartEvent, _elements: ActiveElement[], chart: ChartJS<'line'>) => {
+    (event: ChartEvent, elements: ActiveElement[], chart: ChartJS<'line'>) => {
       const labels = chartData.labels;
       if (!labels.length || event.x == null) return;
       const xScale = chart.scales.x;
@@ -239,10 +240,20 @@ export function Chart({ series, points }: ChartProps) {
       const clickedTime = parseSeriesDate(labels[labelIdx]);
       if (Number.isNaN(clickedTime)) return;
 
-      const target = nearestSlice(catalog, clickedTime, useImageryStore.getState().address, view);
+      const { address, empties } = useImageryStore.getState();
+      const sensor = elements.length
+        ? series[elements[0].datasetIndex % series.length]?.data_source
+        : series.every((ts) => ts.data_source === series[0]?.data_source)
+          ? series[0]?.data_source
+          : undefined;
+      const target = nearestSlice(catalog, clickedTime, address, view, {
+        sensor,
+        empties,
+        hidden: useLayoutStore.getState().currentLayout.hidden,
+      });
       if (target) setImageryAddress(target);
     },
-    [chartData.labels, catalog, view, setImageryAddress]
+    [chartData.labels, catalog, view, series, setImageryAddress]
   );
 
   const handleResetZoom = useCallback(() => chartRef.current?.resetZoom(), []);

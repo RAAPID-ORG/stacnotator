@@ -23,7 +23,7 @@ import { createLayer, destroyLayer } from '~/shared/map/layers';
 import type { LayerSpec } from '~/shared/map/types';
 import type { ImageryCatalog } from '../campaign/imagery';
 import { wktToGeometry } from '../campaign/annotation';
-import { geometryLocation } from '../campaign/probes';
+import { geometryLocation } from '../timeseriesLocation';
 import { sceneSourceOf } from '../campaign/scenes';
 import { sliceRaster } from '../campaign/tileUrls';
 import { probeColor } from '../map/compose';
@@ -616,7 +616,11 @@ async function drawChart(
       kind: 'timeseries',
       center,
       label: [
-        'type' in points[0] ? 'time series (task polygon mean)' : 'time series',
+        'type' in points[0]
+          ? 'time series (task polygon mean)'
+          : 'polygonSample' in points[0]
+            ? 'time series (point sampled inside task polygon)'
+            : 'time series',
         cell.remove_cloudy ? 'cloudy removed' : 'grey dots cloudy',
       ]
         .concat(cell.smoothed ? ['smoothed'] : [])

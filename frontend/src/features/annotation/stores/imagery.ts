@@ -143,7 +143,8 @@ export const useImageryStore = create<ImageryState>((set) => ({
   vizEditorOpen: false,
 
   toggleVizEditor: (open) => set((s) => ({ vizEditorOpen: open ?? !s.vizEditorOpen })),
-  setAddress: (address) => set((s) => land(s, address)),
+  setAddress: (address) =>
+    set((s) => ({ ...land(s, address), showBasemap: address ? false : s.showBasemap })),
 
   rememberWindowSlice: (collectionId, sliceIndex, byUser = false) =>
     set((s) => ({
@@ -194,7 +195,8 @@ export const useImageryStore = create<ImageryState>((set) => ({
         dir,
         lastBySource,
         pinnedStart,
-        hidden
+        hidden,
+        s.empties
       );
       if (!result) return s;
       return result.kind === 'basemap'

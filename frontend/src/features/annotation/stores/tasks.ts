@@ -7,7 +7,8 @@ import {
   type TaskRowAnswer,
 } from '~/shared/utils/taskSummary';
 import { squareAround, wktToGeometry } from '../campaign/annotation';
-import { isZonalGeometry, probeLocation, type TimeseriesLocation } from '../campaign/probes';
+import { isZonalGeometry, type TimeseriesLocation } from '../campaign/probes';
+import { probeLocation } from '../timeseriesLocation';
 import type { ImageryCatalog } from '../campaign/imagery';
 import {
   applyTaskFilter,
@@ -190,7 +191,7 @@ function focusExtent(
  *  coordinates, so it matches the key it was prefetched under as an upcoming
  *  task. */
 const taskLocation = (geometry: GeoJSON.Geometry, center: LonLat): TimeseriesLocation =>
-  isZonalGeometry(geometry) ? geometry : probeLocation(center);
+  probeLocation(isZonalGeometry(geometry) ? geometry : center);
 
 /** The centre comes from the summary and never moves once the details arrive;
  *  the outline and the time series location wait for the details' geometry. */
