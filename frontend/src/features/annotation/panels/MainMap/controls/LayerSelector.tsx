@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useLayoutStore } from '../../../stores/layout';
 import { type ImageryCatalog } from '../../../campaign/imagery';
 import { type SliceAddress } from '../../../campaign/imageryNav';
-import { restoreSnapshot, sourceStartCollectionId } from '../../../campaign/imageryNav';
+import { sourceAddress } from '../../../campaign/imageryNav';
 import { usePrefsStore } from '../../../stores/prefs';
 import { useImageryStore } from '../../../stores/imagery';
 import { HeaderSelect, type HeaderSelectOption } from '../../../components/HeaderSelect';
@@ -21,16 +21,16 @@ function addressFor(
   vizId: string,
   current: SliceAddress | null
 ): SliceAddress | null {
-  if (current && current.sourceId === sourceId) return { ...current, vizId };
-  const collectionId = sourceStartCollectionId(
+  const address = sourceAddress(
     catalog,
     sourceId,
+    current,
+    vizId,
     usePrefsStore.getState().pinnedStart,
-    useLayoutStore.getState().currentLayout.hidden
+    useLayoutStore.getState().currentLayout.hidden,
+    useImageryStore.getState().empties
   );
-  if (collectionId == null) return null;
-  const base = restoreSnapshot(catalog, undefined, collectionId).address;
-  return base ? { ...base, vizId } : null;
+  return address ? { ...address, vizId } : null;
 }
 
 export interface LayerSelectorProps {
@@ -68,7 +68,6 @@ export function LayerSelector({ catalog, sourceIds, title, expanded = false }: L
     const target = addressFor(catalog, Number(sourceId), vizId, address);
     if (!target) return;
     setAddress(target);
-    setShowBasemap(false);
   };
 
   const editable = (source: (typeof sources)[number]) =>
@@ -91,7 +90,6 @@ export function LayerSelector({ catalog, sourceIds, title, expanded = false }: L
     if (!target) return;
     rememberLastAddress(address);
     setAddress(target);
-    setShowBasemap(false);
     useImageryStore.getState().toggleVizEditor(true);
   };
 

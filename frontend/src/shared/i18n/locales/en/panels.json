@@ -225,6 +225,7 @@
     "legendInfo": "Time series legend explanation",
     "chartOptions": "Chart options",
     "zonalMean": "Polygons: mean index of clear pixels",
+    "polygonSample": "Polygons over 15,000 vertices are sampled at one interior point, not averaged.",
     "zonalHelp": "Each polygon observation averages the index over valid, clear pixels at the source resolution. If none are clear, the valid-pixel mean is flagged cloudy. Missing pixels are excluded.",
     "showSeries": "Show {{name}}",
     "hideSeries": "Hide {{name}}",

@@ -3,12 +3,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TimeseriesWindow } from '../../campaign/timeseries';
 import { Spinner } from '~/shared/ui/Spinner';
-import {
-  locationKey,
-  probeLocation,
-  type Probe,
-  type TimeseriesLocation,
-} from '../../campaign/probes';
+import { locationKey, type Probe, type TimeseriesLocation } from '../../campaign/probes';
+import { probeLocation } from '../../timeseriesLocation';
 import { useWorkStore } from '../../stores/work';
 import { useMapFocus } from '../../stores/tasks';
 import { Chart, type ChartPoint } from './TimeseriesChart';
@@ -170,6 +166,9 @@ export function TimeseriesPanel({ window: tsWindow }: TimeseriesPanelProps) {
         <p className="text-[10px] text-neutral-500" title={t('timeseries.zonalHelp')}>
           {t('timeseries.zonalMean')}
         </p>
+      )}
+      {points.some(({ location }) => 'polygonSample' in location) && (
+        <p className="text-[10px] text-neutral-500">{t('timeseries.polygonSample')}</p>
       )}
       {isLoading && (
         <div className="absolute top-2 right-2 z-10">

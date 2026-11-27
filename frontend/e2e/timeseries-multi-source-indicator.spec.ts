@@ -107,6 +107,9 @@ test.describe('Multi-source: active-window indicator', () => {
       timeout: 3000,
     });
     await expect(mainSliceBtn(annotationPage)).toContainText(SEP_WK2.name);
+    await expect(annotationPage.locator('[data-tour="layer-selector"]').first()).toContainText(
+      'VHR'
+    );
   });
 
   test('P2: changing source B window slice via its slice picker updates the indicator', async ({

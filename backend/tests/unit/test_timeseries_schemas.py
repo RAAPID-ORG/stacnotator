@@ -225,10 +225,11 @@ def test_zone_bounds_vertex_count():
     import math
 
     ring = [
-        [0.01 * math.cos(2 * math.pi * i / 1000), 0.01 * math.sin(2 * math.pi * i / 1000)]
-        for i in range(1000)
+        [0.01 * math.cos(2 * math.pi * i / 15000), 0.01 * math.sin(2 * math.pi * i / 15000)]
+        for i in range(15000)
     ]
-    with pytest.raises(ValidationError, match="1001 vertices"):
+    _zone({"type": "Polygon", "coordinates": [[*ring[:-1], ring[0]]]})
+    with pytest.raises(ValidationError, match="15001 vertices"):
         _zone({"type": "Polygon", "coordinates": [[*ring, ring[0]]]})
 
 

@@ -248,7 +248,7 @@ class TimeseriesDataResponse(BaseModel):
 # ============================================================================
 
 MAX_ZONE_AREA_KM2 = 50.0
-MAX_ZONE_VERTICES = 1000
+MAX_ZONE_VERTICES = 15_000
 MAX_ZONE_PARTS = 10
 # Earth Engine draws the edges straight in longitude/latitude, so a ring spanning more
 # than half the globe goes the long way round, where a geodesic area would measure the

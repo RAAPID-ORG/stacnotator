@@ -1,7 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { buildImageryCatalog } from './imagery';
-import { makeCampaign, makeCollection, makeSlice, makeSource, makeViz } from '../testing/fixtures';
-import { findNearestSlice, nearestSlice } from './imageryNav';
+import {
+  makeCampaign,
+  makeCollection,
+  makeSlice,
+  makeSource,
+  makeTile,
+  makeViz,
+} from '../testing/fixtures';
+import { findNearestSlice, nearestSlice, sourceAddress } from './imageryNav';
 
 const day = (d: string) => new Date(d).getTime();
 
@@ -135,7 +142,13 @@ const s2 = makeSource({
       name: 'Col',
       slices: [
         makeSlice({ id: 1000, name: 's1', start_date: '2024-01-01', end_date: '2024-01-31' }),
-        makeSlice({ id: 1001, name: 's2', start_date: '2024-06-01', end_date: '2024-06-30' }),
+        makeSlice({
+          id: 1001,
+          name: 's2',
+          start_date: '2024-06-01',
+          end_date: '2024-06-30',
+          tiles: [100, 101].map((visualization_id) => makeTile({ visualization_id })),
+        }),
       ],
     }),
   ],
@@ -145,6 +158,63 @@ const campaign = makeCampaign({ imagery_sources: [s2] });
 const cat = buildImageryCatalog(campaign);
 
 describe('nearestSlice (catalog-level)', () => {
+  it('switches from a daily scene to the visible Sentinel period with its own visualization', () => {
+    const daily = makeSource({
+      id: 2,
+      visualizations: [makeViz({ id: 200, name: 'True Color' })],
+      collections: [
+        makeCollection({
+          id: 20,
+          slices: [
+            makeSlice({
+              id: 2000,
+              start_date: '2024-06-30',
+              end_date: '2024-06-30',
+              tiles: [makeTile({ visualization_id: 200 })],
+            }),
+          ],
+        }),
+      ],
+    });
+    const june = {
+      ...s2.collections[0],
+      search: { catalog_url: 'catalog', stac_collection_id: 'sentinel-2-l2a' },
+    };
+    const catalog = buildImageryCatalog(
+      makeCampaign({ imagery_sources: [daily, { ...s2, collections: [june] }] })
+    );
+    const current = { sourceId: 2, collectionId: 20, sliceIndex: 0, vizId: '200' };
+    const target = { sourceId: 1, collectionId: 10, sliceIndex: 1, vizId: '100' };
+    expect(
+      nearestSlice(
+        catalog,
+        day('2024-06-30'),
+        current,
+        { source_ids: [2, 1] },
+        { sensor: 'SENTINEL2' }
+      )
+    ).toEqual(target);
+    expect(sourceAddress(catalog, 1, current, undefined, {}, [], {})).toEqual(target);
+    const manual = buildImageryCatalog(makeCampaign({ imagery_sources: [daily, s2] }));
+    expect(
+      nearestSlice(
+        manual,
+        day('2024-06-30'),
+        current,
+        { source_ids: [2, 1] },
+        { sensor: 'SENTINEL2', hidden: [10, 20] }
+      )
+    ).toEqual(target);
+    expect(
+      nearestSlice(
+        catalog,
+        day('2024-06-30'),
+        current,
+        { source_ids: [2, 1] },
+        { empties: { '20:0': true } }
+      )
+    ).toEqual(target);
+  });
   it('resolves collectionId/sliceIndex back to a full SliceAddress, preserving the current viz', () => {
     const addr = nearestSlice(
       cat,
